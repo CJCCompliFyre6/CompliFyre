@@ -1,0 +1,253 @@
+{% extends "audit_base.html" %}
+{% block content %}
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6">
+  <!-- ... existing project details, description, guidelines ... -->
+  <div class="mx-8 mb-6">
+    <div class="bg-white rounded-xl my-2 p-6">
+      <div class="border-b border-gray-200 pb-4 mb-4">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center mb-4">
+          <svg class="w-6 h-6 mr-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+            </path>
+          </svg>
+          Project Details
+        </h2>
+      </div>
+    </div>
+
+    {% if project %}
+    <div class="bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 p-6 rounded-lg border-l-4 border-blue-500 mb-6">
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="text-center md:text-left">
+          <h3 class="text-sm font-semibold text-blue-800 uppercase tracking-wide mb-2">Project Name</h3>
+          <p class="text-xl font-bold text-blue-900">{{ project.project_name }}</p>
+        </div>
+
+        <div class="text-center md:text-left">
+          <h3 class="text-sm font-semibold text-green-800 uppercase tracking-wide mb-2">Client</h3>
+          <p class="text-xl font-bold text-green-900">
+            {{ project.client_rel.name if project.client_rel else "No Client Assigned" }}
+          </p>
+        </div>
+
+        <div class="text-center md:text-left">
+          <h3 class="text-sm font-semibold text-purple-800 uppercase tracking-wide mb-2">Departments</h3>
+          <div class="flex flex-wrap gap-1 justify-center md:justify-start mt-1">
+            {% if project.departments %}
+            {% for dept in project.departments %}
+            <span class="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
+              {{ dept.department_name }}
+            </span>
+            {% endfor %}
+            {% elif project.primary_department %}
+            <span class="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
+              {{ project.primary_department.department_name }}
+            </span>
+            {% else %}
+            <span class="text-gray-500 text-sm">No Departments</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Description - Full Width -->
+    <div class="mt-6">
+      <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border-l-4 border-orange-500">
+        <h3 class="text-sm font-semibold text-orange-800 uppercase tracking-wide mb-2">Project Description</h3>
+        <p class="text-gray-700 leading-relaxed">
+          {{ project.project_description }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Guidelines Section (with filter radios) -->
+    <div class="mt-6">
+      <div class="bg-gradient-to-r from-indigo-50 to-indigo-100 p-4 rounded-lg border-l-4 border-indigo-500">
+        <h3 class="text-sm font-semibold text-indigo-800 uppercase tracking-wide mb-3">Guidelines</h3>
+        <div class="bg-white rounded-lg p-3 border border-indigo-200">
+          {% if project.project_guidelines %}
+          <ul class="space-y-2">
+            <li class="flex items-center">
+              <input type="radio" name="guidelineFilter" value="all" checked class="mr-2 guideline-radio" />
+              <span class="text-gray-700 font-medium">All Guidelines</span>
+            </li>
+            {% for pg_item in project.project_guidelines %}
+            <li class="flex items-center">
+              <input type="radio" name="guidelineFilter" value="{{ pg_item.id }}" class="mr-2 guideline-radio" />
+              <span class="text-gray-700 font-medium">
+                {{ pg_item.guideline_data.DocumentDetails.DocumentName }}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="text-gray-500">No Guidelines Associated</p>
+          {% endif %}
+        </div>
+
+      </div>
+      <div class="bg-gradient-to-r from-indigo-50 to-indigo-100 p-4 rounded-lg border-l-4 border-indigo-500  my-4">
+        <p class="text-red-700 font-bold text-base mb-2">Clause</p>
+        <p class="text-sm text-gray-700">
+          <span class="font-semibold">{{ clause.clause_no }}</span> - {{ clause.clause_text }}
+        </p>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
+      <p class="text-red-700 font-medium">Project information not available</p>
+    </div>
+    {% endif %}
+    <!-- Clause Section -->
+    <div class="w-auto bg-orange-100 rounded-xl p-6 my-4">
+
+    </div>
+
+
+
+    <!-- Control Activities Table -->
+    <div class="w-auto mx-8 bg-orange-100 rounded-xl p-6 mt-4 mb-[10rem]">
+      <div class="flex justify-between items-center mb-4 mx-8">
+        <h3 class="text-lg font-semibold">Control Activities</h3>
+        <button id="edit-mode-toggle"
+          class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-all text-sm">
+          Edit
+        </button>
+      </div>
+
+      <div class="overflow-x-auto mx-8">
+        <table class="min-w-full border border-orange-600">
+          <thead>
+            <tr class="bg-orange-300 text-left text-sm font-semibold text-orange-700">
+              <th class="px-4 py-2 border">Control Code</th>
+              <th class="px-4 py-2 border">Activity</th>
+
+              <th class="px-4 py-2 border">Applicability</th>
+              <th class="px-4 py-2 border">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="text-sm text-gray-700">
+            {% for control in control_activities %}
+            <!-- Note: The data-id for applicability now points to the parent compliance activity -->
+            <tr data-parent-activity-id="{{ control.parent_activity_id }}">
+              <td class="px-4 py-2 border">{{ control.activity_code }}</td>
+              <td class="px-4 py-2 border">{{ control.parent_activity_description }}</td>
+
+              <td class="px-4 py-2 border text-center">
+                <button
+                  class="toggle-applicability px-3 py-1 rounded text-white {% if control.parent_applicability %} bg-green-600 {% else %} bg-red-600 {% endif %}">
+                  {% if control.parent_applicability %} Applicable {% else %} Not Applicable {% endif %}
+                </button>
+              </td>
+              <td class="px-4 py-2 border">
+                <div class="flex items-center space-x-2">
+                  <a href="{{ url_for('re.test_evidence_artifacts', activity_id=control.id) }}">
+                    <button class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+                      Test Steps
+                    </button>
+                  </a>
+
+
+                  <!-- Refetch Form and Button (Initially Hidden) -->
+                  <form action="{{ url_for('audit.refetch_project_test_procedure') }}" method="POST"
+                    class="refetch-form">
+                    <input type="hidden" name="project_control_activity_id" value="{{ control.id }}">
+                    <input type="hidden" name="master_control_activity_id" value="{{ control.original_control_id }}">
+                    <input type="hidden" name="parent_compliance_activity_id" value="{{ control.parent_activity_id }}">
+                    <button type="submit"
+                      class="refetch-button hidden px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                      Refetch
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="text-center py-4">No control activities found for this clause .</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // --- Applicability Toggle Logic (Updated to use parent activity ID) ---
+      const baseUrl = "{{ url_for('re.applicability_status') }}";
+      document.querySelectorAll(".toggle-applicability").forEach(button => {
+        button.addEventListener("click", function () {
+          const row = this.closest("tr");
+          const parentActivityId = row.getAttribute("data-parent-activity-id"); // Get parent ID
+
+          fetch(`${baseUrl}?activity_id=${parentActivityId}`) // Use parent ID in fetch
+            .then(response => response.json())
+            .then(data => {
+              if (data.status === "success") {
+                // Update all buttons related to the same parent activity
+                document.querySelectorAll(`tr[data-parent-activity-id="${parentActivityId}"] .toggle-applicability`).forEach(btn => {
+                  if (data.applicability) {
+                    btn.textContent = "Applicable";
+                    btn.classList.remove("bg-red-600");
+                    btn.classList.add("bg-green-600");
+                  } else {
+                    btn.textContent = "Not Applicable";
+                    btn.classList.remove("bg-green-600");
+                    btn.classList.add("bg-red-600");
+                  }
+                });
+              } else {
+                // NOTE: A custom modal is better than alert() for user experience.
+                alert("Error: " + data.message);
+              }
+            })
+            .catch(err => {
+              console.error("AJAX Error:", err);
+              alert("Failed to update applicability status.");
+            });
+        });
+      });
+
+      // --- Edit Mode & Refetch Button Logic ---
+      const editModeToggle = document.getElementById('edit-mode-toggle');
+      const refetchButtons = document.querySelectorAll('.refetch-button');
+
+      editModeToggle.addEventListener('click', () => {
+        let isEditing = editModeToggle.textContent === 'Cancel';
+        if (isEditing) {
+          editModeToggle.textContent = 'Edit';
+          editModeToggle.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+          editModeToggle.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+        } else {
+          editModeToggle.textContent = 'Cancel';
+          editModeToggle.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+          editModeToggle.classList.add('bg-gray-600', 'hover:bg-gray-700');
+        }
+
+        refetchButtons.forEach(button => {
+          button.classList.toggle('hidden');
+        });
+      });
+
+      // --- Refetch Form Submission Confirmation ---
+      document.querySelectorAll('.refetch-form').forEach(form => {
+        form.addEventListener('submit', function (event) {
+          // NOTE: A custom, non-blocking modal is better for UX than a confirm() dialog.
+          const confirmed = confirm('Are you sure you want to refetch this test procedure? All current data for it will be deleted and replaced.');
+          if (!confirmed) {
+            event.preventDefault(); // Stop the form from submitting if the user cancels
+          }
+        });
+      });
+
+    });
+  </script>
+
+  {% endblock %}

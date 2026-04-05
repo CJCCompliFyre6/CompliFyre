@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-vertical-style="overlay" data-theme-mode="light" data-header-styles="light" data-menu-styles="light" data-toggled="close">
+
+<head>
+
+    <!-- Meta Data -->
+    <meta charset="UTF-8">
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Complifyre</title>
+    <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+    <meta name="Author" content="Spruko Technologies Private Limited">
+<meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+
+    <!-- Style Css -->
+<style>
+    /* Global Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+/* Body Styling */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #000;
+  color: #fff;
+}
+
+/* Logo Styling */
+.logo {
+  width: 150px;
+  height: auto;
+  margin: 0 auto;
+  display: block;
+  max-width: 100%; /* Ensures logo scales properly */
+}
+
+/* Custom Card (Login Container) */
+.custom-card {
+  background-color: #1c1c1c;
+  border-radius: 20px;
+  box-shadow: 0 10px 6px rgba(0, 0, 0, 0.2);
+  padding: 40px;
+  text-align: left;
+  width: 100%; 
+  max-width: 350px; /* Prevents overflow on small screens */
+}
+
+/* Heading and Subheading */
+.custom-card p.h4 {
+  font-size: 24px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.custom-card p.text-muted {
+  margin-bottom: 30px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Form Controls */
+.form-control {
+  width: 100%;
+  padding: 10px;
+  margin: 15px 0;
+  border: none;
+  border-radius: 6px;
+  background-color: #333;
+  color: #fff;
+  font-size: 16px;
+  text-align: left;
+}
+
+.custom-card .form-label {
+  margin-bottom: 10px;
+}
+
+.custom-card .form-control {
+  margin-top: 10px;
+}
+
+/* Password Visibility Button */
+.position-relative {
+  width: 100%;
+}
+
+.show-password-button {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #999;
+}
+
+.show-password-button:hover {
+  color: #fff;
+}
+
+/* Continue Button */
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(to right, #f76b1c, #ffa62b);
+  border: none;
+  border-radius: 25px;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 10px rgba(255, 166, 43, 0.4);
+  margin-top: 10px;
+  text-decoration: none;
+}
+
+.btn-primary:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(255, 166, 43, 0.6);
+}
+
+/* Grid Styling */
+.d-grid {
+  display: grid;
+  place-items: center;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* ✅ Responsive Fixes */
+@media (max-width: 576px) {
+    .custom-card {
+        padding: 20px;
+    }
+
+    .custom-card p.h4 {
+        font-size: 20px;
+    }
+
+    .custom-card p.text-muted {
+        font-size: 12px;
+    }
+
+    .form-control {
+        font-size: 14px;
+        padding: 8px;
+    }
+
+    .btn-primary {
+        font-size: 18px;
+        padding: 10px;
+    }
+}
+
+</style>
+</head>
+<body class="authentication-background">
+    <div class="container-lg">
+        <div class="row justify-content-center align-items-center authentication authentication-basic h-100">
+            <div class="col-xxl-4 col-xl-5 col-lg-5 col-md-6 col-sm-8 col-12">
+                <div class="my-5 d-flex justify-content-center"> 
+
+                <div class="card custom-card my-4">
+                    <div class="card-body p-5">
+                        <!-- Logo -->
+                        <div class="my-3">
+                            <img src="assets/img/logo_horizontal_new_transparent.png" alt="logo" class="logo">
+                        </div>
+                        
+                        <!-- Sign Up Heading -->
+                        <p class="h4 mb-2 fw-semibold">Login to your RE Account</p>
+                        <p class="mb-4 text-muted">Welcome back! Select method to log in:</p>
+                
+                        <!-- Form -->
+                        <div class="row gy-3">
+                            <div class="col-xl-12">
+                                <label for="signup-firstname" class="form-label text-default">User Name</label>
+                                <input type="email" class="form-control" id="signup-firstname" placeholder="Enter Username">
+                            </div>
+                            <div class="col-xl-12">
+                                <label for="signup-password" class="form-label text-default">Password</label>
+                                <div class="position-relative">
+                                    <input type="password" class="form-control" id="signup-password" placeholder="Password">
+                                    <a href="javascript:void(0);" class="show-password-button text-muted" onclick="createpassword('signup-password', this)" id="button-addon2">
+                                        <i class="ri-eye-off-line align-middle"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid mt-4">
+                            <a href="{{url_for('audit.dashboard')}}" class="btn btn-primary">Continue</a>
+                        </div>
+                    </div>
+                </div>
+
+</body>
+
+</html>

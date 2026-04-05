@@ -1,0 +1,71 @@
+{% extends "re_base.html" %}
+{% block content %}   
+     <link rel="stylesheet" href="assets/css/user.css" />
+  
+    <main class="main">
+      
+  <div class="user">
+    <h3>User List</h3>
+    <p><a href="#">Dashboard</a> / User List</p>
+    </div>
+
+
+        <div class="container">
+          <div class="flex items-center justify-between gap-4 flex-wrap my-6 search-export">
+            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-4 px-6 border border-green-700 rounded"
+                    onclick="window.location.href='{{ url_for('re.admin') }}'">
+              Add New User
+            </button>
+            <div class="flex items-center gap-4">
+              <input type="text" id="search" placeholder="Search.." class="border border-gray-300 rounded px-4 py-2">
+              <span class="export cursor-pointer text-blue-600 font-semibold" onclick="exportToCSV()">Export to CSV</span>
+            </div>
+            </div>
+<div class="table-container"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email ID</th>
+                        <th>Department</th>
+                        <th>User Profile</th>
+                        <th>User Type</th>
+                        <th>Contact Number</th>
+                        <th>Role Description</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                  {% for user in users %}
+                  <tr>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.department_id if user.department_id else 'N/A' }}</td>
+                    <td>{{ user.role_id if user.role_id else 'N/A' }}</td>
+                    <td>{{ user.user_type_id if user.user_type_id else 'N/A' }}</td>
+                    <td>{{ user.phone_no if user.phone_no else 'N/A' }}</td>
+                    <td>{{ user.role_id if user.role_id else 'N/A' }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+            </table>
+            
+            <div class="entries-container">
+                <div>
+                    <select id="entries">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="15">15</option>
+                    </select>
+                </div>
+                <div class="pagination">
+                    <button id="prev">&lt;</button>
+                    <span id="pageNumber">1</span>
+                    <button id="next">&gt;</button>
+                </div>
+            </div>
+        </div>
+      </div>
+        </main>
+
+    <script src="assets/js/user.js"></script>
+{%endblock%}

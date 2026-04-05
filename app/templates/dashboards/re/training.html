@@ -1,0 +1,86 @@
+{% extends "re_base.html" %} {% block content %}
+
+<link rel="stylesheet" href="assets/css/training.css" />
+
+<main class="main">
+  <div class="training">
+    <h3>Training Completion Rate</h3>
+    <p><a href="#">Dashboard</a> / Training Completion Rate</p>
+  </div>
+
+  <div class="container">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search..." />
+      <span class="export" onclick="exportToCSV()">Export to CSV</span>
+    </div>
+    <div class="content">
+      <div class="table-container">
+        <div class="table-wrapper">
+          <h3>Training Data</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Training Module</th>
+                <th>Total Employees</th>
+                <th>Employees Trained</th>
+                <th>Completion Rate</th>
+                <th>Last Training Date</th>
+                <th>Comments</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr>
+                <td>AML Training</td>
+                <td>500</td>
+                <td>450</td>
+                <td>90%</td>
+                <td>01-10-2023</td>
+                <td>Needs refresher course soon</td>
+              </tr>
+              <tr>
+                <td>Cybersecurity Awareness</td>
+                <td>500</td>
+                <td>500</td>
+                <td>100%</td>
+                <td>15-09-2023</td>
+                <td>Excellent completion rate</td>
+              </tr>
+              <tr>
+                <td>Compliance Policies Overview</td>
+                <td>500</td>
+                <td>400</td>
+                <td>80%</td>
+                <td>20-09-2023</td>
+                <td>Further push needed</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="search-bar">
+          <select id="entriesSelect" onchange="updateTableEntries()">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+        <div class="pagination">
+          <button id="prevPageBtn" onclick="changePage('prev')">
+            &laquo; Prev
+          </button>
+          <span id="pageNumbers"></span>
+          <button id="nextPageBtn" onclick="changePage('next')">
+            Next &raquo;
+          </button>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h3>Completion Rate by Training Module</h3>
+        <canvas id="completionChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <script src="assets/js/training.js"></script>
+  {%endblock%}
+</main>

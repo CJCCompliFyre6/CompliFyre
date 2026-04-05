@@ -1,0 +1,335 @@
+{% extends "re_base.html" %}
+{% block content %}  
+
+    <link rel="stylesheet" href="assets/css/view1.css" />
+    
+
+    <main class="main">
+    <div class="cyber">
+        <h3>Controls-Cyber sec</h3>
+        <p><a href="#">Dashboard</a> / <a href="#">Guidelines List</a> / Controls-Cyber sec</p>
+      </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="active" onclick="switchTab(event, 'cybersec')">Controls - Cyber Sec</button>
+            <button onclick="switchTab(event, 'irac')">Controls - IRAC</button>
+        </div>
+
+        
+        <div id="cybersec" class="tab-content active">
+            <div class="search-export">
+                <input type="text" id="search" placeholder="Search..">
+                <span class="export" onclick="exportTableToCSV('cybersec_controls.csv')">Export to CSV</span>
+            </div>
+
+            <div class="table-container">
+            <table id="cybersec-table">
+              <thead>
+                    <tr>
+                        <th>Control ID</th>
+                        <th>Control Description</th>
+                        <th>Control Type</th>
+                        <th>Control Implementation Type</th>
+                        <th>Is it a Key Control (Yes/No)</th>
+                        <th>Owner ID</th>
+                        <th>Monitoring Frequency</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                  <tr>
+                    <td>CS-001</td>
+                    <td>Implement a robust Information Security Policy</td>
+                    <td>Policy Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-001</td>
+                    <td>Annual</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-002</td>
+                    <td>Conduct regular risk assessments to identify vulnerabilities</td>
+                    <td>Risk Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-002</td>
+                    <td>Semi-Annual</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-003</td>
+                    <td>Ensure data encryption for sensitive information</td>
+                    <td>Technical Control</td>
+                    <td>Automated</td>
+                    <td>Yes</td>
+                    <td>IS-003</td>
+                    <td>Continuous</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-004</td>
+                    <td>Establish incident response and management procedures</td>
+                    <td>Operational Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-004</td>
+                    <td>Annual</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-005</td>
+                    <td>Train employees on cyber security awareness and practices</td>
+                    <td>Training Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-005</td>
+                    <td>Quarterly</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-006</td>
+                    <td>Implement multi-factor authentication for critical systems</td>
+                    <td>Technical Control</td>
+                    <td>Automated</td>
+                    <td>Yes</td>
+                    <td>IS-006</td>
+                    <td>Continuous</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-007</td>
+                    <td>Regularly update and patch systems and applications</td>
+                    <td>Technical Control</td>
+                    <td>Automated</td>
+                    <td>Yes</td>
+                    <td>IS-007</td>
+                    <td>Monthly</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-008</td>
+                    <td>Monitor and log access to sensitive data and systems</td>
+                    <td>Monitoring Control</td>
+                    <td>Automated</td>
+                    <td>Yes</td>
+                    <td>IS-008</td>
+                    <td>Continuous</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-009</td>
+                    <td>Ensure secure configurations for all systems and applications</td>
+                    <td>Technical Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-009</td>
+                    <td>Quarterly</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-010</td>
+                    <td>Establish third-party risk management controls</td>
+                    <td>Compliance Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-010</td>
+                    <td>Annual</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-011</td>
+                    <td>Regular vulnerability scanning and penetration testing</td>
+                    <td>Technical Control</td>
+                    <td>Automated</td>
+                    <td>Yes</td>
+                    <td>IS-011</td>
+                    <td>Quarterly</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-012</td>
+                    <td>Develop and test a business continuity plan</td>
+                    <td>Operational Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-012</td>
+                    <td>Annual</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-013</td>
+                    <td>Implement physical security controls for data centers</td>
+                    <td>Physical Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-013</td>
+                    <td>Annual</td>
+                    <td>Active</td>
+                </tr>
+                <tr>
+                    <td>CS-014</td>
+                    <td>Conduct audits of cyber security controls</td>
+                    <td>Audit Control</td>
+                    <td>Manual</td>
+                    <td>Yes</td>
+                    <td>IS-014</td>
+                    <td>Bi-Annual</td>
+                    <td>Active</td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="table-controls">
+              <div class="entries-box">
+                <select id="cybersec-entries" onchange="updateTableCyberSec()">
+                  <option value="5">5</option>
+                      <option value="10" selected>10</option>
+                      <option value="15">15</option>
+                      <option value="20">20</option>
+                  </select>
+              </div>
+              <div class="pagination" id="cybersec-pagination"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="irac" class="tab-content">
+          <div class="search-export">
+            <input type="text" id="search-irac" placeholder="Search..">
+            <span class="export" onclick="exportTableToCSV('irac_controls.csv')">Export to CSV</span>
+        </div>
+
+        <div class="table-container">
+        <table id="irac-table">
+            <thead>
+                <tr>
+                  <th>Control ID</th>
+                  <th>Control Description</th>
+                  <th>Control Type</th>
+                  <th>Control Implementation Type</th>
+                  <th>Is it a Key Control (Yes/No)</th>
+                  <th>Owner ID</th>
+                  <th>Frequency of Monitoring</th>
+                  <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="irac-table-body">
+              <tr>
+                  <td>IRAC-001</td>
+                  <td>Ensure timely recognition of income based on accrual principles</td>
+                  <td>Financial Control</td>
+                  <td>Manual</td>
+                  <td>Yes</td>
+                  <td>F001</td>
+                  <td>Monthly</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-002</td>
+                  <td>Conduct quarterly asset classification reviews to identify NPAs</td>
+                  <td>Operational Control</td>
+                  <td>Automated</td>
+                  <td>Yes</td>
+                  <td>F002</td>
+                  <td>Quarterly</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-003</td>
+                  <td>Implement a robust KYC process to assess borrower creditworthiness</td>
+                  <td>Compliance Control</td>
+                  <td>Automated</td>
+                  <td>Yes</td>
+                  <td>F003</td>
+                  <td>Continuous</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-004</td>
+                  <td>Ensure all credit facilities are reviewed for impairment indicators</td>
+                  <td>Financial Control</td>
+                  <td>Manual</td>
+                  <td>Yes</td>
+                  <td>F004</td>
+                  <td>Quarterly</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-005</td>
+                  <td>Maintain detailed documentation for all loan approvals</td>
+                  <td>Documentation Control</td>
+                  <td>Manual</td>
+                  <td>Yes</td>
+                  <td>F005</td>
+                  <td>Monthly</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-006</td>
+                  <td>Establish criteria for classifying assets as standard, sub-standard, doubtful, or loss</td>
+                  <td>Compliance Control</td>
+                  <td>Manual</td>
+                  <td>Yes</td>
+                  <td>F006</td>
+                  <td>Annual</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-007</td>
+                  <td>Conduct stress testing for the loan portfolio</td>
+                  <td>Risk Control</td>
+                  <td>Automated</td>
+                  <td>Yes</td>
+                  <td>F007</td>
+                  <td>Semi-Annual</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-008</td>
+                  <td>Monitor and report provisioning levels in line with regulatory requirements</td>
+                  <td>Financial Control</td>
+                  <td>Automated</td>
+                  <td>Yes</td>
+                  <td>F008</td>
+                  <td>Monthly</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-009</td>
+                  <td>Implement a training program for staff on IRAC guidelines</td>
+                  <td>Training Control</td>
+                  <td>Manual</td>
+                  <td>No</td>
+                  <td>F009</td>
+                  <td>Annually</td>
+                  <td>Active</td>
+              </tr>
+              <tr>
+                  <td>IRAC-010</td>
+                  <td>Ensure regular internal audits of the credit risk management framework</td>
+                  <td>Audit Control</td>
+                  <td>Manual</td>
+                  <td>Yes</td>
+                  <td>F010</td>
+                  <td>Bi-Annual</td>
+                  <td>Active</td>
+              </tr>
+              </tbody>
+          </table>
+          <div class="table-controls">
+            <div class="entries-box">
+              <select id="irac-entries" onchange="updateTableIrac()">
+                <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                </select>
+            </div>
+            <div class="pagination" id="irac-pagination"></div>
+          </div>
+        </div>
+    </div>
+    </main>
+    <script src="assets/js/view1.js"></script>
+{%endblock%}

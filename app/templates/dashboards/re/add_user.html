@@ -1,0 +1,231 @@
+{% extends "re_base.html" %}
+{% block content %}  
+<div class="bg-gray-50 min-h-screen flex flex-col items-center py-10">
+    <h1 class="text-3xl font-bold mb-6">Manage Roles and Permissions</h1>
+
+    <!-- Form to add or edit a role -->
+    <form action="{{ url_for('re.edit_role', role_id=role.role_id) if role else url_for('re.add_user_permissions') }}" method="POST" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 w-full max-w-lg">
+        <div class="mb-4">
+            <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Role Name:</label>
+            <input type="text" id="name" name="name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" {% if role %}value="{{ role.name }}" readonly{% endif %}>
+        </div>
+
+        <div class="mb-4">
+            <label for="description" class="block text-gray-700 text-sm font-bold mb-2">Description:</label>
+            <textarea id="description" name="description" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">{% if role %}{{ role.description }}{% endif %}</textarea>
+        </div>
+
+        <div class="relative mb-4" id="permissions-dropdown">
+            <label class="block text-gray-700 text-sm font-bold mb-2">Permissions:</label>
+
+            <!-- Dropdown Trigger -->
+            <button type="button" id="dropdownButton"
+                class="w-full text-left bg-white border border-gray-300 rounded px-2 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex flex-wrap gap-1 min-h-[2.5rem]">
+                <span id="selectedTags" class="flex flex-wrap gap-1 items-center"></span>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div id="dropdownMenu"
+                class="hidden absolute mt-1 w-full bg-white border border-gray-300 rounded shadow-md z-50 max-h-60 overflow-y-auto">
+                <!-- Added max-height and overflow-y-auto to make the div scrollable -->
+                <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+                    <input type="checkbox" id="selectAll" class="form-checkbox h-4 w-4 text-blue-600 mr-2">
+                    <span class="text-sm text-gray-700">Select All</span>
+                </div>
+                
+                {% for permission in urls %}
+                
+                <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+                    <input type="checkbox" value="{{ permission }}" class="form-checkbox h-4 w-4 text-blue-600 mr-2 permission-checkbox" {% if permission in selected_permissions %}checked{% endif %}>
+                    <span class="text-sm text-gray-700">{{ permission }}</span>
+                </div>
+                {% endfor %}
+            </div>
+                
+            <!-- Hidden input container for selected values -->
+            <div id="hiddenInputs" class="shadow-md z-50 max-h-60 overflow-y-auto"></div>
+        </div>
+
+        <div class="flex items-center justify-between">
+            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">{{ 'Update Role' if role else 'Add Role' }}</button>
+        </div>
+    </form>
+
+    <hr class="my-6 w-full max-w-4xl">
+
+    <!-- List of existing roles -->
+    <h2 class="text-2xl font-bold mb-4">Existing Roles</h2>
+    <table class="table-auto border-collapse border border-gray-300 w-full max-w-4xl">
+        <thead>
+            <tr class="bg-gray-200">
+                <th class="border border-gray-300 px-4 py-2">Role Name</th>
+                <th class="border border-gray-300 px-4 py-2">Description</th>
+                <th class="border border-gray-300 px-4 py-2">Permissions</th>
+                <th class="border border-gray-300 px-4 py-2">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for role in roles %}
+            <tr class="bg-white hover:bg-gray-100">
+                <td class="border border-gray-300 px-4 py-2">{{ role.name }}</td>
+                <td class="border border-gray-300 px-4 py-2">{{ role.description }}</td>
+                <td class="border border-gray-300 px-4 py-2">{{ role.permissions }}</td>
+                <td class="border border-gray-300 px-4 py-2">
+                    <a href="{{ url_for('re.edit_role', role_id=role.role_id) }}" class="text-blue-500 hover:text-blue-700">Edit</a> |
+                    <form action="{{ url_for('re.delete_role', role_id=role.role_id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="text-red-500 hover:text-red-700" onclick="return confirm('Are you sure you want to delete this role?');">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+    <script>
+        const button = document.getElementById('dropdownButton');
+        const menu = document.getElementById('dropdownMenu');
+        const checkboxes = document.querySelectorAll('.permission-checkbox');
+        const hiddenInputs = document.getElementById('hiddenInputs');
+        const selectedTags = document.getElementById('selectedTags');
+    
+        button.addEventListener('click', () => {
+            menu.classList.toggle('hidden');
+        });
+    
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('permissions-dropdown').contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        });
+    
+        function updateSelections() {
+            const selected = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+    
+            selectedTags.innerHTML = '';
+            hiddenInputs.innerHTML = '';
+    
+            selected.forEach(value => {
+                // Create tag span
+                const tag = document.createElement('span');
+                tag.className = 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full';
+                tag.textContent = value;
+                selectedTags.appendChild(tag);
+    
+                // Create hidden input
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'permissions';
+                input.value = value;
+                hiddenInputs.appendChild(input);
+            });
+    
+            // Placeholder if none selected
+            if (selected.length === 0) {
+                selectedTags.innerHTML = '<span class="text-gray-400 text-sm">Select permissions</span>';
+            }
+        }
+    
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelections);
+        });
+    
+        // Initialize placeholder
+        updateSelections();
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const permissionCheckboxes = document.querySelectorAll('.permission-checkbox');
+
+            selectAllCheckbox.addEventListener('change', function() {
+                const isChecked = selectAllCheckbox.checked;
+                permissionCheckboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                updateSelections();
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const permissionsInput = document.getElementById("permissions-input");
+            const permissionsList = document.getElementById("permissions-list");
+            const permissionsHiddenInput = document.getElementById("permissions-hidden");
+            const form = document.querySelector("form");
+            
+            
+            // Populate form if editing
+            {% if role %}
+            const existingPermissions = {{ role.permissions[role.name] | tojson }};
+            document.getElementById("name").value = "{{ role.name }}";
+            document.getElementById("description").value = "{{ role.description }}";
+            const existingPermissions = {{ role.permissions | tojson }};
+            if (existingPermissions && existingPermissions["{{ role.name }}"]) {
+                const permissionsArray = JSON.parse(existingPermissions["{{ role.name }}"]);
+                permissionsArray.forEach(permission => {
+                    const listItem = document.createElement("li");
+                    listItem.textContent = permission;
+                    listItem.className = "flex justify-between items-center bg-gray-100 p-2 rounded mb-2";
+
+                    // Add a remove button
+                    const removeButton = document.createElement("button");
+                    removeButton.textContent = "Remove";
+                    removeButton.className = "text-red-500 hover:text-red-700";
+                    removeButton.onclick = function() {
+                        permissionsList.removeChild(listItem);
+                        const currentPermissions = JSON.parse(permissionsHiddenInput.value);
+                        const index = currentPermissions.indexOf(permission);
+                        if (index > -1) {
+                            currentPermissions.splice(index, 1);
+                        }
+                        permissionsHiddenInput.value = JSON.stringify(currentPermissions);
+                    };
+
+                    listItem.appendChild(removeButton);
+                    permissionsList.appendChild(listItem);
+                });
+                permissionsHiddenInput.value = JSON.stringify(permissionsArray);
+            }
+            {% endif %}
+
+            // Prevent form submission on Enter key in permissions input
+            permissionsInput.addEventListener("keydown", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    const value = permissionsInput.value.trim();
+                    if (value) {
+                        const listItem = document.createElement("li");
+                        listItem.textContent = value;
+                        listItem.className = "flex justify-between items-center bg-gray-100 p-2 rounded mb-2";
+            
+                        // Add a remove button
+                        const removeButton = document.createElement("button");
+                        removeButton.textContent = "Remove";
+                        removeButton.className = "text-red-500 hover:text-red-700";
+                        removeButton.onclick = function() {
+                            permissionsList.removeChild(listItem);
+                            const currentPermissions = JSON.parse(permissionsHiddenInput.value);
+                            const index = currentPermissions.indexOf(value);
+                            if (index > -1) {
+                                currentPermissions.splice(index, 1);
+                            }
+                            permissionsHiddenInput.value = JSON.stringify(currentPermissions);
+                        };
+            
+                        listItem.appendChild(removeButton);
+                        permissionsList.appendChild(listItem);
+            
+                        const currentPermissions = permissionsHiddenInput.value ? JSON.parse(permissionsHiddenInput.value) : [];
+                        currentPermissions.push(value);
+                        permissionsHiddenInput.value = JSON.stringify(currentPermissions);
+                        permissionsInput.value = "";
+                    }
+                }
+            });
+            
+
+        });
+    </script>
+    
+{%endblock%}

@@ -1,0 +1,100 @@
+{% extends "audit_base.html" %}
+{% block content %}  
+
+<link rel="stylesheet" href="assets/css/admin.css" />
+
+
+<div class="flash-container space-y-2 mx-[10rem] my-[5rem]">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% if category == 'success' %}
+                        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-md" role="alert">
+                            <p class="font-bold">Success!</p>
+                            <p>{{ message }}</p>
+                        </div>
+                    {% elif category == 'error' %}
+                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md" role="alert">
+                            <p class="font-bold">Error!</p>
+                            <p>{{ message }}</p>
+                        </div>
+                    {% else %}
+                        <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-md" role="alert">
+                            <p class="font-bold">Info:</p>
+                            <p>{{ message }}</p>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+<main class="main">
+  
+  <h1>Add New User</h1>
+  
+    
+      <div>
+  <form action="{{url_for('re.add_user')}}" method='POST' class="space-y-6 p-4">
+    {# The 'space-y-6' class adds a vertical space of 1.5rem (24px) between direct child elements #}
+    {# The 'p-4' adds padding around the form itself #}
+
+    <div class="form-group">
+      <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
+      <input type="text" id="first_name" name='first_name' placeholder="First Name" required
+             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+    </div>
+
+    <div class="form-group">
+      <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
+      <input type="text" id="last_name" name='last_name' placeholder="Last Name" required
+             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+    </div>
+
+    <div class="form-group">
+      <label for="email" class="block text-sm font-medium text-gray-700">Official Email Address</label>
+      <input type="email" id="email" name='email' placeholder="Email" required
+             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+    </div>
+
+    <div class="form-group">
+      <label for="phone_no" class="block text-sm font-medium text-gray-700">Phone Number</label>
+      <input type="tel" id="phone_no" name='phone_no' placeholder="Phone Number" required
+             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+    </div>
+
+    <div class="form-group">
+      <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+      <select id="role" name="role" required
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+        <option value="">--Select Role--</option>
+        {% for role in roles %}
+          <option value="{{ role.role_id }}">{{ role.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+      <input type="password" id="password" name='password' placeholder="Password" required
+             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+    </div>
+
+    <div class="form-group">
+      <label for="confirm_password" class="block text-sm font-medium text-gray-700">Confirm Password</label>
+      <input type="password" id="confirm_password" name='confirm_password' placeholder="Confirm Password" required
+             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+    </div>
+
+    <div class="flex justify-end pt-4"> {# Align button to the right #}
+      <button type="submit"
+              class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        Submit
+      </button>
+    </div>
+  </form>
+</div>
+</main>
+    
+    <script src="assets/js/admin.js">
+    </script>
+{%endblock%}

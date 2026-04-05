@@ -1,0 +1,507 @@
+{% extends "audit_base.html" %}
+{% block content %}
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+
+<div class="w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center min-h-[105vh]">
+
+
+    <div class="flex flex-col items-center py-10 px-4 flex-grow">
+        <div class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative">
+            <form method="POST" enctype="multipart/form-data" action="{{ url_for('audit.edit_profile') }}">
+
+                <!-- Stepper Navigation -->
+
+
+                <div class="flex flex-wrap justify-center gap-6 mb-12 max-w-6xl">
+                    <!-- Each step indicator is a button for navigation -->
+                    <button type="button"
+                        class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer"
+                        data-step="0" aria-current="step">
+                        <div
+                            class="w-16 h-16 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shadow hover:bg-orange-600 transition-colors">
+                            1</div>
+                        <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">User Info</span>
+                    </button>
+                    <button type="button"
+                        class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer"
+                        data-step="1">
+                        <div
+                            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+                            2</div>
+                        <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Upload Certification</span>
+                    </button>
+                    <button type="button"
+                        class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer"
+                        data-step="2">
+                        <div
+                            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+                            3</div>
+                        <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Focus Areas</span>
+                    </button>
+                    <button type="button"
+                        class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer"
+                        data-step="3">
+                        <div
+                            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+                            4</div>
+                        <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Hierarchy</span>
+                    </button>
+
+
+
+                </div>
+
+                <!-- STEP 1: USER INFO -->
+                <div class="form-step" data-step="0">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block">Organization Name</label>
+                            <input type="text" name="org_name" value="{{ org.firm_name or '' }}" required
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block">Registration No</label>
+                            <input type="text" name="org_reg_no" value="{{ org.firm_registration_no or '' }}" required
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block">Description</label>
+                            <textarea name="description" rows="4"
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm">{{ org.firm_description or '' }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block">No. of Employees</label>
+                            <input type="number" name="num_employees" value="{{ org.number_of_employees or '' }}"
+                                required class="w-full p-3 border border-gray-300 rounded-lg shadow-sm">
+                        </div>
+                    </div>
+
+
+                    <!-- Head Office Location -->
+                    <h2 class="text-lg font-semibold mt-10 mb-4">Head Office Location</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                            <label>Address</label>
+                            <input type="text" name="address"
+                                value="{{ head_office_address.address if head_office_address else '' }}"
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter address" />
+                        </div>
+
+                        <div>
+                            <label>City</label>
+                            <input type="text" name="city"
+                                value="{{ head_office_address.city if head_office_address else '' }}"
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter city name" />
+                        </div>
+                        <div>
+                            <label>State</label>
+                            <input type="text" name="state"
+                                value="{{ head_office_address.state if head_office_address else '' }}"
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter state name" />
+                        </div>
+                        <div>
+                            <label>Country</label>
+                            <input type="text" name="country"
+                                value="{{ head_office_address.country if head_office_address else '' }}"
+                                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter country name" />
+                        </div>
+
+                    </div>
+
+                    <!-- Primary Contact Person -->
+                    <h2 class="text-lg font-semibold mt-10 mb-4">Primary Contact Person</h2>
+                    <div id="directors-container" class="space-y-4">
+                        {% if contact_persons and contact_persons|length > 0 %}
+                        {% for person in contact_persons %}
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 director-row items-end">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Name</label>
+                                <input type="text" name="name_person[]" value="{{ person.name }}"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                                <input type="email" name="email_person[]" value="{{ person.email }}"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+                                <input type="text" name="phone_person[]" value="{{ person.phone }}"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                            <div>
+                                {% if loop.index > 1 %}
+                                <button type="button"
+                                    class="remove-person bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg w-full"
+                                    onclick="removePerson(this)">
+                                    Remove
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 director-row items-end">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                                <input type="text" name="name_person[]" placeholder="Enter name"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                <input type="email" name="email_person[]" placeholder="Enter email"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                                <input type="text" name="phone_person[]" placeholder="Enter phone"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+                            </div>
+                            <div>
+                                <!-- First contact person doesn't have remove button -->
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <button type="button" onclick="addDirector()"
+                        class="mt-4 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full">
+                        Add Contact
+                    </button>
+                </div>
+
+                <!-- STEP 2: UPLOAD CERTIFICATION -->
+                <div class="form-step hidden" data-step="1">
+                    <label class="block mb-1 font-semibold text-blue-900">Upload Certification</label>
+                    {% if current_certification %}
+                    <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-sm text-green-800 mb-2">
+                            <strong>Current Certification:</strong>
+                            <a href="{{ url_for('static', filename='uploads/' ~ current_certification) }}"
+                                target="_blank" class="underline text-blue-600 hover:text-blue-800">{{
+                                current_certification }}</a>
+                        </p>
+                        <p class="text-xs text-gray-600">Upload a new file to replace the existing certification, or
+                            leave
+                            empty to keep current file.</p>
+                    </div>
+                    {% else %}
+                    <div class="mb-2">
+                        <p class="text-sm text-gray-600">No certification uploaded yet.</p>
+                    </div>
+                    {% endif %}
+                    <input type="file" name="certifications" accept=".pdf,.doc,.docx,.jpg,.png"
+                        class="block w-full border bg-orange-100 border-gray-300 p-2 rounded-lg shadow-sm">
+                </div>
+
+                <!-- STEP 3: FOCUS AREAS -->
+                <div class="form-step hidden" data-step="2">
+                    <label class="block mb-1 font-semibold text-blue-900">Focus Areas</label>
+                    <p class="text-sm text-gray-600 mb-2">Enter focus areas separated by commas (e.g., "Financial Audit,
+                        Compliance, Risk Management")</p>
+                    <input type="text" name="focus_areas" value="{{ current_focus_areas or '' }}"
+                        class="w-full border border-gray-300 p-3 rounded-lg shadow-sm"
+                        placeholder="Enter focus areas separated by commas">
+                </div>
+
+                <!-- STEP 4: HIERARCHY -->
+                <div class="form-step hidden" data-step="3">
+                    <label class="block font-semibold text-blue-900 mb-2">Organization Hierarchy</label>
+                    <p class="text-sm text-gray-600 mb-4">Define your organization's hierarchy structure</p>
+                    <div id="hierarchy-container" class="space-y-2">
+                        {% if hierarchy and hierarchy|length > 0 %}
+                        {% for item in hierarchy %}
+                        <div class="flex gap-4 hierarchy-row">
+                            <input name="hierarchy_title[]" value="{{ item.post }}" placeholder="Position/Title"
+                                class="w-1/2 p-2 border border-gray-300 rounded">
+                            <input name="hierarchy_name[]" value="{{ item.reports_to }}" placeholder="Reports To"
+                                class="w-1/2 p-2 border border-gray-300 rounded">
+                            {% if loop.index > 1 %}
+                            <button type="button"
+                                class="remove-hierarchy bg-red-500 hover:bg-red-700 text-white px-3 py-1 rounded"
+                                onclick="removeHierarchy(this)">
+                                Remove
+                            </button>
+                            {% else %}
+                            <div class="w-20"></div> <!-- Spacer for first row -->
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <!-- Default empty row if no hierarchy exists -->
+                        <div class="flex gap-4 hierarchy-row">
+                            <input name="hierarchy_title[]" value="" placeholder="Position/Title"
+                                class="w-1/2 p-2 border border-gray-300 rounded">
+                            <input name="hierarchy_name[]" value="" placeholder="Reports To"
+                                class="w-1/2 p-2 border border-gray-300 rounded">
+                            <div class="w-20"></div> <!-- Spacer for first row -->
+                        </div>
+                        {% endif %}
+                    </div>
+                    <button type="button" id="add-hierarchy-row"
+                        class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">+ Add Row</button>
+                </div>
+
+                <!-- NAVIGATION BUTTONS -->
+                <div id="navigation-buttons" class="mt-8 flex justify-between">
+                    <button type="button"
+                        class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 hidden">Back</button>
+                    <button type="button"
+                        class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+                    <button type="submit"
+                        class="submit-btn px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 hidden">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // JS for step navigation
+    document.addEventListener("DOMContentLoaded", function () {
+        let currentStep = 0;
+        const steps = document.querySelectorAll(".form-step");
+        const indicators = document.querySelectorAll(".step-indicator");
+        const nextBtn = document.querySelector(".next-btn");
+        const backBtn = document.querySelector(".back-btn");
+        const submitBtn = document.querySelector(".submit-btn");
+        const navigationButtons = document.getElementById("navigation-buttons");
+
+        function updateIndicatorStyles() {
+            indicators.forEach((indicator, index) => {
+                const circle = indicator.querySelector('div');
+                if (index === currentStep) {
+                    // Active step
+                    circle.className = "w-16 h-16 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shadow hover:bg-orange-600 transition-colors";
+                } else {
+                    // Inactive step
+                    circle.className = "w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors";
+                }
+            });
+        }
+
+        function showStep(step) {
+            currentStep = step;
+            steps.forEach((el, index) => {
+                el.classList.toggle("hidden", index !== step);
+            });
+
+            updateIndicatorStyles();
+
+            const isFirstStep = step === 0;
+            const isLastStep = step === steps.length - 1;
+
+            backBtn.classList.toggle("hidden", isFirstStep);
+            nextBtn.classList.toggle("hidden", isLastStep);
+            submitBtn.classList.toggle("hidden", !isLastStep);
+
+            // Update navigation container flex class based on which buttons are visible
+            if (isFirstStep) {
+                // Only Next button visible - align to right
+                navigationButtons.className = "mt-8 flex justify-end";
+            } else if (isLastStep) {
+                // Back and Submit buttons visible - spread apart
+                navigationButtons.className = "mt-8 flex justify-between";
+            } else {
+                // Back and Next buttons visible - spread apart
+                navigationButtons.className = "mt-8 flex justify-between";
+            }
+        }
+
+        // Add click event listeners to step indicators
+        indicators.forEach((indicator, index) => {
+            indicator.addEventListener("click", (e) => {
+                e.preventDefault();
+                showStep(index);
+            });
+        });
+
+        nextBtn.addEventListener("click", () => {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                showStep(currentStep);
+            }
+        });
+
+        backBtn.addEventListener("click", () => {
+            if (currentStep > 0) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        });
+
+        // Initial show
+        showStep(currentStep);
+
+        // Hierarchy add row functionality
+        document.getElementById("add-hierarchy-row").addEventListener("click", () => {
+            const container = document.getElementById("hierarchy-container");
+
+            const div = document.createElement("div");
+            div.classList.add("flex", "gap-4", "hierarchy-row");
+            div.innerHTML = `
+                <input name="hierarchy_title[]" placeholder="Position/Title" class="w-1/2 p-2 border border-gray-300 rounded">
+                <input name="hierarchy_name[]" placeholder="Reports To" class="w-1/2 p-2 border border-gray-300 rounded">
+                <button type="button" class="remove-hierarchy bg-red-500 hover:bg-red-700 text-white px-3 py-1 rounded" 
+                        onclick="removeHierarchy(this)">
+                    Remove
+                </button>
+            `;
+            container.appendChild(div);
+        });
+    });
+
+    // Contact Person Functions
+    function addDirector() {
+        const container = document.getElementById("directors-container");
+
+        const row = document.createElement("div");
+        row.classList.add("grid", "grid-cols-1", "md:grid-cols-4", "gap-6", "director-row", "mt-4");
+        row.innerHTML = `
+            <div>
+                <label>Name</label>
+                <input type="text" name="name_person[]" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="Enter name" />
+            </div>
+            <div>
+                <label>Email</label>
+                <input type="email" name="email_person[]" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="Enter email" />
+            </div>
+            <div>
+                <label>Phone</label>
+                <input type="text" name="phone_person[]" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="Enter phone" />
+            </div>
+            <div class="flex items-end">
+                <button type="button" class="remove-person bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full" 
+                        onclick="removePerson(this)">
+                    Remove
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    function removePerson(button) {
+        const row = button.closest('.director-row');
+        if (row) {
+            row.remove();
+        }
+    }
+
+    // Hierarchy Functions
+    function removeHierarchy(button) {
+        const row = button.closest('.hierarchy-row');
+        if (row) {
+            row.remove();
+        }
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const countryInput = document.getElementById("head-country-input");
+        const countryDropdown = document.getElementById("head-country-dropdown");
+        const countryOptionsList = document.getElementById("head-country-options");
+
+        const stateInput = document.getElementById("head-state-input");
+        const stateDropdown = document.getElementById("head-state-dropdown");
+        const stateOptionsList = document.getElementById("head-state-options");
+
+        const cityInput = document.getElementById("head-city-input");
+        const cityDropdown = document.getElementById("head-city-dropdown");
+        const cityOptionsList = document.getElementById("head-city-options");
+
+        let selectedCountryId = null;
+        let selectedStateId = null;
+
+        // Load countries from backend
+        axios.get("/api/countries").then((res) => {
+            const countries = res.data;
+            countryOptionsList.innerHTML = "";
+            countries.forEach((country) => {
+                const li = document.createElement("li");
+                li.className = "p-2 hover:bg-gray-100 flex items-center cursor-pointer";
+                li.innerHTML = `
+                <input type="radio" class="mr-2 h-4 w-4" name="head-country" value="${country.name}" id="head-country-${country.id}" />
+                <label for="head-country-${country.id}" class="ml-1">${country.name}</label>
+              `;
+                li.querySelector("input").addEventListener("change", () => {
+                    countryInput.value = country.name;
+                    selectedCountryId = country.id;
+                    countryDropdown.classList.add("hidden");
+                    stateInput.value = "";
+                    cityInput.value = "";
+                    stateOptionsList.innerHTML = "";
+                    cityOptionsList.innerHTML = "";
+                });
+                countryOptionsList.appendChild(li);
+            });
+        });
+
+        // Show/Hide country dropdown
+        countryInput.addEventListener("click", () => {
+            countryDropdown.classList.toggle("hidden");
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!countryInput.contains(e.target) && !countryDropdown.contains(e.target)) {
+                countryDropdown.classList.add("hidden");
+            }
+            if (!stateInput.contains(e.target) && !stateDropdown.contains(e.target)) {
+                stateDropdown.classList.add("hidden");
+            }
+            if (!cityInput.contains(e.target) && !cityDropdown.contains(e.target)) {
+                cityDropdown.classList.add("hidden");
+            }
+        });
+
+        // Load states dynamically
+        stateInput.addEventListener("click", () => {
+            if (!selectedCountryId) return;
+            axios.get(`/api/states/${selectedCountryId}`).then((res) => {
+                stateOptionsList.innerHTML = "";
+                res.data.forEach((state) => {
+                    const li = document.createElement("li");
+                    li.className = "p-2 hover:bg-gray-100 cursor-pointer";
+                    li.textContent = state.name;
+                    li.addEventListener("click", () => {
+                        stateInput.value = state.name;
+                        selectedStateId = state.id;
+                        stateDropdown.classList.add("hidden");
+                        cityInput.value = "";
+                        cityOptionsList.innerHTML = "";
+                    });
+                    stateOptionsList.appendChild(li);
+                });
+                stateDropdown.classList.toggle("hidden");
+            });
+        });
+
+        // Load cities dynamically
+        cityInput.addEventListener("click", () => {
+            if (!selectedStateId) return;
+            axios.get(`/api/cities/${selectedStateId}`).then((res) => {
+                cityOptionsList.innerHTML = "";
+                res.data.forEach((city) => {
+                    const li = document.createElement("li");
+                    li.className = "p-2 hover:bg-gray-100 cursor-pointer";
+                    li.textContent = city.name;
+                    li.addEventListener("click", () => {
+                        cityInput.value = city.name;
+                        cityDropdown.classList.add("hidden");
+                    });
+                    cityOptionsList.appendChild(li);
+                });
+                cityDropdown.classList.toggle("hidden");
+            });
+        });
+    });
+</script>
+
+{% endblock %}

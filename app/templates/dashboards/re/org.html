@@ -1,0 +1,926 @@
+{% extends "audit_base.html" %} {% block content %}
+<link rel="stylesheet" href="assets/css/org.css" />
+
+<style>
+  /* Three-dot menu styles */
+
+
+
+  /* Three-dot menu styles - FIXED */
+  .three-dot-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  .three-dot-btn {
+    padding: 0.5rem;
+    border-radius: 50%;
+    color: #6b7280;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+
+  .three-dot-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #374151;
+  }
+
+  /* Dropdown menu - FIXED */
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.25rem;
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    min-width: 12rem;
+    z-index: 1000;
+    display: none;
+    animation: dropdownFade 0.2s ease-out;
+  }
+
+  .dropdown-menu.show {
+    display: block;
+  }
+
+  @keyframes dropdownFade {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Ensure table cells have proper positioning */
+  /* Ensure table cells allow the menu to overflow */
+  td {
+    position: static !important;
+  }
+
+  /* Fix for action column specifically */
+  td:last-child {
+    position: relative !important;
+    overflow: visible !important;
+    /* This prevents the cell from clipping the menu */
+  }
+
+  /* Add padding to the table itself to give the dropdown room to breathe */
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 20px;
+  }
+
+  .table-responsive {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: visible !important;
+    /* Attempt to allow vertical overflow */
+    padding-bottom: 120px;
+    /* This creates internal space so the last row isn't cut off */
+  }
+
+
+
+  /* Menu item styles */
+  .menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    color: #374151;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .menu-item:hover {
+    background-color: #f3f4f6;
+  }
+
+  .menu-item svg {
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .menu-item.text-red-600:hover {
+    background-color: #fee2e2;
+  }
+
+  /* Add this to prevent body scrolling when menu is open */
+  body.dropdown-open {
+    overflow: hidden;
+  }
+
+  /* Modal overlay fix */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .modal-content {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.3s ease;
+  }
+
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Toast animation */
+  .toast-message {
+    transform: translateY(-20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+  }
+
+  /* Tab Styles */
+  .step-tabs {
+    display: flex;
+    background: white;
+    border-radius: 12px;
+    padding: 8px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    gap: 8px;
+  }
+
+  .step-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    color: #6b7280;
+    background: transparent;
+  }
+
+  .step-tab.active {
+    background: #f97316;
+    color: white;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+  }
+
+  .step-tab.completed {
+    background: transparent;
+    color: #6b7280;
+    box-shadow: none;
+    border: 1px solid #10b981;
+  }
+
+  .step-tab.completed:hover {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .step-tab:not(.completed):not(.active):hover {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #6b7280;
+    font-size: 14px;
+    margin-right: 8px;
+    transition: all 0.3s ease;
+  }
+
+  .step-tab.active .step-number {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+  }
+
+  .step-tab.completed .step-number {
+    background: #10b981;
+    color: white;
+  }
+
+
+  .step-tab.completed .step-number::after {
+    content: "✓";
+    font-weight: bold;
+  }
+
+  .step-content {
+    display: none;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .step-content.active {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+  <div class="organization px-6 py-4">
+    <h1 class="text-2xl ">My Clients</h1>
+    <!-- <p><a href="#">Dashboard</a> / Organization Profile</p> -->
+  </div>
+</main>
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6 mb-[8rem]" style="z-index: -20;">
+
+  <!-- Tab Navigation -->
+  <div class="step-tabs">
+    <div class="step-tab active" id="step1-tab" onclick="switchTab(1)">
+      <span class="step-number">1</span>
+      <span>Download Guidelines</span>
+    </div>
+    <div class="step-tab" id="step2-tab" onclick="switchTab(2)">
+      <span class="step-number">2</span>
+      <span>Add Your Client</span>
+    </div>
+    <div class="step-tab" id="step3-tab" onclick="switchTab(3)">
+      <span class="step-number">3</span>
+      <span>Create Project</span>
+    </div>
+  </div>
+
+  <div class="step-content" id="step1-content">
+    <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+
+      <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+        Download compliance guidelines to get started with your audit process. This is the first step in
+        creating compliance projects.
+      </p>
+      <div class="mt-6">
+        <a href="{{ url_for('re.guidelines') }}">
+          <button
+            class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download Guidelines
+          </button>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-content" id="step2-content">
+    <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+
+      <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+        Add your client information to start creating compliance projects. This step is required before you can
+        create projects.
+      </p>
+      <div class="mt-6">
+        {% if not current_user.free_report_used %}
+        <a href="{{ url_for('re.profile') }}">
+          <button
+            class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add Your Client
+          </button>
+        </a>
+        {% else %}
+        <div class="block w-full relative group">
+          <button
+            class="inline-flex items-center px-6 py-3 bg-gray-400 text-white font-medium rounded-lg cursor-not-allowed transition-all shadow-md"
+            disabled>
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Add Your Client
+          </button>
+          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block w-64">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg">
+              <div class="flex items-start">
+                <svg class="w-4 h-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor"
+                  viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <div class="text-sm text-yellow-800">
+                  <p class="font-medium">Feature Disabled</p>
+                  <p class="mt-1">You have used your free report. Please contact <a
+                      href="mailto:CompliFyre@crackerjacktech.com" class="underline">CompliFyre@crackerjacktech.com</a>
+                    for assistance.</p>
+                </div>
+              </div>
+              <div
+                class="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-yellow-200">
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="step-content" id="step3-content">
+    <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+
+      <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+        Create a new compliance project by selecting guidelines, departments, and defining project details.
+      </p>
+      <div class="mt-6">
+        <a href="{{ url_for('audit.create_project') }}">
+          <button
+            class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Create New Project
+          </button>
+        </a>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="flex items-center justify-between gap-4 flex-wrap my-6  search-export">
+    <!-- Button on the left -->
+    <button
+      class="bg-gradient-to-r from-[#ff7b00] to-[#ff4d00] text-white text-sm py-2.5 px-5 rounded-full shadow-md font-medium hover:opacity-90 transition duration-200"
+      onclick="window.location.href='{{ url_for('re.profile') }}'">
+      Add New Client
+    </button>
+
+
+
+    <!-- Search and export to the right -->
+    <div class="flex items-center gap-4">
+      <input type="text" id="search" placeholder="Search.." class="border border-gray-300 rounded px-4 py-2">
+      <!-- <span class="export cursor-pointer text-blue-600 font-semibold" onclick="exportToCSV()">Export to CSV</span> -->
+    </div>
+  </div>
+
+  <div class="table-responsive mb-[10rem]">
+    <table>
+      <thead>
+        <tr>
+          <th>Org ID</th>
+          <th>Type of Org</th>
+          <th>Legal Entity Name</th>
+          <!--<th>Head Office Location</th>-->
+          <th>Constitution</th>
+          <th>Industry</th>
+          <th>Business Description</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for org in organizations %}
+        <tr>
+          <td data-label="Org ID">{{ org.name }}</td>
+          <td data-label="Type of Org">{%for org_type in org.organization_type %} {{org_type}} | {% endfor %}</td>
+          <td data-label="Legal Entity Name">{{ org.legal_name }}</td>
+          <!--<td data-label="Head Office Location">
+                      {% for address in org.addresses %}
+                        {% if address.address_type=='headoffice' and address.organization_id==org.organization_id %}
+                          {{ address.country }}
+                        {% endif %}
+                      {% endfor %}
+                    </td>-->
+          <td data-label="Constitution">{{ org.constutution }}</td>
+          <td data-label="Industry">{% for ind_type in org.industry_type %} {{ind_type}} | {%endfor%} </td>
+          <td data-label="Business Description">
+            {% for infor in org.info %}
+            {% if infor.organization_id== org.organization_id%}
+            {{ infor.business_desc }}
+            {% else %}
+            N/A
+            {% endif %}
+            {% endfor %}
+          </td>
+          <td data-label="Action">
+            <!-- Three-dot menu button - UPDATED -->
+            <div class="three-dot-container">
+              <button class="three-dot-btn" onclick="toggleMenu('menu-{{ org.organization_id }}', event)" type="button"
+                aria-label="Action menu">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                </svg>
+              </button>
+
+              <!-- Dropdown menu - UPDATED -->
+              <div id="menu-{{ org.organization_id }}" class="dropdown-menu" style="display: none;">
+                <div class="py-1">
+                  <a href="{{ url_for('re.edit_re_profile', org_id=org.organization_id) }}" class="menu-item">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Client
+                  </a>
+
+                  <a href="{{ url_for('audit.create_project', org_id=org.organization_id) }}" class="menu-item">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Create Project
+                  </a>
+
+                  <button type="button"
+                    onclick='confirmDelete({{ org.organization_id }}, {{ (org.legal_name or org.name)|tojson }})'
+                    class="menu-item text-red-600">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Client
+                  </button>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+
+
+
+  </div>
+
+
+  <!-- </main> -->
+
+  <script src="assets/js/org.js"></script>
+
+  <script>
+    // Tab switching functionality with toggle feature
+    function switchTab(stepNumber) {
+      const clickedTab = document.getElementById(`step${stepNumber}-tab`);
+      const clickedContent = document.getElementById(`step${stepNumber}-content`);
+
+      // Check if the clicked tab is already active
+      const isAlreadyActive = clickedTab.classList.contains('active');
+
+      // Hide all tab contents
+      document.querySelectorAll('.step-content').forEach(content => {
+        content.classList.remove('active');
+      });
+
+      // Remove active class from all tabs
+      document.querySelectorAll('.step-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // If the tab was not already active, show its content
+      if (!isAlreadyActive) {
+        clickedContent.classList.add('active');
+        clickedTab.classList.add('active');
+      }
+    }
+
+    // Check user progress and update tabs accordingly
+    async function checkUserProgress() {
+      try {
+        const response = await fetch("{{ url_for('re.check_user_progress') }}");
+        const progress = await response.json();
+
+        // Update Step 1 (Guidelines)
+        if (progress.has_guidelines) {
+          document.getElementById('step1-tab').classList.add('completed');
+        } else {
+          document.getElementById('step1-tab').classList.remove('completed');
+        }
+
+        // Update Step 2 (Clients)
+        if (progress.has_clients) {
+          document.getElementById('step2-tab').classList.add('completed');
+        } else {
+          document.getElementById('step2-tab').classList.remove('completed');
+        }
+
+        // Update Step 3 (Projects)
+        if (progress.has_projects) {
+          document.getElementById('step3-tab').classList.add('completed');
+        } else {
+          document.getElementById('step3-tab').classList.remove('completed');
+        }
+
+      } catch (error) {
+        console.error('Error checking user progress:', error);
+      }
+    }
+
+    // Toggle dropdown menu
+    function toggleMenu(menuId, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+
+      const menu = document.getElementById(menuId);
+      const isVisible = menu.classList.contains('show');
+
+      // Close all other menus first
+      document.querySelectorAll('.dropdown-menu').forEach(m => {
+        if (m.id !== menuId) {
+          m.classList.remove('show');
+          m.style.display = 'none';
+        }
+      });
+
+      if (!isVisible) {
+        // 1. Show the menu hidden first to calculate its height
+        menu.style.display = 'block';
+        menu.style.visibility = 'hidden';
+        menu.classList.add('show');
+
+        const btn = event.currentTarget;
+        const btnRect = btn.getBoundingClientRect();
+        const menuHeight = menu.offsetHeight;
+        const viewportHeight = window.innerHeight;
+
+        // 2. Check if there is enough space below the button
+        // If space below is less than the menu height, open UPWARDS
+        const spaceBelow = viewportHeight - btnRect.bottom;
+
+        if (spaceBelow < menuHeight + 20) {
+          // Position menu ABOVE the button
+          menu.style.top = 'auto';
+          menu.style.bottom = '100%';
+          menu.style.marginTop = '0';
+          menu.style.marginBottom = '8px';
+        } else {
+          // Position menu BELOW the button (default)
+          menu.style.top = '100%';
+          menu.style.bottom = 'auto';
+          menu.style.marginTop = '4px';
+          menu.style.marginBottom = '0';
+        }
+
+        // 3. Make the menu visible
+        menu.style.visibility = 'visible';
+        document.body.classList.add('dropdown-open');
+      } else {
+        menu.classList.remove('show');
+        menu.style.display = 'none';
+        document.body.classList.remove('dropdown-open');
+      }
+    }
+
+    // Close menus when clicking outside - UPDATED
+    document.addEventListener('click', function (event) {
+      if (!event.target.closest('.three-dot-container')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+          menu.classList.remove('show');
+          menu.style.display = 'none';
+        });
+        document.body.classList.remove('dropdown-open');
+      }
+    });
+
+    // Close dropdowns when clicking on menu items
+    document.addEventListener('click', function (event) {
+      if (event.target.closest('.menu-item')) {
+        setTimeout(() => {
+          document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('show');
+            menu.style.display = 'none';
+          });
+          document.body.classList.remove('dropdown-open');
+        }, 100);
+      }
+    });
+
+    // Close dropdown on escape key
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+          menu.classList.remove('show');
+          menu.style.display = 'none';
+        });
+        document.body.classList.remove('dropdown-open');
+      }
+    });
+
+    // Search functionality
+    function setupSearch() {
+      const searchInput = document.getElementById('search');
+      const table = document.querySelector('.table-responsive table');
+      const rows = table.querySelectorAll('tbody tr');
+
+      searchInput.addEventListener('input', function () {
+        const searchTerm = this.value.toLowerCase().trim();
+
+        rows.forEach(row => {
+          // Get all text content from the row (excluding action column)
+          const cells = row.querySelectorAll('td:not(:last-child)');
+          let rowText = '';
+
+          cells.forEach(cell => {
+            rowText += cell.textContent.toLowerCase() + ' ';
+          });
+
+          // Show/hide row based on search match
+          if (rowText.includes(searchTerm)) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    }
+
+    // Delete confirmation modal
+    async function confirmDelete(orgId, orgName) {
+      // First check if client can be deleted
+      try {
+        const response = await fetch(`/re/check-client-delete/${orgId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to check client status');
+        }
+
+        if (!data.can_delete) {
+          showErrorModal(orgName, data.project_count || 0);
+          return;
+        }
+
+        // Show confirmation modal
+        showDeleteConfirmationModal(orgId, orgName);
+
+      } catch (error) {
+        console.error('Error checking delete status:', error);
+        alert('Error checking client status. Please try again.');
+      }
+    }
+
+    function showErrorModal(orgName, projectCount) {
+      // Remove any existing modals first
+      const existingModals = document.querySelectorAll('.modal-overlay');
+      existingModals.forEach(modal => modal.remove());
+
+      const modalHtml = `
+        <div class="modal-overlay" id="errorModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+            <div class="modal-content">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+                        <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Cannot Delete Client</h3>
+                    <p class="text-sm text-gray-500 mb-4">
+                        "${orgName}" cannot be deleted as it has ${projectCount} related project${projectCount !== 1 ? 's' : ''}.
+                    </p>
+                    <p class="text-xs text-gray-400 mb-6">
+                        Please delete all associated projects before deleting this client.
+                    </p>
+                    <button 
+                        onclick="closeModal('errorModal')"
+                        class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    function showDeleteConfirmationModal(orgId, orgName) {
+      // Remove any existing modals first
+      const existingModals = document.querySelectorAll('.modal-overlay');
+      existingModals.forEach(modal => modal.remove());
+
+      const modalHtml = `
+        <div class="modal-overlay" id="deleteModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+            <div class="modal-content">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                        <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Delete Client</h3>
+                    <p class="text-sm text-gray-500 mb-6">
+                        Are you sure you want to delete "${orgName}"? This action cannot be undone.
+                    </p>
+                    <div class="flex justify-center space-x-3">
+                        <button 
+                            onclick="closeModal('deleteModal')"
+                            class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onclick="performDelete(${orgId})"
+                            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.remove();
+      }
+    }
+
+    // Function to actually perform the deletion
+    async function performDelete(orgId) {
+      try {
+        const response = await fetch(`/re/delete-client/${orgId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            // Add CSRF token if needed
+            // 'X-CSRFToken': getCSRFToken()
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Show success message
+          showToast(data.message || 'Client deleted successfully', 'success');
+          // Close modal
+          closeModal('deleteModal');
+          // Remove the row from the table
+          removeClientRow(orgId);
+        } else {
+          showToast(data.message || 'Error deleting client', 'error');
+          closeModal('deleteModal');
+        }
+      } catch (error) {
+        console.error('Error deleting client:', error);
+        showToast('Error deleting client. Please try again.', 'error');
+        closeModal('deleteModal');
+      }
+    }
+
+    // Helper function to show toast messages
+    function showToast(message, type = 'success') {
+      // Remove any existing toasts
+      const existingToasts = document.querySelectorAll('.toast-message');
+      existingToasts.forEach(toast => toast.remove());
+
+      const toast = document.createElement('div');
+      toast.className = `toast-message fixed top-4 right-4 px-4 py-2 rounded-md shadow-lg z-50 transition-all duration-300 ${type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      // Animate in
+      setTimeout(() => {
+        toast.style.transform = 'translateY(0)';
+        toast.style.opacity = '1';
+      }, 10);
+
+      // Remove after 3 seconds
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }, 3000);
+    }
+
+    // Function to remove the client row from the table
+    function removeClientRow(orgId) {
+      const rows = document.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const orgIdCell = row.querySelector('td[data-label="Org ID"]');
+        if (orgIdCell) {
+          // Check if this row contains the organization ID we want to delete
+          const orgLink = row.querySelector(`a[href*="/re/edit_re_profile/${orgId}"]`);
+          if (orgLink || row.innerHTML.includes(`menu-${orgId}`)) {
+            // Add fade out animation
+            row.style.transition = 'opacity 0.3s ease';
+            row.style.opacity = '0';
+
+            // Remove after animation completes
+            setTimeout(() => {
+              row.remove();
+
+              // Check if table is now empty
+              const remainingRows = document.querySelectorAll('tbody tr');
+              if (remainingRows.length === 0) {
+                const tbody = document.querySelector('tbody');
+                const emptyMessage = `
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-gray-500">
+                                    No clients found. <a href="{{ url_for('re.profile') }}" class="text-orange-600 hover:underline">Add your first client</a>
+                                </td>
+                            </tr>
+                        `;
+                tbody.innerHTML = emptyMessage;
+              }
+            }, 300);
+          }
+        }
+      });
+    }
+
+
+    // Helper function to show success message
+    function showSuccessMessage(message) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.remove();
+      }, 3000);
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function () {
+      checkUserProgress();
+      setupSearch();
+
+      // Initialize table pagination
+      if (document.getElementById("guidelinesTable")) {
+        paginateTable("guidelinesTable", 10);
+
+        // Add event listener for entries select
+        const entriesSelect = document.getElementById("entriesSelect");
+        if (entriesSelect) {
+          entriesSelect.addEventListener("change", () => {
+            const rowsPerPage = parseInt(entriesSelect.value);
+            paginateTable("guidelinesTable", rowsPerPage);
+          });
+        }
+      }
+    });
+  </script>
+
+  {%endblock%}

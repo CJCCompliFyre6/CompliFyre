@@ -1,0 +1,1277 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{url_for('re.static', filename='css/profile.css')}}" />
+<style>
+  .newIndustry {
+    display: flex;
+    flex-wrap: wrap;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    width: 300px;
+    min-height: 40px;
+  }
+
+  .tag {
+    display: flex;
+    align-items: center;
+    background-color: #e0e0e0;
+    color: #333;
+    padding: 5px 10px;
+    border-radius: 20px;
+    margin: 5px;
+    font-size: 14px;
+  }
+
+  .tag span {
+    margin-left: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    color: red;
+  }
+
+  .tag-input {
+    border: none;
+    outline: none;
+    flex-grow: 1;
+    padding: 5px;
+    font-size: 14px;
+    min-width: 100px;
+  }
+</style>
+<style>
+  /* Optional: Add custom styling for the dropdown behavior */
+  .custom-dropdown-panel {
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  /* Fix for the dropdown height and scrollbar */
+  #type_org-dropdown,
+  #type_industry-dropdown {
+    max-height: 280px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #f97316 #fed7aa;
+  }
+
+  /* Custom scrollbar for Chrome/Safari/Edge */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #fff7ed;
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #f97316;
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #ea580c;
+  }
+
+  /* Ensure checkboxes are styled orange to match your theme */
+  input[type="checkbox"]:checked {
+    background-color: #f97316;
+    border-color: #f97316;
+  }
+</style>
+
+<div class="w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center min-h-[105vh]">
+  <div class="flex flex-col items-center py-10 px-4 flex-grow">
+    <div class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative">
+
+      <!-- Page Header -->
+      <div class="mb-8">
+        <h1 class="text-2xl font-bold text-orange-800">Add New Client</h1>
+        <p class="text-gray-600">Complete all steps to add a new client organization</p>
+      </div>
+
+      <!-- Step Indicators -->
+      <div class="flex flex-wrap justify-center gap-6 mb-12 max-w-6xl">
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="0"
+          aria-current="step">
+          <div
+            class="w-16 h-16 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shadow hover:bg-orange-600 transition-colors">
+            1</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Organization Information</span>
+        </button>
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="1">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+            2</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Other Key Locations</span>
+        </button>
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="2">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+            3</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Departments</span>
+        </button>
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="3">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+            4</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Business Overview</span>
+        </button>
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="4">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+            5</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Org Structure</span>
+        </button>
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="5">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+            6</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Financials</span>
+        </button>
+        <button class="step-indicator flex flex-col items-center focus:outline-none cursor-pointer" data-step="6">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors">
+            7</div>
+          <span class="mt-2 text-center text-sm font-semibold max-w-[90px]">Directors</span>
+        </button>
+      </div>
+
+      <main>
+        <!-- Step 1: Organization Information -->
+        <form class="form-step" data-step="0" novalidate method="POST" action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="0">
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Organization Information</h2>
+          <div class="space-y-4 max-w-xl">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="org_name">Org ID *</label>
+              <input type="text" id="org_name" name="org_name"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="ARL BANK-001" required />
+            </div>
+
+            <!-- Type of Org Dropdown -->
+            <div class="relative group">
+              <label class="block mb-1 font-medium text-gray-700" for="type_org-input">Type of Org *</label>
+              <div class="relative">
+                <input type="text" id="type_org-input"
+                  class="w-full p-3 pr-10 border border-gray-300 rounded-lg shadow-sm cursor-pointer focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                  name="org_type_display" placeholder="Select types" readonly required />
+
+                <!-- Chevron Icon -->
+                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- The Dropdown Panel -->
+              <div id="type_org-dropdown"
+                class="absolute hidden mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-xl z-[999] max-h-64 overflow-y-auto custom-scrollbar">
+                <ul class="divide-y divide-gray-100">
+                  {% for org_type in organization_types %}
+                  <li class="hover:bg-orange-50 transition-colors">
+                    <label class="flex items-center p-3 cursor-pointer">
+                      <input type="checkbox"
+                        class="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 type-org-option"
+                        value="{{ org_type.name }}" id="org-{{ org_type.id }}" name="selected_org_types" />
+                      <span class="ml-3 text-sm text-gray-700">{{ org_type.name }}</span>
+                    </label>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="legal_name">Legal Entity Name *</label>
+              <input type="text" id="legal_name" name="legal_name"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="ARL BANK" required />
+            </div>
+          </div>
+
+          <!-- Head Office Location -->
+          <h2 class="text-2xl font-semibold mt-8 mb-6 text-orange-800">Head Office Location *</h2>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="address">Address</label>
+              <input type="text" id="address" name="address"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Street No. 12" required />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="city">City</label>
+              <input type="text" id="city" name="city"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter city name" required />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="state">State</label>
+              <input type="text" id="state" name="state"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter state name" required />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="country">Country</label>
+              <input type="text" id="country" name="country"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter country name" required />
+            </div>
+          </div>
+
+          <div class="space-y-4 max-w-xl mt-8">
+            <div class="relative">
+              <label class="block mb-1 font-medium text-gray-700" for="constitution">Constitution *</label>
+              <select id="constitution" name="constitution"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" required>
+                <option value="">Select Constitution</option>
+                {% for constitution in constitution_types %}
+                <option value="{{ constitution.name }}">
+                  {{ constitution.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="relative">
+              <label class="block mb-1 font-medium text-gray-700" for="type_industry-input">Industry *</label>
+              <input type="text" id="type_industry-input"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm cursor-pointer" name="industry_display"
+                placeholder="Select industries" readonly required />
+              <div id="type_industry-dropdown"
+                class="absolute hidden mt-2 w-full bg-white border rounded-lg shadow-md z-10">
+                <ul class="divide-y divide-gray-200">
+                  <li class="p-2 hover:bg-gray-100 flex items-center">
+                    <input type="checkbox" class="mr-2 h-4 w-4 type-industry-option" value="Banking"
+                      id="industry-banking" name="selected_industries" />
+                    <label for="industry-banking" class="ml-1">Banking</label>
+                  </li>
+                  <li class="p-2 hover:bg-gray-100 flex items-center">
+                    <input type="checkbox" class="mr-2 h-4 w-4 type-industry-option" value="Finance"
+                      id="industry-finance" name="selected_industries" />
+                    <label for="industry-finance" class="ml-1">Finance</label>
+                  </li>
+                  <li class="p-2 hover:bg-gray-100 flex items-center">
+                    <input type="checkbox" class="mr-2 h-4 w-4 type-industry-option" value="Insurance"
+                      id="industry-insurance" name="selected_industries" />
+                    <label for="industry-insurance" class="ml-1">Insurance</label>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="indian_regulatory">Indian Regulatory and
+                Governing Agencies</label>
+              <input type="text" id="indian_regulatory" name="indian_regulatory"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm"
+                placeholder="Reserve Bank of India (RBI), SEBI" />
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-between">
+            <a href="{{ url_for('re.dashboard') }}"
+              class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Cancel</a>
+            <button type="submit"
+              class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+          </div>
+        </form>
+
+        <!-- Step 2: Other Key Locations -->
+        <form class="form-step hidden" data-step="1" novalidate method="POST"
+          action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="1">
+          <input type="hidden" id="locations_data" name="locations_data" value="">
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Other Key Locations</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="address-other">Address</label>
+              <input type="text" id="address-other"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Street No. 12" />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="city-other">City</label>
+              <input type="text" id="city-other"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter city name" />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="state-other">State</label>
+              <input type="text" id="state-other"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter state name" />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="country-other">Country</label>
+              <input type="text" id="country-other"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter country name" />
+            </div>
+
+            <div class="md:col-span-4 mt-2">
+              <button type="button" id="addLocationBtn"
+                class="bg-green-500 text-white font-bold py-2 px-4 rounded-full hover:bg-green-600 transition-colors">
+                Add Key Location
+              </button>
+            </div>
+          </div>
+
+          <ul id="locationsList" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Locations will be added here dynamically -->
+          </ul>
+
+          <div class="mt-6 flex justify-between">
+            <button type="button"
+              class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Back</button>
+            <button type="submit"
+              class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+          </div>
+        </form>
+
+        <!-- Step 3: Departments -->
+        <form class="form-step hidden" data-step="2" novalidate method="POST"
+          action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="2">
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Departments</h2>
+          <div class="space-y-4 max-w-xl">
+            <div class="relative">
+              <div id="dropdown-trigger"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm cursor-pointer flex items-center justify-between">
+                <span class="text-gray-500">Select departments...</span>
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+
+              <div id="departments-dropdown-panel"
+                class="absolute hidden w-full bg-white border border-gray-300 rounded-lg shadow-lg custom-dropdown-panel mt-1">
+                <div class="p-3 space-y-2">
+                  <input type="hidden" id="department_ids" name="department_ids" value="">
+                  {% for department in departments %}
+                  <div class="flex items-center">
+                    <input type="checkbox" id="dept-{{ department.department_id }}" name="department_ids"
+                      value="{{ department.department_id }}" data-name="{{ department.department_name }}"
+                      class="h-4 w-4 ...">
+                    <label for="dept-{{ department.department_id }}">{{ department.department_name }}</label>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700">Selected Departments</label>
+              <div id="selected-departments-container"
+                class="min-h-[50px] p-3 border border-gray-300 rounded-lg shadow-sm flex flex-wrap gap-2 content-start">
+                <p class="text-gray-500 text-sm">No departments selected.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-between">
+            <button type="button"
+              class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Back</button>
+            <button type="submit"
+              class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+          </div>
+        </form>
+
+        <!-- Step 4: Business Overview -->
+        <form class="form-step hidden" data-step="3" novalidate method="POST"
+          action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="3">
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Business Overview</h2>
+          <div class="space-y-4 max-w-xl">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="businessDescription">Business Description
+                *</label>
+              <textarea id="businessDescription" name="businessDescription"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" rows="3"
+                placeholder="Describe your business..." required></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block mb-1 font-medium text-gray-700" for="branchesIndia">No. of Branches in India</label>
+                <input type="number" id="branchesIndia" name="branchesIndia"
+                  class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" min="0" value="0" />
+              </div>
+              <div>
+                <label class="block mb-1 font-medium text-gray-700" for="branchesOutsideIndia">No. of Branches Outside
+                  India</label>
+                <input type="number" id="branchesOutsideIndia" name="branchesOutsideIndia"
+                  class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" min="0" value="0" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="businessProcesses">Business Processes</label>
+              <input type="text" id="businessProcesses" name="businessProcesses"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm"
+                placeholder="Enter business processes..." />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="orgHistory">Organization History</label>
+              <textarea id="orgHistory" name="orgHistory" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm"
+                placeholder="Brief history of your organization..." rows="2"></textarea>
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-between">
+            <button type="button"
+              class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Back</button>
+            <button type="submit"
+              class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+          </div>
+        </form>
+
+        <!-- Step 5: Organization Structure -->
+        <form class="form-step hidden" data-step="4" novalidate method="POST"
+          action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="4">
+          <input type="hidden" id="positions_data" name="positions_data" value="">
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Organization Structure</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end max-w-xl mb-4">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="positionName">Position Name</label>
+              <input type="text" id="positionName" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="reportsTo">Reports To</label>
+              <input type="text" id="reportsTo" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+            <div class="md:col-span-2">
+              <button type="button" id="addPositionBtn"
+                class="bg-green-500 text-white font-bold py-2 px-4 rounded-full">Add Position</button>
+            </div>
+          </div>
+
+          <ul id="positionsList" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Positions will be added here dynamically -->
+          </ul>
+
+          <div class="flex justify-between mt-6">
+            <button type="button"
+              class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Back</button>
+            <button type="submit"
+              class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+          </div>
+        </form>
+
+        <!-- Step 6: Financial Overview -->
+        <form class="form-step hidden" data-step="5" novalidate method="POST"
+          action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="5">
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Financial Overview</h2>
+
+          <div class="space-y-4 max-w-xl">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="revenueStreams">Key Revenue Streams</label>
+              <input type="text" id="revenueStreams" name="revenueStreams"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="marketsCustomers">Key Markets and
+                Customers</label>
+              <input type="text" id="marketsCustomers" name="marketsCustomers"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="financialMetrics">Key Financial Metrics</label>
+              <input type="text" id="financialMetrics" name="financialMetrics"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block mb-1 font-medium text-gray-700" for="totalRevenue">Total Revenue (Last FY)</label>
+                <input type="number" id="totalRevenue" name="totalRevenue"
+                  class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" min="0" />
+              </div>
+              <div>
+                <label class="block mb-1 font-medium text-gray-700" for="netProfitLoss">Net Profit/Loss</label>
+                <input type="number" id="netProfitLoss" name="netProfitLoss"
+                  class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+              </div>
+              <div>
+                <label class="block mb-1 font-medium text-gray-700" for="totalAssets">Total Assets</label>
+                <input type="number" id="totalAssets" name="totalAssets"
+                  class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+              </div>
+              <div>
+                <label class="block mb-1 font-medium text-gray-700" for="totalLiabilities">Total Liabilities</label>
+                <input type="number" id="totalLiabilities" name="totalLiabilities"
+                  class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="financialChallenges">Key Financial
+                Challenges</label>
+              <input type="text" id="financialChallenges" name="financialChallenges"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="auditorsInsights">Auditor's Insights</label>
+              <textarea id="auditorsInsights" name="auditorsInsights"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" rows="2"></textarea>
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="complianceStatus">Complaint Status</label>
+              <input type="text" id="complianceStatus" name="complianceStatus"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="pendingLitigations">Pending Litigations</label>
+              <input type="text" id="pendingLitigations" name="pendingLitigations"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="regulatoryFilings">Regulatory Filings</label>
+              <input type="text" id="regulatoryFilings" name="regulatoryFilings"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-between">
+            <button type="button"
+              class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Back</button>
+            <button type="submit"
+              class="next-btn px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Next</button>
+          </div>
+        </form>
+
+        <!-- Step 7: Directors -->
+        <form class="form-step hidden" data-step="6" novalidate method="POST"
+          action="{{ url_for('re.add_new_client') }}">
+          <input type="hidden" name="current_step" value="6">
+          <input type="hidden" id="directors_data" name="directors_data" value="" />
+
+          <h2 class="text-2xl font-semibold mb-6 text-orange-800">Director Details</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end max-w-6xl mb-4">
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="directorName">Name *</label>
+              <input type="text" id="directorName" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="panNumber">PAN Number</label>
+              <input type="text" id="panNumber" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="directorEmail">Email *</label>
+              <input type="email" id="directorEmail" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+            <div>
+              <label class="block mb-1 font-medium text-gray-700" for="contactDetail">Contact Detail</label>
+              <input type="text" id="contactDetail" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+            </div>
+            <div class="md:col-span-4">
+              <button type="button" id="addDirectorBtn"
+                class="bg-green-500 text-white font-bold py-2 px-4 rounded-full">Add Director</button>
+            </div>
+          </div>
+
+          <ul id="directorsList" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Directors will be added here dynamically -->
+          </ul>
+
+          <div class="flex justify-between mt-6">
+            <button type="button"
+              class="back-btn px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Back</button>
+            <button type="submit"
+              class="submit-btn px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">Submit</button>
+          </div>
+        </form>
+
+
+      </main>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Multi-step form navigation logic ---
+  const steps = document.querySelectorAll(".form-step");
+  const stepIndicators = document.querySelectorAll(".step-indicator");
+  const nextBtns = document.querySelectorAll(".next-btn");
+  const backBtns = document.querySelectorAll(".back-btn");
+  const submitBtn = document.querySelector(".submit-btn");
+
+  // Detect step from URL parameter, otherwise default to 0
+  const urlParams = new URLSearchParams(window.location.search);
+  let currentStep = parseInt(urlParams.get('step')) || 0;
+
+  // Global reference to renderSelectedDepartments
+  let renderSelectedDepartments = null;
+
+  // Show the current step and update stepper UI
+  function showStep(step) {
+    steps.forEach((form, i) => {
+      form.classList.toggle("hidden", i !== step);
+    });
+
+    stepIndicators.forEach((btn, i) => {
+      const circle = btn.querySelector("div");
+      if (i === step) {
+        btn.setAttribute("aria-current", "step");
+        circle.className = "w-16 h-16 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shadow hover:bg-orange-600 transition-colors";
+      } else {
+        btn.removeAttribute("aria-current");
+        circle.className = "w-16 h-16 rounded-full bg-gray-200 text-black flex items-center justify-center font-bold text-lg shadow hover:bg-gray-300 transition-colors";
+      }
+    });
+    currentStep = step;
+
+    // Update URL without reloading
+    const newUrl = window.location.pathname + `?step=${step}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+  }
+
+  // Initialize all event listeners
+  function initializeEventListeners() {
+    // Handle Back buttons
+    backBtns.forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (currentStep > 0) {
+          showStep(currentStep - 1);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
+    });
+
+    // Stepper navigation
+    stepIndicators.forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const step = parseInt(btn.dataset.step);
+        showStep(step);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+
+    // Handle Next buttons
+    nextBtns.forEach(btn => {
+      btn.addEventListener("click", function (e) {
+        const form = btn.closest('.form-step');
+        if (!form.checkValidity()) {
+          e.preventDefault();
+          form.reportValidity();
+          return false;
+        }
+        return true;
+      });
+    });
+  }
+
+  // --- Type of Org Dropdown ---
+  function initializeTypeOrgDropdown() {
+    const typeOrgInput = document.getElementById("type_org-input");
+    const typeOrgDropdown = document.getElementById("type_org-dropdown");
+    const typeOrgOptions = document.querySelectorAll(".type-org-option");
+
+    if (typeOrgInput && typeOrgDropdown) {
+      typeOrgInput.addEventListener("click", (e) => {
+        e.stopPropagation();
+        typeOrgDropdown.classList.toggle("hidden");
+      });
+
+      typeOrgOptions.forEach(option => {
+        option.addEventListener("change", () => {
+          const selectedTypes = Array.from(typeOrgOptions)
+            .filter(opt => opt.checked)
+            .map(opt => opt.value);
+          typeOrgInput.value = selectedTypes.join(", ");
+        });
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', function (event) {
+        if (!typeOrgDropdown.contains(event.target) && event.target !== typeOrgInput) {
+          typeOrgDropdown.classList.add('hidden');
+        }
+      });
+    }
+  }
+
+  // --- Type of Industry Dropdown ---
+  function initializeTypeIndustryDropdown() {
+    const typeIndustryInput = document.getElementById("type_industry-input");
+    const typeIndustryDropdown = document.getElementById("type_industry-dropdown");
+    const typeIndustryOptions = document.querySelectorAll(".type-industry-option");
+
+    if (typeIndustryInput && typeIndustryDropdown) {
+      typeIndustryInput.addEventListener("click", (e) => {
+        e.stopPropagation();
+        typeIndustryDropdown.classList.toggle("hidden");
+      });
+
+      typeIndustryOptions.forEach(option => {
+        option.addEventListener("change", () => {
+          const selectedIndustries = Array.from(typeIndustryOptions)
+            .filter(opt => opt.checked)
+            .map(opt => opt.value);
+          typeIndustryInput.value = selectedIndustries.join(", ");
+        });
+      });
+
+      document.addEventListener('click', function (event) {
+        if (!typeIndustryDropdown.contains(event.target) && event.target !== typeIndustryInput) {
+          typeIndustryDropdown.classList.add('hidden');
+        }
+      });
+    }
+  }
+
+  // --- Departments Dropdown ---
+  function initializeDepartmentsDropdown() {
+    const dropdownTrigger = document.getElementById('dropdown-trigger');
+    const dropdownPanel = document.getElementById('departments-dropdown-panel');
+    const selectedContainer = document.getElementById('selected-departments-container');
+    const checkboxes = dropdownPanel ? dropdownPanel.querySelectorAll('input[type="checkbox"]') : [];
+
+    if (dropdownTrigger && dropdownPanel) {
+      // Toggle dropdown
+      dropdownTrigger.addEventListener('click', function (event) {
+        event.stopPropagation();
+        dropdownPanel.classList.toggle("hidden");
+      });
+
+      // Close when clicking outside
+      document.addEventListener('click', function (event) {
+        if (!dropdownTrigger.contains(event.target) && !dropdownPanel.contains(event.target)) {
+          dropdownPanel.classList.add("hidden");
+        }
+      });
+
+      // Make renderSelectedDepartments globally accessible
+      renderSelectedDepartments = function () {
+        selectedContainer.innerHTML = '';
+        const selectedCheckboxes = Array.from(checkboxes).filter(cb => cb.checked);
+
+        if (selectedCheckboxes.length === 0) {
+          selectedContainer.innerHTML = '<p class="text-gray-500 text-sm">No departments selected.</p>';
+          return;
+        }
+
+        selectedCheckboxes.forEach(checkbox => {
+          const departmentId = checkbox.value;
+          const departmentName = checkbox.dataset.name;
+
+          const pill = document.createElement('div');
+          pill.className = 'inline-flex items-center bg-orange-100 text-orange-800 text-sm font-medium px-2.5 py-0.5 rounded-full';
+          pill.innerHTML = `
+            <span>${departmentName}</span>
+            <button type="button" class="ml-1.5 h-4 w-4 flex items-center justify-center text-orange-800 hover:text-orange-900 focus:outline-none remove-btn" data-id="${departmentId}">
+              <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+              </svg>
+            </button>
+          `;
+          selectedContainer.appendChild(pill);
+        });
+      };
+
+      // When checkboxes change
+      dropdownPanel.addEventListener('change', function (event) {
+        if (event.target.matches('input[type="checkbox"]')) {
+          renderSelectedDepartments();
+        }
+      });
+
+      // Remove via pill button
+      selectedContainer.addEventListener('click', function (event) {
+        const removeBtn = event.target.closest('.remove-btn');
+        if (removeBtn) {
+          const departmentId = removeBtn.dataset.id;
+          const checkbox = document.getElementById(`dept-${departmentId}`);
+          if (checkbox) {
+            checkbox.checked = false;
+            renderSelectedDepartments();
+          }
+        }
+      });
+
+      // Initialize on load
+      renderSelectedDepartments();
+    }
+  }
+
+  // --- Key Locations Logic ---
+  function initializeLocations() {
+    const addLocationBtn = document.getElementById("addLocationBtn");
+    const locationsList = document.getElementById("locationsList");
+    const addressInput = document.getElementById("address-other");
+    const countryInput = document.getElementById("country-other");
+    const stateInput = document.getElementById("state-other");
+    const cityInput = document.getElementById("city-other");
+
+    if (addLocationBtn && locationsList) {
+      addLocationBtn.addEventListener("click", () => {
+        const address = addressInput.value.trim();
+        const country = countryInput.value.trim();
+        const state = stateInput.value.trim();
+        const city = cityInput.value.trim();
+
+        if (address && country && state && city) {
+          const li = document.createElement("li");
+          li.className = "border rounded-lg p-4 bg-orange-100 shadow flex justify-between items-center";
+          li.innerHTML = `
+            <div>
+                <p class="font-semibold text-gray-900">${address}</p>
+                <p class="text-gray-700">${city}, ${state}, ${country}</p>
+            </div>
+            <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full" aria-label="Remove location">
+                Remove
+            </button>
+          `;
+          locationsList.appendChild(li);
+
+          addressInput.value = "";
+          countryInput.value = "";
+          stateInput.value = "";
+          cityInput.value = "";
+
+          li.querySelector(".remove-btn").addEventListener("click", () => {
+            li.remove();
+          });
+        } else {
+          alert("Please fill all location details before adding.");
+        }
+      });
+    }
+
+    const locationsForm = document.querySelector('form[data-step="1"]');
+    if (locationsForm) {
+      locationsForm.addEventListener('submit', (event) => {
+        const getLocationsData = () => {
+          const locations = [];
+          if (!locationsList) return locations;
+
+          const locationItems = locationsList.querySelectorAll('li');
+
+          locationItems.forEach(item => {
+            const address = item.querySelector('p').textContent;
+            const details = item.querySelector('p:last-child').textContent.split(',').map(s => s.trim());
+            const city = details[0];
+            const state = details[1];
+            const country = details[2];
+
+            locations.push({
+              address: address,
+              country: country,
+              state: state,
+              city: city
+            });
+          });
+
+          return locations;
+        };
+
+        const locationsData = getLocationsData();
+        const locationsInput = document.getElementById('locations_data');
+        if (locationsInput) {
+          locationsInput.value = JSON.stringify(locationsData);
+        }
+      });
+    }
+  }
+
+  // --- Organization Structure Logic ---
+  function initializePositions() {
+    const positionsList = document.getElementById("positionsList");
+    const addPositionBtn = document.getElementById("addPositionBtn");
+
+    if (addPositionBtn && positionsList) {
+      addPositionBtn.addEventListener("click", () => {
+        const posName = document.getElementById("positionName").value.trim();
+        const reportsTo = document.getElementById("reportsTo").value.trim();
+
+        if (posName && reportsTo) {
+          const li = document.createElement("li");
+          li.className = "border rounded-lg p-4 bg-orange-100 shadow flex justify-between items-center";
+          li.innerHTML = `
+            <div>
+              <p class="font-semibold text-gray-900">${posName}</p>
+              <p class="text-gray-700">Reports to: ${reportsTo}</p>
+            </div>
+            <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full" aria-label="Remove position">
+              Remove
+            </button>
+          `;
+          positionsList.appendChild(li);
+
+          document.getElementById("positionName").value = "";
+          document.getElementById("reportsTo").value = "";
+
+          li.querySelector(".remove-btn").addEventListener("click", () => {
+            li.remove();
+          });
+        } else {
+          alert("Please fill both Position Name and Reports To.");
+        }
+      });
+    }
+
+    const positionsForm = document.querySelector('form[data-step="4"]');
+    if (positionsForm) {
+      positionsForm.addEventListener('submit', (event) => {
+        const getPositionsData = () => {
+          const positions = [];
+          if (!positionsList) return positions;
+
+          const positionItems = positionsList.querySelectorAll('li');
+
+          positionItems.forEach(item => {
+            const positionNameEl = item.querySelector('p.font-semibold');
+            const reportsToEl = item.querySelector('p.text-gray-700');
+            const positionName = positionNameEl ? positionNameEl.textContent.trim() : '';
+            const reportsToText = reportsToEl ? reportsToEl.textContent : '';
+            const reportsTo = reportsToText.replace('Reports to: ', '').trim();
+
+            positions.push({
+              position: positionName,
+              reportsTo: reportsTo
+            });
+          });
+
+          return positions;
+        };
+
+        const positionsData = getPositionsData();
+        const positionsInput = document.getElementById('positions_data');
+        if (positionsInput) {
+          positionsInput.value = JSON.stringify(positionsData);
+        }
+      });
+    }
+  }
+
+  // --- Directors Logic ---
+  function initializeDirectors() {
+    const addDirectorBtn = document.getElementById("addDirectorBtn");
+    const directorsList = document.getElementById("directorsList");
+    const directorNameEl = document.getElementById("directorName");
+    const panNumberEl = document.getElementById("panNumber");
+    const directorEmailEl = document.getElementById("directorEmail");
+    const contactDetailEl = document.getElementById("contactDetail");
+    const directorsDataInput = document.getElementById("directors_data");
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function createDirectorCard({ name, pan, email, contact }) {
+      const li = document.createElement("li");
+      li.className = "border rounded-lg p-4 bg-orange-100 shadow flex flex-col space-y-1";
+      li.dataset.email = (email || "").toLowerCase();
+      li.innerHTML = `
+        <div class="flex justify-between items-start">
+          <div class="font-bold text-gray-900 name-field">${escapeHtml(name)}</div>
+          <div class="space-x-2">
+            <button type="button" class="edit-btn bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full">Edit</button>
+            <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-full">Remove</button>
+          </div>
+        </div>
+        <div class="text-sm text-gray-700 pan-field">PAN: ${escapeHtml(pan)}</div>
+        <div class="text-sm text-gray-700 email-field">Email: ${escapeHtml(email)}</div>
+        <div class="text-sm text-gray-700 contact-field">Contact: ${escapeHtml(contact)}</div>
+      `;
+
+      li.querySelector(".remove-btn").addEventListener("click", () => {
+        li.remove();
+      });
+
+      li.querySelector(".edit-btn").addEventListener("click", () => {
+        const oldName = li.querySelector(".name-field")?.textContent?.trim() || "";
+        const oldPan = (li.querySelector(".pan-field")?.textContent || "").replace(/^PAN:\s*/i, "").trim();
+        const oldEmail = (li.querySelector(".email-field")?.textContent || "").replace(/^Email:\s*/i, "").trim();
+        const oldContact = (li.querySelector(".contact-field")?.textContent || "").replace(/^Contact:\s*/i, "").trim();
+
+        directorNameEl.value = oldName;
+        panNumberEl.value = oldPan;
+        directorEmailEl.value = oldEmail;
+        contactDetailEl.value = oldContact;
+
+        li.remove();
+      });
+
+      return li;
+    }
+
+    function hasDuplicateEmail(email) {
+      if (!email || !directorsList) return false;
+      const norm = email.toLowerCase();
+      return !!directorsList.querySelector(`li[data-email="${CSS.escape(norm)}"]`);
+    }
+
+    function truncate(str, maxLen) {
+      if (!str) return "";
+      return String(str).slice(0, maxLen);
+    }
+
+    if (addDirectorBtn && directorsList) {
+      addDirectorBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const name = directorNameEl.value.trim();
+        const pan = panNumberEl.value.trim();
+        const email = (directorEmailEl.value || "").trim().toLowerCase();
+        const contact = contactDetailEl.value.trim();
+
+        if (!name || !email) {
+          alert("Name and Email are required for a director.");
+          return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          alert("Please enter a valid email address.");
+          return;
+        }
+
+        if (hasDuplicateEmail(email)) {
+          alert("A director with this email is already added in the list.");
+          return;
+        }
+
+        const safePan = truncate(pan, 20);
+        const safeContact = truncate(contact, 20);
+        const safeName = truncate(name, 255);
+
+        const card = createDirectorCard({ name: safeName, pan: safePan, email, contact: safeContact });
+        directorsList.appendChild(card);
+
+        directorNameEl.value = "";
+        panNumberEl.value = "";
+        directorEmailEl.value = "";
+        contactDetailEl.value = "";
+      });
+    }
+
+    const directorsForm = document.querySelector('form[data-step="6"]');
+    if (directorsForm) {
+      directorsForm.addEventListener("submit", (e) => {
+        const items = Array.from(directorsList.querySelectorAll("li"));
+        const directorsPayload = items.map(li => {
+          const name = li.querySelector(".name-field")?.textContent?.trim() || "";
+          const pan = (li.querySelector(".pan-field")?.textContent || "").replace(/^PAN:\s*/i, "").trim() || "";
+          const email = (li.dataset.email || "").trim();
+          const contact = (li.querySelector(".contact-field")?.textContent || "").replace(/^Contact:\s*/i, "").trim() || "";
+
+          return {
+            name: truncate(name, 255),
+            pan: truncate(pan, 20),
+            email: truncate(email.toLowerCase(), 255),
+            contact: truncate(contact, 20)
+          };
+        });
+
+        if (directorsDataInput) {
+          directorsDataInput.value = JSON.stringify(directorsPayload);
+        }
+
+        if (directorsPayload.length === 0) {
+          alert("Please add at least one director.");
+          e.preventDefault();
+          return false;
+        }
+
+        return true;
+      });
+    }
+  }
+
+  // Pre-fill form data from session
+  function prefillFormData() {
+    const formData = {{ form_data | tojson | safe
+  }};
+
+  // Step 0: Organization Information
+  if (formData.step_0) {
+    const step0 = formData.step_0;
+    if (step0.org_name) document.getElementById('org_name').value = step0.org_name;
+    if (step0.legal_name) document.getElementById('legal_name').value = step0.legal_name;
+    if (step0.constitution) document.getElementById('constitution').value = step0.constitution;
+    if (step0.indian_regulatory) document.getElementById('indian_regulatory').value = step0.indian_regulatory;
+    if (step0.address) document.getElementById('address').value = step0.address;
+    if (step0.city) document.getElementById('city').value = step0.city;
+    if (step0.state) document.getElementById('state').value = step0.state;
+    if (step0.country) document.getElementById('country').value = step0.country;
+
+    // Org types
+    if (step0.selected_org_types && step0.selected_org_types.length > 0) {
+      step0.selected_org_types.forEach(type => {
+        const checkbox = document.querySelector(`.type-org-option[value="${type}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+      document.getElementById('type_org-input').value = step0.selected_org_types.join(', ');
+    }
+
+    // Industries
+    if (step0.selected_industries && step0.selected_industries.length > 0) {
+      step0.selected_industries.forEach(industry => {
+        const checkbox = document.querySelector(`.type-industry-option[value="${industry}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+      document.getElementById('type_industry-input').value = step0.selected_industries.join(', ');
+    }
+  }
+
+  // Step 1: Key Locations
+  if (formData.step_1 && formData.step_1.locations) {
+    const locationsList = document.getElementById('locationsList');
+    formData.step_1.locations.forEach(loc => {
+      const li = document.createElement("li");
+      li.className = "border rounded-lg p-4 bg-orange-100 shadow flex justify-between items-center";
+      li.innerHTML = `
+          <div>
+            <p class="font-semibold text-gray-900">${loc.address}</p>
+            <p class="text-gray-700">${loc.city}, ${loc.state}, ${loc.country}</p>
+          </div>
+          <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full">Remove</button>
+        `;
+      locationsList.appendChild(li);
+      li.querySelector(".remove-btn").addEventListener("click", () => li.remove());
+    });
+  }
+
+  // Step 2: Departments
+  if (formData.step_2 && formData.step_2.department_ids) {
+    formData.step_2.department_ids.forEach(deptId => {
+      const checkbox = document.getElementById(`dept-${deptId}`);
+      if (checkbox) {
+        checkbox.checked = true;
+      }
+    });
+    // Trigger render of selected departments
+    if (renderSelectedDepartments) {
+      setTimeout(renderSelectedDepartments, 100);
+    }
+  }
+
+  // Step 3: Business Overview
+  if (formData.step_3) {
+    const step3 = formData.step_3;
+    if (step3.business_description) document.getElementById('businessDescription').value = step3.business_description;
+    if (step3.branches_india !== undefined) document.getElementById('branchesIndia').value = step3.branches_india;
+    if (step3.branches_outside_india !== undefined) document.getElementById('branchesOutsideIndia').value = step3.branches_outside_india;
+    if (step3.business_processes) document.getElementById('businessProcesses').value = step3.business_processes;
+    if (step3.org_history) document.getElementById('orgHistory').value = step3.org_history;
+  }
+
+  // Step 4: Organization Structure
+  if (formData.step_4 && formData.step_4.positions) {
+    const positionsList = document.getElementById('positionsList');
+    formData.step_4.positions.forEach(pos => {
+      const li = document.createElement("li");
+      li.className = "border rounded-lg p-4 bg-orange-100 shadow flex justify-between items-center";
+      li.innerHTML = `
+          <div>
+            <p class="font-semibold text-gray-900">${pos.position}</p>
+            <p class="text-gray-700">Reports to: ${pos.reportsTo}</p>
+          </div>
+          <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full">Remove</button>
+        `;
+      positionsList.appendChild(li);
+      li.querySelector(".remove-btn").addEventListener("click", () => li.remove());
+    });
+  }
+
+  // Step 5: Financial Overview
+  if (formData.step_5) {
+    const step5 = formData.step_5;
+    if (step5.key_revenue) document.getElementById('revenueStreams').value = step5.key_revenue;
+    if (step5.key_markets_customers) document.getElementById('marketsCustomers').value = step5.key_markets_customers;
+    if (step5.key_financials) document.getElementById('financialMetrics').value = step5.key_financials;
+    if (step5.total_revenue) document.getElementById('totalRevenue').value = step5.total_revenue;
+    if (step5.net_profit_loss) document.getElementById('netProfitLoss').value = step5.net_profit_loss;
+    if (step5.total_assets) document.getElementById('totalAssets').value = step5.total_assets;
+    if (step5.total_liabilities) document.getElementById('totalLiabilities').value = step5.total_liabilities;
+    if (step5.key_financial_challenges) document.getElementById('financialChallenges').value = step5.key_financial_challenges;
+    if (step5.auditors_insights) document.getElementById('auditorsInsights').value = step5.auditors_insights;
+    if (step5.compliance_status) document.getElementById('complianceStatus').value = step5.compliance_status;
+    if (step5.pending_litigations) document.getElementById('pendingLitigations').value = step5.pending_litigations;
+    if (step5.regulatory_filings) document.getElementById('regulatoryFilings').value = step5.regulatory_filings;
+  }
+
+  // Step 6: Directors
+  if (formData.step_6 && formData.step_6.directors) {
+    const directorsList = document.getElementById('directorsList');
+    formData.step_6.directors.forEach(dir => {
+      const li = document.createElement("li");
+      li.className = "border rounded-lg p-4 bg-orange-100 shadow flex flex-col space-y-1";
+      li.dataset.email = (dir.email || "").toLowerCase();
+      li.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div class="font-bold text-gray-900 name-field">${dir.name || ''}</div>
+            <div class="space-x-2">
+              <button type="button" class="edit-btn bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full">Edit</button>
+              <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-full">Remove</button>
+            </div>
+          </div>
+          <div class="text-sm text-gray-700 pan-field">PAN: ${dir.pan || ''}</div>
+          <div class="text-sm text-gray-700 email-field">Email: ${dir.email || ''}</div>
+          <div class="text-sm text-gray-700 contact-field">Contact: ${dir.contact || ''}</div>
+        `;
+      directorsList.appendChild(li);
+
+      li.querySelector(".remove-btn").addEventListener("click", () => li.remove());
+      li.querySelector(".edit-btn").addEventListener("click", () => {
+        document.getElementById('directorName').value = dir.name || '';
+        document.getElementById('panNumber').value = dir.pan || '';
+        document.getElementById('directorEmail').value = dir.email || '';
+        document.getElementById('contactDetail').value = dir.contact || '';
+        li.remove();
+      });
+    });
+  }
+  }
+
+  // Initialize everything on page load - SINGLE DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', () => {
+    // First initialize all components
+    initializeEventListeners();
+    initializeTypeOrgDropdown();
+    initializeTypeIndustryDropdown();
+    initializeDepartmentsDropdown();
+    initializeLocations();
+    initializePositions();
+    initializeDirectors();
+
+    // Then pre-fill form data
+    prefillFormData();
+
+    // Finally show the correct step
+    showStep(currentStep);
+  });
+</script>
+
+{% endblock %}

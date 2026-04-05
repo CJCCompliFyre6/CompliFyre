@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Complifyre</title>
+    <meta
+      name="Description"
+      content="Bootstrap Responsive Admin Web Dashboard HTML5 Template"
+    />
+    <meta name="Author" content="Spruko Technologies Private Limited" />
+    <meta
+      name="keywords"
+      content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard"
+    />
+    <style>
+      /* Global Reset */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #fef8f5;
+        color: #333;
+      }
+
+      /* Main Container */
+      .container {
+        max-width: 1100px;
+        margin: 30px auto;
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      h1,
+      h2,
+      h3 {
+        color: #222;
+      }
+      .breadcrumb {
+        color: #f86f00;
+        margin-bottom: 20px;
+      }
+      .section-title {
+        margin-top: 20px;
+        font-weight: bold;
+      }
+      .key-areas-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      .key-areas-table th,
+      .key-areas-table td {
+        padding: 12px;
+        border: 1px solid #ddd;
+        text-align: left;
+      }
+      .key-areas-table th {
+        background-color: #f4f4f4;
+        font-weight: bold;
+      }
+      .highlight {
+        font-weight: bold;
+        color: #000;
+      }
+
+
+
+
+
+
+            /* Header */
+            header {
+        background-color: #222;
+        color: white;
+        padding: 15px;
+        text-align: left;
+      }
+
+      /* Flexbox container for the menu icon and title */
+      .menu-icon-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        background-color: #fff;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Styling for the menu icon */
+      .menu-icon {
+        font-size: 30px;
+        color: black;
+        cursor: pointer;
+        margin-right: 20px;
+      }
+
+      /* Styling for the dashboard title */
+      .dashboard-title {
+        flex-grow: 1;
+      }
+
+      .dashboard-title h1 {
+        font-size: 32px;
+        font-weight: bold;
+        margin: 0;
+        color: black;
+      }
+
+      .dashboard-title p {
+        font-size: 16px;
+        color: #ffa62b;
+        margin-top: 10px;
+        margin-left: 10px;
+      }
+
+      .dashboard-title a {
+        text-decoration: none;
+        color: inherit;
+      }
+
+      /* User Actions */
+      .user-actions {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-left: auto;
+      }
+
+      .profile-icon,
+      .logout-icon {
+        font-size: 24px;
+        cursor: pointer;
+        color: black;
+      }
+
+      .profile-icon:hover,
+      .logout-icon:hover {
+        color: #ffa62b;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        left: -250px;
+        top: 0;
+        width: 250px;
+        height: 100%;
+        background-color: black;
+        color: white;
+        transition: left 0.3s ease-in-out;
+        padding: 20px;
+        z-index: 1000;
+      }
+
+      .sidebar.open {
+        left: 0;
+      }
+
+      /* Sidebar Logo */
+      .logo {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 30px;
+      }
+
+      .logo img {
+        width: 150px;
+        height: auto;
+      }
+
+      /* Sidebar Menu */
+      .menu {
+        list-style-type: none;
+      }
+
+      .menu li {
+        padding: 10px 0;
+      }
+
+      .menu li a {
+        color: white;
+        text-decoration: none;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+      }
+
+      .menu li a i {
+        font-size: 18px;
+      }
+
+      .menu li a:hover {
+        background: linear-gradient(135deg, #f76b1c, #ffa62b);
+      }
+
+      /* Sidebar Submenu */
+      /* Submenu Scroll */
+      .submenu .submenu-items {
+        display: none;
+        max-height: 250px; /* Adjust this value as needed */
+        overflow-y: auto;
+        list-style: none;
+        padding-left: 20px;
+        background-color: black;
+        border: 1px solid black;
+        border-radius: 5px;
+      }
+
+      .submenu .submenu-items.active {
+        display: block;
+      }
+
+      /* Custom Scrollbar Style */
+      .submenu .submenu-items::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .submenu .submenu-items::-webkit-scrollbar-thumb {
+        background: #575757;
+        border-radius: 4px;
+      }
+
+      .submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+        background: #444;
+      }
+
+      /* Phase Labels Styling */
+      .submenu li.view-clients,
+      .submenu li.audit-phase,
+      .submenu li.risk-phase,
+      .submenu li.field-phase,
+      .submenu li.report-phase,
+      .submenu li.up-phase {
+        color: #514a4a;
+        cursor: default;
+        font-weight: bold;
+      }
+
+      /* Sidebar Footer */
+      .footer {
+        position: absolute;
+        bottom: 20px;
+        width: 100%;
+        padding: 10px;
+      }
+
+      .footer a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: white;
+        text-decoration: none;
+      }
+
+      .footer a i {
+        font-size: 18px;
+      }
+    </style>
+
+<link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+
+<body>
+<!-- Header -->
+<div class="menu-icon-container">
+  <div class="menu-icon" onclick="toggleSidebar()">
+    <i class="bx bx-menu"></i>
+  </div>
+  <div class="dashboard-title">
+    <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+    <p>Dashboard</p>
+  </div>
+<!-- Profile and Logout Icons aligned to the right -->
+<div class="user-actions">
+  <!-- Profile Icon -->
+  <a href="#" class="profile-icon">
+      <i class="bx bx-user"></i>
+  </a>
+
+  <!-- Logout Icon -->
+  <span class="logout-icon" onclick="logout()">
+      <i class="bx bx-log-out"></i>
+  </span>
+</div>
+</div>
+
+
+<div id="sidebar" class="sidebar">
+  <div class="logo">
+    <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+  </div>
+
+  <ul class="menu">
+    <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+      </a>
+      <ul class="submenu-items">
+        <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+        <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+      </ul>
+    </li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+      </a>
+    <ul class="submenu-items">
+     <li class="view-clients">View Clients</li>
+     <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+     <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+    </ul>
+    </li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+      </a>
+      <ul class="submenu-items">
+        <li class="audit-phase">Audit / Assessment Phase</li>
+        <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+
+        <li class="risk-phase">Risk Assessment Phase</li>
+        <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+        <li><a href="{{url_for('audit.dam')}}">Audit Strategy Memo</a></li>
+        <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+        <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+        <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+        <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+        <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+        <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+
+        <li class="field-phase">FieldWork Phase (Execution)</li>
+        <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+        <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+        <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+        <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+        <li><a href="#">FieldWork Documentation</a></li>
+        <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+        <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+        <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+
+        <li class="report-phase">Reporting Phase</li>
+        <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+        <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+
+        <li class="up-phase">Follow-Up Phase</li>
+        <li><a href="#">Action Tracker</a></li>
+      </ul>
+    </li>
+
+  <main class="footer">
+    <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+    <a href="#"><i class="bx bx-support"></i> Support Center</a>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="main" style="padding: 20px;">
+  <div class="breadcrumb" style="margin-bottom: 24px;">
+    <h1 style="margin-bottom: 8px;">Approved Audit Plan</h1>
+    <a href="#" style="color: #007bff; text-decoration: none;">Dashboard</a> / Approved Audit Plan
+  </div>
+
+    <div class="container">
+      <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Objective</h2>
+    <p style="margin-bottom: 24px; color: #000;">
+      Ensure that the audit plan for Anixo Bank Ltd. is complete, risk-focused, and aligned with audit objectives. This finalized plan has been reviewed and approved by senior management and audit partners, marking the end of the planning phase and ready for execution.
+    </p>
+
+    <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Scope of the Audit:</h2>
+    <p style="margin-bottom: 16px; color: #000;">The scope of the audit includes assessing the bank's compliance with the RBI's Prudential IRAC norms and Cybersecurity guidelines across the following processes:</p>
+    <ul style="margin-bottom: 24px; padding-left: 20px; color: #000;">
+      <li style="margin-bottom: 8px;">Loan and Credit Risk Management.</li>
+      <li style="margin-bottom: 8px;">Information Security and Data Protection.</li>
+      <li style="margin-bottom: 8px;">Regulatory Compliance with key RBI norms.</li>
+      <li>Non-Performing Assets (NPA) classification and management.</li>
+    </ul>
+
+    <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Audit Objectives:</h2>
+    <p style="margin-bottom: 8px; color: #000;"><strong>1. Evaluate Internal Controls:</strong> To ensure that adequate internal controls exist to safeguard assets, maintain data integrity, and comply with regulations.</p>
+    <p style="margin-bottom: 8px; color: #000;"><strong>2. Risk-Based Testing:</strong> Focus on high-risk areas, such as credit risk and cybersecurity, based on prior risk assessments.</p>
+    <p style="margin-bottom: 24px; color: #000;"><strong>3. Regulatory Compliance:</strong> Verify compliance with regulatory frameworks, especially focusing on IRAC norms and cybersecurity compliance under the RBI guidelines.</p>
+
+    <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Key Areas of Focus</h2>
+    <div style="overflow-x: auto; margin-bottom: 24px;">
+      <table style="width: 100%; border-collapse: collapse; margin-top: 16px; color: #000;">
+        <thead>
+          <tr>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Audit Area</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Description</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Risk Level</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Compliance Focus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background-color: #fafafa;">
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Loan Portfolio Management</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Assessment of loan approval, provisioning, and classification (including NPAs).</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">High</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">RBI Prudential IRAC norms</td>
+          </tr>
+          <tr>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Information Security</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Review of IT systems and cybersecurity controls as per RBI Cybersecurity guidelines.</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">High</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">RBI Cybersecurity Norms</td>
+          </tr>
+          <tr style="background-color: #fafafa;">
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Non-Performing Assets (NPA)</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Classification, provisioning, and recovery efforts for NPAs.</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">High</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">RBI Prudential IRAC norms</td>
+          </tr>
+          <tr>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Revenue Recognition</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Verification of income from loan interest and other key revenue streams.</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Medium</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Regulatory Financial Reporting</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Audit Approach:</h2>
+    <p style="margin-bottom: 12px; color: #000;"><strong>1. Risk-Based Methodology:</strong> The audit will prioritize high-risk areas such as credit risk, NPAs, and cybersecurity.</p>
+    <p style="margin-bottom: 12px; color: #000;"><strong>2. Substantive Testing:</strong> Detailed substantive testing will be performed on the bank's loan portfolio, NPA classification, and financial reporting.</p>
+    <p style="margin-bottom: 24px; color: #000;"><strong>3. Compliance Testing:</strong> Focused reviews will be conducted on the bank’s compliance with regulatory guidelines.</p>
+
+    <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Materiality Thresholds:</h2>
+    <p style="margin-bottom: 24px; color: #000;">
+      <strong>Overall Materiality:</strong> 1% of Total Assets (e.g., INR [Amount] million)<br>
+      <strong>Materiality for Loans & NPAs:</strong> 0.5% of the loan portfolio.
+    </p>
+
+    <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Team and Responsibilities</h2>
+    <div style="overflow-x: auto; margin-bottom: 24px;">
+      <table style="width: 100%; border-collapse: collapse; margin-top: 16px; color: #000;">
+        <thead>
+          <tr>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Team Member</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Responsibility</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background-color: #fafafa;">
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Audit Manager</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Overall audit oversight</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Manager</td>
+          </tr>
+          <tr>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Lead Auditor</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Execution and day-to-day management</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Auditor</td>
+          </tr>
+          <tr style="background-color: #fafafa;">
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">IT Auditor</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Focus on cybersecurity controls</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Auditor</td>
+          </tr>
+          <tr>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Compliance Auditor</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Testing regulatory compliance</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Auditor</td>
+          </tr>
+          <tr style="background-color: #fafafa;">
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Financial Auditor</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Substantive testing of financial data</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Auditor</td>
+          </tr>
+        </tbody>
+      </table>
+      <br />
+
+      <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Timeline</h2>	
+      <div style="overflow-x: auto; margin-bottom: 24px;">
+        <table style="width: 100%; border-collapse: collapse; margin-top: 16px; color: #000;">
+          <thead>
+            <tr>		
+              <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Audit Activity</th>
+              <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Start Date</th>
+              <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">End Date</th>
+              <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background-color: #fafafa;">
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">Planning and Risk Assessment</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[Start Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[End Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">2 Weeks</td>
+            </tr>
+            <tr style="background-color: #fafafa;">
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">Fieldwork and Substantive Testing</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[Start Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[End Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">4 Weeks</td>
+            </tr>
+            <tr style="background-color: #fafafa;">
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">Compliance Testing</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[Start Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[End Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">3 Weeks</td>
+            </tr>
+            <tr style="background-color: #fafafa;">
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">Internal Review</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[Start Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[End Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">1 Weeks</td>
+            </tr>
+            <tr style="background-color: #fafafa;">
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">Audit Report Preparation</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[Start Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">[End Date]</td>
+              <td style="padding: 16px; border: 1px solid #e0e0e0;">2 Weeks</td>
+            </tr>	
+          </tr>
+        </tbody>
+      </table>
+      <br />
+
+      <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Approvals</h2>
+      <div style="overflow-x: auto; margin-bottom: 24px;">
+        <table style="width: 100%; border-collapse: collapse; margin-top: 16px; color: #000;">
+        <thead>
+          <tr style="background-color: #fafafa;">
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Name</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Title</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Signature</th>
+            <th style="padding: 16px; border: 1px solid #e0e0e0; background-color: #f5f5f5; font-weight: bold; text-align: left; color: #000;">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Audit Manager</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Senior Manager</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">[Signature]</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">[Date]</td>
+          </tr>
+          <tr style="background-color: #fafafa;">
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Audit Partner</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Partner</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">[Signature]</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">[Date]</td>
+          </tr>
+          <tr>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Compliance Officer</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">Chief Compliance</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">[Signature]</td>
+            <td style="padding: 16px; border: 1px solid #e0e0e0;">[Date]</td>
+          </tr>
+        </tbody>
+      </table>
+      <br />
+
+      <h2 style="font-weight: bold; margin-bottom: 12px; color: #000;">Conclusion</h2>
+    <p style="margin-bottom: 24px; color: #000;">
+      The approved audit plan for Anixo Bank Ltd. marks the end of the planning phase. All necessary reviews have been conducted to ensure that the plan is complete, risk-focused, and aligned with the audit objectives. The fieldwork will commence based on the finalized schedule.
+    </p>
+      
+  </div>
+</main>
+<script> 
+// Toggle Sidebar
+    function toggleSidebar() {
+        document.getElementById("sidebar").classList.toggle("open");
+        const menuIcon = document.querySelector(".menu-icon i"); // Get the current icon
+    
+        // Toggle the icon when the sidebar opens or closes
+        if (menuIcon.classList.contains("bx-menu")) {
+            menuIcon.classList.replace("bx-menu", "bx-x"); // Switch to close icon
+        } else {
+            menuIcon.classList.replace("bx-x", "bx-menu"); // Switch back to menu icon
+        }
+    }
+    
+    // Function to close the sidebar when clicking outside
+    function closeSidebarIfClickedOutside(event) {
+        const sidebar = document.getElementById("sidebar");
+        const menuIcon = document.querySelector(".menu-icon i");
+        
+        // Check if the click is outside the sidebar and not on the menu icon
+        if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+            sidebar.classList.remove("open");
+            menuIcon.classList.replace("bx-x", "bx-menu"); // Revert the icon back to the menu
+        }
+    }
+    
+    // Add the event listener to close sidebar if clicking outside
+    document.addEventListener("click", closeSidebarIfClickedOutside);
+    
+    
+    function toggleSubmenu(event) {
+      event.preventDefault(); // Prevents page reload
+    
+      let parent = event.target.closest(".submenu"); // Find the clicked <li>
+      let submenu = parent.querySelector(".submenu-items"); // Find submenu in this <li>
+    
+      // Close all other submenus before opening the clicked one
+      document.querySelectorAll(".submenu-items").forEach((item) => {
+        if (item !== submenu) {
+          item.classList.remove("open"); // Use class to control the display
+          item.style.display = "none"; // Remove inline style if necessary
+          item.parentElement.classList.remove("open");
+        }
+      });
+    
+      // Toggle the clicked submenu
+      if (submenu.classList.contains("open")) {
+        submenu.classList.remove("open");
+        submenu.style.display = "none"; // Close
+        parent.classList.remove("open");
+      } else {
+        submenu.classList.add("open");
+        submenu.style.display = "block"; // Open
+        parent.classList.add("open");
+      }
+    }
+    
+    
+    function toggleSubmenu(event) {
+        event.preventDefault();
+        const submenu = event.target.nextElementSibling;
+        if (submenu) {
+          submenu.classList.toggle('active');
+        }
+      }
+      </script>
+  </body>
+</html>

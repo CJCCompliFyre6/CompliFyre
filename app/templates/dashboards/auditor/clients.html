@@ -1,0 +1,101 @@
+{% extends "audit_base.html" %}
+{%block content%}
+<link rel="stylesheet" href="assets/css/view.css" />
+    
+    <main class="main">
+
+        <div class="dropdown">
+            <a href="{{url_for('re.profile')}}" style="float: right;" class="add-new-guideline-btn" >Add New Client</a>
+            
+        </div>
+    </main>
+
+    <div id="linkSharingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeLinkSharingModal()">&times;</span>
+            <h2>Extract Notification from a Link</h2>
+            <form id="linkSharingForm" onsubmit="submitLink(event)">
+                <input type="text" id="shareableLink" value="https://example.com/share" required>
+                <button type="submit">Enter</button>
+            </form>
+        </div>
+    </div>
+    
+    
+            <div class="container">
+
+        <div class="top-buttons">
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search..">
+            </div>
+            <button id="exportCSV">Export to CSV</button>
+        </div>
+
+        <div class="table-container">
+        <table id="guidelinesTable">
+            <thead>
+                <tr>
+                    <th>Org ID</th>
+                    <th>Legal Entity Name</th>
+                    <th>Head Office Location</th>
+                    
+                    <th>Constitution</th>
+                    <th>Industry</th>
+                    <th>Org Category</th>
+                    
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>ARL BANK-001</td>
+                    <td>ARL BANK</td>
+                    <td>Mumbai, Maharashtra, India</td>
+                    <td>Public Limited Company</td>
+                    <td>Banking and Financial Services</td>
+                    <td>National Bank</td>
+                    <td>
+						<div class="action-menu">
+                            <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                            <div class="dropdown-content2">
+                                <a href="{{url_for('audit.view')}}">View Controls</a>
+                            </div>
+                        </div>
+                    </td>
+                    
+                </tr>
+                <tr>
+                    <td>ARL BANK-001</td>
+                    <td>ARL BANK</td>
+                    <td>Mumbai, Maharashtra, India</td>
+                    <td>Public Limited Company</td>
+                    <td>Banking and Financial Services</td>
+                    <td>National Bank</td>
+                    <td>
+						<div class="action-menu">
+                            <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                            <div class="dropdown-content2">
+                                <a href="{{url_for('audit.view')}}">View Controls</a>
+                            </div>
+                        </div>
+                    </td>
+                    
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="bottom-controls">
+            <div class="entries-box">
+                <select id="entriesSelect">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                </select>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+    </main>
+    <script src="assets/js/view.js"></script>
+{%endblock%}

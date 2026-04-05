@@ -1,0 +1,47 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center px-0 py-0">
+  <!-- Right Section (Button) -->
+  <div class="p-4 text-right">
+    <a href="{{ url_for('audit.create_project', org_id=org_id) }}">
+      <button class="bg-gradient-to-r from-[#ff7b00] to-[#ff4d00] text-white text-sm py-2.5 px-5 rounded-full shadow-md font-medium hover:opacity-90 transition duration-200">
+  Create New Project
+</button>
+
+    </a>
+  </div>
+</main>
+
+
+
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6" style="z-index: -20;">
+  <div class="ml-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% if projects %}
+      {% for project in projects %}
+      <div class="bg-white rounded overflow-hidden shadow-lg p-4 mb-4">
+        <a href="{{ url_for('re.activity', project_name=project.project_name) }}" class="block">
+          <div class="bg-white p-6 rounded-2xl shadow hover:shadow-lg transition-shadow duration-300 border border-gray-100 hover:cursor-pointer">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">{{ project.project_name }}</h3>
+            <p class="text-gray-600 text-sm mb-1">{{ project.project_description }}</p>
+            <p class="text-xs text-gray-400">Project ID: {{ project.id }}</p>
+          </div>
+        </a>
+        <a href="{{ url_for('re.generate_audit_report', project_id=project.id) }}" class="block mt-4">
+          <button class="bg-gradient-to-r from-[#34d399] to-[#059669] text-white text-sm py-2.5 px-5 rounded-full shadow-md font-medium hover:opacity-90 transition duration-200">
+            Generate Report
+          </button>
+        </a>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="bg-white p-6 rounded-2xl shadow border border-gray-100">
+        <h3 class="text-xl font-semibold text-gray-800 mb-2">No Projects Available</h3>
+        <p class="text-gray-600 text-sm">Click "Create New Project" above to get started.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>  
+<!-- </main> -->
+<script src={{url_for('audit.static',filename='js/view.js')}} ></script>
+{% endblock %}

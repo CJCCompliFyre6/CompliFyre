@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="assets/css/eng.css" />
+  <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="menu-icon-container">
+    <div class="menu-icon" onclick="toggleSidebar()">
+      <i class="bx bx-menu"></i>
+    </div>
+    <div class="dashboard-title">
+      <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+      <p>Dashboard</p>
+    </div>
+  <!-- Profile and Logout Icons aligned to the right -->
+  <div class="user-actions">
+    <!-- Profile Icon -->
+    <a href="#" class="profile-icon">
+        <i class="bx bx-user"></i>
+    </a>
+  
+    <!-- Logout Icon -->
+    <span class="logout-icon" onclick="logout()">
+        <i class="bx bx-log-out"></i>
+    </span>
+  </div>
+  </div>
+  
+  <div id="sidebar" class="sidebar">
+    <div class="logo">
+      <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+    </div>
+
+    <ul class="menu">
+      <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+          <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+        </ul>
+      </li>
+
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+        </a>
+      <ul class="submenu-items">
+       <li class="view-clients">View Clients</li>
+       <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+       <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+      </ul>
+      </li>
+
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li class="audit-phase">Audit / Assessment Phase</li>
+          <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+
+          <li class="risk-phase">Risk Assessment Phase</li>
+          <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+          <li><a href="{{url_for('audit.memo')}}">Audit Strategy Memo</a></li>
+          <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+          <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+          <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+          <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+          <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+          <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+
+          <li class="field-phase">FieldWork Phase (Execution)</li>
+          <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+          <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+          <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+          <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+          <li><a href="#">FieldWork Documentation</a></li>
+          <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+          <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+          <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+
+          <li class="report-phase">Reporting Phase</li>
+          <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+          <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+
+          <li class="up-phase">Follow-Up Phase</li>
+          <li><a href="#">Action Tracker</a></li>
+        </ul>
+      </li>
+
+    <div class="footer">
+      <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+      <a href="#"><i class="bx bx-support"></i> Support Center</a>
+    </div>
+  </div>
+
+
+<main class="main">
+    <div class="guidelines-list">
+        <h3>Guidelines List</h3>
+        <p><span class="dashboard-text">Dashboard /</span> Guidelines List</span></p>
+    </div>
+
+    <div class="container">
+        <!-- <h1>Audit Engagement Letter</h1>
+        <nav>
+            <a href="#">Dashboard</a> / Audit Engagement Letter
+        </nav> -->
+        <div class="tabs">
+            <button id="iracTab" class="active-tab">IRAC</button>
+            <button id="cyberTab">Cyber</button>
+        </div>
+
+        <div id="iracContent" class="tab-content">
+          
+          <p><strong>Date: </strong>October 11, 2024</p><br />
+      
+          <p style="margin-bottom: 20px; line-height: 1.5;">
+              <span style="font-weight: bold;">To,</span><br />
+              <span style="color: #ff6f61;">Mr. Rahul Mehta</span><br />
+              Chief Executive Officer<br />
+              Anixo Bank Ltd.<br />
+              Corporate Head Office,<br />
+              Mumbai, India
+          </p>
+      
+          <p><strong>Subject: </strong>Engagement Letter for the Audit of RBI Prudential IRAC Norms Compliance for FY 2023-2024</p><br />
+      
+          <p style="margin-bottom: 20px; line-height: 1.4;">
+              <strong>Dear Mr. Mehta,</strong>
+          </p>
+      
+          <p style="margin-bottom: 20px; line-height: 1.4;">
+              We are pleased to confirm our engagement with Anixo Bank Ltd. for conducting an independent audit of the bank's compliance with the RBI Prudential IRAC (Income Recognition and Asset Classification) norms for the financial year ending March 31, 2024.
+          </p>
+      
+          <p>This letter outlines the nature and scope of the audit engagement, our responsibilities, and the expected deliverables.</p>
+      
+          <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Objective of the Audit</h3>
+          <p style="margin-bottom: 20px; line-height: 1.4;">
+              The objective of this audit is to assess the adequacy and effectiveness of Anixo Bank’s compliance with the RBI Prudential IRAC Norms and evaluate the internal controls related to the classification and management of non-performing assets (NPAs) and loan portfolios across the organization.
+          </p>
+      
+          <p style="margin-bottom: 20px; line-height: 1.4;">
+              Primary objective of this audit is to assess the cybersecurity framework at Anixo Bank Ltd. and ensure its compliance with the RBI’s Cybersecurity Norms, focusing on the bank’s policies, processes, and systems related to:
+          </p>
+      
+          <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+              <li>Protecting information systems from cybersecurity threats.</li>
+              <li>Ensuring the security of customer data and privacy.</li>
+              <li>Prevention of cyber fraud and ensuring the security of payment systems.</li>
+              <li>Incident response and recovery mechanisms.</li>
+              <li>Monitoring and mitigating risks associated with cybersecurity breaches.</li>
+          </ul>
+      
+          <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Scope of the Audit</h3>
+          <p style="margin-bottom: 20px; line-height: 1.4;">
+              The audit scope includes all relevant business processes that are affected by the RBI Prudential IRAC norms. The processes to be audited are as follows:
+          </p>
+          <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+              <li>Loan Approval: Evaluation of the risk assessment process during loan approval.</li>
+              <li>Loan Monitoring: Ongoing monitoring of loans to identify early signs of stress.</li>
+              <li>Credit Risk Management: Policies and procedures related to loan classification.</li>
+              <li>Income Recognition: Procedures for recognizing income on performing and non-performing loans.</li>
+              <li>Asset Classification: Accuracy of asset classification into Standard, Substandard, Doubtful, and Loss categories.</li>
+              <li>Provisioning for Bad Debts: Processes for calculating provisioning requirements.</li>
+          </ul>
+      
+          <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Responsibilities</h3>
+          <p style="margin-bottom: 20px; line-height: 1.4;"><strong>Our Responsibilities</strong></p>
+          <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+              <li>Conduct the audit in accordance with generally accepted auditing standards and guidelines prescribed by the RBI and ICAI.</li>
+              <li>Assess compliance with RBI Prudential IRAC Norms and applicable regulations.</li>
+              <li>Evaluate the design and effectiveness of internal controls over financial reporting related to loan classification and provisioning.</li>
+              <li>Issue a comprehensive audit report highlighting any gaps in compliance and recommending corrective actions.</li>
+          </ul>
+          <p style="margin-bottom: 20px; line-height: 1.4;"><strong>Your Responsibilities</strong></p>
+          <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+              <li>Ensuring compliance with RBI Prudential IRAC Norms.</li>
+              <li>Providing access to all necessary documentation, systems, and personnel for the audit.</li>
+              <li>Ensuring timely and accurate classification of assets and provisioning for loan losses.</li>
+              <li>Providing accurate financial records and disclosures related to NPAs.</li>
+          </ul>
+      
+          <h3 style="margin-top: 20px; margin-bottom: 15px; font-size: 18px;"> Audit Methodology</h3>
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+        <li><strong>Planning:</strong> Initial discussions with management and review of relevant documentation.</li>
+        <li><strong>Fieldwork:</strong> Site visits, interviews with key personnel, and testing of key controls.</li>
+        <li><strong>Testing:</strong> Performing substantive tests on loan portfolios and control testing to verify compliance with RBI guidelines.</li>
+        <li><strong>Reporting:</strong> Preparing and presenting audit findings to the senior management and board.</li>
+    </ul>
+    
+
+    <h3 style="margin-top: 20px; margin-bottom: 15px; font-size: 18px;"> Audit Timeline</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      The audit will begin on November 1, 2024, and is expected to be completed by January 31, 2025. A draft audit report will be provided for review by February 15, 2025, and the final report will be issued by March 1, 2025.
+    </p>
+    
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;"> Key Audit Deliverables </h3>											
+    <p style="margin-bottom: 20px; line-height: 1.4;">							
+    The following documents will be provided as part of this engagement:		
+    </p>										
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">	             
+    <li>Audit Workpapers: Documentation of audit procedures, fieldwork, and test results.</li>										
+    <li>Audit Findings Report: Summary of findings, gaps in compliance, and risk ratings.</li>											
+    <li>Management Letter: Recommendations for improving controls and mitigating risks.</li>												
+    <li>Final Audit Report: A comprehensive report detailing compliance with RBI Prudential IRAC norms and any deviations identified.</li>
+    </ul>											
+    
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;"> Fees </h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      Our professional fees for this engagement will be based on the complexity of the audit and the time required to complete the engagement.
+    </p>
+    
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;"> Confidentiality </h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      We acknowledge the confidential nature of the information provided by Anixo Bank Ltd. during the course of this engagement and will take all necessary steps to ensure its protection.
+    </p>
+      
+          <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Acceptance of Terms</h3>
+          <p style="margin-bottom: 20px; line-height: 1.4;">
+              We kindly request you to confirm your acceptance of this engagement by signing and returning a copy of this letter.<br><br>
+              Thank you for the opportunity to work with Anixo Bank Ltd. We look forward to a productive engagement.
+          </p>
+      
+          <table style="width: 100%; margin-top: 20px; margin-bottom:30px;">
+            <tr>
+                <td style="text-align: left; vertical-align: top; padding-right: 20px; margin-bottom:30px;">
+                    <p>
+                        Yours sincerely,<br>
+                        <strong>Audit Partner</strong><br>
+                        XYZ Audit Firm Pvt. Ltd.<br><br>
+                    </p>
+                    <p style="margin-top: 20px;">
+                        <strong>Name: </strong> Mr. Rahul Mehta<br>
+                        <strong>Position: </strong> Chief Executive Officer<br>
+                        <strong>Date: </strong> October 11, 2024
+                    </p>
+                </td>
+                <td style="text-align: right; vertical-align: top; padding-left: 20px;">
+                    <p><strong>Acknowledged and Accepted by:</strong></p>
+                    <p>For Anixo Bank Ltd.<br><br></p>
+                </td>
+            </tr>
+        </table>
+      </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      <div id="cyberContent" class="tab-content" style="display: none;">
+        <p><strong>Date: </strong>October 11, 2024</p><br />
+      
+          <p style="margin-bottom: 20px; line-height: 1.5;">
+              <span style="font-weight: bold;">To,</span><br />
+              <span style="color: #ff6f61;">Mr. Rahul Mehta</span><br />
+              Chief Executive Officer<br />
+              Anixo Bank Ltd.<br />
+              Corporate Head Office,<br />
+              Mumbai, India
+          </p>
+
+    <p><strong>Subject: </strong>Engagement Letter for the Audit of RBI Prudential IRAC Norms Compliance for FY 2023-2024</p><br>
+
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      <strong>Dear Mr. Mehta,</strong>
+    </p>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      We are pleased to confirm our engagement with Anixo Bank Ltd. for conducting an independent audit of the bank's compliance with the RBI Prudential IRAC (Income Recognition and Asset Classification) norms for the financial year ending March 31, 2024.
+    </p>
+
+    <p>This letter outlines the nature and scope of the audit engagement, our responsibilities, and the expected deliverables.</p>
+
+    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Objective of the Audit</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      The objective of this audit is to assess the adequacy and effectiveness of Anixo Bank’s compliance with the RBI Prudential IRAC Norms and evaluate the internal controls related to the classification and management of non-performing assets (NPAs) and loan portfolios across the organization.
+    </p>
+    <p style="margin-bottom: 20px; line-height: 1.4;">        
+      Primary objective of this audit is to assess the cybersecurity framework at Anixo Bank Ltd. and ensure its compliance with the RBI’s Cybersecurity Norms, focusing on the bank’s policies, processes, and systems related to:
+    </p>
+
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+        <li>Protecting information systems from cybersecurity threats.</li>
+        <li>Ensuring the security of customer data and privacy.</li>
+        <li>Prevention of cyber fraud and ensuring the security of payment systems.</li>
+        <li>Incident response and recovery mechanisms.</li>
+        <li>Monitoring and mitigating risks associated with cybersecurity breaches.</li>
+    </ul>
+
+    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Scope of the Audit</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+      The audit scope includes all relevant business processes that are affected by the RBI Prudential IRAC norms. The processes to be audited are as follows:
+    </p>
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">        
+        <li>Loan Approval: Evaluation of the risk assessment process during loan approval.</li>
+        <li>Loan Monitoring: Ongoing monitoring of loans to identify early signs of stress.</li>
+        <li>Credit Risk Management: Policies and procedures related to loan classification.</li>
+        <li>Income Recognition: Procedures for recognizing income on performing and non-performing loans.</li>
+        <li>Asset Classification: Accuracy of asset classification into Standard, Substandard, Doubtful, and Loss categories.</li>
+        <li>Provisioning for Bad Debts: Processes for calculating provisioning requirements.</li>
+    </ul>
+
+    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px;">Responsibilities</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;"><strong>Our Responsibilities</strong></p>
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+       <li>Conduct the audit in accordance with generally accepted auditing standards and guidelines prescribed by the RBI and ICAI.</li>
+        <li>Assess compliance with RBI Prudential IRAC Norms and applicable regulations.</li>
+        <li>Evaluate the design and effectiveness of internal controls over financial reporting related to loan classification and provisioning.</li>
+        <li>Issue a comprehensive audit report highlighting any gaps in compliance and recommending corrective actions.</li>
+    </ul>
+
+    <p style="margin-bottom: 20px; line-height: 1.4;"><strong>Your Responsibilities</strong></p>
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">
+        <li>Ensuring compliance with RBI Prudential IRAC Norms.</li>
+        <li>Providing access to all necessary documentation, systems, and personnel for the audit.</li>
+        <li>Ensuring timely and accurate classification of assets and provisioning for loan losses.</li>
+        <li>Providing accurate financial records and disclosures related to NPAs.</li>
+    </ul>
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;">Audit Methodology</h3>
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">        
+        <li><strong>Planning:</strong> Initial discussions with management and review of relevant documentation.</li>
+        <li><strong>Fieldwork:</strong> Site visits, interviews with key personnel, and testing of key controls.</li>
+        <li><strong>Testing:</strong> Performing substantive tests on loan portfolios and control testing to verify compliance with RBI guidelines.</li>
+        <li><strong>Reporting:</strong> Preparing and presenting audit findings to the senior management and board.</li>
+    </ul>
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;">Audit Timeline</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+        The audit will begin on November 1, 2024, and is expected to be completed by January 31, 2025. A draft audit report will be provided for review by February 15, 2025, and the final report will be issued by March 1, 2025.
+    </p>
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;">Key Audit Deliverables</h3>
+    <ul style="margin-bottom: 20px; padding-left: 40px; line-height: 1.4;">        
+        <li>Audit Workpapers: Documentation of audit procedures, fieldwork, and test results.</li>
+        <li>Audit Findings Report: Summary of findings, gaps in compliance, and risk ratings.</li>
+        <li>Management Letter: Recommendations for improving controls and mitigating risks.</li>
+        <li>Final Audit Report: A comprehensive report detailing compliance with RBI Prudential IRAC norms and any deviations identified.</li>
+    </ul>
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;">Fees</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+        Our professional fees for this engagement will be based on the complexity of the audit and the time required to complete the engagement.
+    </p>
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;">Confidentiality</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+        We acknowledge the confidential nature of the information provided by Anixo Bank Ltd. during the course of this engagement and will take all necessary steps to ensure its protection.
+    </p>
+
+    <h3 style="margin-top:20px; margin-bottom:15px; font-size:18px;"></h3>Acceptance of Terms</h3>
+    <p style="margin-bottom: 20px; line-height: 1.4;">
+        We kindly request you to confirm your acceptance of this engagement by signing and returning a copy of this letter.<br><br>
+        Thank you for the opportunity to work with Anixo Bank Ltd. We look forward to a productive engagement.
+    </p>
+
+    <table style="width: 100%; margin-top: 20px; margin-bottom:30px;">
+      <tr>
+          <td style="text-align: left; vertical-align: top; padding-right: 20px; margin-bottom:30px;">
+              <p>
+                  Yours sincerely,<br>
+                  <strong>Audit Partner</strong><br>
+                  XYZ Audit Firm Pvt. Ltd.<br><br>
+              </p>
+              <p style="margin-top: 20px;">
+                  <strong>Name: </strong> Mr. Rahul Mehta<br>
+                  <strong>Position: </strong> Chief Executive Officer<br>
+                  <strong>Date: </strong> October 11, 2024
+              </p>
+          </td>
+          <td style="text-align: right; vertical-align: top; padding-left: 20px;">
+              <p><strong>Acknowledged and Accepted by:</strong></p>
+              <p>For Anixo Bank Ltd.<br><br></p>
+          </td>
+      </tr>
+  </table>
+</div>
+<script src="assets/js/eng.js"></script>
+</body>
+</html>

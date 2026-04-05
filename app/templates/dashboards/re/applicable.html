@@ -1,0 +1,310 @@
+   {% extends "re_base.html" %}
+{% block content %} 
+   <link rel="stylesheet" href="assets/css/applicable.css" />
+
+
+    
+
+    <main class="main">
+    <div class="applicable">
+        <h3>Applicable Regulations</h3>
+        <p><a href="#">Dashboard</a> / Add New Guidelines</p>
+        </div>
+    
+    
+      <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="showContent(0)">Database of Applicable Regulations</button>
+            <button class="tab" onclick="showContent(1)">Compliance Metrics Tracking</button>
+            <button class="tab" onclick="showContent(2)">Incident Tracking Dashboard</button>
+            <button class="tab" onclick="showContent(3)">Training Completion Rates Dashboard</button>
+            <button class="tab" onclick="showContent(4)">Audit Findings Dashboard</button>
+        </div>
+        
+        <div class="content active" id="content-0">
+            <div class="search-container">
+                <input type="text" id="search-regulations" placeholder="Search..." onkeyup="searchTable('regulations')">
+                <button class="export-btn" style="float: right;" onclick="exportToCSV('regulations')">Export to CSV</button>          
+              </div>
+            <table id="regulations">
+                <thead>
+                    <tr>
+                        <th>Regulation Name</th>
+                        <th>Issuing Authority</th>
+                        <th>Applicable Geography</th>
+                        <th>Mandatory (Yes/No)</th>
+                        <th>Date of Issue</th>
+                        <th>Effective Date</th>
+                        <th>Complaint Status</th>
+                        <th>Comments</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body-regulations">
+                <tr>
+                        <td>Reserve Bank of India Guidelines</td>
+                        <td>RBI</td>
+                        <td>India</td>
+                        <td>Yes</td>
+                        <td>1-Jan-21</td>
+                        <td>1-Apr-21</td>
+                        <td>Compliant</td>
+                        <td>Regular updates required</td>
+                    </tr>
+                    <tr>
+                        <td>Prevention of Money Laundering Act</td>
+                        <td>Ministry of Finance</td>
+                        <td>India</td>
+                        <td>Yes</td>
+                        <td>1-Jul-05</td>
+                        <td>1-Jul-05</td>
+                        <td>Compliant</td>
+                        <td>Ongoing monitoring needed</td>
+                    </tr>
+                    <tr>
+                        <td>Basel III Framework</td>
+                        <td>Basel Committee</td>
+                        <td>International</td>
+                        <td>Yes</td>
+                        <td>16-Dec-10</td>
+                        <td>1-Jan-13</td>
+                        <td>Compliant</td>
+                        <td>Align with global standards</td>
+                    </tr>
+                    <tr>
+                        <td>Cybersecurity Guidelines</td>
+                        <td>RBI</td>
+                        <td>India</td>
+                        <td>Yes</td>
+                        <td>5-Apr-19</td>
+                        <td>5-Apr-19</td>
+                        <td>Compliant</td>
+                        <td>Requires periodic reviews</td>
+                    </tr>
+                    <tr>
+                        <td>Companies Act</td>
+                        <td>Ministry of Corporate Affairs</td>
+                        <td>India</td>
+                        <td>Yes</td>
+                        <td>30-Mar-13</td>
+                        <td>1-Apr-14</td>
+                        <td>Compliant</td>
+                        <td>Ongoing updates needed</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="bottom-controls">
+              <div class="entries-box">
+                <select id="entriesSelect" onchange="changeEntries()">
+                  <option value="5" selected>5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                </select>
+              </div>
+              <div class="pagination" id="pagination"></div>
+            </div>           
+        </div>
+        
+        <div class="content" id="content-1">
+            <div class="search-container">
+                <input type="text" id="search-compliance" placeholder="Search..." onkeyup="searchTable('compliance')">
+                <button class="export-btn" style="float: right;" onclick="exportToCSV('compliance')">Export to CSV</button>      
+                </div>      
+                <table id="compliance">
+                  <thead>
+        <tr>
+            <th>Regulation Name</th>
+            <th>Compliance Percentage</th>
+            <th>Last Audit Date</th>
+            <th>Comments</th>
+        </tr>
+    </thead>
+    <tbody id="table-body-compliance">
+        <tr>
+            <td>Reserve Bank of India Guidelines</td>
+            <td>95%</td>
+            <td>15-Sep-23</td>
+            <td>On track, minor adjustments needed</td>
+
+        </tr>
+        <tr>
+            <td>Prevention of Money Laundering Act</td>
+            <td>90%</td>
+            <td>12-Aug-23</td>
+            <td>High risk areas identified</td>
+        </tr>
+        <tr>
+            <td>Basel III Framework</td>
+            <td>85%</td>
+            <td>10-Sep-23</td>
+            <td>Further improvements needed</td>
+        </tr>
+        <tr>
+            <td>Cybersecurity Guidelines</td>
+            <td>100%</td>
+            <td>30-Sep-23</td>
+            <td>Fully compliant</td>
+        </tr>
+        <tr>
+            <td>Companies Act</td>
+            <td>98%</td>
+            <td>25-Aug-23</td>
+            <td>Minor non-compliance issues resolved</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+
+<div class="content" id="content-2">
+            <div class="search-container">
+                <input type="text" id="search-incident" placeholder="Search..." onkeyup="searchTable('incident')">
+                <button class="export-btn" style="float: right;" onclick="exportToCSV('incident')">Export to CSV</button>      
+                </div>      
+                <table id="incident">
+                  <thead>
+                <tr>
+                    <th>Incident ID</th>
+                    <th>Regulation Affected</th>
+                    <th>Incident Description</th>
+                    <th>Date Reported</th>
+                    <th>Status</th>
+                    <th>Severity</th>
+                    <th>Remediation Action</th>
+                </tr>
+                </thead>
+                <tbody id="table-body-incident">
+                <tr>
+                    <td>INC-001</td>
+                    <td>Prevention of Money Laundering Act</td>
+                    <td>Unauthorized transaction identified</td>
+                    <td>10-Oct-23</td>
+                    <td>Resolved</td>
+                    <td>High</td>
+                    <td>Customer was notified</td>
+                </tr>
+                <tr>
+                    <td>INC-002</td>
+                    <td>Cybersecurity Guidelines</td>
+                    <td>Data breach attempt</td>
+                    <td>5-Oct-23</td>
+                    <td>Under Review</td>
+                    <td>Critical</td>
+                    <td>Ongoing investigation</td>
+                </tr>
+                <tr>
+                    <td>INC-003</td>
+                    <td>Reserve Bank of India Guidelines</td>
+                    <td>Non-compliance in reporting</td>
+                    <td>15-Sep-23</td>
+                    <td>Resolved</td>
+                    <td>Medium</td>
+                    <td>Report updated</td>
+                </tr>
+                </tbody>
+                </table>
+        </div>
+        <div class="content" id="content-3">
+            <div class="search-container">
+                <input type="text" id="search-training" placeholder="Search..." onkeyup="searchTable('training')">
+                <button class="export-btn" style="float: right;" onclick="exportToCSV('training')">Export to CSV</button>       
+                </div>    
+                <table id="training">
+                  <thead>
+                <tr>
+                    <th>Training Module</th>
+                    <th>Total Employees</th>
+                    <th>Employees Trained</th>
+                    <th>Completion Rate</th>
+                    <th>Last Training Date</th>
+                    <th>Comments</th>
+                </tr>
+                </thead>
+                <tbody id="table-body-training">
+                <tr>
+                    <td>AML Training</td>
+                    <td>500</td>
+                    <td>450</td>
+                    <td>90%</td>
+                    <td>1-Oct-23</td>
+                    <td>Needs refresher course soon</td>
+                </tr>
+                <tr>
+                    <td>Cybersecurity Awareness</td>
+                    <td>500</td>
+                    <td>500</td>
+                    <td>100%</td>
+                    <td>15-Sep-23</td>
+                    <td>Excellent completion rate</td>
+                </tr>
+                <tr>
+                    <td>Compliance Policies Overview</td>
+                    <td>500</td>
+                    <td>400</td>
+                    <td>80%</td>
+                    <td>20-Sep-23</td>
+                    <td>Further push needed</td>
+                </tr>
+                </tbody>
+                </table>
+                </div>
+        <div class="content" id="content-4">
+            <div class="search-container">
+                <input type="text" id="search-audit" placeholder="Search..." onkeyup="searchTable('audit')">
+                <button class="export-btn" style="float: right;" onclick="exportToCSV('audit')">Export to CSV</button>        
+                </div>  
+                <table id="audit">
+                  <thead>
+                <tr>
+                    <th>Audit Finding ID</th>
+                    <th>Regulation Affected</th>
+                    <th>Finding Description</th>
+                    <th>Date Identified</th>
+                    <th>Remediation Status</th>
+                    <th>Owner</th>
+                    <th>Due Date</th>
+                </tr>
+            </thead>
+            <tbody id="table-body-audit">
+                <tr>
+                    <td>AUD-001</td>
+                    <td>Reserve Bank of India Guidelines</td>
+                    <td>Lack of documentation for transactions</td>
+                    <td>1-Sep-23</td>
+                    <td>In Progress</td>
+                    <td>Rajesh Sharma</td>
+                    <td>30-Nov-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-002</td>
+                    <td>Cybersecurity Guidelines</td>
+                    <td>Weakness in firewall configurations</td>
+                    <td>5-Sep-23</td>
+                    <td>Resolved</td>
+                    <td>Neeta Singh</td>
+                    <td>20-Sep-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-003</td>
+                    <td>Companies Act</td>
+                    <td>Non-disclosure of related party transactions</td>
+                    <td>15-Aug-23</td>
+                    <td>Not Started</td>
+                    <td>Vikram Mehta</td>
+                    <td>15-Dec-23</td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="bottom-controls">
+              <div class="entries-box">
+                  <select id="entriesSelect">
+                      <option value="5" selected>5</option>
+                      <option value="10">10</option>
+                      <option value="15">15</option>
+                      <option value="20">20</option>
+                  </select>
+              </div>
+              <div class="pagination" id="pagination"></div>
+          </div>
+        </main>
+        <script src="assets/js/applicable.js"></script>
+{%endblock%}

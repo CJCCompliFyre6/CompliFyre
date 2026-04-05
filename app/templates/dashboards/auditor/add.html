@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Complifyre</title>
+    <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+    <meta name="Author" content="Spruko Technologies Private Limited">
+    <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    
+   <!-- <link rel="stylesheet" href="assets/css/add.css" /> -->
+
+    <!-- Boxicons CSS -->
+    <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- ApexCharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <!-- Add Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  </head>
+  <body>
+
+    <div class="menu-icon-container">
+      <div class="menu-icon" onclick="toggleSidebar()">
+        <i class="bx bx-menu"></i>
+      </div>
+      <div class="dashboard-title">
+        <a href="{{url_for('audit.dash')}}"><h1>Auditor Dashboard</h1></a>
+        <p>Dashboard</p>
+      </div>
+    <!-- Profile and Logout Icons aligned to the right -->
+    <div class="user-actions">
+      <!-- Profile Icon -->
+      <a href="#" class="profile-icon">
+          <i class="bx bx-user"></i>
+      </a>
+    
+      <!-- Logout Icon -->
+      <span class="logout-icon" onclick="logout()">
+          <i class="bx bx-log-out"></i>
+      </span>
+    </div>
+    </div>
+    
+    
+    <div id="sidebar" class="sidebar">
+      <div class="logo">
+        <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+      </div>
+    
+      <ul class="menu">
+        <li><a href="d{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+    
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+            <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+          </ul>
+        </li>
+    
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+          </a>
+        <ul class="submenu-items">
+         <li class="view-clients">View Clients</li>
+         <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+         <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+        </ul>
+        </li>
+    
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li class="audit-phase">Audit / Assessment Phase</li>
+            <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+    
+            <li class="risk-phase">Risk Assessment Phase</li>
+            <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+            <li><a href="{{url_for('audit.memo')}}">Audit Strategy Memo</a></li>
+            <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+            <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+            <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+            <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+            <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+            <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+    
+            <li class="field-phase">FieldWork Phase (Execution)</li>
+            <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+            <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+            <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+            <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+            <li><a href="#">FieldWork Documentation</a></li>
+            <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+            <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+            <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+    
+            <li class="report-phase">Reporting Phase</li>
+            <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+            <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+    
+            <li class="up-phase">Follow-Up Phase</li>
+            <li><a href="#">Action Tracker</a></li>
+          </ul>
+        </li>
+    
+      <main class="footer">
+        <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+        <a href="#"><i class="bx bx-support"></i> Support Center</a>
+        </main>
+      </div>
+    </div>
+
+
+<main class="main">
+
+  <div class="guidelines-list">
+    <h3>Guidelines List</h3>
+    <p><a href="#">Dashboard</a> / <a href="#">Guidelines List</a> / Add New Guidelines</p>
+    </div>
+
+    <div class="container">
+        <form id="guidelineForm">
+            <div class="form-group">
+                <label for="guidelineName">Guideline Name</label>
+                <input type="text" id="guidelineName" placeholder="Enter Guideline Name">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="gid">GID</label>
+                    <input type="text" id="gid" placeholder="Enter GID">
+                </div>
+                <div class="form-group">
+                    <label for="issuingAuthority">Issuing Authority</label>
+                    <input type="text" id="issuingAuthority" placeholder="Enter Issuing Authority">
+                </div>
+               
+                <div class="form-group">
+                    <label for="dateOfIssue">Date of Issue</label>
+                    <input type="date" id="dateOfIssue">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="complianceDate">Effective Date for Compliance</label>
+                    <input type="date" id="complianceDate">
+                </div>
+
+                <div class="form-group">
+                    <label>Mandatory (Yes/No)</label>
+                    <div class="radio-group">
+                        <input type="radio" name="mandatory" value="Yes"> Yes
+                        <input type="radio" name="mandatory" value="No"> No
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Certification Available (Yes/No)</label>
+                    <div class="radio-group">
+                        <input type="radio" name="certification" value="Yes"> Yes
+                        <input type="radio" name="certification" value="No"> No
+                    </div>
+                </div>
+                
+                 <divclass="upload-container">
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">Upload</button>
+        <p id="fileName"></p>
+    </div>
+            </div>
+
+            <button type="submit">Add</button>
+        </form>
+    </div>
+</main>
+    <script src="assets/js/add.js"></script>
+</body>
+</html>

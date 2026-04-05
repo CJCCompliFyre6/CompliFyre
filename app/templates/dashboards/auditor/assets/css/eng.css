@@ -1,0 +1,267 @@
+        /* Global Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+              background-color: #FEF8F5;
+              margin: 0;
+              padding: 0;
+          }
+          
+          .main {
+            background-color: #FEF8F5 ;
+            padding: 20px; 
+            border-radius: 8px; 
+          }
+          
+          /* Header */
+          header {
+            background-color: #222;
+            color: #FFFFFF;
+            padding: 15px;
+            text-align: left;
+          }
+          
+          /* Flexbox container for the menu icon and title */
+          .menu-icon-container {
+          display: flex;
+          align-items: center;
+          padding: 20px;
+          background-color:rgb(0, 0, 0);
+          color: #FFFFFF;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .menu-icon {
+          font-size: 30px;
+          color:rgb(255, 255, 255);
+          cursor: pointer;
+          margin-right: 20px;
+        }
+          
+          /* Styling for the dashboard title */
+          .dashboard-title {
+            flex-grow: 1;
+          }
+          
+          .dashboard-title h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 0;
+            color: #FFFFFF;
+          }
+          
+          .dashboard-title p {
+            font-size: 16px;
+            color: #ffa62b;
+            padding-top: 10px;
+            padding-left: 10px;
+          }
+          
+          .dashboard-title a {
+            text-decoration: none;
+          }
+          
+          /* User actions */
+          .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-left: auto; /* Align to the right */
+          }
+          
+          .profile-icon,
+          .logout-icon {
+            font-size: 24px;
+            cursor: pointer;
+            color: black;
+            transition: color 0.3s ease;
+          }
+          
+          .profile-icon:hover,
+          .logout-icon:hover {
+            color: #ffa62b;
+          }
+          
+          /* Sidebar */
+          .sidebar {
+            position: fixed;
+            left: -250px;
+            top: 0;
+            width: 250px;
+            height: 100%;
+            background-color: black;
+            color: #FFFFFF;
+            transition: left 0.3s ease-in-out, background-color 0.3s ease;
+            padding: 20px;
+            z-index: 1000;
+            overflow-y: auto; /* Allow scrolling */
+          }
+          
+          .sidebar.open {
+            left: 0;
+          }
+          
+          /* Sidebar Logo */
+          
+          
+          /* Sidebar Menu */
+          .menu {
+            list-style-type: none;
+          }
+          
+          .menu li {
+            padding: 10px 0;
+          }
+          
+          .menu li a {
+            color: #FFFFFF;
+            text-decoration: none;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+          }
+          
+          .menu li a i {
+            font-size: 18px;
+          }
+          
+          .menu li a:hover {
+            background: linear-gradient(135deg, #f76b1c, #ffa62b);
+          }
+          
+          /* Sidebar Submenu */
+          .submenu .submenu-items {
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+            list-style: none;
+            padding-left: 20px;
+            background-color: black;
+            border: 1px solid black;
+            border-radius: 5px;
+          }
+          
+          .submenu .submenu-items.active {
+            display: block;
+          }
+          
+          /* Custom Scrollbar Style */
+          .submenu .submenu-items::-webkit-scrollbar {
+            width: 8px;
+          }
+          
+          .submenu .submenu-items::-webkit-scrollbar-thumb {
+            background: #575757;
+            border-radius: 4px;
+          }
+          
+          .submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+            background: #444;
+          }
+          
+          /* Phase Labels Styling */
+          .submenu li.view-clients,
+          .submenu li.audit-phase,
+          .submenu li.risk-phase,
+          .submenu li.field-phase,
+          .submenu li.report-phase,
+          .submenu li.up-phase {
+            color: #514a4a;
+            cursor: default;
+            font-weight: bold;
+          }
+          
+          /* Sidebar Footer */
+          .footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            padding: 10px;
+          }
+          
+          .footer a {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #FFFFFF;
+            text-decoration: none;
+          }
+          
+          .footer a i {
+            font-size: 18px;
+          }
+          
+          .footer a:hover {
+            text-decoration: underline;
+          }
+          
+          /* Container */
+          .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+          }
+          
+          h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+          }
+          
+          nav {
+            font-size: 14px;
+            color: gray;
+            margin-bottom: 20px;
+          }
+          
+          nav a {
+            color: #ff8c00;
+            text-decoration: none;
+          }
+          
+          .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+          }
+          
+          .tabs button {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: gray;
+          }
+          
+          /* Active Tab Styling */
+          .tabs button.active-tab {
+            border-bottom: 2px solid #ff8c00;
+            background-color: #ffe0b3;
+            color: #ff8c00;
+          }
+          
+          h2,
+          h3 {
+            color: black;
+            margin-top: 20px;
+          }
+          
+          ul {
+            padding-left: 20px;
+          }
+          
+          li {
+            margin-bottom: 5px;
+          }

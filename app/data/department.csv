@@ -1,0 +1,211 @@
+Department,Process,Sub-Process
+Retail Banking,Customer Account Management,Account Opening
+Retail Banking,Customer Account Management,KYC
+Retail Banking,Customer Account Management,Customer Verification
+Retail Banking,Customer Account Management,Account Closure
+Retail Banking,Deposits & Savings Management,Fixed Deposits
+Retail Banking,Deposits & Savings Management,Recurring Deposits
+Retail Banking,Deposits & Savings Management,Interest Calculation
+Retail Banking,Deposits & Savings Management,Premature Withdrawal
+Retail Banking,Loan Processing & Disbursement,Home Loans
+Retail Banking,Loan Processing & Disbursement,Auto Loans
+Retail Banking,Loan Processing & Disbursement,Personal Loans
+Retail Banking,Loan Processing & Disbursement,Education Loans
+Retail Banking,Loan Processing & Disbursement,Loan Documentation
+Retail Banking,Loan Processing & Disbursement,Collateral Valuation
+Retail Banking,Credit & Debit Card Operations,Card Issuance
+Retail Banking,Credit & Debit Card Operations,PIN Generation
+Retail Banking,Credit & Debit Card Operations,Card Blocking/Unblocking
+Retail Banking,Credit & Debit Card Operations,Limit Adjustment
+Retail Banking,ATM & Digital Banking,Internet Banking
+Retail Banking,ATM & Digital Banking,Mobile Banking
+Retail Banking,ATM & Digital Banking,UPI Transactions
+Retail Banking,ATM & Digital Banking,E-wallets
+Retail Banking,ATM & Digital Banking,QR Code Payments
+Corporate & Institutional Banking,Treasury & Liquidity Management,Cash Flow Forecasting
+Corporate & Institutional Banking,Treasury & Liquidity Management,Fund Transfers
+Corporate & Institutional Banking,Treasury & Liquidity Management,Liquidity Risk Management
+Corporate & Institutional Banking,Trade Finance,Letter of Credit (LC)
+Corporate & Institutional Banking,Trade Finance,Bank Guarantees
+Corporate & Institutional Banking,Trade Finance,Export/Import Financing
+Corporate & Institutional Banking,Trade Finance,Trade Documentation
+Corporate & Institutional Banking,Corporate Lending,Term Loans
+Corporate & Institutional Banking,Corporate Lending,Working Capital Loans
+Corporate & Institutional Banking,Corporate Lending,Syndicated Loans
+Corporate & Institutional Banking,Corporate Lending,Revolving Credit Facilities
+Corporate & Institutional Banking,Supply Chain & Invoice Financing,Bill Discounting
+Corporate & Institutional Banking,Supply Chain & Invoice Financing,Factoring
+Corporate & Institutional Banking,Supply Chain & Invoice Financing,Reverse Factoring
+Wealth & Asset Management,Mutual Funds & Portfolio Management,Asset Allocation
+Wealth & Asset Management,Mutual Funds & Portfolio Management,Investment Advisory
+Wealth & Asset Management,Mutual Funds & Portfolio Management,Performance Tracking
+Wealth & Asset Management,Mutual Funds & Portfolio Management,Risk Profiling
+Wealth & Asset Management,Private Banking,HNI Portfolio Management
+Wealth & Asset Management,Private Banking,Estate Planning
+Wealth & Asset Management,Private Banking,Family Office Services
+Wealth & Asset Management,Custodian & Trustee Services,Securities Holding
+Wealth & Asset Management,Custodian & Trustee Services,Fund Accounting
+Wealth & Asset Management,Custodian & Trustee Services,Safe Custody
+Wealth & Asset Management,Pension & Retirement Planning,NPS
+Wealth & Asset Management,Pension & Retirement Planning,Annuities
+Wealth & Asset Management,Pension & Retirement Planning,Wealth Accumulation Strategies
+Insurance Operations (NEW),Life Insurance,Term Plans
+Insurance Operations (NEW),Life Insurance,ULIPs
+Insurance Operations (NEW),Life Insurance,Whole Life Plans
+Insurance Operations (NEW),Life Insurance,Endowment Plans
+Insurance Operations (NEW),Life Insurance,Pension Plans
+Insurance Operations (NEW),General Insurance,Health Insurance
+Insurance Operations (NEW),General Insurance,Motor Insurance
+Insurance Operations (NEW),General Insurance,Travel Insurance
+Insurance Operations (NEW),General Insurance,Home Insurance
+Insurance Operations (NEW),Reinsurance,Risk Pooling
+Insurance Operations (NEW),Reinsurance,Treaty & Facultative Reinsurance
+Insurance Operations (NEW),Policy Issuance & Underwriting,Risk Assessment
+Insurance Operations (NEW),Policy Issuance & Underwriting,Premium Calculation
+Insurance Operations (NEW),Policy Issuance & Underwriting,Actuarial Analysis
+Insurance Operations (NEW),Claims Processing,Claim Settlement
+Insurance Operations (NEW),Claims Processing,Fraud Detection
+Insurance Operations (NEW),Claims Processing,Third-Party Verification
+Insurance Operations (NEW),Insurance Regulatory Compliance,IRDAI Guidelines
+Insurance Operations (NEW),Insurance Regulatory Compliance,AML & KYC for Insurance
+Insurance Operations (NEW),Insurance Regulatory Compliance,Policy Servicing
+Lending & Credit Operations,Loan Origination & Underwriting,Risk Assessment
+Lending & Credit Operations,Loan Origination & Underwriting,Credit Scoring
+Lending & Credit Operations,Loan Origination & Underwriting,Approval Process
+Lending & Credit Operations,Loan Origination & Underwriting,Document Verification
+Lending & Credit Operations,Loan Disbursement & Servicing,EMI Processing
+Lending & Credit Operations,Loan Disbursement & Servicing,NACH Mandate
+Lending & Credit Operations,Loan Disbursement & Servicing,Collateral Management
+Lending & Credit Operations,Collections & Recovery,Delinquency Management
+Lending & Credit Operations,Collections & Recovery,Legal Recovery
+Lending & Credit Operations,Collections & Recovery,Asset Seizure
+Lending & Credit Operations,Loan Restructuring & Settlement,One-Time Settlement (OTS)
+Lending & Credit Operations,Loan Restructuring & Settlement,Rescheduling of Loans
+Lending & Credit Operations,Loan Restructuring & Settlement,Debt Consolidation
+Lending & Credit Operations,Priority Sector Lending (PSL) (NEW),Agriculture Loans
+Lending & Credit Operations,Priority Sector Lending (PSL) (NEW),MSME Financing
+Lending & Credit Operations,Priority Sector Lending (PSL) (NEW),Renewable Energy Loans
+Lending & Credit Operations,Priority Sector Lending (PSL) (NEW),Affordable Housing Loans
+Lending & Credit Operations,Priority Sector Lending (PSL) (NEW),Loans to Weaker Sections
+Payments & Transactions,Electronic Fund Transfers,NEFT
+Payments & Transactions,Electronic Fund Transfers,RTGS
+Payments & Transactions,Electronic Fund Transfers,IMPS
+Payments & Transactions,Electronic Fund Transfers,UPI
+Payments & Transactions,Electronic Fund Transfers,Direct Debit
+Payments & Transactions,Merchant Acquiring & POS,Payment Gateway Integration
+Payments & Transactions,Merchant Acquiring & POS,POS Deployment
+Payments & Transactions,Merchant Acquiring & POS,E-commerce Transactions
+Payments & Transactions,Cross-Border Payments,SWIFT Transactions
+Payments & Transactions,Cross-Border Payments,Forex Payments
+Payments & Transactions,Cross-Border Payments,Correspondent Banking
+Risk Management,Credit Risk Management,Risk Scoring
+Risk Management,Credit Risk Management,Exposure Limits
+Risk Management,Credit Risk Management,Stress Testing
+Risk Management,Market Risk,Interest Rate Risk
+Risk Management,Market Risk,FX Risk
+Risk Management,Market Risk,Equity Risk
+Risk Management,Market Risk,Value at Risk (VaR) Calculation
+Risk Management,Operational Risk,Business Continuity Planning
+Risk Management,Operational Risk,Fraud Prevention
+Risk Management,Operational Risk,Internal Controls
+Risk Management,Liquidity Risk,Asset-Liability Mismatch Monitoring
+Risk Management,Liquidity Risk,Basel III Compliance
+Risk Management,Third-Party & Vendor Risk,Vendor Due Diligence
+Risk Management,Third-Party & Vendor Risk,Outsourcing Risk Management
+Regulatory Compliance & Audit,Regulatory Reporting,RBI
+Regulatory Compliance & Audit,Regulatory Reporting,SEBI
+Regulatory Compliance & Audit,Regulatory Reporting,IRDAI
+Regulatory Compliance & Audit,Regulatory Reporting,FEMA
+Regulatory Compliance & Audit,Regulatory Reporting,FATCA
+Regulatory Compliance & Audit,Regulatory Reporting,CRS Compliance
+Regulatory Compliance & Audit,AML & KYC Compliance,Transaction Monitoring
+Regulatory Compliance & Audit,AML & KYC Compliance,Customer Due Diligence
+Regulatory Compliance & Audit,AML & KYC Compliance,STR (Suspicious Transaction Reporting)
+Regulatory Compliance & Audit,Internal & External Audits,Statutory Audit
+Regulatory Compliance & Audit,Internal & External Audits,SOX Compliance
+Regulatory Compliance & Audit,Internal & External Audits,RBI Inspections
+Regulatory Compliance & Audit,Internal & External Audits,Internal Risk Assessments
+Regulatory Compliance & Audit,Data Privacy & Information Security Compliance,GDPR
+Regulatory Compliance & Audit,Data Privacy & Information Security Compliance,Indian IT Act Compliance
+Regulatory Compliance & Audit,Data Privacy & Information Security Compliance,RBI Cybersecurity Guidelines
+IT & Cybersecurity,Core Banking Systems (CBS),CBS Maintenance
+IT & Cybersecurity,Core Banking Systems (CBS),Data Migration
+IT & Cybersecurity,Core Banking Systems (CBS),Application Development
+IT & Cybersecurity,IT Security & Fraud Prevention,SOC Monitoring
+IT & Cybersecurity,IT Security & Fraud Prevention,Firewalls
+IT & Cybersecurity,IT Security & Fraud Prevention,Identity Access Management (IAM)
+IT & Cybersecurity,IT Security & Fraud Prevention,Phishing Detection
+IT & Cybersecurity,Digital Banking Innovation,AI/ML in Banking
+IT & Cybersecurity,Digital Banking Innovation,Open Banking APIs
+IT & Cybersecurity,Digital Banking Innovation,Blockchain Implementation
+IT & Cybersecurity,IT Governance & Risk Compliance,ITGC Audits
+IT & Cybersecurity,IT Governance & Risk Compliance,Change Management
+IT & Cybersecurity,IT Governance & Risk Compliance,Software Patching
+IT & Cybersecurity,IT Governance & Risk Compliance,System Backups
+IT & Cybersecurity,Cyber Incident Response,Cyber Threat Intelligence
+IT & Cybersecurity,Cyber Incident Response,Security Incident Handling
+IT & Cybersecurity,Cyber Incident Response,Data Breach Management
+IT & Cybersecurity,Fintech & API Integration,Open Banking
+IT & Cybersecurity,Fintech & API Integration,Payment Aggregator APIs
+IT & Cybersecurity,Fintech & API Integration,Third-Party Integrations
+Customer Service & Relationship Management,Customer Support & Helpdesk,Complaint Management
+Customer Service & Relationship Management,Customer Support & Helpdesk,Chatbot Assistance
+Customer Service & Relationship Management,Customer Support & Helpdesk,Grievance Redressal
+Customer Service & Relationship Management,VIP & HNI Client Services,Dedicated Relationship Managers
+Customer Service & Relationship Management,VIP & HNI Client Services,Priority Banking
+Customer Service & Relationship Management,VIP & HNI Client Services,Wealth Advisory
+Customer Service & Relationship Management,Contact Center Management,IVR Systems
+Customer Service & Relationship Management,Contact Center Management,Email & Chat Support
+Customer Service & Relationship Management,Contact Center Management,Service Quality Monitoring
+Finance, Accounting & Investment,Financial Control & Reporting,General Ledger
+Finance, Accounting & Investment,Financial Control & Reporting,MIS Reporting
+Finance, Accounting & Investment,Financial Control & Reporting,Taxation Compliance
+Finance, Accounting & Investment,Financial Control & Reporting,Financial Statement Preparation
+Finance, Accounting & Investment,Investment & Fund Management,Proprietary Trading
+Finance, Accounting & Investment,Investment & Fund Management,Bond Investments
+Finance, Accounting & Investment,Investment & Fund Management,Derivatives Trading
+Finance, Accounting & Investment,Investment & Fund Management,Real Estate Investments
+HR, Administration & Legal,Employee Recruitment & Training,Hiring
+HR, Administration & Legal,Employee Recruitment & Training,Learning & Development
+HR, Administration & Legal,Employee Recruitment & Training,Performance Appraisal
+HR, Administration & Legal,Payroll & Compensation Management,Salary Processing
+HR, Administration & Legal,Payroll & Compensation Management,Provident Fund (PF)
+HR, Administration & Legal,Payroll & Compensation Management,Gratuity
+HR, Administration & Legal,Payroll & Compensation Management,ESOPs
+HR, Administration & Legal,Legal & Litigation,Contract Management
+HR, Administration & Legal,Legal & Litigation,Dispute Resolution
+HR, Administration & Legal,Legal & Litigation,Litigation Support
+HR, Administration & Legal,Facilities & Admin Management,Office Infrastructure
+HR, Administration & Legal,Facilities & Admin Management,Vendor Management
+HR, Administration & Legal,Facilities & Admin Management,Security Services
+Operations & Process Management,Branch Operations,Teller Services
+Operations & Process Management,Branch Operations,Cash Management
+Operations & Process Management,Branch Operations,Vault Operations
+Operations & Process Management,Document Management,Digital Signatures
+Operations & Process Management,Document Management,E-KYC
+Operations & Process Management,Document Management,Physical Document Storage
+Operations & Process Management,Business Process Reengineering,Process Optimization
+Operations & Process Management,Business Process Reengineering,Lean Six Sigma Initiatives
+Strategic & Business Planning,Corporate Strategy,Mergers & Acquisitions
+Strategic & Business Planning,Corporate Strategy,Market Expansion
+Strategic & Business Planning,Corporate Strategy,Competitive Analysis
+Strategic & Business Planning,Product Development & Pricing,Loan & Deposit Product Innovations
+Strategic & Business Planning,Product Development & Pricing,Rate Setting
+Strategic & Business Planning,Marketing & Branding,Advertising
+Strategic & Business Planning,Marketing & Branding,Customer Acquisition Strategies
+Strategic & Business Planning,Marketing & Branding,Social Media Engagement
+Treasury & Capital Markets,Forex & Currency Trading,Spot & Forward Contracts
+Treasury & Capital Markets,Forex & Currency Trading,Exchange Rate Risk Management
+Treasury & Capital Markets,Asset-Liability Management (ALM),Interest Rate Risk Hedging
+Treasury & Capital Markets,Asset-Liability Management (ALM),Capital Planning
+Treasury & Capital Markets,Fixed Income & Equity Trading,Government Securities
+Treasury & Capital Markets,Fixed Income & Equity Trading,Corporate Bonds
+Treasury & Capital Markets,Fixed Income & Equity Trading,Stock Market Investments
+Treasury & Capital Markets,Money Market Operations,Interbank Lending
+Treasury & Capital Markets,Money Market Operations,Repo Transactions
+Treasury & Capital Markets,Money Market Operations,Short-term Borrowing
+Sustainability & ESG Compliance,Green Banking Initiatives,Sustainable Finance
+Sustainability & ESG Compliance,Green Banking Initiatives,ESG Compliance
+Sustainability & ESG Compliance,Green Banking Initiatives,Carbon Footprint Reduction
+Sustainability & ESG Compliance,Corporate Social Responsibility (CSR),Community Initiatives
+Sustainability & ESG Compliance,Corporate Social Responsibility (CSR),Financial Inclusion Programs

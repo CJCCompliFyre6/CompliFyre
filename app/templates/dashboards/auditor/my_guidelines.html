@@ -1,0 +1,887 @@
+{% extends "audit_base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="assets/css/view.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+    .truncated-text {
+        cursor: pointer;
+        color: blue;
+    }
+
+    .truncated-text:hover {
+        text-decoration: underline;
+    }
+
+    .modal-content1 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: auto;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-content2 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: 230px auto 0 auto;
+        /* Top margin added */
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        position: relative;
+        /* optional, for stacking elements like close buttons */
+    }
+
+
+    .table_prompt {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Tab Styles */
+    .step-tabs {
+        display: flex;
+        background: white;
+        border-radius: 12px;
+        padding: 8px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e5e7eb;
+        gap: 8px;
+    }
+
+    .step-tab {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        color: #6b7280;
+        background: transparent;
+    }
+
+    .step-tab.active {
+        background: #f97316;
+        color: white;
+        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+    }
+
+    .step-tab.completed {
+       background: transparent;
+       color: #6b7280;
+       box-shadow: none;
+       border: 1px solid #10b981;
+    }
+
+    .step-tab.completed:hover {
+       background: #f3f4f6;
+       color: #4b5563;
+    }
+
+    .step-tab:not(.completed):not(.active):hover {
+        background: #f3f4f6;
+        color: #4b5563;
+    }
+
+    .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #e5e7eb;
+        color: #6b7280;
+        font-size: 14px;
+        margin-right: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .step-tab.active .step-number
+     {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+
+    .step-tab.completed .step-number {
+        background: #10b981;
+        color: white;
+    }
+
+
+    .step-tab.completed .step-number::after {
+    content: "✓";
+    font-weight: bold;
+}
+
+    .step-content {
+        display: none;
+        animation: fadeIn 0.5s ease;
+    }
+
+    .step-content.active {
+        display: block;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+
+
+<div id="linkSharingModal" class="modal">
+    <div class="modal-content2">
+        <span class="close" onclick="closeLinkSharingModal()">&times;</span>
+        <h2>Extract Notification from a Link</h2>
+        <form id="linkSharingForm" onsubmit="submitLink(event)">
+            <input type="text" id="shareableLink" required>
+            <button type="submit">Enter</button>
+        </form>
+        <div id="loadingIcon" class="spinner" style="display: none;"></div>
+    </div>
+</div>
+
+<div id="uploadModal" class="modal">
+    <div class="modal-content2">
+        <span class="close" onclick="closeUploadModal()">&times;</span>
+        <h2>Extract information from the pdf</h2>
+        <form id="uploadForm" onsubmit="uploadLink(event)">
+            <input type="file" id="uploadableLink" accept="application/pdf"
+                class="border border-gray-300 rounded-2xl shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                required>
+            <button type="submit"
+                class=" px-5 py-2.5 bg-green-500 rounded-full hover:bg-green-700 transition-all">Enter</button>
+        </form>
+        <div id="loadingIcon1" class="spinner" style="display: none;"></div>
+    </div>
+</div>
+
+<div id="promptModal" class="modal">
+    <div class="modal-content1">
+        <span class="close" onclick="closepromptModal()">&times;</span>
+        <h2 class="text-3xl font-bold mb-6 text-center">Write Prompt</h2>
+
+        <!-- Form for creating new prompt -->
+        <form id="promptForm" onsubmit="createNewPrompt(event)" class="flex flex-col gap-6 my-8">
+
+            <textarea id="promptableLink"
+                class="w-full h-48  p-4 border border-gray-300 rounded-2xl shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                required placeholder="Paste your prompt here..."></textarea>
+
+
+            <button
+                class="px-5 py-2.5 mt-6 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all">Create
+                New Prompt</button>
+        </form>
+
+
+        <!-- Loading Icon -->
+        <div id="loadingIcon1" class="spinner mt-4" style="display: none;"></div>
+
+        <!-- Table for displaying prompts -->
+        <div class="overflow-y-auto max-h-80 mt-8">
+            <table style="margin-top: 2rem;" id="promptTable"
+                class="w-full mt-8 py-2.5 border-collapse border border-gray-300 rounded-xl shadow-lg table_prompt">
+                <thead>
+                    <tr class="bg-gray-200 text-gray-700">
+                        <th class="p-3">Prompt ID</th>
+                        <th class="p-3">Prompt</th>
+                        <th class="p-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be dynamically populated -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div id="loadingIconAnim" class="spinner" style="display: none;"></div>
+
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+    <div class="organization px-6 py-4">
+        <h1 class="text-2xl ">My Guidelines</h1>
+        <!-- <p><a href="#">Dashboard</a> / Organization Profile</p> -->
+    </div>
+</main>
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6" style="z-index: -20;">
+
+
+
+    <!-- Tab Navigation -->
+    <div class="step-tabs">
+        <div class="step-tab active" id="step1-tab" onclick="switchTab(1)">
+            <span class="step-number">1</span>
+            <span>Download Guidelines</span>
+        </div>
+        <div class="step-tab" id="step2-tab" onclick="switchTab(2)">
+            <span class="step-number">2</span>
+            <span>Add Your Client</span>
+        </div>
+        <div class="step-tab" id="step3-tab" onclick="switchTab(3)">
+            <span class="step-number">3</span>
+            <span>Create Project</span>
+        </div>
+    </div>
+
+    <div class="step-content" id="step1-content">
+        <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+            
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Download compliance guidelines to get started with your audit process. This is the first step in
+                creating compliance projects.
+            </p>
+            <div class="mt-6">
+                <a href="{{ url_for('re.guidelines') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download Guidelines
+                    </button>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-content" id="step2-content">
+        <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+            
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Add your client information to start creating compliance projects. This step is required before you can
+                create projects.
+            </p>
+            <div class="mt-6">
+                {% if not current_user.free_report_used %}
+                <a href="{{ url_for('re.profile') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add Your Client
+                    </button>
+                </a>
+                {% else %}
+                <div class="block w-full relative group">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-gray-400 text-white font-medium rounded-lg cursor-not-allowed transition-all shadow-md"
+                        disabled>
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        Add Your Client
+                    </button>
+                    <div
+                        class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block w-64">
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg">
+                            <div class="flex items-start">
+                                <svg class="w-4 h-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <div class="text-sm text-yellow-800">
+                                    <p class="font-medium">Feature Disabled</p>
+                                    <p class="mt-1">You have used your free report. Please contact <a
+                                            href="mailto:CompliFyre@crackerjacktech.com"
+                                            class="underline">CompliFyre@crackerjacktech.com</a> for assistance.</p>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-yellow-200">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="step-content" id="step3-content">
+        <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+            
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Create a new compliance project by selecting guidelines, departments, and defining project details.
+            </p>
+            <div class="mt-6">
+                <a href="{{ url_for('audit.create_project') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create New Project
+                    </button>
+                </a>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="top-buttons">
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search..">
+        </div>
+
+
+
+
+
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('re.guidelines') }}">
+                <button class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded">
+                    Download New Guidelines
+                </button>
+            </a>
+
+            <a href="{{ url_for('audit.request_guideline') }}">
+                <button
+                    class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded">
+                    Request New Guideline
+                </button>
+            </a>
+            <button id="exportCSV" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded">
+                Export to CSV
+            </button>
+        </div>
+
+        
+    </div>
+
+    <div class="table-container  rounded-xl">
+        {% if guidelines %}
+        <table id="guidelinesTable">
+            <thead class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+                <tr>
+                    <th>Guideline Name</th>
+                    <th>GID</th>
+                    <th>Issuing Authority</th>
+                    <th>Applicable Geography</th>
+                    <th>Applicable Industry</th>
+                    <th>Applicable Org Category</th>
+                    <th>Mandatory (Yes/No)</th>
+                    <th>Certification Available (Yes/No)</th>
+                    <th>Date of Issue</th>
+                    <th>Effective Date for Compliance</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- <tr>
+                    <td>Basel III Guidelines (RBI Circular DBOD.No. 3/ 04.02.001/2015-16)</td>
+                    <td>RBI Circular</td>
+                    <td>Reserve Bank of India</td>
+                    <td>India</td>
+                    <td>Banking</td>
+                    <td>All banks</td>
+                    <td>Yes</td>
+                    <td>No</td>
+                    <td>Apr-15</td>
+                    <td>Apr-15</td>
+                    <td>
+                        <div class="action-menu">
+                            <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                            <div class="dropdown-content2">
+                                <a href="#">View Controls</a>
+                            </div>
+                        </div>
+                    </td>
+                </tr> -->
+
+                {% for item in guidelines%}
+                <tr>
+                    <td>{{ item.guideline_data.DocumentDetails.DocumentName }}</td>
+                    <td>{{ item.guideline_data.DocumentDetails.DocumentName }}</td>
+                    <td>{{item.guideline_data.DocumentDetails.IssuingAuthority}}</td>
+                    <td>
+                        {% set loc = item.guideline_data.DocumentDetails.ApplicableGeography %}
+
+                        {% if loc is string %}
+                        {{ loc }}
+                        {% elif loc is iterable %}
+                        {{ loc | join(', ') }}
+                        {% else %}
+                        {{ loc }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set industries = item.guideline_data.DocumentDetails.ApplicableIndustries %}
+
+                        {% if industries is string %}
+                        {{ industries }}
+                        {% elif industries is iterable %}
+                        {{ industries | join(', ') }}
+                        {% else %}
+                        {{ industries }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set org = item.guideline_data.DocumentDetails.ApplicableOrganizations%}
+
+                        {% if org is string %}
+                        {{ org }}
+                        {% elif org is iterable %}
+                        {{ org | join(', ') }}
+                        {% else %}
+                        {{ org }}
+                        {% endif %}
+                    </td>
+                    <td>Yes</td>
+                    <td>No</td>
+                    <td>{{item.guideline_data.DocumentDetails.IssuanceDate}}</td>
+                    <td>{{item.guideline_data.DocumentDetails.ComplianceDeadline}}</td>
+                    <td>
+                        <div class="action-menu">
+
+
+                            <!-- <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="handleClause('{{item.id}}')">View Clause</button> </div>
+                                <a href="{{url_for('re.activity_by_guideline', id=item.id)}}"><button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px">View Activities</button></a>-->
+
+                            <!--<a href="{{ url_for('audit.create_project', guideline=item.id) }}">
+                            <button class="bg-gradient-to-r from-[#ff7b00] to-[#ff4d00] text-white text-sm py-2.5 px-5 rounded-full shadow-md font-medium hover:opacity-90 transition duration-200">
+                            Create New Project
+                            </button>
+                            </a> -->
+                            <a href="{{ url_for('re.get_clause', guideline_id=item.id) }}">
+                                <button
+                                    class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all"
+                                    style="padding:10px">Clauses</button>
+                            </a>
+                            <!-- <a href="{{ url_for('audit.my_projects', guideline_id=item.id) }}">
+                                <button
+                                    class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all"
+                                    style="padding:10px">My Projects</button>
+                            </a> -->
+
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+
+            </tbody>
+        </table>
+
+        {% else %}
+        <!-- Empty State for New Users -->
+        <div class="text-center py-12 bg-white rounded-xl shadow-sm">
+            <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 class="mt-4 text-xl font-medium text-gray-900">No Guidelines Available</h3>
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Get started by downloading your first set of guidelines. This will allow you to create compliance
+                projects and begin your audit process.
+            </p>
+            <div class="mt-6">
+                <a href="{{ url_for('re.guidelines') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download New Guidelines
+                    </button>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+
+
+
+
+        <div class="bottom-controls">
+            <div class="entries-box">
+                <select id="entriesSelect">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                </select>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+</div>
+
+
+
+</main>
+<script src="assets/js/view.js"></script>
+<script>
+    /* var requestOptions = {
+        method: 'GET',
+        redirect: 'follow'
+    };
+  
+    
+    fetch("{{url_for('retrive.get_all_files')}}", requestOptions) 
+        .then(response => response.json())
+        .then(result => {
+            const tableBody = document.querySelector('#guidelinesTable tbody');
+ 
+            if (!result['files'] || result['files'].length === 0) {
+                const tableBody = document.querySelector('#guidelinesTable tbody');
+                tableBody.innerHTML = '<tr><td colspan="11">No files found</td></tr>';
+                return;
+            }
+ 
+            result['files'].forEach((file, index) => {
+                const docDetails = file['data']['DocumentDetails'] || {};
+                console.log(file['id'])
+                const id = file['id'] || 'unknown'; // Add a fallback value for id
+                const row = document.createElement('tr');
+                row.innerHTML = `
+            <td>${docDetails.DocumentName || 'Untitled Document'}</td>
+            <td>GID-${index + 1}</td>
+            <td>${docDetails.IssuingAuthority || 'Unknown Authority'}</td>
+            <td>${docDetails.ApplicableGeography || 'Global'}</td>
+            <td>${docDetails.ApplicableIndustries || 'General Industry'}</td>
+            <td>${docDetails.ApplicableOrganizations || 'General Organization'}</td>
+            <td>${docDetails.Mandatory === 'Yes' ? 'Yes' : 'No'}</td>
+            <td>${docDetails.CertificationAvailable === 'Yes' ? 'Yes' : 'No'}</td>
+            <td>${docDetails.IssuanceDate || 'Not Provided'}</td>
+            <td>${docDetails.ComplianceDeadline || 'Not Applicable'}</td>
+            <td>
+                <div class="action-menu">
+                    <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                    <div class="dropdown-content2">
+                        <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="handleClause('${id}')">View Clause</button>                        </div>
+                </div>
+            </td>
+        `;
+                tableBody.appendChild(row);
+            });
+        })
+        .catch(error => console.log('error', error));
+ 
+    document.addEventListener("click", function(event) {
+        const dropdowns = document.querySelectorAll(".dropdown-content2");
+        dropdowns.forEach(dropdown => {
+            if (!dropdown.contains(event.target) && !event.target.matches(".action-menu span")) {
+                dropdown.style.display = "none";
+            }
+        });
+    });
+*/
+    function toggleDropdown2(element) {
+        const dropdown = element.nextElementSibling;
+        const isVisible = dropdown.style.display === "block";
+
+        // Hide all dropdowns
+        const dropdowns = document.querySelectorAll(".dropdown-content2");
+        dropdowns.forEach(d => d.style.display = "none");
+
+        // Toggle the clicked dropdown
+        if (!isVisible) {
+            dropdown.style.display = "block";
+        }
+    }
+
+</script>
+
+<script>
+    let prompts = [];
+
+    async function fetchPrompts() {
+        try {
+            const response = await fetch("{{url_for('prompt.get_all_prompt')}}");
+            const data = await response.json();
+            prompts = data.prompts.map(p => ({ id: p.id, text: p.prompt }));
+            renderPrompts();
+        } catch (error) {
+            console.error('Error fetching prompts:', error);
+        }
+    }
+    function renderPrompts() {
+        const tableBody = document.querySelector('#promptTable tbody');
+        tableBody.innerHTML = '';
+
+        prompts.forEach(prompt => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <tr>
+                    <td class="p-4 border">${prompt.id}</td>
+                    <td class="p-4 border w-3/6">
+                        <span class="truncated-text block max-w-xs overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer text-blue-600" onclick="toggleText(this)">
+                            ${prompt.text.length > 20 ? prompt.text.substring(0, 20) + '...' : prompt.text}
+                        </span>
+                    </td>
+                    <td class="p-4 border flex gap-2 justify-center">
+                        <button onclick="updatePrompt(${prompt.id})" class="px-4 py-1 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition-all">Update</button>
+                        <button onclick="deletePrompt(${prompt.id})" class="px-4 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all">Delete</button>
+                    </td>
+                </tr>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    function toggleText(element) {
+        if (element.innerText.endsWith('...')) {
+            const prompt = prompts.find(p => p.text.startsWith(element.innerText.slice(0, 20)));
+            element.innerText = prompt.text;
+        } else {
+            element.innerText = element.innerText.substring(0, 20) + '...';
+        }
+    }
+
+    fetchPrompts();
+
+    async function createNewPrompt(event) {
+        event.preventDefault();
+
+        const promptText = document.getElementById('promptableLink').value;
+        console.log(promptText)
+        const requestOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: promptText }),
+            redirect: 'follow'
+        };
+
+        try {
+            const response = await fetch("{{url_for('prompt.create_prompt')}}", requestOptions);
+            const result = await response.json();
+            console.log(result);
+            if (response.status === 200) {
+                fetchPrompts();
+            }
+
+        } catch (error) {
+            console.error('Error creating prompt:', error);
+        }
+    }
+
+
+    function updatePrompt(id) {
+        const newText = prompt('Enter updated prompt:');
+        if (newText) {
+            const myHeaders = new Headers();
+            myHeaders.append("Content-Type", "application/json");
+
+            const raw = JSON.stringify({ "prompt": newText });
+
+            const requestOptions = {
+                method: 'PUT',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+            };
+            const updatePromptBaseUrl = "{{ url_for('prompt.update_prompt', prompt_id=0).replace('0', '') }}";
+            fetch(`${updatePromptBaseUrl}${id}`, requestOptions)
+                .then(response => response.text())
+                .then(result => {
+                    console.log(result);
+                    const prompt = prompts.find(p => p.id === id);
+                    if (prompt) {
+                        prompt.text = newText;
+                        renderPrompts();
+                    }
+                })
+                .catch(error => console.log('Error updating prompt:', error));
+        }
+    }
+
+    function deletePrompt(id) {
+        const requestOptions = {
+            method: 'DELETE',
+            redirect: 'follow'
+        };
+        const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
+        fetch(`${updatePromptBaseUrl}${id}`, requestOptions)
+            .then(response => response.text())
+            .then(result => {
+                console.log(result);
+                const index = prompts.findIndex(p => p.id === id);
+                if (index > -1) {
+                    prompts.splice(index, 1);
+                    renderPrompts();
+                }
+            })
+            .catch(error => console.log('Error deleting prompt:', error));
+    }
+
+    renderPrompts();
+
+    function handleClause(id) {
+        fetch("{{ url_for('re.clause') }}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ id: id })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Network response was not ok");
+                }
+                return response.text(); // Expecting HTML content
+            })
+            .then(html => {
+                // Redirect to the clause page using a GET request
+                window.location.href = "{{ url_for('re.get_clause') }}";
+            })
+            .catch(error => {
+                console.error("Error in clause request:", error);
+            });
+    }
+
+</script>
+<script>
+    function paginateTable(tableId, rowsPerPage) {
+        const table = document.getElementById(tableId);
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        const totalRows = rows.length;
+        const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+        const paginationContainer = document.getElementById("pagination");
+        paginationContainer.innerHTML = "";
+
+        function showPage(page) {
+            const start = (page - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+
+            rows.forEach((row, index) => {
+                row.style.display = index >= start && index < end ? "" : "none";
+            });
+        }
+
+        for (let i = 1; i <= totalPages; i++) {
+            const button = document.createElement("button");
+            button.textContent = i;
+            button.classList.add("pagination-button");
+            button.addEventListener("click", () => {
+                showPage(i);
+            });
+            paginationContainer.appendChild(button);
+        }
+
+        showPage(1);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        paginateTable("guidelinesTable", 10);
+    });
+
+    document.getElementById("entriesSelect").addEventListener("change", () => {
+        const rowsPerPage = parseInt(document.getElementById("entriesSelect").value);
+        paginateTable("guidelinesTable", rowsPerPage);
+    });
+</script>
+
+<script>
+    // Tab switching functionality with toggle feature
+    function switchTab(stepNumber) {
+        const clickedTab = document.getElementById(`step${stepNumber}-tab`);
+        const clickedContent = document.getElementById(`step${stepNumber}-content`);
+
+        // Check if the clicked tab is already active
+        const isAlreadyActive = clickedTab.classList.contains('active');
+
+        // Hide all tab contents
+        document.querySelectorAll('.step-content').forEach(content => {
+            content.classList.remove('active');
+        });
+
+        // Remove active class from all tabs
+        document.querySelectorAll('.step-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        // If the tab was not already active, show its content
+        if (!isAlreadyActive) {
+            clickedContent.classList.add('active');
+            clickedTab.classList.add('active');
+        }
+        // If it was already active, both content and tab will remain inactive (collapsed state)
+    }
+
+    // Check user progress and update tabs accordingly
+    async function checkUserProgress() {
+        try {
+            const response = await fetch("{{ url_for('re.check_user_progress') }}");
+            const progress = await response.json();
+
+            // Update Step 1 (Guidelines)
+            if (progress.has_guidelines) {
+                document.getElementById('step1-tab').classList.add('completed');
+            } else {
+                document.getElementById('step1-tab').classList.remove('completed');
+            }
+
+            // Update Step 2 (Clients)
+            if (progress.has_clients) {
+                document.getElementById('step2-tab').classList.add('completed');
+            } else {
+                document.getElementById('step2-tab').classList.remove('completed');
+            }
+
+            // Update Step 3 (Projects)
+            if (progress.has_projects) {
+                document.getElementById('step3-tab').classList.add('completed');
+            } else {
+                document.getElementById('step3-tab').classList.remove('completed');
+            }
+
+        } catch (error) {
+            console.error('Error checking user progress:', error);
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        checkUserProgress();
+
+        // Initialize table pagination
+        paginateTable("guidelinesTable", 10);
+
+        // Add event listener for entries select
+        document.getElementById("entriesSelect").addEventListener("change", () => {
+            const rowsPerPage = parseInt(document.getElementById("entriesSelect").value);
+            paginateTable("guidelinesTable", rowsPerPage);
+        });
+    });
+
+
+
+
+</script>
+
+
+
+
+
+
+{% endblock %}

@@ -1,0 +1,273 @@
+{% extends "audit_base.html" %} {% block content %}
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for the tag input, as seen in the original file */
+        .newIndustry {
+            display: flex;
+            flex-wrap: wrap;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            width: 300px;
+            min-height: 40px;
+        }
+        .tag {
+            display: flex;
+            align-items: center;
+            background-color: #e0e0e0;
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 20px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .tag span {
+            margin-left: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            color: red;
+        }
+        .tag-input {
+            border: none;
+            outline: none;
+            flex-grow: 1;
+            padding: 5px;
+            font-size: 14px;
+            min-width: 100px;
+        }
+        .quill-container {
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            height: 200px;
+            background-color: white;
+            padding: 0.5rem;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            padding: 24px;
+            border-radius: 1rem;
+            max-width: 600px;
+            width: 90%;
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+    </style>
+<div
+  class="w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center min-h-[105vh]"
+><a href="{{url_for('main.create_new_prompt')}}" class="flex px-[22rem] py-8 items-left"><button 
+      class="show-text-btn px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors" 
+     >
+      Create Prompt
+    </button></a>
+  <div class="flex flex-col items-center px-4 flex-grow">
+    
+    <div
+      class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative"
+    >
+      <h2 class="text-2xl font-semibold mb-6 text-orange-800">
+        Existing Prompts
+      </h2>
+      <div class="table-container bg-white rounded-lg shadow">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                scope="col"
+                class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Prompt Type
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Version
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Prompt Text
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Is Active
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody
+            id="prompts-table-body"
+            class="bg-white divide-y divide-gray-200"
+          >
+          {% for prompt in prompts %}
+<tr>
+  <td class="whitespace-nowrap">{{ prompt.prompt_type }}</td>
+  <td class="whitespace-nowrap">{{ prompt.version }}</td>
+  <td class="text-gray-500 max-w-xs overflow-hidden text-ellipsis whitespace-nowrap">
+    {{ prompt.prompt_text[:20] | markdown }} 
+    <button 
+      class="show-text-btn px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors" 
+      data-text="{{ prompt.prompt_text | markdown}}">
+      Show Text
+    </button>
+  </td>
+  <td class="whitespace-nowrap">
+    <button 
+      class="toggle-active-btn px-3 py-1 rounded-full text-white transition-colors" 
+      data-index="{{ prompt.prompt_id }}"
+      style="background-color: {% if prompt.is_active %}#22c55e{% else %}#6b7280{% endif %};">
+      {% if prompt.is_active %}Active{% else %}Inactive{% endif %}
+    </button>
+  </td>
+  <td class="whitespace-nowrap  space-x-2">
+    <a href="{{url_for('main.edit_prompt', prompt_id=prompt.prompt_id)}}">  <button 
+      class="edit-btn px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" 
+      data-index="{{ prompt.prompt_id }}">
+      Edit
+    </button></a>
+   <a href="{{url_for('main.delete_prompt', prompt_id=prompt.prompt_id)}}"> <button 
+      class="delete-btn px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors" 
+      data-index="{{ prompt.prompt_id }}">
+      Delete
+    </button></a>
+  </td>
+</tr>
+{% endfor %}
+
+            <!-- Table rows will be inserted here by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="full-text-modal" class="modal">
+        <div class="modal-content">
+          <span class="close-button">&times;</span>
+          <h3 class="text-xl font-semibold mb-4 text-orange-800">
+            Full Prompt Text
+          </h3>
+          <p
+            id="modal-text-content"
+            class="text-gray-700 whitespace-pre-wrap"
+          ></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Mock data for the table
+  
+
+  // Get the table body and modal elements
+  const tableBody = document.getElementById("prompts-table-body");
+  const modal = document.getElementById("full-text-modal");
+  const modalContent = document.getElementById("modal-text-content");
+  const closeButton = document.querySelector(".close-button");
+
+ 
+  
+
+  // Event listener for the table to handle button clicks
+  tableBody.addEventListener("click", function (event) {
+    const target = event.target;
+    if (target.classList.contains("show-text-btn")) {
+      const index = target.getAttribute("data-index");
+      const fullText = target.getAttribute("data-text");
+      modalContent.textContent = fullText;
+      modal.style.display = "flex";
+    } else if (target.classList.contains("delete-btn")) {
+      const index = target.getAttribute("data-index");
+      prompts.splice(index, 1);
+      populateTable();
+      console.log("Prompt deleted. New prompts array:", prompts);
+    } else if (target.classList.contains("edit-btn")) {
+      const index = target.getAttribute("data-index");
+      console.log("Edit button clicked for prompt at index:", index);
+      // In a real application, you would load the data into the form for editing.
+    } else if (target.classList.contains("toggle-active-btn")) {
+      const index = target.getAttribute("data-index");
+      prompts[index].is_active = !prompts[index].is_active;
+      populateTable(); // Re-render the table to reflect the change
+      console.log(
+        "Active status toggled for prompt at index:",
+        index,
+        "New status:",
+        prompts[index].is_active
+      );
+    }
+  });
+
+  // Event listener to close the modal
+  closeButton.addEventListener("click", function () {
+    modal.style.display = "none";
+  });
+
+  // Close the modal when clicking outside of it
+  window.addEventListener("click", function (event) {
+    if (event.target === modal) {
+      modal.style.display = "none";
+    }
+  });
+
+
+  document.querySelectorAll('.toggle-active-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const promptId = this.dataset.index;
+    fetch(`/toggle_prompt/${promptId}`, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') location.reload();
+        else alert(data.message);
+      });
+  });
+});
+
+</script>
+{%endblock%}

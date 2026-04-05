@@ -1,0 +1,232 @@
+{% extends "audit_base.html" %}
+{% block content %} 
+  <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 0.25rem;
+            border: 1px solid #c2410c; /* orange-700 */
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #000000;
+            transition: all 0.2s ease-in-out;
+        }
+        .form-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px #fdba74; /* orange-300 */
+        }
+        .section-card {
+            background-color: white;
+            border-left: 4px solid #f97316; /* orange-500 */
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .section-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+
+    <div id="loading-spinner" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="animate-spin rounded-full h-32 w-32 border-b-4 border-orange-700"></div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 bg-orange-200 rounded-xl shadow-2xl border-4 border-orange-700">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-orange-700 tracking-wide">Guideline</h1>
+            <p class="mt-2 text-lg text-black">Edit the content directly and save your changes.</p>
+        </div>
+
+        <div id="infographic-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
+
+        <div class="flex justify-center mt-8">
+            <button id="save-button" class="bg-orange-700 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-orange-500 transition-colors duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
+                Save Changes
+            </button>
+        </div>
+
+        <div id="notification-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+            <div class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full">
+                <p id="notification-text" class="text-lg font-semibold text-gray-800 mb-4"></p>
+                <button id="close-modal-button" class="bg-orange-700 text-white py-2 px-4 rounded-full hover:bg-orange-500 transition-colors">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const showLoading = (show) => {
+                const spinner = document.getElementById('loading-spinner');
+                spinner.classList.toggle('hidden', !show);
+            };
+
+            const showNotification = (message) => {
+                const modal = document.getElementById('notification-modal');
+                const text = document.getElementById('notification-text');
+                text.innerText = message;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            };
+
+            let guidelineData = {{ guideline_data | tojson | safe }};
+
+            if (typeof guidelineData === 'string') {
+                try {
+                    guidelineData = JSON.parse(guidelineData);
+                } catch (e) {
+                    console.error("Invalid JSON from server:", e);
+                }
+            }
+
+            const guidelineId = `{{ guideline_id }}`;
+
+            const sections = {
+                "DocumentDetails": {
+                    title: "Document Details",
+                    fields: {
+                        "DocumentName": "Document Name",
+                        "IssuingAuthority": "Issuing Authority",
+                        "ApplicableIndustries": "Applicable Industries",
+                        "ApplicableOrganizations": "Applicable Organizations",
+                        "ApplicableGeography": "Applicable Geography",
+                        "PurposeAndIntent": "Purpose and Intent",
+                        "IssuanceDate": "Issuance Date",
+                        "ComplianceDeadline": "Compliance Deadline"
+                    }
+                },
+                "RegulatoryAndComplianceAspects": {
+                    title: "Regulatory & Compliance Aspects",
+                    fields: {
+                        "LegalStatus": "Legal Status",
+                        "NonComplianceConsequences": "Non-Compliance Consequences",
+                        "RelationToPreviousRegulations": "Relation to Previous Regulations"
+                    }
+                },
+                "StakeholdersAndApplicability": {
+                    title: "Stakeholders & Applicability",
+                    fields: {
+                        "ScopeOfApplicability": "Scope of Applicability",
+                        "ImpactOnThirdParties": "Impact on Third Parties"
+                    }
+                },
+                "ImplementationAndOversight": {
+                    title: "Implementation & Oversight",
+                    fields: {
+                        "ComplianceRequirements": "Compliance Requirements",
+                        "ImplementationTimeline": "Implementation Timeline",
+                        "GuidanceAvailability": "Guidance Availability",
+                        "OverseeingBody": "Overseeing Body",
+                        "ResponsibleOfficerRequirement": "Responsible Officer Requirement"
+                    }
+                },
+                "RelatedRegulations": {
+                    title: "Related Regulations",
+                    fields: {
+                        "OverlappingRegulations": "Overlapping Regulations",
+                        "RelatedNationalRegulations": "Related National Regulations",
+                        "ComparableInternationalStandards": "Comparable International Standards"
+                    }
+                },
+                "ComparisonAndIndustryImpact": {
+                    title: "Comparison & Industry Impact",
+                    fields: {
+                        "AlignmentWithGlobalPractices": "Alignment with Global Practices",
+                        "JurisdictionalDifferences": "Jurisdictional Differences",
+                        "ComplianceChallenges": "Compliance Challenges",
+                        "ImpactOnBusinessOperations": "Impact on Business Operations"
+                    }
+                }
+            };
+            
+            const generateInfographicHTML = (data) => {
+                let html = '';
+                for (const sectionKey in sections) {
+                    if (data[sectionKey]) {
+                        const sectionConfig = sections[sectionKey];
+                        const sectionData = data[sectionKey];
+                        html += `
+                            <div class="section-card">
+                                <h2 class="text-xl font-semibold text-orange-700 mb-4">${sectionConfig.title}</h2>
+                                <div class="space-y-4 text-sm">
+                        `;
+                        for (const fieldKey in sectionConfig.fields) {
+                            if (sectionData[fieldKey]) {
+                                const isLongText = ["PurposeAndIntent", "NonComplianceConsequences", "RelationToPreviousRegulations", "ComplianceRequirements", "GuidanceAvailability", "ResponsibleOfficerRequirement", "OverlappingRegulations", "RelatedNationalRegulations", "ComparableInternationalStandards", "ComplianceChallenges", "ImpactOnBusinessOperations"].includes(fieldKey);
+                                
+                                html += `
+                                    <div class="flex flex-col">
+                                        <label for="${sectionKey.toLowerCase()}-${fieldKey.toLowerCase()}" class="font-bold text-orange-500 mb-1">${sectionConfig.fields[fieldKey]}:</label>
+                                        ${isLongText ?
+                                            `<textarea id="${sectionKey.toLowerCase()}-${fieldKey.toLowerCase()}" class="form-input" rows="3">${sectionData[fieldKey]}</textarea>` :
+                                            `<input type="text" id="${sectionKey.toLowerCase()}-${fieldKey.toLowerCase()}" class="form-input" value="${sectionData[fieldKey]}">`
+                                        }
+                                    </div>
+                                `;
+                            }
+                        }
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                return html;
+            };
+
+            const populateInfographic = () => {
+                const infographicHTML = generateInfographicHTML(guidelineData);
+                document.getElementById('infographic-container').innerHTML = infographicHTML;
+            };
+
+            const saveChanges = async () => {
+                const updatedData = {};
+                for (const sectionKey in sections) {
+                    updatedData[sectionKey] = {};
+                    const sectionConfig = sections[sectionKey];
+                    for (const fieldKey in sectionConfig.fields) {
+                        const element = document.getElementById(`${sectionKey.toLowerCase()}-${fieldKey.toLowerCase()}`);
+                        if (element) {
+                            updatedData[sectionKey][fieldKey] = element.value.trim();
+                        }
+                    }
+                }
+
+                showLoading(true);
+                try {
+                    const response = await fetch("{{ url_for('main.update_guideline', guideline_id=guideline_id) }}", {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ guideline_data: updatedData }),
+                    });
+
+                    if (response.ok) {
+                        showNotification('Guideline updated successfully!');
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Server update failed.');
+                    }
+                } catch (error) {
+                    console.error('Error saving data:', error);
+                    showNotification(`Error: An error occurred while saving. ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            };
+
+            document.getElementById('save-button').addEventListener('click', saveChanges);
+            document.getElementById('close-modal-button').addEventListener('click', () => {
+                document.getElementById('notification-modal').classList.remove('flex');
+                document.getElementById('notification-modal').classList.add('hidden');
+            });
+
+            populateInfographic();
+        });
+    </script>
+{% endblock %}
