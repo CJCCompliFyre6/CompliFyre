@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=0.75" "shrink-to-fit=no" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Complifyre</title>
+  <meta name="description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template" />
+  <meta name="author" content="Spruko Technologies Private Limited" />
+  <meta name="keywords"
+    content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard" />
+
+  <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet" />
+  <link href="{{url_for('audit.static', filename='css/add.css')}}" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/3.2.7/tailwind.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @layer utilities {
+      .shadow-inner-orange {
+        box-shadow: inset 0 0 40px rgba(197, 136, 21, 0.96);
+      }
+
+      .text-shadow-orange {
+        text-shadow: 0 0 3px orange, 0 0 6px orange;
+      }
+    }
+
+    @keyframes moveDiagonal {
+      0% {
+        background-position: 0% 0%;
+      }
+
+      100% {
+        background-position: 100% 100%;
+      }
+    }
+
+    .diagonal-gradient {
+      background: linear-gradient(135deg, #f97416de, #fb923ce0, #fcd34de5);
+      background-size: 300% 300%;
+      animation: moveDiagonal 10s linear infinite;
+    }
+
+    /* Example of using rem for font sizes */
+    body {
+      font-size: 16px;
+      /* Base font size */
+      zoom: 78%;
+    }
+
+    h1 {
+      font-size: 2rem;
+      /* 2 * 16px = 32px */
+    }
+
+    /* Example of a media query for smaller screens */
+    @media (max-width: 768px) {
+      body {
+        font-size: 14px;
+      }
+    }
+
+    .breadcrumb {
+      border-radius: 5px;
+    }
+
+    .breadcrumb a {
+      text-decoration: none;
+      color: #007bff;
+    }
+
+    .flash-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+    }
+
+    @keyframes pulse {
+      0% {
+        background-color: transparent;
+        color: #fff;
+      }
+
+      50% {
+        background-color: #ff9900;
+        /* A bright orange color */
+        color: #000;
+        transform: scale(1.05);
+        /* Slightly enlarges the button */
+      }
+
+      100% {
+        background-color: transparent;
+        color: #fff;
+      }
+    }
+
+    .highlight-pulse {
+      animation: pulse 1.5s infinite;
+      /* 1.5 seconds per cycle, repeats infinitely */
+      border-radius: 8px;
+      /* Optional: adds rounded corners for a softer look */
+      padding: 10px;
+      /* Optional: gives the button more space */
+    }
+
+
+    /* Disabled menu item styles */
+    .disabled-menu-item {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .disabled-menu-item span {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+    }
+
+    /* Lock icon styling */
+    .bx-lock-alt {
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+
+
+<!-- Toast Container -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<body class="relative">
+  <div class="relative z-10">
+    {%if not current_user.is_authenticated%}
+    <div class="flex relative items-center mb-[8rem] w-full">
+      <nav
+        class="fixed top-1 left-1 right-1 flex items-center justify-between mt-2 mx-8 px-5 py-4 bg-black/100 bg-opacity-90 backdrop-blur-sm rounded-xl shadow-md z-30">
+        <div class="flex items-center space-x-3">
+          <img src="{{ url_for('re.static', filename='img/complyfire_logo.png') }}" alt="Logo"
+            class="w-16 h-16 rounded-md shadow-[0_0_10px_rgba(255,165,0,0.25)]">
+          <span class="text-orange-400 text-[2.5rem] font-semibold font-serif text-shadow-orange"><strong
+              class="text-orange-500 text-[3rem]">C</strong>ompli<strong
+              class="text-orange-400 text-[3rem]">F</strong>yre</span>
+        </div>
+
+        <div class="flex items-center space-x-8"> {# This new div will push to the far right due to nav's
+          justify-between #}
+          <div class="space-x-8 hidden md:flex">
+            {% if current_user.is_authenticated %}
+            <a href="{{url_for('audit.create_organization')}}"
+              class="text-white text-base font-medium hover:text-orange-400 transition text text-xl">Create Auditing
+              Organization</a>
+            {%endif%}
+          </div>
+
+          <div class="space-x-3 hidden md:flex">
+            {% if not current_user.is_authenticated %}
+            <a href="{{url_for('main.login')}}"
+              class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Login</a>
+            <a href="{{url_for('main.register_user')}}"
+              class="px-4 py-2 bg-orange-400 hover:bg-orange-600 text-white text-lg font-large rounded-lg transition">Sign
+              up</a>
+
+            {%else%}
+            <a href="{{url_for('re.logout')}}"
+              class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Logout</a>
+
+            {%endif%}
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    {%else%}
+
+
+     <div class="flex items-center w-full px-6 py-2.5 mx-auto my-3 bg-black text-white rounded-xl border border-orange-900/40 shadow-md max-w-[98%]">
+      <div class="menu-icon mr-5 text-shadow-orange" onclick="toggleSidebar()">
+        <i class="bx bx-menu"></i>
+      </div>
+      <div class="w-[10rem]">
+        <img src="{{ url_for('audit.static', filename='img/logo_horizontal_new_transparent.png') }}"
+          alt="Complifyre Logo" />
+      </div>
+      <div class="user-actions flex items-center gap-4 ml-auto">
+        <div class="space-x-8 hidden md:flex">
+          {% if current_user.is_authenticated and not current_user.role.name == "COMPLIFYRE" %}
+          {% if current_user.is_authenticated and not current_user.auditor_profile_id %}
+          <a href="{{ url_for('audit.create_organization') }}"
+            class="text-white text-base font-medium hover:text-orange-400 transition text text-xl highlight-pulse">
+            Create Auditing Organization
+          </a>
+          {% endif %}
+          {% endif %}
+        </div>
+
+
+        <div class="relative inline-block text-left z-50">
+          <div class="notification-icon  cursor-pointer" id="notification-toggle">
+            <i class="bx bx-bell text-2xl"></i>
+          </div>
+
+          <!-- Notification dropdown -->
+          <div id="notification-dropdown"
+            class="origin-top-right absolute right-0 mt-2 w-96 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden">
+            <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="notification-toggle">
+              <div class="block px-4 py-2 text-sm text-gray-700 font-semibold border-b border-gray-200" role="menuitem"
+                tabindex="-1">
+                Notifications
+              </div>
+              <div id="notification-list" class="max-h-60 overflow-y-auto">
+                <div class="block px-4 py-2 text-sm text-gray-500 text-center" id="no-notifications-message">
+                  No new notifications.
+                </div>
+                <!-- Notifications will be dynamically inserted here -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress notification template (placed outside dropdown so it's always accessible) -->
+        <div id="progress-notification-template" class="hidden">
+          <div class="border-b border-gray-100 notification-item">
+            <div class="px-4 py-2">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-sm font-medium text-gray-900 task-name">Task Name</span>
+                <span class="text-xs text-gray-500 task-progress">0%</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                <div class="bg-blue-600 h-1.5 rounded-full task-progress-bar" style="width: 0%"></div>
+              </div>
+              <div class="text-xs text-gray-500 task-message">Starting...</div>
+              <div class="text-xs text-gray-400 task-time">Just now</div>
+            </div>
+          </div>
+        </div>
+        <div class="relative inline-block text-left z-50" id="profile-dropdown-container">
+          <div class="profile-icon  cursor-pointer" id="profile-icon-toggle">
+            <i class="bx bx-user text-2xl"></i>
+          </div>
+        </div>
+        <div>
+          <a href="{{url_for('re.logout')}}"
+            class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Logout</a>
+        </div>
+      </div>
+    </div>
+    <div id="profile-dropdown-menu"
+      class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden"
+      role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabindex="-1" style="z-index: 1000;">
+      <div class="py-1" role="none">
+        <div class="block px-4 py-2 text-sm text-gray-700 font-semibold border-b border-gray-200" role="menuitem"
+          tabindex="-1">
+          Hello, {{current_user.name}}
+        </div>
+        <a href="{{url_for('audit.edit_profile')}}"
+          class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900" role="menuitem"
+          tabindex="-1">
+          Account Settings
+        </a>
+        <!-- <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+            role="menuitem" tabindex="-1">
+            Change Password
+          </a> -->
+        <a href="{{ url_for('re.logout') }}"
+          class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 border-t border-gray-200"
+          role="menuitem" tabindex="-1">
+          Logout
+        </a>
+      </div>
+    </div>
+
+    <div id="sidebar" class="sidebar">
+      <div class="logo">
+        <img src="{{ url_for('audit.static', filename='img/logo_horizontal_new_transparent.png') }}"
+          alt="Complifyre Logo" />
+      </div>
+
+      <ul class="menu my-8">
+        <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+        {% if current_user.is_authenticated and current_user.role.name=="COMPLIFYRE"%}
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="bx bx-book"></i> Prompt <i class="bx bx-chevron-down"></i>
+          </a>
+
+          <ul class="submenu-items">
+            <li><a href="{{url_for('main.view_prompts')}}">View Prompt</a></li>
+            <li><a href="{{url_for('main.create_new_prompt')}}">Add new Prompt</a></li>
+          </ul>
+        </li>
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li><a href="{{url_for('re.guidelines')}}">Add new guidelines</a></li>
+          </ul>
+
+
+
+        </li>
+        {%endif%}
+        {%if current_user.auditor_profile_id%}
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li><a href="{{url_for('audit.my_guidelines')}}">My Guidelines</a></li>
+            <li class="nav-item">
+              <a href="{{ url_for('audit.my_guideline_requests') }}" class="nav-link">
+                My Guideline Requests
+              </a>
+            </li>
+
+          </ul>
+        </li>
+
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li><a href="{{url_for('re.orgnization')}}">My Clients</a></li>
+            {% if not current_user.free_report_used %}
+            <li><a href="{{ url_for('re.profile') }}">Add new Clients</a></li>
+            {% else %}
+            <li class="disabled-menu-item">
+              <span class="text-gray-400 cursor-not-allowed"
+                title="Adding new clients disabled - Report already generated">
+                <i class="bx bx-lock-alt mr-2"></i>Add new Clients
+              </span>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+
+        <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="fa-solid fa-file-invoice"></i> Projects <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li> <a href="{{url_for('audit.my_projects')}}">My Projects</a></li>
+            {% if not current_user.free_report_used %}
+            <li><a href="{{ url_for('audit.create_project') }}">Add New Projects</a></li>
+            {% else %}
+            <li class="disabled-menu-item">
+              <span class="text-gray-400 cursor-not-allowed"
+                title="Adding new projects disabled - Report already generated">
+                <i class="bx bx-lock-alt mr-2"></i>Add New Projects
+              </span>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+
+        {%endif%}
+      </ul>
+
+      <div class="footer relative my-8">
+        <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+        <a href="#"><i class="bx bx-support"></i> Support Center</a>
+      </div>
+    </div>
+
+
+
+
+
+    {%endif%}
+    <!--Flash Message-->
+    <div class="flash-container space-y-2 mx-[10rem] my-[10rem]">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      {% if category == 'success' %}
+      <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-md relative"
+        role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-green-700 hover:text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-green-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Success!</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% elif category == 'error' or category == 'danger' %}
+      <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md relative" role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-red-700 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-red-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Error!</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% elif category == 'warning' %}
+      <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-md relative"
+        role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-yellow-700 hover:text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-yellow-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Warning:</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% else %}
+      <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-md relative" role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-blue-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Info:</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+    </div>
+    {% block content %} {% endblock %}
+  </div>
+
+
+  <!-- Add this line to load the notifications.js file -->
+  <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById("sidebar");
+      const menuIcon = document.querySelector(".menu-icon i");
+
+      sidebar.classList.toggle("open");
+
+      if (menuIcon.classList.contains("bx-menu")) {
+        menuIcon.classList.replace("bx-menu", "bx-x");
+      } else {
+        menuIcon.classList.replace("bx-x", "bx-menu");
+      }
+    }
+
+    document.addEventListener("click", function (event) {
+      const sidebar = document.getElementById("sidebar");
+      const menuIcon = document.querySelector(".menu-icon i");
+
+      if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+        sidebar.classList.remove("open");
+        menuIcon.classList.replace("bx-x", "bx-menu");
+      }
+    });
+
+    function toggleSubmenu(event) {
+      event.preventDefault();
+      const submenu = event.target.closest(".submenu").querySelector(".submenu-items");
+      submenu.classList.toggle('active');
+    }
+
+    // New JavaScript for Notification Bell and Task Status
+    document.addEventListener('DOMContentLoaded', function () {
+      const profileIcon = document.getElementById('profile-icon-toggle');
+      const dropdownMenu = document.getElementById('profile-dropdown-menu');
+
+      function toggleProfileDropdown() {
+        dropdownMenu.classList.toggle('hidden');
+      }
+
+      profileIcon.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleProfileDropdown();
+      });
+
+      // Close profile dropdown on outside click
+      document.addEventListener('click', function (event) {
+        if (!profileIcon.contains(event.target) && !dropdownMenu.contains(event.target)) {
+          if (!dropdownMenu.classList.contains('hidden')) {
+            dropdownMenu.classList.add('hidden');
+          }
+        }
+      });
+
+      // Notification Dropdown Logic
+      const notificationIcon = document.getElementById('notification-toggle');
+      const notificationDropdown = document.getElementById('notification-dropdown');
+
+      function toggleNotificationDropdown() {
+        notificationDropdown.classList.toggle('hidden');
+      }
+
+      notificationIcon.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleNotificationDropdown();
+      });
+
+      // Close notification dropdown on outside click
+      document.addEventListener('click', function (event) {
+        if (!notificationIcon.contains(event.target) && !notificationDropdown.contains(event.target)) {
+          if (!notificationDropdown.classList.contains('hidden')) {
+            notificationDropdown.classList.add('hidden');
+          }
+        }
+      });
+    });
+
+    // The new function to track task status
+    async function checkTaskStatus(taskId) {
+      // The URLs for your Flask endpoints
+      const statusUrl = "{{ url_for('main.task_status', task_id='') }}" + taskId;
+      const notificationList = document.getElementById('notification-list');
+      const noNotificationsMessage = document.getElementById('no-notifications-message');
+
+      // Add a pending notification item to the dropdown
+      const newNotification = document.createElement('a');
+      newNotification.classList.add('block', 'px-4', 'py-2', 'text-sm', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
+      newNotification.innerHTML = `
+            <div class="flex items-center">
+                <span class="mr-2 text-yellow-500">🔄</span>
+                <p>File processing has started...</p>
+            </div>
+        `;
+      notificationList.appendChild(newNotification);
+      noNotificationsMessage.style.display = 'none';
+
+      const intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(statusUrl);
+          const data = await response.json();
+
+          console.log(`Task ${taskId} status:`, data.status);
+
+          // Update the notification item based on status
+          if (data.status === 'SUCCESS') {
+            console.log('Task completed successfully!');
+            clearInterval(intervalId); // Stop polling
+            newNotification.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="mr-2 text-green-500">✅</span>
+                            <p>File processed successfully!</p>
+                        </div>
+                    `;
+            // Optional: You could make the notification disappear after a short time.
+            // setTimeout(() => newNotification.remove(), 5000);
+          } else if (data.status === 'FAILURE') {
+            console.error('Task failed:', data.error);
+            clearInterval(intervalId); // Stop polling
+            newNotification.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="mr-2 text-red-500">❌</span>
+                            <p>File processing failed.</p>
+                        </div>
+                    `;
+          } else {
+            console.error('Task failed:', data.error);
+            clearInterval(intervalId); // Stop polling
+            newNotification.innerHTML = `
+                        <div class="flex items-center">
+                          <span class="mr-2 text-yellow-500">🔄</span>
+                          <p>File processing</p>
+                      </div>
+                    `;
+
+          }
+
+          // If PENDING, STARTED, etc., the notification text remains unchanged.
+        } catch (error) {
+          console.error('Polling error:', error);
+          clearInterval(intervalId);
+          newNotification.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="mr-2 text-red-500">❌</span>
+                        <p>Polling failed due to a network error.</p>
+                    </div>
+                `;
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+  </script>
+  <script>
+    // Flash Message Handler
+    function closeAlert(button) {
+      const alert = button.parentElement;
+      alert.style.transition = "opacity 0.3s ease-out, transform 0.3s ease-out";
+      alert.style.opacity = "0";
+      alert.style.transform = "translateX(100%)";
+
+      setTimeout(() => {
+        alert.remove();
+        const flashContainer = document.querySelector(".flash-container");
+        if (flashContainer && flashContainer.children.length === 0) {
+          flashContainer.style.display = "none";
+        }
+      }, 300);
+    }
+
+    // Auto-dismiss success messages
+    document.addEventListener('DOMContentLoaded', function () {
+      const alerts = document.querySelectorAll('[role="alert"]');
+
+      alerts.forEach(alert => {
+        const isSuccess = alert.classList.contains('bg-green-100');
+        const isInfo = alert.classList.contains('bg-blue-100');
+
+        // Auto-dismiss logic for success and info messages
+        if (isSuccess || isInfo) {
+          setTimeout(() => {
+            const closeButton = alert.querySelector('button');
+            if (closeButton) {
+              closeAlert(closeButton);
+            }
+          }, 5000); // 5 seconds
+        }
+      });
+    });
+  </script>
+
+
+  <script>
+    function showToast(message, type = "success") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+
+      // Pick styles depending on type
+      let classes = "px-4 py-2 rounded-lg shadow-md transition-opacity duration-500";
+      if (type === "success") classes += " bg-green-100 text-green-800";
+      if (type === "warning") classes += " bg-yellow-100 text-yellow-800";
+      if (type === "error") classes += " bg-red-100 text-red-800";
+
+      toast.className = classes;
+      toast.textContent = message;
+
+      container.appendChild(toast);
+
+      // Auto-hide after 3 seconds
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        setTimeout(() => toast.remove(), 500);
+      }, 3000);
+    }
+  </script>
+
+  <!-- to show the report generation -->
+  <script>
+    // Check if free report was used
+    const freeReportUsed = {{ current_user.free_report_used | tojson | default ('false') }};
+
+    // Function to show feature disabled warning
+    function showFeatureDisabledWarning(featureName) {
+      const warningMessage = `
+            <div class="fixed top-4 right-4 z-50 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-lg max-w-sm">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800">
+                            Feature Disabled
+                        </h3>
+                        <div class="mt-2 text-sm text-yellow-700">
+                            <p>${featureName} is disabled after report generation.</p>
+                            <p class="mt-1">Please contact <a href="mailto:CompliFyre@crackerjacktech.com" class="underline font-medium">CompliFyre@crackerjacktech.com</a> for assistance.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+      // Remove any existing warnings
+      document.querySelectorAll('.feature-disabled-warning').forEach(warning => warning.remove());
+
+      // Add new warning
+      const warningElement = document.createElement('div');
+      warningElement.className = 'feature-disabled-warning';
+      warningElement.innerHTML = warningMessage;
+      document.body.appendChild(warningElement);
+
+      // Auto-remove after 5 seconds
+      setTimeout(() => {
+        if (warningElement.parentNode) {
+          warningElement.remove();
+        }
+      }, 5000);
+    }
+
+    // Add click handlers to disabled menu items (as backup)
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.disabled-menu-item').forEach(item => {
+        item.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          showFeatureDisabledWarning('This feature');
+        });
+      });
+    });
+  </script>
+</body>
+
+</html>

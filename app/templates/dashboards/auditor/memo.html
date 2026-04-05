@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Complifyre</title>
+    <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+    <meta name="Author" content="Spruko Technologies Private Limited">
+    <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    
+    <link rel="stylesheet" href="assets/css/memo.css" />
+
+<!-- Boxicons CSS -->
+<link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ApexCharts CDN -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<!-- Add Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+</head>
+<body>
+
+  <div class="menu-icon-container">
+    <div class="menu-icon" onclick="toggleSidebar()">
+      <i class="bx bx-menu"></i>
+    </div>
+    <div class="dashboard-title">
+      <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+      <p>Dashboard</p>
+    </div>
+  <!-- Profile and Logout Icons aligned to the right -->
+  <div class="user-actions">
+    <!-- Profile Icon -->
+    <a href="#" class="profile-icon">
+        <i class="bx bx-user"></i>
+    </a>
+  
+    <!-- Logout Icon -->
+    <span class="logout-icon" onclick="logout()">
+        <i class="bx bx-log-out"></i>
+    </span>
+  </div>
+  </div>
+  
+  
+  <div id="sidebar" class="sidebar">
+    <div class="logo">
+      <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+    </div>
+  
+    <ul class="menu">
+      <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+          <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+        </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+        </a>
+      <ul class="submenu-items">
+       <li class="view-clients">View Clients</li>
+       <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+       <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+      </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li class="audit-phase">Audit / Assessment Phase</li>
+          <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+  
+          <li class="risk-phase">Risk Assessment Phase</li>
+          <li><a href="{{url_for('audit.risk')}}l">Risk Assessment Document</a></li>
+          <li><a href="{{url_for('audit.memo')}}">Audit Strategy Memo</a></li>
+          <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+          <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+          <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+          <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+          <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+          <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+  
+          <li class="field-phase">FieldWork Phase (Execution)</li>
+          <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+          <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+          <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+          <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+          <li><a href="#">FieldWork Documentation</a></li>
+          <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+          <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+          <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+  
+          <li class="report-phase">Reporting Phase</li>
+          <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+          <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+  
+          <li class="up-phase">Follow-Up Phase</li>
+          <li><a href="#">Action Tracker</a></li>
+        </ul>
+      </li>
+  
+    <main class="footer">
+      <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+      <a href="#"><i class="bx bx-support"></i> Support Center</a>
+    </div>
+  </div>
+
+
+<main class="main">
+    <div class="memo">
+      <h3>Client Understanding Memorandum</h3>
+        <a href="#">Dashboard</a> / Client Understanding Memorandum
+    </div>
+   
+
+    <div class="container">
+    <div class="section">
+        <h2 style="margin-top: 20px;">Client Name: <span style="color: #d9534f;">Anixo Bank Ltd.</span></h2>
+        <p><strong>Date: </strong>October 11, 2024</p>
+        <p><strong>Prepared by: </strong>[Auditor Name], Audit Partner, XYZ Audit Firm Pvt. Ltd.</p>
+        <p><strong>Audit Period: </strong>November 2024 – March 2025</p>
+        <p><strong>Audit Scope: </strong>RBI Cybersecurity Guidelines Compliance Audit</p>
+    </div>
+
+    <div class="grid">
+        <div class="section">
+            <h2>Information</h2>
+            <p><strong>Legal Entity Name: </strong>Anixo Bank Ltd.</p>
+            <p><strong>Head Office Location: </strong>Mumbai, India</p>
+            <p><strong>Key Branch Locations:</strong>
+                <ul style="list-style: none; padding: 0;">
+                    <li><i class="fa-solid fa-location-dot" style="color: #63E6BE; margin-right: 8px;"></i> New Delhi Branch</li>
+                    <li><i class="fa-solid fa-location-dot" style="color: #63E6BE; margin-right: 8px;"></i> Hyderabad</li>
+                    <li><i class="fa-solid fa-location-dot" style="color: #63E6BE; margin-right: 8px;"></i> Bangalore Branch</li>
+                </ul>
+                
+            </p>
+            <p><strong>Type of Organization: </strong>Scheduled Commercial Bank</p>
+            <p><strong>Constitution: </strong>Public Limited Company</p>
+            <p><strong>Industry: </strong>Banking and Financial Services</p>
+            <p><strong>Organizational Category: </strong>Regulated Financial Institution</p>
+            <p><strong>Regulatory Agencies: </strong>RBI, SEBI</p>
+        </div>
+
+        <div class="section">
+            <h2>Business Overview</h2>
+            <p><strong>Business Description: </strong>Anixo Bank Ltd. provides banking products and services, including retail banking, corporate banking, and digital banking solutions.</p>
+            <p><strong>Key Business Areas:</strong>
+                <ul>
+                    <li>Retail Banking</li>
+                    <li>Corporate Banking</li>
+                    <li>Digital Banking</li>
+                    <li>Wealth Management</li>
+                    <li>Payment Processing</li>
+                </ul>
+            </p>
+            <p><strong>Revenue: </strong>INR 45,000 Crore (FY 2023–2024)</p>
+            <p><strong>Net Profit: </strong>INR 5,500 Crore</p>
+            <p><strong>Total Assets: </strong>INR 5,80,000 Crore</p>
+            <p><strong>Total Liabilities: </strong>INR 4,50,000 Crore</p>
+        </div>
+    </div>
+
+    
+    <div class="grid" >
+        <div class="section">
+            <h2>Organizational Structure</h2>
+            <p><strong>CEO:</strong> Mr. Rahul Mehta</p>
+            <p><strong>CISO:</strong> Ms. Neha Verma</p>
+            <p><strong>CFO:</strong> Mr. Ajay Khurana</p>
+            <p><strong>Head of IT:</strong> Mr. Siddharth Nair</p>
+            <p>The bank's management team includes a strong focus on technology and risk management, with dedicated teams for compliance and cybersecurity.</p>
+        </div>
+    
+    <div class="section">
+        <h2>Regulatory Environment</h2>
+        <p><strong>Key Regulations:</strong></p>
+        <ul>
+            <li>RBI Cybersecurity Guidelines, 2016</li>
+            <li>RBI’s IT Risk Management Framework</li>
+            <li>Payment and Settlement Systems Act</li>
+            <li>Indian Banking Regulation Act, 1949</li>
+        </ul>
+        <p>The bank must comply with several guidelines issued by RBI that govern information security, incident reporting, and cybersecurity risk management.</p>
+    </div>
+</div>
+
+
+
+<div class="section">
+    <h2>Previous Audit Findings and Compliance</h2>
+        <p><strong>Audit History:</strong> Anixo Bank has undergone regular internal and external audits in the past. Previous audit findings indicated gaps in third–party vendor management, especially around IT risk, and recommendations were made for improvements. However, these issues were promptly addressed, and follow-up audits reported significant progress.</p>
+        <p><strong>Compliance Status:</strong> The bank is generally compliant with most regulatory guidelines, although cybersecurity remains a key area of focus. The recent digitization of banking services has necessitated an enhanced focus on security.</p>
+</div>
+
+<div class="section">
+    <h2>Key Risk Areas</h2>
+        <h4>Cybersecurity Risks:</h4>
+        <ul>
+            <li><strong>Access Management:</strong> Risks surrounding unauthorized access to sensitive data and systems.</li>
+            <li><strong>Data Privacy:</strong> Risks of data breaches impacting customer information.</li>
+            <li><strong>Third–Party Risks:</strong> Exposure to risks from third–party vendors and service providers.</li>
+            <li><strong>Incident Response:</strong> Challenges in timely detection and response to cybersecurity threats.</li>
+        </ul></br>
+        <h4>Other Risk Areas:</h4>
+        <ul>
+            <li><strong>Operational Risk:</strong> Associated with day-to-day banking operations and system integrity.</li>
+            <li><strong>Compliance Risk:</strong> Risk of non–compliance with evolving RBI regulations and guidelines.</li>
+            <li><strong>Reputational Risk:</strong> Potential harm to brand value due to a cybersecurity incident or breach.</li>
+        </ul>
+</div>
+
+<div class="section">
+    <h2>Audit Focus Areas</h2>
+        <p><strong>Scope of Audit:</strong> The audit will assess the bank's adherence to RBI Cybersecurity Guidelines. It will cover the bank's governance framework, risk management practices, cybersecurity policies, network security, incident management, and data protection mechanisms.</p>
+        <p><strong>Primary Audit Focus:</strong></p>
+        <ul>
+            <li>Information security governance.</li>
+            <li>Incident response preparedness.</li>
+            <li>Network security controls (firewalls, IDS/IPS).</li>
+        </ul>
+    </div>
+<div class="section">
+    <h2>Conclusion</h2>
+        <p>The audit will provide a comprehensive assessment of Anixo Bank’s cybersecurity framework. The key findings and recommendations will aim to strengthen controls and reduce cybersecurity risks while ensuring compliance with RBI guidelines.</p>
+    </div>
+</div>
+</main>
+    <script src="assets/js/memo.js"></script>
+</body>
+</html>

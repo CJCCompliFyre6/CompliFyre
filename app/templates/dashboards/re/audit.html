@@ -1,0 +1,259 @@
+{% extends "re_base.html" %}
+{% block content %} 
+<link rel="stylesheet" href="assets/css/audit.css" />
+
+   
+
+<main class="main">
+    
+    <div class="container">
+        <div class="tabs">
+            <button class="active" onclick="showTable()">Audit findings table</button>
+            <button onclick="showChart()">Audit findings chart</button>
+        </div>
+        
+        <div id="tableSection">
+            <div class="search-export">
+                <input type="text" id="search" placeholder="Search..">
+                <span class="export" onclick="exportToCSV()">Export to CSV</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Audit Finding ID</th>
+                        <th>Regulation Affected</th>
+                        <th>Finding Description</th>
+                        <th>Date Identified</th>
+                        <th>Risk Category</th>
+                        <th>Remediation Status</th>
+                        <th>Owner</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                  <tr>
+                    <td>AUD-001</td>
+                    <td>RBI Cybersecurity Guidelines</td>
+                    <td>Weak access controls for internet banking</td>
+                    <td>1-Oct-23</td>
+                    <td>High</td>
+                    <td>In Progress</td>
+                    <td>Rajesh Sharma</td>
+                    <td>15-Nov-23</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>AUD-002</td>
+                    <td>RBI Prudential IRAC Norms</td>
+                    <td>Incorrect asset classification for NPAs</td>
+                    <td>25-Sep-23</td>
+                    <td>High</td>
+                    <td>Not Started</td>
+                    <td>Neeta Singh</td>
+                    <td>30-Nov-23</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>AUD-003</td>
+                    <td>Companies Act</td>
+                    <td>Non-compliance in related party transactions</td>
+                    <td>15-Aug-23</td>
+                    <td>Medium</td>
+                    <td>In Progress</td>
+                    <td>Vikram Mehta</td>
+                    <td>15-Dec-23</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>AUD-004</td>
+                    <td>RBI Cybersecurity Guidelines</td>
+                    <td>Insufficient logging for critical systems</td>
+                    <td>12-Sep-23</td>
+                    <td>High</td>
+                    <td>Resolved</td>
+                    <td>Rahul Nair</td>
+                    <td>10-Oct-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-005</td>
+                    <td>RBI Prudential IRAC Norms</td>
+                    <td>Under-reporting of restructured assets</td>
+                    <td>5-Sep-23</td>
+                    <td>Medium</td>
+                    <td>In Progress</td>
+                    <td>Pooja Sinha</td>
+                    <td>20-Nov-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-006</td>
+                    <td>RBI Cybersecurity Guidelines</td>
+                    <td>Lack of multi-factor authentication</td>
+                    <td>22-Aug-23</td>
+                    <td>High</td>
+                    <td>Not Started</td>
+                    <td>Anil Desai</td>
+                    <td>30-Nov-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-007</td>
+                    <td>Companies Act</td>
+                    <td>Delayed submission of annual financials</td>
+                    <td>15-Aug-23</td>
+                    <td>Low</td>
+                    <td>Resolved</td>
+                    <td>Priya Gupta</td>
+                    <td>1-Sep-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-008</td>
+                    <td>RBI Prudential IRAC Norms</td>
+                    <td>Incorrect provisioning for substandard loans</td>
+                    <td>1-Jul-23</td>
+                    <td>High</td>
+                    <td>Not Started</td>
+                    <td>Satish Menon</td>
+                    <td>15-Dec-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-009</td>
+                    <td>RBI Cybersecurity Guidelines</td>
+                    <td>Non-compliant disaster recovery planning</td>
+                    <td>25-Jun-23</td>
+                    <td>Medium</td>
+                    <td>In Progress</td>
+                    <td>Sneha Bhat</td>
+                    <td>31-Oct-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-010</td>
+                    <td>Companies Act</td>
+                    <td>Incomplete financial disclosures</td>
+                    <td>10-Jun-23</td>
+                    <td>Low</td>
+                    <td>Resolved</td>
+                    <td>Ramesh Kumar</td>
+                    <td>30-Jun-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-011</td>
+                    <td>RBI Prudential IRAC Norms</td>
+                    <td>Delay in classifying NPAs</td>
+                    <td>15-May-23</td>
+                    <td>High</td>
+                    <td>In Progress</td>
+                    <td>Prakash Joshi</td>
+                    <td>15-Dec-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-012</td>
+                    <td>RBI Cybersecurity Guidelines</td>
+                    <td>Vulnerabilities in third-party vendor access</td>
+                    <td>1-May-23</td>
+                    <td>High</td>
+                    <td>Not Started</td>
+                    <td>Amit Rao</td>
+                    <td>30-Nov-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-013</td>
+                    <td>Companies Act</td>
+                    <td>Failure to file statutory returns</td>
+                    <td>10-Apr-23</td>
+                    <td>Medium</td>
+                    <td>Resolved</td>
+                    <td>Jaya Verma</td>
+                    <td>30-Apr-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-014</td>
+                    <td>RBI Cybersecurity Guidelines</td>
+                    <td>Unencrypted sensitive data in transit</td>
+                    <td>15-Mar-23</td>
+                    <td>High</td>
+                    <td>Resolved</td>
+                    <td>Suresh Patel</td>
+                    <td>31-Mar-23</td>
+                </tr>
+                <tr>
+                    <td>AUD-015</td>
+                    <td>RBI Prudential IRAC Norms</td>
+                    <td>Inaccurate classification of doubtful debts</td>
+                    <td>25-Feb-23</td>
+                    <td>High</td>
+                    <td>In Progress</td>
+                    <td>Kiran Rao</td>
+                    <td>20-Dec-23</td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="bottom-controls">
+              <div class="entries">
+                <select id="entriesSelect" onchange="changeEntries()">
+                  <option value="5" selected>5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                </select>
+              </div>
+              <div class="pagination" id="pagination"></div>
+            </div>  
+        </div>
+
+
+        
+        <div id="chartSection">
+                       <div class="charts-container">
+               <div class="chart-box">
+                <div class="chart-title">Resolution Status of Findings for Each Regulation</div>
+                <canvas id="chart1"></canvas>
+            </div>
+            <div class="chart-box">
+                <div class="chart-title">Findings - Resolution Status</div>
+                <canvas id="chart2"></canvas>
+            </div>
+        </div>
+    
+        <table>
+            <tr>
+                <th>Regulation Affected</th>
+                <th>In Progress</th>
+                <th>Resolved</th>
+                <th>Not Started</th>
+                <th>Grand Total</th>
+            </tr>
+            <tr>
+                <td>RBI Cybersecurity Guidelines</td>
+                <td>2</td>
+                <td>2</td>
+                <td>2</td>
+                <td>6</td>
+            </tr>
+            <tr>
+                <td>RBI Prudential IRAC Norms</td>
+                <td>3</td>
+                <td>2</td>
+                <td>2</td>
+                <td>7</td>
+            </tr>
+            <tr>
+                <td>Companies Act</td>
+                <td>1</td>
+                <td>3</td>
+                <td>1</td>
+                <td>5</td>
+            </tr>
+            <tr class="grand-total">
+                <td>Grand Total</td>
+                <td>6</td>
+                <td>7</td>
+                <td>5</td>
+                <td>18</td>
+            </tr>
+        </table>
+            </div>
+        </div>
+    </div>
+    
+    <script src="assets/js/audit.js">
+    </script>
+{%endblock%}

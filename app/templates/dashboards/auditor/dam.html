@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    <style>
+ /* Global Reset */
+ * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #FEF8F5;
+  margin: 0;
+  padding: 0;
+}
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      h1,
+      h2,
+      h3 {
+        color: #222;
+      }
+      .breadcrumb {
+        color: #d9534f;
+        margin-bottom: 10px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        padding: 12px;
+        border: 1px solid #ddd;
+        text-align: left;
+      }
+      th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+      }
+      .pagination button {
+        padding: 8px 16px;
+        margin: 0 4px;
+        border: none;
+        background-color: #e74c3c;
+        color: #fff;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .pagination button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+
+
+
+
+
+
+
+
+
+
+
+  /* Header */
+  header {
+  background-color: #222;
+  color: white;
+  padding: 15px;
+  text-align: left;
+}
+
+
+/* Flexbox container for the menu icon and title */
+.menu-icon-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Styling for the menu icon */
+.menu-icon {
+  font-size: 30px;
+  color: black;
+  cursor: pointer;
+  margin-right: 20px;
+}
+
+/* Styling for the dashboard title */
+.dashboard-title {
+  flex-grow: 1;
+}
+
+.dashboard-title h1 {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+  color: black;
+}
+
+.dashboard-title p {
+  font-size: 16px;
+  color: #ffa62b;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.dashboard-title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* User Actions */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-left: auto;
+}
+
+.profile-icon, .logout-icon {
+  font-size: 24px;
+  cursor: pointer;
+  color: black;
+}
+
+.profile-icon:hover, .logout-icon:hover {
+  color: #ffa62b;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  left: -250px;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  background-color: black;
+  color: white;
+  transition: left 0.3s ease-in-out;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+/* Sidebar Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo img {
+  width: 150px;
+  height: auto;
+}
+
+/* Sidebar Menu */
+.menu {
+  list-style-type: none;
+}
+
+.menu li {
+  padding: 10px 0;
+}
+
+.menu li a {
+  color: white;
+  text-decoration: none;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.menu li a i {
+  font-size: 18px;
+}
+
+.menu li a:hover {
+  background: linear-gradient(135deg, #f76b1c, #ffa62b);
+}
+
+/* Sidebar Submenu */
+/* Submenu Scroll */
+.submenu .submenu-items {
+display: none;
+max-height: 250px; /* Adjust this value as needed */
+overflow-y: auto;
+list-style: none;
+padding-left: 20px;
+background-color: black;
+border: 1px solid black;
+border-radius: 5px;
+}
+
+.submenu .submenu-items.active {
+display: block;
+}
+
+/* Custom Scrollbar Style */
+.submenu .submenu-items::-webkit-scrollbar {
+width: 8px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb {
+background: #575757;
+border-radius: 4px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+background: #444;
+}
+
+/* Phase Labels Styling */
+.submenu li.view-clients,
+.submenu li.audit-phase,
+.submenu li.risk-phase,
+.submenu li.field-phase,
+.submenu li.report-phase,
+.submenu li.up-phase {
+color: #514a4a;
+cursor: default;
+font-weight: bold;
+}
+
+
+/* Sidebar Footer */
+.footer {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  padding: 10px;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: white;
+  text-decoration: none;
+}
+
+.footer a i {
+  font-size: 18px;
+}
+  </style>
+
+  <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="menu-icon-container">
+    <div class="menu-icon" onclick="toggleSidebar()">
+      <i class="bx bx-menu"></i>
+    </div>
+    <div class="dashboard-title">
+      <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+      <p>Dashboard</p>
+    </div>
+  <!-- Profile and Logout Icons aligned to the right -->
+  <div class="user-actions">
+    <!-- Profile Icon -->
+    <a href="#" class="profile-icon">
+        <i class="bx bx-user"></i>
+    </a>
+  
+    <!-- Logout Icon -->
+    <span class="logout-icon" onclick="logout()">
+        <i class="bx bx-log-out"></i>
+    </span>
+  </div>
+  </div>
+  
+  
+  <div id="sidebar" class="sidebar">
+    <div class="logo">
+      <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+    </div>
+  
+    <ul class="menu">
+      <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+          <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+        </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+        </a>
+      <ul class="submenu-items">
+       <li class="view-clients">View Clients</li>
+       <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+       <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+      </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li class="audit-phase">Audit / Assessment Phase</li>
+          <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+  
+          <li class="risk-phase">Risk Assessment Phase</li>
+          <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+          <li><a href="{{url_for('audit.dam')}}">Audit Strategy Memo</a></li>
+          <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+          <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+          <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+          <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+          <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+          <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+  
+          <li class="field-phase">FieldWork Phase (Execution)</li>
+          <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+          <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+          <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+          <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+          <li><a href="#">FieldWork Documentation</a></li>
+          <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+          <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+          <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+  
+          <li class="report-phase">Reporting Phase</li>
+          <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+          <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+  
+          <li class="up-phase">Follow-Up Phase</li>
+          <li><a href="#">Action Tracker</a></li>
+        </ul>
+      </li>
+  
+    <main class="footer">
+      <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+      <a href="#"><i class="bx bx-support"></i> Support Center</a>
+    </div>
+  </div>
+
+<!-- Main Content -->
+<main class="main" style="padding: 20px;">
+  <div class="breadcrumb" style="margin-bottom: 24px;">
+    <h1 style="margin-bottom: 8px;">Audit Strategy Memorandum for Anixo Bank Ltd.</h1>
+    <a href="#" style="color: #007bff; text-decoration: none;">Dashboard</a> / Audit Strategy Memorandum for Anixo Bank Ltd.
+  </div>
+
+  <div class="container" style="margin-bottom: 32px;">
+    <div class="section" style="margin-bottom: 24px; line-height: 1.4;">
+        <p><strong>Subject:</strong> Audit Strategy Memorandum</p>
+        <p><strong>Client:</strong> Anixo Bank Ltd.</p>
+        <p><strong>Date:</strong> October 11, 2024</p>
+        <p>
+          <strong>Prepared by:</strong> [Auditor Name], Audit Partner, XYZ Audit
+          Firm Pvt. Ltd.
+        </p>
+        <p><strong>Audit Firm:</strong> XYZ Audit Firm Pvt. Ltd.</p>
+        <p>
+          <strong>Audit Scope:</strong> RBI Cybersecurity Guidelines Compliance
+          Audit
+        </p>
+      </div>
+
+      <h2 style="font-size: 24px; margin-bottom: 16px;">Purpose of the Audit Strategy</h2>
+      <p style="margin-bottom: 40px;">
+        The purpose of this Audit Strategy Memorandum is to outline the key elements of the audit for Anixo Bank Ltd., 
+        focusing on compliance with the RBI Cybersecurity Guidelines and RBI Prudential IRAC Norms.
+      </p>
+
+      <h2 style="font-size: 24px; margin-bottom: 16px;">Audit Scope</h2>
+      <p style="margin-bottom: 16px;">
+        The audit will cover the following key areas based on the guidelines issued by the Reserve Bank of India (RBI):
+      </p>
+      <ul style="margin-left: 24px; margin-bottom: 40px;">
+        <li style="margin-bottom: 8px;">
+            <strong>Cybersecurity Compliance:</strong> Analyzing the bank’s
+            implementation and compliance with the RBI Cybersecurity Guidelines,
+            including access controls, incident response mechanisms, vendor
+            management, and data privacy protocols.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Prudential IRAC Norms:</strong> Assessing the
+            classification, provisioning, and monitoring of Non-Performing
+            Assets (NPAs) in line with RBI's Prudential IRAC norms.
+          </li>
+        </ul>
+        <p style="margin-bottom: 16px;"><strong>Key business processes in scope for this audit include:</strong></p>
+        <ul style="margin-left: 24px; margin-bottom: 40px;">
+          <li style="margin-bottom: 8px;">Loan processing and classification</li>
+          <li style="margin-bottom: 8px;">Collateral management</li>
+          <li style="margin-bottom: 8px;">IT systems security</li>
+          <li style="margin-bottom: 8px;">Incident management</li>
+          <li style="margin-bottom: 8px;">Vendor risk management</li>
+        </ul>
+
+      <h2 style="font-size: 24px; margin-bottom: 16px;">Audit Objectives</h2>
+      <ol style="margin-left: 24px; margin-bottom: 40px;">
+          <li style="margin-bottom: 8px;">
+            Assess Compliance: Verify that Anixo Bank is fully compliant with
+            the RBI Cybersecurity Guidelines and Prudential IRAC norms.
+          </li>
+          <li style="margin-bottom: 8px;">
+            Evaluate Risk Management: Examine the bank’s processes for
+            identifying, assessing, and mitigating risks related to
+            cybersecurity and financial asset management.
+          </li>
+          <li style="margin-bottom: 8px;">
+            Test Control Effectiveness: Determine the adequacy and effectiveness
+            of key controls designed to mitigate risks in these critical areas.
+          </li>
+          <li style="margin-bottom: 8px;">
+            Report Findings and Recommendations: Provide management with a clear
+            set of findings, identified gaps, and actionable recommendations for
+            remediation.
+          </li>
+        </ol>
+
+        <h2 style="font-size: 24px; margin-bottom: 16px;">Audit Risk Assessment</h2>
+        <p style="margin-bottom: 16px;">
+          The initial Risk Assessment for the audit has identified several
+          high-risk areas in cybersecurity and financial compliance, which will
+          be the focus of the audit. The inherent risk for misclassification of
+          assets under IRAC norms and cybersecurity breaches has been classified
+          as high.
+        </p>
+        <h3 style="margin-bottom: 16px;">Key Risk Areas:</h3>
+        <ol style="margin-left: 24px; margin-bottom: 40px;">
+          <li style="margin-bottom: 8px;">
+            <strong>Cybersecurity</strong>
+            <ul>
+              <li>Unauthorized access to critical systems</li>
+              <li>Data breaches and lack of encryption</li>
+              <li>Weak vendor management</li>
+              <li>Delayed incident response</li>
+            </ul>
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Prudential IRAC Norms</strong>
+            <ul>
+              <li>Incorrect classification of NPAs</li>
+              <li>Inadequate provisioning</li>
+              <li>Misreporting of restructured loans</li>
+            </ul>
+          </li>
+        </ol>
+
+        <h2 style="font-size: 24px; margin-bottom: 16px;">Audit Approach</h2>
+        <ol style="margin-left: 24px; margin-bottom: 40px;">
+          <li style="margin-bottom: 8px;">
+            <strong>Preliminary Assessment:</strong> Review of internal policies
+            and procedures related to the scope, discussions with key
+            stakeholders, and walkthroughs of business processes.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Control Testing:</strong> Testing the design and operational
+            effectiveness of IT security controls and loan classification
+            processes.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Substantive Testing:</strong> System access logs, incident
+            reports, and sample loan accounts testing.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Audit Sampling:</strong> Statistical sampling for high-value
+            and high-risk transactions.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Evidence Collection:</strong> Documentary evidence like
+            access logs and financial statements.
+          </li>
+        </ol>
+
+        <h2 style="font-size: 24px; margin-bottom: 16px;">Materiality</h2>
+        <p style="margin-bottom: 16px;">
+          Materiality thresholds will be established for both cybersecurity and
+          financial audits, based on regulatory significance and the potential
+          impact of control failures. These thresholds will guide the depth of
+          testing required and determine the significance of audit findings.
+        </p>
+
+        <h2 style="font-size: 24px; margin-bottom: 16px;">Audit Team</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Team Member</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>[Audit Partner Name]</td>
+              <td>Senior Audit Partner</td>
+            </tr>
+            <tr>
+              <td>[Manager Name]</td>
+              <td>Audit Manager (Cybersecurity)</td>
+            </tr>
+            <tr>
+              <td>[Manager Name]</td>
+              <td>Audit Manager (Financial Compliance)</td>
+            </tr>
+            <tr>
+              <td>[IT Specialist Name]</td>
+              <td>IT Cybersecurity Specialist</td>
+            </tr>
+            <tr>
+              <td>[Analyst Name]</td>
+              <td>Audit Analyst</td>
+            </tr>
+          </tbody>
+        </table>
+        <br />
+
+        <h2 style="font-size: 24px; margin-bottom: 16px;">Reporting and Deliverables</h2>
+        <ol style="margin-left: 24px; margin-bottom: 40px;">
+          <li style="margin-bottom: 8px;">
+            <strong>Audit Report:</strong> A comprehensive report detailing
+            audit findings, recommendations, and management’s response.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Management Letter:</strong> A formal letter addressed to
+            senior management, summarizing high-priority risks and action plans.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Audit Workpapers:</strong> Detailed documentation of audit
+            procedures, evidence collected, and testing results.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Audit Issues Log:</strong> A register of all audit findings,
+            categorized by severity and with recommended remediation actions.
+          </li>
+        </ol>
+
+        <h2 class="section-title" style="margin-bottom: 20px; font-size: 20px;">Conclusion</h2>
+        <p style="margin-bottom: 32px;">
+          The application of materiality ensures that the audit focuses on areas
+          of highest risk and potential impact...
+        </p>
+        <p style="margin-bottom: 16px;">
+          <strong>Approved by:</strong><br>
+          [Audit Partner Name]<br>
+          Senior Audit Partner<br>
+          XYZ Audit Firm Pvt. Ltd.
+        </p>
+        
+      </div>
+    </div>
+    </div>
+    </main>
+    <script>
+       // Toggle Sidebar
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("open");
+    const menuIcon = document.querySelector(".menu-icon i"); // Get the current icon
+
+    // Toggle the icon when the sidebar opens or closes
+    if (menuIcon.classList.contains("bx-menu")) {
+        menuIcon.classList.replace("bx-menu", "bx-x"); // Switch to close icon
+    } else {
+        menuIcon.classList.replace("bx-x", "bx-menu"); // Switch back to menu icon
+    }
+}
+
+// Function to close the sidebar when clicking outside
+function closeSidebarIfClickedOutside(event) {
+    const sidebar = document.getElementById("sidebar");
+    const menuIcon = document.querySelector(".menu-icon i");
+    
+    // Check if the click is outside the sidebar and not on the menu icon
+    if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+        sidebar.classList.remove("open");
+        menuIcon.classList.replace("bx-x", "bx-menu"); // Revert the icon back to the menu
+    }
+}
+
+// Add the event listener to close sidebar if clicking outside
+document.addEventListener("click", closeSidebarIfClickedOutside);
+
+
+function toggleSubmenu(event) {
+  event.preventDefault(); // Prevents page reload
+
+  let parent = event.target.closest(".submenu"); // Find the clicked <li>
+  let submenu = parent.querySelector(".submenu-items"); // Find submenu in this <li>
+
+  // Close all other submenus before opening the clicked one
+  document.querySelectorAll(".submenu-items").forEach((item) => {
+    if (item !== submenu) {
+      item.classList.remove("open"); // Use class to control the display
+      item.style.display = "none"; // Remove inline style if necessary
+      item.parentElement.classList.remove("open");
+    }
+  });
+
+  // Toggle the clicked submenu
+  if (submenu.classList.contains("open")) {
+    submenu.classList.remove("open");
+    submenu.style.display = "none"; // Close
+    parent.classList.remove("open");
+  } else {
+    submenu.classList.add("open");
+    submenu.style.display = "block"; // Open
+    parent.classList.add("open");
+  }
+}
+
+
+function toggleSubmenu(event) {
+    event.preventDefault();
+    const submenu = event.target.nextElementSibling;
+    if (submenu) {
+      submenu.classList.toggle('active');
+    }
+  }
+    </script>
+  </body>
+</html>

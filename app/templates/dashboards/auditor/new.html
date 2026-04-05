@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="assets/css/new.css" />
+  <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="menu-icon-container">
+    <div class="menu-icon" onclick="toggleSidebar()">
+      <i class="bx bx-menu"></i>
+    </div>
+    <div class="dashboard-title">
+      <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+      <p>Dashboard</p>
+    </div>
+  <!-- Profile and Logout Icons aligned to the right -->
+  <div class="user-actions">
+    <!-- Profile Icon -->
+    <a href="#" class="profile-icon">
+        <i class="bx bx-user"></i>
+    </a>
+  
+    <!-- Logout Icon -->
+    <span class="logout-icon" onclick="logout()">
+        <i class="bx bx-log-out"></i>
+    </span>
+  </div>
+  </div>
+  
+  
+  <div id="sidebar" class="sidebar">
+    <div class="logo">
+      <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+    </div>
+  
+    <ul class="menu">
+      <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+          <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+        </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+        </a>
+      <ul class="submenu-items">
+       <li class="view-clients">View Clients</li>
+       <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+       <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+      </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li class="audit-phase">Audit / Assessment Phase</li>
+          <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+  
+          <li class="risk-phase">Risk Assessment Phase</li>
+          <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+          <li><a href="{{url_for('audit.memo')}}">Audit Strategy Memo</a></li>
+          <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+          <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+          <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+          <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+          <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+          <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+  
+          <li class="field-phase">FieldWork Phase (Execution)</li>
+          <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+          <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+          <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+          <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+          <li><a href="#">FieldWork Documentation</a></li>
+          <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+          <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+          <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+  
+          <li class="report-phase">Reporting Phase</li>
+          <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+          <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+  
+          <li class="up-phase">Follow-Up Phase</li>
+          <li><a href="#">Action Tracker</a></li>
+        </ul>
+      </li>
+  
+    <main class="footer">
+      <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+      <a href="#"><i class="bx bx-support"></i> Support Center</a>
+    </div>
+  </div>
+
+<main class="main">
+      
+  <div class="profile">
+    <h3>View Profile</h3>
+    <p><a href="#">Dashboard</a> / View Organization Profile</p>    
+  </div>
+
+
+    <div class="container">
+      <form>
+        <div class="form-row">
+              <div class="form-group">
+                  <label>Org ID</label>
+                  <input type="text" value="ARL BANK-001" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Type of Org</label>
+                  <input type="text" value="Regulated Entity" disabled>
+              </div>
+              </div><br />
+
+
+              <div class="form-row">
+              <div class="form-group">
+                  <label>Legal Entity Name</label>
+                  <input type="text" value="ARL BANK" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Head Office Location</label>
+                  <input type="text" value="Mumbai, Maharashtra, India" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Other Key Locations</label>
+                  <input type="text" value="250+ branches in India" disabled>
+              </div>
+            </div><br />
+
+
+            <div class="form-row">
+              <div class="form-group">
+                  <label>Constitution</label>
+                  <input type="text" value="Public Limited Company" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Industry</label>
+                  <input type="text" value="Banking and Financial Services" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Org Category</label>
+                  <input type="text" value="National Bank" disabled>
+              </div>
+            </div><br />
+
+
+              <div class="form-group">
+                  <label>Business Description</label>
+                  <textarea disabled>Provides retail and corporate banking services.</textarea>
+              </div><br />
+          
+
+              <div class="form-row">
+                <div class="form-group">
+                    <label>Number of Branches in India</label>
+                    <input type="text" value="30" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Number of Branches Outside India</label>
+                    <input type="text" value="20" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Indian Regulatory and Governing Agencies</label>
+                    <input type="text" value="Reserve Bank of India (RBI), SEBI" disabled>
+                </div>
+              </div><br />
+
+
+              <div class="form-row">
+                <div class="form-group">
+                    <label>International Regulatory and Governing Agencies</label>
+                    <input type="text" value="Basel Committee on Banking Supervision" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Business Processes</label>
+                    <input type="text" value="Loan Processing, Compliance, Risk Management" disabled>
+                </div>
+                </div><br />
+
+
+                
+              <div class="form-group">
+                <label>Org History</label>
+                <textarea disabled>Founded in 2000, acquired by XYZ Group in 2015.</textarea>
+            </div><br />
+
+            
+            <div class="form-row">
+              <div class="form-group">
+                  <label>Org Structure</label>
+                  <input type="text" value="CEO -> COO -> CFO -> Department Heads" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Key Revenue Streams</label>
+                  <input type="text" value="Interest Income, Fees and Commissions" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Key Markets and Customers</label>
+                  <input type="text" value="Retail Customers, SMEs, Corporates" disabled>
+              </div>
+            </div><br />
+
+
+            <div class="form-row">
+              <div class="form-group">
+                  <label>Key Financial Metrics</label>
+                  <input type="text" value="      " disabled>
+              </div>
+              <div class="form-group">
+                  <label>Total revenue for the last financial year</label>
+                  <input type="text" value="₹500 Crore" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Net profit/loss</label>
+                  <input type="text" value="₹100 Crore" disabled>
+              </div>
+            </div><br />
+
+
+            <div class="form-row">
+              <div class="form-group">
+                  <label>Total assets</label>
+                  <input type="text" value="₹2000 Crore" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Total liabilities</label>
+                  <input type="text" value="₹1,800 Crore" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Key Financial Challenges</label>
+                  <input type="text" value="Increased loan defaults, liquidity concerns." disabled>
+              </div>
+            </div><br />
+
+
+            <div class="form-row">
+              <div class="form-group">
+                  <label>Auditor’s Insight</label>
+                  <input type="text" value="No major findings; strong internal controls noted." disabled>
+              </div>
+              <div class="form-group">
+                  <label>Compliance Status</label>
+                  <input type="text" value="Compliant with RBI guidelines." disabled>
+              </div>
+              <div class="form-group">
+                  <label>Pending Litigation</label>
+                  <input type="text" value="None" disabled>
+              </div>
+            </div><br />
+
+
+            <div class="form-group">
+              <label>Regulatory Filings</label>
+              <textarea disabled>Quarterly reports to RBI.</textarea>
+          </div><br />
+
+
+          <h3>Name and Contact Details of the Board of Directors</h3>
+          <div class="form-row">
+              <div class="form-group">
+                  <label>Name</label>
+                  <input type="text" value="Mr. Rajesh Sharma" disabled>
+              </div>
+              <div class="form-group">
+                  <label>PAN Number</label>
+                  <input type="text" value="ABCD1234E" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Director ID</label>
+                  <input type="text" value="001" disabled>
+              </div>
+            <div class="form-group">
+              <label>Contact Details</label>
+              <input type="number" value="9876543210" disabled>
+          </div>
+          </div><br />
+
+
+
+          <h3>Senior Management</h3>
+          <div class="form-row">
+              <div class="form-group">
+                  <label>Name</label>
+                  <input type="text" value="Ms. Priya Desai" disabled>
+              </div>
+              <div class="form-group">
+                  <label>PAN Number</label>
+                  <input type="text" value="ABCD5678F" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Director ID</label>
+                  <input type="text" value="002" disabled>
+              </div>
+            <div class="form-group">
+              <label>Contact Details</label>
+              <input type="number" value="9876543211" disabled>
+          </div>
+          </div><br />
+
+
+
+
+
+          <h3>Audit Committee</h3>
+          <div class="form-row">
+              <div class="form-group">
+                  <label>Name</label>
+                  <input type="text" value="Mr. Arjun Gupta" disabled>
+              </div>
+              <div class="form-group">
+                  <label>PAN Number</label>
+                  <input type="text" value="ABCD9101G" disabled>
+              </div>
+              <div class="form-group">
+                  <label>Director ID</label>
+                  <input type="text" value="003" disabled>
+              </div>
+            <div class="form-group">
+              <label>Contact Details</label>
+              <input type="number" value="9876543212" disabled>
+          </div>
+          </div><br />
+
+
+          <div class="form-row">
+            <div class="form-group">
+                <label>Recent Significant Events</label>
+                <input type="text" value="Digital transformation initiative launched." disabled>
+            </div>
+            <div class="form-group">
+                <label>Key Risk Areas (business processes/ departments)</label>
+                <input type="text" value="Loan Processing, IT Security, Compliance" disabled>
+            </div>
+            <div class="form-group">
+                <label>Key Risk Areas (locations)</label>
+                <input type="text" value="Head Office, Major Branches" disabled>
+            </div>
+          </div><br />
+
+
+          <div class="form-group">
+            <label>Key Risk Areas (Key risk categories)</label>
+            <textarea disabled>Credit Risk, Operational Risk, Market Risk</textarea>
+        </div>
+        <div class="button-group">
+          <button class="cancel">Cancel</button>
+          <button class="save">Save</button>
+      </div>
+      </form>
+    </div>
+
+  </main>
+
+    <script src="assets/js/new.js"></script>
+  </body>
+</html>

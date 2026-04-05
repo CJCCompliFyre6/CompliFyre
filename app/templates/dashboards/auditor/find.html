@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    <style>
+ /* Global Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #FEF8F5;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Tab Navigation */
+.tab-container {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 10px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.tab-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.tab {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  background-color: #fafafa;
+  border-right: 1px solid #eee;
+  transition: background 0.3s ease;
+  cursor: pointer;
+}
+
+.tab:last-child {
+  border-right: none;
+}
+
+.tab.active {
+  background: linear-gradient(to right, #ff9800, #ff5722);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Tab Content */
+.tab-content-container {
+  border: 1px solid #eee;
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 10px;
+  background: #fff;
+}
+
+.tab-content {
+  display: none;
+}
+
+/* Section Styling */
+.scope-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #000;
+}
+
+.scope-content {
+  font-size: 16px;
+  color: #000;
+  line-height: 1.5;
+}
+
+/* Table Responsiveness */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+#auditTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#auditTable th,
+#auditTable td {
+  border: 1px solid #ddd;
+  padding: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Responsive Design: Tablets and Smaller */
+@media screen and (max-width: 768px) {
+  .tab {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  #auditTable th,
+  #auditTable td {
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .container {
+    padding: 15px;
+  }
+}
+
+/* Responsive Design: Phones */
+@media screen and (max-width: 576px) {
+  .tab {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .scope-title {
+    font-size: 20px;
+  }
+
+  .scope-content {
+    font-size: 14px;
+  }
+
+  #auditTable th,
+  #auditTable td {
+    font-size: 12px;
+    padding: 6px;
+  }
+
+  .container {
+    padding: 10px;
+  }
+
+  .btn,
+  .form-control {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /* Header */
+  header {
+  background-color: #222;
+  color: white;
+  padding: 15px;
+  text-align: left;
+}
+
+
+/* Flexbox container for the menu icon and title */
+.menu-icon-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Styling for the menu icon */
+.menu-icon {
+  font-size: 30px;
+  color: black;
+  cursor: pointer;
+  margin-right: 20px;
+}
+
+/* Styling for the dashboard title */
+.dashboard-title {
+  flex-grow: 1;
+}
+
+.dashboard-title h1 {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+  color: black;
+}
+
+.dashboard-title p {
+  font-size: 16px;
+  color: #ffa62b;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.dashboard-title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* User Actions */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-left: auto;
+}
+
+.profile-icon, .logout-icon {
+  font-size: 24px;
+  cursor: pointer;
+  color: black;
+}
+
+.profile-icon:hover, .logout-icon:hover {
+  color: #ffa62b;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  left: -250px;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  background-color: black;
+  color: white;
+  transition: left 0.3s ease-in-out;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+/* Sidebar Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo img {
+  width: 150px;
+  height: auto;
+}
+
+/* Sidebar Menu */
+.menu {
+  list-style-type: none;
+}
+
+.menu li {
+  padding: 10px 0;
+}
+
+.menu li a {
+  color: white;
+  text-decoration: none;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.menu li a i {
+  font-size: 18px;
+}
+
+.menu li a:hover {
+  background: linear-gradient(135deg, #f76b1c, #ffa62b);
+}
+
+/* Sidebar Submenu */
+/* Submenu Scroll */
+.submenu .submenu-items {
+display: none;
+max-height: 250px; /* Adjust this value as needed */
+overflow-y: auto;
+list-style: none;
+padding-left: 20px;
+background-color: black;
+border: 1px solid black;
+border-radius: 5px;
+}
+
+.submenu .submenu-items.active {
+display: block;
+}
+
+/* Custom Scrollbar Style */
+.submenu .submenu-items::-webkit-scrollbar {
+width: 8px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb {
+background: #575757;
+border-radius: 4px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+background: #444;
+}
+
+/* Phase Labels Styling */
+.submenu li.view-clients,
+.submenu li.audit-phase,
+.submenu li.risk-phase,
+.submenu li.field-phase,
+.submenu li.report-phase,
+.submenu li.up-phase {
+color: #514a4a;
+cursor: default;
+font-weight: bold;
+}
+
+
+/* Sidebar Footer */
+.footer {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  padding: 10px;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: white;
+  text-decoration: none;
+}
+
+.footer a i {
+  font-size: 18px;
+}
+  </style>
+
+  <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="menu-icon-container">
+    <div class="menu-icon" onclick="toggleSidebar()">
+      <i class="bx bx-menu"></i>
+    </div>
+    <div class="dashboard-title">
+      <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+      <p>Dashboard</p>
+    </div>
+  <!-- Profile and Logout Icons aligned to the right -->
+  <div class="user-actions">
+    <!-- Profile Icon -->
+    <a href="#" class="profile-icon">
+        <i class="bx bx-user"></i>
+    </a>
+  
+    <!-- Logout Icon -->
+    <span class="logout-icon" onclick="logout()">
+        <i class="bx bx-log-out"></i>
+    </span>
+  </div>
+  </div>
+  
+  
+  <div id="sidebar" class="sidebar">
+    <div class="logo">
+      <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+    </div>
+  
+    <ul class="menu">
+      <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+          <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+        </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+        </a>
+      <ul class="submenu-items">
+       <li class="view-clients">View Clients</li>
+       <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+       <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+      </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li class="audit-phase">Audit / Assessment Phase</li>
+          <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+  
+          <li class="risk-phase">Risk Assessment Phase</li>
+          <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+          <li><a href="{{url_for('audit.dam')}}">Audit Strategy Memo</a></li>
+          <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+          <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+          <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+          <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+          <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+          <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+  
+          <li class="field-phase">FieldWork Phase (Execution)</li>
+          <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+          <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+          <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+          <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+          <li><a href="#">FieldWork Documentation</a></li>
+          <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+          <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+          <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+  
+          <li class="report-phase">Reporting Phase</li>
+          <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+          <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+  
+          <li class="up-phase">Follow-Up Phase</li>
+          <li><a href="#">Action Tracker</a></li>
+        </ul>
+      </li>
+  
+    <main class="footer">
+      <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+      <a href="#"><i class="bx bx-support"></i> Support Center</a>
+    </div>
+  </div>
+
+<!-- Main Content -->
+<main class="main" style="padding: 20px;">
+  <div class="breadcrumb" style="margin-bottom: 24px;">
+    <h1 style="margin-bottom: 8px;">Documentation of Findings – Anixo Bank Ltd. Audit</h1>
+    <a href="#" style="color: #007bff; text-decoration: none;">Dashboard</a> / Documentation of Findings – Anixo Bank Ltd. Audit
+</div>
+
+  <div class="container">
+
+    <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Audit Period:</div>
+    <div style="margin-bottom: 20px; font-size: 16px; color: #333;">September 15, 2024 – October 5, 2024</div>
+    
+    <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Scope:</div>
+    <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+        <ul style="padding-left: 20px;">
+            <li style="margin-bottom: 10px;">RBI Prudential IRAC Norms</li>
+            <li style="margin-bottom: 10px;">RBI Cybersecurity Guidelines</li>
+            <li style="margin-bottom: 10px;">Other applicable regulatory frameworks</li>
+        </ul>
+    </div>
+
+    <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Summary of Findings:</div>
+    <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+        The following findings were identified during the audit of Anixo Bank Ltd. across various processes, including loan classification, data protection, access control, incident response, and vendor management. Below is the detailed documentation of findings, control failures, and non-compliance issues identified during the fieldwork phase.
+    </div>
+        
+    <div class="tab-container">
+      <div class="tab active" onclick="setActiveTab(this, 'content1')">
+        Loan Classification and NPA Provisioning Controls (RBI IRAC Norms)
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content2')">
+        Data Protection and Cybersecurity Controls (RBI Cybersecurity
+        Guidelines)
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content3')">
+        Access Control and Authorization Mechanisms
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content4')">
+        Incident Response and Recovery Procedures
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content5')">
+        Third-Party Vendor Risk Management
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content6')">
+        Financial Reporting and Reconciliations
+      </div>
+    </div>
+    <br />
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Search..."
+            style="width: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+        <button onclick="exportToCSV()"
+            style="padding: 12px 25px; background-color: #ff6600; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+            Export to CSV
+        </button>
+    </div>
+
+    <div class="table-container">
+    <table id="auditTable" style="width: 100%; border-collapse: collapse; margin-top: 25px;">
+        <thead>
+            <tr style="background: #f4f4f4;">
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Finding ID</th>
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Control Failure</th>
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Non-Compliance</th>
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Control Description</th>
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Risk Category</th>
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Impact</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 12px;">1</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">Misclassification of Performing Loans</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">2 loans misclassified as performing loans even after 90+ days of default</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">IRAC Norms Loan Classification Control</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">High</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">Incorrect financial reporting and under-provisioning</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 12px;">2</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">Inadequate NPA Provisioning</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">4 loans had insufficient provisioning, under-provisioned by ₹5M</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">NPA Provisioning Control</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">High</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">Understatement of liabilities in financial statements</td>
+            </tr>
+        </tbody>
+    </table>
+    </div>
+
+    <div style="margin-top: 30px; line-height: 1.6;">
+        <h3 style="margin-bottom: 10px;">Control Descriptions:</h3>
+        <p><strong>1. IRAC Norms Loan Classification Control:</strong> Review whether loans are correctly classified as performing, sub-standard, doubtful, or loss based on borrower performance.</p>
+        <p><strong>2. NPA Provisioning Control:</strong> Ensure accurate provisioning based on loan classification to reflect adequate reserves for NPAs.</p>
+
+        <h3 style="margin-top: 20px; margin-bottom: 10px;">Recommendations:</h3>
+        <p>✔ Automate loan reclassification processes based on default history.</p>
+        <p>✔ Perform monthly reviews of provisioning worksheets to ensure compliance with regulatory requirements.</p>
+    </div>
+</div>
+
+    
+
+      <div id="content2" class="tab-content">
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Objective:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            Assess compliance with data protection and cybersecurity policies, focusing on encryption, access control, and incident response.
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Summary of Findings:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <p><span style="font-weight: bold;">Data Encryption:</span> Encryption controls for data at rest and in transit were operating effectively, with compliance in 95% of cases.</p>
+            <p><span style="font-weight: bold;">Access Control Failures:</span> 2 instances of unauthorized access to sensitive systems were identified, linked to poor role-based access control implementation.</p>
+            <p><span style="font-weight: bold;">Incident Response:</span> The response time during a simulated security breach was delayed by over 20 minutes, indicating a gap in timely detection and escalation.</p>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Fieldwork Notes:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Discussions with the IT security team showed inconsistency in user access reviews. Access logs indicated that roles had not been reviewed or updated for 6 months, creating a vulnerability in access management.</li>
+                <li style="margin-bottom: 10px;">Testing of encryption systems confirmed that critical customer data was encrypted during transfers and while at rest on cloud servers.</li>
+                <li style="margin-bottom: 10px;">During the incident response simulation, we observed delays in escalation and decision-making, largely due to a lack of clear ownership in the incident management plan.</li>
+            </ul>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Recommendations:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Regularly review and update access controls to ensure proper segregation of duties.</li>
+                <li style="margin-bottom: 10px;">Redesign the incident response escalation process to reduce response times.</li>
+                <li style="margin-bottom: 10px;">Conduct periodic access reviews and monitor privileged user activity.</li>
+            </ul>
+        </div>
+        </div>
+
+        
+      <div id="content3" class="tab-content">
+        <h3 style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Objective:</h3>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            Evaluate the effectiveness of access control and authorization mechanisms to prevent unauthorized transactions and protect sensitive information.
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Summary of Findings:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <p><span style="font-weight: bold;">Access Control Gaps:</span> Significant gaps were identified in the segregation of duties. For example, some users had both the initiation and approval rights for high-value transactions.</p>
+            <p><span style="font-weight: bold;">Authorization Mechanisms:</span> High-value transactions were generally well-controlled, with appropriate approvals in 98% of cases.</p>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Fieldwork Notes:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">We observed outdated user roles and access privileges in the bank’s HR system. For instance, former employees still had access to critical systems, and cross-functional teams had overlapping access.</li>
+                <li style="margin-bottom: 10px;">Verification of transaction logs showed that manual overrides were possible for certain transactions, bypassing normal approval flows.</li>
+            </ul>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Recommendations:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Implement stricter access governance controls.</li>
+                <li style="margin-bottom: 10px;">Review and clean up user access lists regularly.</li>
+                <li style="margin-bottom: 10px;">Enhance automation for authorization processes to eliminate manual overrides.</li>
+            </ul>
+        </div>
+    </div>
+
+
+      <div id="content4" class="tab-content">
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Objective:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            Test the effectiveness of Anixo Bank’s incident response and disaster recovery plans to minimize downtime in the event of a cybersecurity breach.
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Summary of Findings:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <p><span style="font-weight: bold;">Incident Response:</span> Delays in identifying and escalating security incidents were observed during the breach simulation. The bank's response time exceeded the acceptable thresholds.</p>
+            <p><span style="font-weight: bold;">Disaster Recovery:</span> The recovery time objective (RTO) for critical systems was met for 90% of key systems. However, non-critical systems experienced delays in recovery.</p>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Fieldwork Notes:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Interviews with the incident management team revealed gaps in role clarity during incident response, leading to slow decision-making.</li>
+                <li style="margin-bottom: 10px;">A test of the bank’s backup systems confirmed that data restoration was effective, but delays occurred due to network congestion.</li>
+            </ul>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Recommendations:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Improve incident response times by assigning dedicated roles and responsibilities.</li>
+                <li style="margin-bottom: 10px;">Review disaster recovery plans for non-core systems to ensure faster recovery.</li>
+            </ul>
+        </div>
+    </div>
+
+
+      <div id="content5" class="tab-content">
+         <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Objective:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            Ensure third-party vendors comply with the bank’s security policies and that vendor risks are properly managed.
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Summary of Findings:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <p><span style="font-weight: bold;">Vendor Risk Management:</span> 20% of vendor contracts lacked adequate security clauses, increasing third-party risks.</p>
+            <p><span style="font-weight: bold;">Vendor Monitoring:</span> Vendor performance monitoring was inconsistent. Risk assessments were not completed for 30% of vendors.</p>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Fieldwork Notes:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Contract reviews highlighted security provisions missing from several vendor agreements. Interviews with the procurement team indicated this was due to a lack of standardized contract terms.</li>
+                <li style="margin-bottom: 10px;">The risk management team had not conducted formal risk assessments for low-risk vendors, creating gaps in vendor oversight.</li>
+            </ul>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Recommendations:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Ensure all contracts include security clauses in line with RBI cybersecurity requirements.</li>
+                <li style="margin-bottom: 10px;">Perform annual risk assessments for all vendors, regardless of risk profile.</li>
+            </ul>
+        </div>
+    </div>
+
+
+      <div id="content6" class="tab-content">
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Objective:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            Review the accuracy of financial reporting and the timeliness of reconciliations.
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Summary of Findings:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <p><span style="font-weight: bold;">Delayed Reconciliations:</span> Several key accounts had delayed reconciliations, with some accounts being reconciled over 30 days late.</p>
+            <p><span style="font-weight: bold;">Financial Reporting Accuracy:</span> No material discrepancies were found in the financial statements.</p>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Fieldwork Notes:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Discussions with the finance team revealed that staffing shortages led to delays in account reconciliations, particularly for lower-priority accounts.</li>
+                <li style="margin-bottom: 10px;">The review of financial reports confirmed the accuracy of financial statement balances, with minor adjustments required for accrued liabilities.</li>
+            </ul>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Recommendations:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            <ul style="padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Address the staffing shortages to ensure timely reconciliations.</li>
+                <li style="margin-bottom: 10px;">Continue to perform regular accuracy checks on financial reports.</li>
+            </ul>
+        </div>
+        
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px;">Conclusion:</div>
+        <div style="margin-bottom: 20px; font-size: 16px; color: #333;">
+            The fieldwork has revealed several control weaknesses in areas such as access control, incident response, vendor management, and financial reporting. The next phase will involve drafting remediation plans and discussing findings with the senior management at Anixo Bank.
+        </div>
+    </div>
+</main>
+    <script>
+      // Toggle Sidebar
+function toggleSidebar() {
+   document.getElementById("sidebar").classList.toggle("open");
+   const menuIcon = document.querySelector(".menu-icon i"); // Get the current icon
+
+   // Toggle the icon when the sidebar opens or closes
+   if (menuIcon.classList.contains("bx-menu")) {
+       menuIcon.classList.replace("bx-menu", "bx-x"); // Switch to close icon
+   } else {
+       menuIcon.classList.replace("bx-x", "bx-menu"); // Switch back to menu icon
+   }
+}
+
+// Function to close the sidebar when clicking outside
+function closeSidebarIfClickedOutside(event) {
+   const sidebar = document.getElementById("sidebar");
+   const menuIcon = document.querySelector(".menu-icon i");
+   
+   // Check if the click is outside the sidebar and not on the menu icon
+   if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+       sidebar.classList.remove("open");
+       menuIcon.classList.replace("bx-x", "bx-menu"); // Revert the icon back to the menu
+   }
+}
+
+// Add the event listener to close sidebar if clicking outside
+document.addEventListener("click", closeSidebarIfClickedOutside);
+
+
+function toggleSubmenu(event) {
+ event.preventDefault(); // Prevents page reload
+
+ let parent = event.target.closest(".submenu"); // Find the clicked <li>
+ let submenu = parent.querySelector(".submenu-items"); // Find submenu in this <li>
+
+ // Close all other submenus before opening the clicked one
+ document.querySelectorAll(".submenu-items").forEach((item) => {
+   if (item !== submenu) {
+     item.classList.remove("open"); // Use class to control the display
+     item.style.display = "none"; // Remove inline style if necessary
+     item.parentElement.classList.remove("open");
+   }
+ });
+
+ // Toggle the clicked submenu
+ if (submenu.classList.contains("open")) {
+   submenu.classList.remove("open");
+   submenu.style.display = "none"; // Close
+   parent.classList.remove("open");
+ } else {
+   submenu.classList.add("open");
+   submenu.style.display = "block"; // Open
+   parent.classList.add("open");
+ }
+}
+
+
+function toggleSubmenu(event) {
+   event.preventDefault();
+   const submenu = event.target.nextElementSibling;
+   if (submenu) {
+     submenu.classList.toggle('active');
+   }
+ }
+
+      function setActiveTab(tabElement, contentId) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((tab) => tab.classList.remove("active"));
+        tabElement.classList.add("active");
+
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((content) => (content.style.display = "none"));
+        document.getElementById(contentId).style.display = "block";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("content1").style.display = "block";
+      });
+    </script>
+  </body>
+</html>
+

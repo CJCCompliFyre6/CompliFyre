@@ -1,0 +1,57 @@
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile.hotreload.backend
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - SQLALCHEMY_DATABASE_URI=sqlite:////app/instance/pdf_downloader.db
+
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../backend:/app:delegated
+      # - ../backend/instance:/app/instance:delegated   # Use host's instance folder
+      - instance_data:/app/instance    # Use a named volume for /app/instance
+      - ../uploads:/app/uploads
+      - ../cache:/app/cache
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+    command: sh -c "chmod -R 777 /app/instance && flask run --host=0.0.0.0 --port=5000 --reload"
+
+  frontend:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile.hotreload.frontend
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    volumes:
+      - ../frontend:/app:delegated
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: yarn dev --host 0.0.0.0
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.hotreload.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
+  instance_data:

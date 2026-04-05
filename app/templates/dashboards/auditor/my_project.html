@@ -1,0 +1,1022 @@
+{% extends "audit_base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="assets/css/view.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+    .truncated-text {
+        cursor: pointer;
+        color: blue;
+    }
+
+    .truncated-text:hover {
+        text-decoration: underline;
+    }
+
+    .modal-content1 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: auto;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-content2 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: 230px auto 0 auto;
+        /* Top margin added */
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        position: relative;
+        /* optional, for stacking elements like close buttons */
+    }
+
+
+    .table_prompt {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Tab Styles */
+    .step-tabs {
+        display: flex;
+        background: white;
+        border-radius: 12px;
+        padding: 8px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e5e7eb;
+        gap: 8px;
+    }
+
+    .step-tab {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        color: #6b7280;
+        background: transparent;
+    }
+
+    .step-tab.active {
+        background: #f97316;
+        color: white;
+        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+    }
+
+    .step-tab.completed {
+       background: transparent;
+       color: #6b7280;
+       box-shadow: none;
+       border: 1px solid #10b981;
+    }
+
+    .step-tab.completed:hover {
+       background: #f3f4f6;
+       color: #4b5563;
+    }
+
+    .step-tab:not(.completed):not(.active):hover {
+        background: #f3f4f6;
+        color: #4b5563;
+    }
+
+    .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #e5e7eb;
+        color: #6b7280;
+        font-size: 14px;
+        margin-right: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .step-tab.active .step-number
+     {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+
+    .step-tab.completed .step-number {
+        background: #10b981;
+        color: white;
+    }
+
+
+    .step-tab.completed .step-number::after {
+    content: "✓";
+    font-weight: bold;
+}
+
+    .step-content {
+        display: none;
+        animation: fadeIn 0.5s ease;
+    }
+
+    .step-content.active {
+        display: block;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+
+<style>
+    /* PAGINATION SPECIFIC STYLES */
+    .pagination-button {
+        min-width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 8px;
+        border: 1px solid #e5e7eb;
+        background: white;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #4b5563;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .pagination-button:hover:not(.disabled):not(.active) {
+        background: #f3f4f6;
+        border-color: #d1d5db;
+    }
+
+    .pagination-button.active {
+        background: #f97316 !important;
+        color: white !important;
+        border-color: #f97316 !important;
+        font-weight: 600 !important;
+    }
+
+    .pagination-button.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: #f9fafb;
+    }
+
+    .pagination-button.prev-button,
+    .pagination-button.next-button {
+        font-size: 16px;
+        padding: 0 12px;
+    }
+
+    .pagination-ellipsis {
+        padding: 0 8px;
+        color: #6b7280;
+        font-size: 14px;
+        user-select: none;
+    }
+</style>
+
+<div id="loadingIconAnim" class="spinner" style="display: none;"></div>
+
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+    <div class="organization px-6 py-4">
+        <h1 class="text-2xl ">My Projects</h1>
+        <!-- <p><a href="#">Dashboard</a> / Organization Profile</p> -->
+    </div>
+</main>
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6" style="z-index: -20;">
+
+
+    <!-- Tab Navigation -->
+    <div class="step-tabs">
+        <div class="step-tab active" id="step1-tab" onclick="switchTab(1)">
+            <span class="step-number">1</span>
+            <span>Download Guidelines</span>
+        </div>
+        <div class="step-tab" id="step2-tab" onclick="switchTab(2)">
+            <span class="step-number">2</span>
+            <span>Add Your Client</span>
+        </div>
+        <div class="step-tab" id="step3-tab" onclick="switchTab(3)">
+            <span class="step-number">3</span>
+            <span>Create Project</span>
+        </div>
+    </div>
+
+    <div class="step-content" id="step1-content">
+        <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+            
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Download compliance guidelines to get started with your audit process. This is the first step in
+                creating compliance projects.
+            </p>
+            <div class="mt-6">
+                <a href="{{ url_for('re.guidelines') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download Guidelines
+                    </button>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-content" id="step2-content">
+        <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+            
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Add your client information to start creating compliance projects. This step is required before you can
+                create projects.
+            </p>
+            <div class="mt-6">
+                {% if not current_user.free_report_used %}
+                <a href="{{ url_for('re.profile') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add Your Client
+                    </button>
+                </a>
+                {% else %}
+                <div class="block w-full relative group">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-gray-400 text-white font-medium rounded-lg cursor-not-allowed transition-all shadow-md"
+                        disabled>
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        Add Your Client
+                    </button>
+                    <div
+                        class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block w-64">
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg">
+                            <div class="flex items-start">
+                                <svg class="w-4 h-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <div class="text-sm text-yellow-800">
+                                    <p class="font-medium">Feature Disabled</p>
+                                    <p class="mt-1">You have used your free report. Please contact <a
+                                            href="mailto:CompliFyre@crackerjacktech.com"
+                                            class="underline">CompliFyre@crackerjacktech.com</a> for assistance.</p>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-yellow-200">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="step-content" id="step3-content">
+        <div class="text-center py-6 bg-white rounded-xl shadow-sm">
+            
+            <p class="mt-2 text-gray-500 max-w-lg mx-auto">
+                Create a new compliance project by selecting guidelines, departments, and defining project details.
+            </p>
+            <div class="mt-6">
+                <a href="{{ url_for('audit.create_project') }}">
+                    <button
+                        class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create New Project
+                    </button>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="top-buttons">
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search..">
+        </div>
+        <button id="exportCSV">Export to CSV</button>
+    </div>
+    <div>
+        <span>
+            <h3 class="text text-xl my-4">{{my_projects[0].client_rel.name}}</h3>
+        </span>
+    </div>
+
+    <div class="table-container  rounded-xl">
+        <table id="guidelinesTable">
+            <thead class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+                <tr>
+                    <th>Project Name</th>
+                    <th>Project Description</th>
+                    <th>Client</th>
+                    <th>Department</th>
+                    <th>Guidelines</th>
+                    <th>Project Start Date</th>
+                    <th>Project End Date</th>
+                    <th>Assesment Start Date</th>
+                    <th>Assesment End Date</th>
+                    <th>Project Complete Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- <tr>
+                    <td>Basel III Guidelines (RBI Circular DBOD.No. 3/ 04.02.001/2015-16)</td>
+                    <td>RBI Circular</td>
+                    <td>Reserve Bank of India</td>
+                    <td>India</td>
+                    <td>Banking</td>
+                    <td>All banks</td>
+                    <td>Yes</td>
+                    <td>No</td>
+                    <td>Apr-15</td>
+                    <td>Apr-15</td>
+                    <td>
+                        <div class="action-menu">
+                            <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                            <div class="dropdown-content2">
+                                <a href="#">View Controls</a>
+                            </div>
+                        </div>
+                    </td>
+                </tr> -->
+
+                {% for item in my_projects%}
+                <tr>
+                    <td>{{ item.project_name }}</td>
+                    <td>{{ item.project_description }}</td>
+                    <td>{{item.client_rel.name}}</td>
+                    <!-- Updated Department Column -->
+                    <!-- Updated Department Column -->
+                    <td>
+                        {% if item.departments %}
+                        {% set unique_departments = [] %}
+                        {% for dept in item.departments %}
+                        {% if dept.department_name not in unique_departments %}
+                        {% set _ = unique_departments.append(dept.department_name) %}
+                        {% endif %}
+                        {% endfor %}
+
+                        <div class="flex flex-wrap gap-1">
+                            {% for dept_name in unique_departments %}
+                            <span
+                                class="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs">
+                                {{ dept_name }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% elif item.primary_department %}
+                        <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                            {{ item.primary_department.department_name }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-500 text-sm">No departments</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <ul>
+                            {% for pg_item in item.project_guidelines %}
+                            {# Now 'pg_item' is a single guideline object from the list #}
+                            <li>{{ pg_item.guideline_data.DocumentDetails.DocumentName }}</li>
+                            {% else %}
+                            {# This part is optional but good practice. It runs if the list is empty. #}
+                            <li>No Guideline Associated</li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                    <td>{{item.project_start_date}}</td>
+                    <td>{{item.project_end_date}}</td>
+                    <td>{{item.assesment_start_date}}</td>
+                    <td>{{item.assesment_end_date}}</td>
+                    <td>{{item.project_complete_status}}</td>
+                    <td>
+    <div class="relative inline-block text-left action-dropdown-wrapper">
+        <!-- 3 dots button -->
+        <button type="button"
+            onclick="toggleActionMenu(this)"
+            class="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 focus:outline-none">
+            <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="5" r="1.5"/>
+                <circle cx="12" cy="12" r="1.5"/>
+                <circle cx="12" cy="19" r="1.5"/>
+            </svg>
+        </button>
+
+        <!-- Dropdown Menu -->
+        <div class="action-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+            <a href="{{ url_for('audit.edit_project', project_id=item.id) }}"
+    class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-500 hover:text-white transition-colors rounded-t-lg">
+    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    Project Details
+</a>
+
+            {% if item.documentation %}
+            <a href="{{ url_for('audit.project_documentation', project_id=item.id) }}"
+                class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-500 hover:text-white transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit Documentation
+            </a>
+            {% else %}
+            <a href="{{ url_for('audit.project_documentation', project_id=item.id) }}"
+                class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-500 hover:text-white transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Documentation
+            </a>
+            {% endif %}
+
+            <a href="{{ url_for('re.activity', project_id=item.id) }}"
+                class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-500 hover:text-white transition-colors rounded-b-lg">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                View Assessment
+            </a>
+        </div>
+    </div>
+</td>
+                </tr>
+                {% endfor %}
+
+            </tbody>
+        </table>
+
+        <div class="bottom-controls">
+            <div class="entries-box">
+                <span>Show</span>
+                <select id="entriesSelect">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span>entries</span>
+                <div class="entries-info"></div>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+    </main>
+    <script src="assets/js/view.js"></script>
+
+    <!-- pagination script  -->
+    <script>
+        // ==================== PAGINATION SYSTEM ONLY ====================
+        let currentPage = 1;
+        let rowsPerPage = 10;
+        let allRows = [];
+
+        function initializePagination() {
+            const table = document.getElementById("guidelinesTable");
+            const tbody = table.querySelector("tbody");
+            allRows = Array.from(tbody.querySelectorAll("tr"));
+
+            // Set initial rows per page from select
+            rowsPerPage = parseInt(document.getElementById("entriesSelect").value);
+
+            renderPagination();
+            showPage(currentPage);
+        }
+
+        function renderPagination() {
+            const totalRows = allRows.length;
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+            const paginationContainer = document.getElementById("pagination");
+            paginationContainer.innerHTML = "";
+
+            if (totalRows === 0) {
+                paginationContainer.innerHTML = '<span class="text-gray-500">No results</span>';
+                return;
+            }
+
+            // Previous button
+            if (totalPages > 1) {
+                const prevButton = document.createElement("button");
+                prevButton.textContent = "←";
+                prevButton.classList.add("pagination-button", "prev-button");
+                prevButton.addEventListener("click", () => {
+                    if (currentPage > 1) {
+                        showPage(currentPage - 1);
+                    }
+                });
+                if (currentPage === 1) {
+                    prevButton.disabled = true;
+                    prevButton.classList.add("disabled");
+                }
+                paginationContainer.appendChild(prevButton);
+            }
+
+            // Page buttons
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            // First page button (if needed)
+            if (startPage > 1) {
+                const firstButton = document.createElement("button");
+                firstButton.textContent = "1";
+                firstButton.classList.add("pagination-button");
+                firstButton.addEventListener("click", () => showPage(1));
+                paginationContainer.appendChild(firstButton);
+
+                if (startPage > 2) {
+                    const ellipsis = document.createElement("span");
+                    ellipsis.textContent = "...";
+                    ellipsis.classList.add("pagination-ellipsis");
+                    paginationContainer.appendChild(ellipsis);
+                }
+            }
+
+            // Page number buttons
+            for (let i = startPage; i <= endPage; i++) {
+                const button = document.createElement("button");
+                button.textContent = i;
+                button.classList.add("pagination-button");
+                if (i === currentPage) {
+                    button.classList.add("active");
+                }
+                button.addEventListener("click", () => showPage(i));
+                paginationContainer.appendChild(button);
+            }
+
+            // Last page button (if needed)
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement("span");
+                    ellipsis.textContent = "...";
+                    ellipsis.classList.add("pagination-ellipsis");
+                    paginationContainer.appendChild(ellipsis);
+                }
+
+                const lastButton = document.createElement("button");
+                lastButton.textContent = totalPages;
+                lastButton.classList.add("pagination-button");
+                lastButton.addEventListener("click", () => showPage(totalPages));
+                paginationContainer.appendChild(lastButton);
+            }
+
+            // Next button
+            if (totalPages > 1) {
+                const nextButton = document.createElement("button");
+                nextButton.textContent = "→";
+                nextButton.classList.add("pagination-button", "next-button");
+                nextButton.addEventListener("click", () => {
+                    if (currentPage < totalPages) {
+                        showPage(currentPage + 1);
+                    }
+                });
+                if (currentPage === totalPages) {
+                    nextButton.disabled = true;
+                    nextButton.classList.add("disabled");
+                }
+                paginationContainer.appendChild(nextButton);
+            }
+
+            // Update entries info
+            updateEntriesInfo();
+        }
+
+        function showPage(page) {
+            currentPage = page;
+            const start = (page - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+
+            // Hide all rows first
+            allRows.forEach(row => {
+                row.style.display = "none";
+            });
+
+            // Show only rows for current page
+            for (let i = start; i < end && i < allRows.length; i++) {
+                if (allRows[i]) {
+                    allRows[i].style.display = "";
+                }
+            }
+
+            renderPagination();
+        }
+
+        function updateEntriesInfo() {
+            const start = (currentPage - 1) * rowsPerPage + 1;
+            const end = Math.min(currentPage * rowsPerPage, allRows.length);
+
+            let entriesInfo = document.querySelector('.entries-info');
+            if (!entriesInfo) {
+                entriesInfo = document.createElement('div');
+                entriesInfo.classList.add('entries-info');
+                const bottomControls = document.querySelector('.bottom-controls');
+                bottomControls.insertBefore(entriesInfo, document.querySelector('.pagination'));
+            }
+
+            entriesInfo.textContent = `Showing ${start} to ${end} of ${allRows.length} entries`;
+        }
+
+        // Initialize pagination when DOM is loaded
+        document.addEventListener("DOMContentLoaded", () => {
+            initializePagination();
+
+            // Handle entries per page change
+            document.getElementById("entriesSelect").addEventListener("change", () => {
+                rowsPerPage = parseInt(document.getElementById("entriesSelect").value);
+                currentPage = 1;
+                showPage(currentPage);
+            });
+
+            // Handle search functionality
+            document.getElementById("searchInput").addEventListener("input", (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const table = document.getElementById("guidelinesTable");
+                const tbody = table.querySelector("tbody");
+
+                // Get fresh rows from table
+                allRows = Array.from(tbody.querySelectorAll("tr"));
+
+                // Filter rows based on search
+                allRows.forEach(row => {
+                    const rowText = row.textContent.toLowerCase();
+                    row.style.display = rowText.includes(searchTerm) ? "" : "none";
+                });
+
+                // Update pagination with current visible rows
+                const visibleRows = allRows.filter(row => row.style.display !== "none");
+                allRows = visibleRows;
+                currentPage = 1;
+                renderPagination();
+                showPage(currentPage);
+            });
+        });
+    </script>
+    <script>
+        /* var requestOptions = {
+            method: 'GET',
+            redirect: 'follow'
+        };
+      
+        
+        fetch("{{url_for('retrive.get_all_files')}}", requestOptions) 
+            .then(response => response.json())
+            .then(result => {
+                const tableBody = document.querySelector('#guidelinesTable tbody');
+
+                if (!result['files'] || result['files'].length === 0) {
+                    const tableBody = document.querySelector('#guidelinesTable tbody');
+                    tableBody.innerHTML = '<tr><td colspan="11">No files found</td></tr>';
+                    return;
+                }
+
+                result['files'].forEach((file, index) => {
+                    const docDetails = file['data']['DocumentDetails'] || {};
+                    console.log(file['id'])
+                    const id = file['id'] || 'unknown'; // Add a fallback value for id
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                <td>${docDetails.DocumentName || 'Untitled Document'}</td>
+                <td>GID-${index + 1}</td>
+                <td>${docDetails.IssuingAuthority || 'Unknown Authority'}</td>
+                <td>${docDetails.ApplicableGeography || 'Global'}</td>
+                <td>${docDetails.ApplicableIndustries || 'General Industry'}</td>
+                <td>${docDetails.ApplicableOrganizations || 'General Organization'}</td>
+                <td>${docDetails.Mandatory === 'Yes' ? 'Yes' : 'No'}</td>
+                <td>${docDetails.CertificationAvailable === 'Yes' ? 'Yes' : 'No'}</td>
+                <td>${docDetails.IssuanceDate || 'Not Provided'}</td>
+                <td>${docDetails.ComplianceDeadline || 'Not Applicable'}</td>
+                <td>
+                    <div class="action-menu">
+                        <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                        <div class="dropdown-content2">
+                            <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="handleClause('${id}')">View Clause</button>                        </div>
+                    </div>
+                </td>
+            `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(error => console.log('error', error));
+
+        document.addEventListener("click", function(event) {
+            const dropdowns = document.querySelectorAll(".dropdown-content2");
+            dropdowns.forEach(dropdown => {
+                if (!dropdown.contains(event.target) && !event.target.matches(".action-menu span")) {
+                    dropdown.style.display = "none";
+                }
+            });
+        });
+*/
+        function toggleDropdown2(element) {
+            const dropdown = element.nextElementSibling;
+            const isVisible = dropdown.style.display === "block";
+
+            // Hide all dropdowns
+            const dropdowns = document.querySelectorAll(".dropdown-content2");
+            dropdowns.forEach(d => d.style.display = "none");
+
+            // Toggle the clicked dropdown
+            if (!isVisible) {
+                dropdown.style.display = "block";
+            }
+        }
+
+    </script>
+
+    <script>
+        let prompts = [];
+
+        async function fetchPrompts() {
+            try {
+                const response = await fetch("{{url_for('prompt.get_all_prompt')}}");
+                const data = await response.json();
+                prompts = data.prompts.map(p => ({ id: p.id, text: p.prompt }));
+                renderPrompts();
+            } catch (error) {
+                console.error('Error fetching prompts:', error);
+            }
+        }
+        function renderPrompts() {
+            const tableBody = document.querySelector('#promptTable tbody');
+            tableBody.innerHTML = '';
+
+            prompts.forEach(prompt => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                <tr>
+                    <td class="p-4 border">${prompt.id}</td>
+                    <td class="p-4 border w-3/6">
+                        <span class="truncated-text block max-w-xs overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer text-blue-600" onclick="toggleText(this)">
+                            ${prompt.text.length > 20 ? prompt.text.substring(0, 20) + '...' : prompt.text}
+                        </span>
+                    </td>
+                    <td class="p-4 border flex gap-2 justify-center">
+                        <button onclick="updatePrompt(${prompt.id})" class="px-4 py-1 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition-all">Update</button>
+                        <button onclick="deletePrompt(${prompt.id})" class="px-4 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all">Delete</button>
+                    </td>
+                </tr>
+            `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function toggleText(element) {
+            if (element.innerText.endsWith('...')) {
+                const prompt = prompts.find(p => p.text.startsWith(element.innerText.slice(0, 20)));
+                element.innerText = prompt.text;
+            } else {
+                element.innerText = element.innerText.substring(0, 20) + '...';
+            }
+        }
+
+        fetchPrompts();
+
+        async function createNewPrompt(event) {
+            event.preventDefault();
+
+            const promptText = document.getElementById('promptableLink').value;
+            console.log(promptText)
+            const requestOptions = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: promptText }),
+                redirect: 'follow'
+            };
+
+            try {
+                const response = await fetch("{{url_for('prompt.create_prompt')}}", requestOptions);
+                const result = await response.json();
+                console.log(result);
+                if (response.status === 200) {
+                    fetchPrompts();
+                }
+
+            } catch (error) {
+                console.error('Error creating prompt:', error);
+            }
+        }
+
+
+        function updatePrompt(id) {
+            const newText = prompt('Enter updated prompt:');
+            if (newText) {
+                const myHeaders = new Headers();
+                myHeaders.append("Content-Type", "application/json");
+
+                const raw = JSON.stringify({ "prompt": newText });
+
+                const requestOptions = {
+                    method: 'PUT',
+                    headers: myHeaders,
+                    body: raw,
+                    redirect: 'follow'
+                };
+                const updatePromptBaseUrl = "{{ url_for('prompt.update_prompt', prompt_id=0).replace('0', '') }}";
+                fetch(`${updatePromptBaseUrl}${id}`, requestOptions)
+                    .then(response => response.text())
+                    .then(result => {
+                        console.log(result);
+                        const prompt = prompts.find(p => p.id === id);
+                        if (prompt) {
+                            prompt.text = newText;
+                            renderPrompts();
+                        }
+                    })
+                    .catch(error => console.log('Error updating prompt:', error));
+            }
+        }
+
+        function deletePrompt(id) {
+            const requestOptions = {
+                method: 'DELETE',
+                redirect: 'follow'
+            };
+            const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
+            fetch(`${updatePromptBaseUrl}${id}`, requestOptions)
+                .then(response => response.text())
+                .then(result => {
+                    console.log(result);
+                    const index = prompts.findIndex(p => p.id === id);
+                    if (index > -1) {
+                        prompts.splice(index, 1);
+                        renderPrompts();
+                    }
+                })
+                .catch(error => console.log('Error deleting prompt:', error));
+        }
+
+        renderPrompts();
+
+        function handleClause(id) {
+            fetch("{{ url_for('re.clause') }}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ id: id })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Network response was not ok");
+                    }
+                    return response.text(); // Expecting HTML content
+                })
+                .then(html => {
+                    // Redirect to the clause page using a GET request
+                    window.location.href = "{{ url_for('re.get_clause') }}";
+                })
+                .catch(error => {
+                    console.error("Error in clause request:", error);
+                });
+        }
+
+    </script>
+
+     <script>
+    function toggleActionMenu(btn) {
+        const dropdown = btn.nextElementSibling;
+        const isHidden = dropdown.classList.contains('hidden');
+
+        // Close all open dropdowns first
+        document.querySelectorAll('.action-menu-dropdown').forEach(d => {
+            d.classList.add('hidden');
+        });
+
+        // Open this one if it was closed
+        if (isHidden) {
+            dropdown.classList.remove('hidden');
+        }
+    }
+
+    // Close dropdown when clicking anywhere outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.action-dropdown-wrapper')) {
+            document.querySelectorAll('.action-menu-dropdown').forEach(d => {
+                d.classList.add('hidden');
+            });
+        }
+    });
+</script>
+
+    <script>
+        // Tab switching functionality with toggle feature
+        function switchTab(stepNumber) {
+            const clickedTab = document.getElementById(`step${stepNumber}-tab`);
+            const clickedContent = document.getElementById(`step${stepNumber}-content`);
+
+            // Check if the clicked tab is already active
+            const isAlreadyActive = clickedTab.classList.contains('active');
+
+            // Hide all tab contents
+            document.querySelectorAll('.step-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all tabs
+            document.querySelectorAll('.step-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // If the tab was not already active, show its content
+            if (!isAlreadyActive) {
+                clickedContent.classList.add('active');
+                clickedTab.classList.add('active');
+            }
+            // If it was already active, both content and tab will remain inactive (collapsed state)
+        }
+
+        // Check user progress and update tabs accordingly
+        async function checkUserProgress() {
+            try {
+                const response = await fetch("{{ url_for('re.check_user_progress') }}");
+                const progress = await response.json();
+
+                // Update Step 1 (Guidelines)
+                if (progress.has_guidelines) {
+                    document.getElementById('step1-tab').classList.add('completed');
+                } else {
+                    document.getElementById('step1-tab').classList.remove('completed');
+                }
+
+                // Update Step 2 (Clients)
+                if (progress.has_clients) {
+                    document.getElementById('step2-tab').classList.add('completed');
+                } else {
+                    document.getElementById('step2-tab').classList.remove('completed');
+                }
+
+                // Update Step 3 (Projects)
+                if (progress.has_projects) {
+                    document.getElementById('step3-tab').classList.add('completed');
+                } else {
+                    document.getElementById('step3-tab').classList.remove('completed');
+                }
+
+            } catch (error) {
+                console.error('Error checking user progress:', error);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            checkUserProgress();
+
+            // Initialize table pagination
+            paginateTable("guidelinesTable", 10);
+
+            // Add event listener for entries select
+            document.getElementById("entriesSelect").addEventListener("change", () => {
+                const rowsPerPage = parseInt(document.getElementById("entriesSelect").value);
+                paginateTable("guidelinesTable", rowsPerPage);
+            });
+        });
+
+
+
+
+    </script>
+    {% endblock %}

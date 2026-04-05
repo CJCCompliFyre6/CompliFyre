@@ -1,0 +1,361 @@
+{% extends "audit_base.html" %}
+{%block content%}
+<link rel="stylesheet" href="assets/css/profile.css" />
+
+<main class="main">
+      <div class="profile">
+        <h3>View Profile</h3>
+        <p>
+          <a href="#">Dashboard</a> /
+          <a href="#">Organization Profile List</a> / View Profile
+        </p>
+      </div>
+
+      <div class="container">
+        <div class="flex my-4">  
+          <div class="size-14 grow ">
+            <span >
+              <h2 class="text-2xl font-bold mb-6">Firm Name : </h2> 
+              <p class="text-xl"> Quiddich Compliance & Assurance LLP</p>
+            </span> 
+
+          </div>  
+          <div class="size-14 grow ">
+            <span >
+              <h2 class="text-2xl font-bold mb-6">Firm Registration Number  : </h2> 
+              <p class="text-xl"> QCAL-IND-2025-042</p>
+            </span> 
+
+          </div>  
+          <div class="size-14 grow ">
+            <span >
+              <h2 class="text-2xl font-bold mb-6">Number of Employee : </h2> 
+              <p class="text-xl"> 200</p>
+            </span> 
+
+          </div> 
+        </div>
+
+        <div class="max-w-8xl mx-auto my-8">
+          <h2 class="text-2xl font-bold mb-6">Branch Office Locations</h2>
+          <form action="/submit-locations" method="POST" class="space-y-6">
+          <!-- Dynamic Locations -->
+          <div id="locations-container" class="space-y-6">
+            <!-- Locations will be appended here -->
+          </div>
+
+          <div class="flex justify-between items-center">
+            <button type="button" onclick="addLocation()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Add Branch Location
+            </button>
+            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+              Submit
+            </button>
+          </div>
+        </form>
+      </div>
+
+
+      <template id="location-template">
+    <div class="location-block border p-4 bg-white rounded shadow-md space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold text-lg">Branch Office Location</h3>
+        <button type="button" onclick="removeLocation(this)" class="text-red-600 hover:underline">Remove</button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Address</label>
+          <input type="text" name="address[]" class="mt-1 w-full p-2 border rounded" placeholder="Street No 12" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Country</label>
+          <select name="country[]" class="country-select mt-1 w-full p-2 border rounded bg-white" required>
+            <option value="">Select</option>
+            <option value="USA">USA</option>
+            <option value="India">India</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">State</label>
+          <select name="state[]" class="state-select mt-1 w-full p-2 border rounded bg-white" required>
+            <option value="">Select</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">City</label>
+          <select name="city[]" class="city-select mt-1 w-full p-2 border rounded bg-white" required>
+            <option value="">Select</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </template>
+
+
+
+  <div class="max-w-8xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6">Certificates</h2>
+
+    <form action="/submit-certificates" method="POST" class="space-y-6">
+      <div id="certificates-container" class="space-y-6">
+        <!-- Certificate blocks will appear here -->
+      </div>
+
+      <div class="flex justify-between items-center">
+        <button type="button" onclick="addCertificate()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Add Certificate
+        </button>
+        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Template for certificate name -->
+  <template id="certificate-template">
+    <div class="certificate-block border p-4 bg-white rounded shadow-md space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold text-lg">Certificate</h3>
+        <button type="button" onclick="removeCertificate(this)" class="text-red-600 hover:underline">Remove</button>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Certificate Name</label>
+        <input type="text" name="certificate_name[]" class="mt-1 w-full p-2 border rounded" placeholder="e.g., AWS Certified Developer" required />
+      </div>
+    </div>
+  </template>
+
+
+  <div class="max-w-10xl mx-auto my-4">
+    <h2 class="text-2xl font-bold mb-6">Audit Focus Areas</h2>
+
+    <form action="/submit-focus-areas" method="POST" class="space-y-6">
+      <div id="focus-areas-container" class="space-y-6">
+        <!-- Focus area blocks will appear here -->
+      </div>
+
+      <div class="flex justify-between items-center">
+        <button type="button" onclick="addFocusArea()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Add Focus Area
+        </button>
+        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Template for a focus area -->
+  <template id="focus-area-template">
+    <div class="focus-area-block border p-4 bg-white rounded shadow-md space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold text-lg">Focus Area</h3>
+        <button type="button" onclick="removeFocusArea(this)" class="text-red-600 hover:underline">Remove</button>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Focus Area Name</label>
+        <input type="text" name="focus_area_name[]" class="mt-1 w-full p-2 border rounded" placeholder="e.g., Data Privacy Compliance" required />
+      </div>
+    </div>
+  </template>
+
+
+  <div class="max-w-8xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6">Organizational Hierarchy</h2>
+
+    <form action="/submit-hierarchy" method="POST" class="space-y-6">
+      <div id="hierarchy-container" class="space-y-6">
+        <!-- Position blocks go here -->
+      </div>
+
+      <div class="flex justify-between items-center">
+        <button type="button" onclick="addHierarchy()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Add Position
+        </button>
+        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Template for a hierarchy entry -->
+  <template id="hierarchy-template">
+    <div class="hierarchy-block border p-4 bg-white rounded shadow-md space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold text-lg">Position</h3>
+        <button type="button" onclick="removeHierarchy(this)" class="text-red-600 hover:underline">Remove</button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Position</label>
+          <input type="text" name="position[]" class="mt-1 w-full p-2 border rounded" placeholder="e.g., Senior Analyst" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Reports To</label>
+          <input type="text" name="reports_to[]" class="mt-1 w-full p-2 border rounded" placeholder="e.g., Department Head" />
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <div class="max-w-8xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6">Primary Contact Person</h2>
+
+    <form action="/submit-contacts" method="POST" class="space-y-6">
+      <div id="contact-container" class="space-y-6">
+        <!-- Contact blocks get added here -->
+      </div>
+
+      <div class="flex justify-between items-center">
+        <button type="button" onclick="addContact()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Add Contact
+        </button>
+        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Template for one contact block -->
+  <template id="contact-template">
+    <div class="contact-block border p-4 bg-white rounded shadow-md space-y-4 relative">
+      <button type="button" onclick="removeContact(this)" class="absolute top-2 right-2 text-red-600 hover:underline">Remove</button>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Name</label>
+          <input type="text" name="contact_name[]" class="mt-1 w-full p-2 border rounded" placeholder="Parvati Patil" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Email</label>
+          <input type="email" name="contact_email[]" class="mt-1 w-full p-2 border rounded" placeholder="Parvati.Patil@Quiddichcompliance.com" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Phone</label>
+          <input type="tel" name="contact_phone[]" class="mt-1 w-full p-2 border rounded" placeholder="+91-9876543210" required />
+        </div>
+      </div>
+    </div>
+  </template>
+
+      </div>
+    </main>
+    <script src="./assets/js/add.js"></script>
+    <script>
+      const locationData = {
+      USA: {
+        California: ['Los Angeles', 'San Francisco'],
+        Texas: ['Houston', 'Dallas'],
+      },
+      India: {
+        Maharashtra: ['Mumbai', 'Pune'],
+        Karnataka: ['Bangalore', 'Mysore'],
+      }
+    };
+
+    // Utility to populate a <select> with options
+    function populateSelect(select, options) {
+      select.innerHTML = '<option value="">Select</option>';
+      options.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt;
+        option.textContent = opt;
+        select.appendChild(option);
+      });
+    }
+
+    // Handle country/state change for a location block
+    function handleLocationChange(e) {
+      const block = e.target.closest('.location-block');
+      if (!block) return;
+      const stateSelect = block.querySelector('.state-select');
+      const citySelect = block.querySelector('.city-select');
+      const country = block.querySelector('.country-select').value;
+      const state = block.querySelector('.state-select').value;
+
+      if (e.target.classList.contains('country-select')) {
+        if (country && locationData[country]) {
+          populateSelect(stateSelect, Object.keys(locationData[country]));
+          populateSelect(citySelect, []);
+        } else {
+          populateSelect(stateSelect, []);
+          populateSelect(citySelect, []);
+        }
+      }
+      if (e.target.classList.contains('state-select')) {
+        if (country && state && locationData[country][state]) {
+          populateSelect(citySelect, locationData[country][state]);
+        } else {
+          populateSelect(citySelect, []);
+        }
+      }
+    }
+
+    document.addEventListener('change', function (e) {
+      if (e.target.classList.contains('country-select') || e.target.classList.contains('state-select')) {
+        handleLocationChange(e);
+      }
+    });
+
+    function addLocation() {
+      const template = document.getElementById('location-template');
+      const clone = template.content.cloneNode(true);
+      document.getElementById('locations-container').appendChild(clone);
+    }
+
+    function removeLocation(button) {
+      button.closest('.location-block').remove();
+    }
+
+    function addCertificate() {
+      const template = document.getElementById('certificate-template');
+      const clone = template.content.cloneNode(true);
+      document.getElementById('certificates-container').appendChild(clone);
+    }
+
+    function removeCertificate(button) {
+      button.closest('.certificate-block').remove();
+    }
+
+    function addFocusArea() {
+      const template = document.getElementById('focus-area-template');
+      const clone = template.content.cloneNode(true);
+      document.getElementById('focus-areas-container').appendChild(clone);
+    }
+
+    function removeFocusArea(button) {
+      button.closest('.focus-area-block').remove();
+    }
+
+    function addHierarchy() {
+      const template = document.getElementById('hierarchy-template');
+      const clone = template.content.cloneNode(true);
+      document.getElementById('hierarchy-container').appendChild(clone);
+    }
+
+    function removeHierarchy(button) {
+      button.closest('.hierarchy-block').remove();
+    }
+
+    function addContact() {
+      const template = document.getElementById('contact-template');
+      const clone = template.content.cloneNode(true);
+      document.getElementById('contact-container').appendChild(clone);
+    }
+
+    function removeContact(button) {
+      button.closest('.contact-block').remove();
+    }
+    </script>
+{%endblock%}

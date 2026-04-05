@@ -1,0 +1,173 @@
+{% extends "audit_base.html" %} {% block content %}
+
+    <!-- Include Toast UI Editor CSS and JS -->
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for the tag input, as seen in the original file */
+        .newIndustry {
+            display: flex;
+            flex-wrap: wrap;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            width: 300px;
+            min-height: 40px;
+        }
+        .tag {
+            display: flex;
+            align-items: center;
+            background-color: #e0e0e0;
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 20px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .tag span {
+            margin-left: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            color: red;
+        }
+        .tag-input {
+            border: none;
+            outline: none;
+            flex-grow: 1;
+            padding: 5px;
+            font-size: 14px;
+            min-width: 100px;
+        }
+        .quill-container {
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            height: 200px;
+            background-color: white;
+            padding: 0.5rem;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            padding: 24px;
+            border-radius: 1rem;
+            max-width: 600px;
+            width: 90%;
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+    </style>
+
+
+    <div class="w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center min-h-[105vh]">
+        <div class="flex flex-col items-center py-10 px-4 flex-grow">
+            <div class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative">
+                
+                    <form action="{{url_for('main.create_prompt')}}" method="POST" id="ai-prompt-form" class="form-step flex flex-col items-center">
+                        <h2 class="text-2xl font-semibold mb-6 text-orange-800">AI Prompt Information</h2>
+                        <div class="space-y-4 max-w-xl">
+                            
+                            <div>
+                            <label class="block mb-1 font-medium text-gray-700" for="prompt_type">
+                                Prompt Type
+                            </label>
+                            <select id="prompt_type" name="prompt_type"
+                                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" required>
+                                    <option>--SELECT PROMPT TYPE--</option>
+                                {% for i in prompt_types %}
+                                <option value="{{ i.value }}">{{ i.value }}</option>
+                                {% endfor %}
+                            </select>
+                            </div>
+
+                            <div>
+                                <label class="block mb-1 font-medium text-gray-700" for="prompt_text">Prompt Text</label>
+                                <div id="editor"></div>
+                                <input type="hidden" id="prompt_text" name="prompt_text">
+                            </div>
+
+                         
+
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="is_active" name="is_active" class="h-4 w-4 text-orange-600 border-gray-300 rounded" checked />
+                                <label class="font-medium text-gray-700" for="is_active">Is Active</label>
+                            </div>
+
+                            
+
+                        </div>
+                        <div class="mt-6 flex justify-between">
+                            <button type="submit" class="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Submit</button>
+                        </div>
+                    </form>
+
+
+                    
+            </div>
+        </div>
+    </div>
+    
+    <!-- The Modal -->
+    <div id="full-text-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 class="text-xl font-semibold mb-4 text-orange-800">Full Prompt Text</h3>
+            <p id="modal-text-content" class="text-gray-700 whitespace-pre-wrap"></p>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Toast UI Editor
+        const editor = new toastui.Editor({
+            el: document.querySelector('#editor'),
+            height: '200px',
+            initialEditType: 'wysiwyg',
+            previewStyle: 'vertical',
+            initialValue: 'Write your prompt text here...'
+        });
+
+    document.querySelector("#ai-prompt-form").addEventListener("submit", function () {
+    document.querySelector("#prompt_text").value = editor.getMarkdown();
+  });
+
+        
+    </script>
+{%endblock%}

@@ -1,0 +1,3296 @@
+{% extends "audit_base.html" %} {% block content %}
+<link rel="stylesheet" href="{{url_for('re.static',filename='css/view.css')}}" />
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
+<style>
+  /* Optional: Custom scrollbar for better aesthetics if content overflows */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  /* Style for the div elements that will become Quill editors */
+  .quill-editor-container {
+    @apply mt-1 block w-full rounded-md shadow-sm border border-gray-300;
+  }
+
+  .quill-editor {
+    /* Quill's own styling for the editor area */
+    min-height: 120px;
+    /* Adjust height as needed */
+  }
+
+  /* Edit button style */
+  .edit-btn {
+    @apply px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm;
+  }
+
+  /* Hidden class */
+  .hidden-form {
+    display: none;
+  }
+
+  /* --- Main Activity Slider Styles --- */
+  .slider-container {
+    display: flex;
+    overflow-x: scroll;
+    /* Enable horizontal scrolling */
+    scroll-snap-type: x mandatory;
+    /* Snap to child elements */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scrolling on iOS */
+    scroll-behavior: smooth;
+    /* Smooth scroll on button click */
+    scrollbar-width: none;
+    /* Hide scrollbar for Firefox */
+    -ms-overflow-style: none;
+    /* Hide scrollbar for IE/Edge */
+    margin-bottom: 2rem;
+    /* Add some space below the slider */
+    margin-right: 10rem;
+    margin-left: 10rem
+  }
+
+  /* Hide scrollbar for Webkit browsers (Chrome, Safari) */
+  .slider-container::-webkit-scrollbar {
+    display: none;
+  }
+
+  .slider-item {
+    flex: 0 0 100%;
+    /* Each item takes full width of the container */
+    scroll-snap-align: start;
+    /* Snap to the start of each item */
+    width: 100%;
+    /* Ensure it takes full width for snapping */
+    max-width: 100%;
+    /* Override max-width from original element if present */
+    box-sizing: border-box;
+    /* Include padding in element's total width */
+    padding: 0 1rem;
+    /* Add horizontal padding between slides, adjust as needed */
+  }
+
+  /* Adjust padding for the first and last items if needed to align nicely */
+  .slider-item:first-child {
+    padding-left: 2rem;
+    /* Adjust as needed */
+  }
+
+  .slider-item:last-child {
+    padding-right: 2rem;
+    /* Adjust as needed */
+  }
+
+  /* --- Question Carousel Styles --- */
+  .questions-carousel-container {
+    overflow: hidden;
+    /* Hide overflow to show only one question at a time */
+    position: relative;
+    /* For absolute positioning of navigation */
+    width: 100%;
+    /* Ensure it takes full width available */
+    /* New: Highlight background color and padding */
+    @apply bg-blue-50 p-4 rounded-lg shadow-md;
+    /* A light blue that fits the theme */
+
+  }
+
+  .questions-carousel-track {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+    /* Smooth transition for sliding */
+  }
+
+  .question-carousel-item {
+    flex-shrink: 0;
+    /* Prevent items from shrinking */
+    width: 100%;
+    /* Each item takes the full width of the container */
+    box-sizing: border-box;
+    /* Include padding in the item's width */
+    padding: 1rem;
+    /* Padding inside each question slide */
+    /* Optional: Add a subtle background to each question item if desired */
+    @apply bg-white rounded-lg shadow-sm;
+  }
+
+  /* Navigation buttons for the question carousel */
+  .question-nav-btn {
+    @apply bg-gray-800 text-white p-2 rounded-full shadow hover:bg-gray-500 focus:outline-none;
+    /* New: Bigger size and transparency */
+    width: 40px;
+    /* Make the button wider */
+    height: 40px;
+    /* Make the button taller */
+    font-size: 3rem;
+    /* Make the arrow character bigger */
+    display: flex;
+    /* Use flexbox to center the arrow */
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    /* Make it transparent */
+    transition: opacity 0.3s ease;
+    /* Smooth transition for hover effect */
+  }
+
+  .question-nav-btn:hover {
+
+    opacity: 1;
+    /* Fully opaque on hover */
+  }
+
+  .question-nav-btn:disabled {
+    @apply opacity-30 cursor-not-allowed;
+    /* Slightly less opaque when disabled */
+  }
+
+  /* Ensure the absolute positioning of navigation buttons for the question carousel */
+  .questions-carousel-container>.absolute {
+    position: absolute;
+    /* Re-apply absolute if overwritten by @apply */
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 0.5rem;
+    /* Add some horizontal padding */
+    z-index: 20;
+    pointer-events: none;
+    /* Allows clicks to pass through to elements behind unless on a button */
+  }
+
+  .questions-carousel-container>.absolute>.question-nav-btn {
+    pointer-events: auto;
+    /* Re-enable pointer events for the buttons themselves */
+  }
+
+  .flash-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .original-content {
+    border-left: 4px solid #3b82f6;
+    /* blue-500 */
+  }
+
+  .additional-content {
+    border-left: 4px solid #10b981;
+    /* green-500 */
+  }
+
+  .original-reference {
+    background-color: #f9fafb;
+    /* gray-50 */
+    border: 1px solid #e5e7eb;
+    /* gray-200 */
+  }
+
+  .custom-notification {
+    min-width: 300px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    z-index: 9999 !important;
+  }
+
+  /* Ensure file upload area is properly styled */
+  .border-dashed:hover {
+    border-color: #3b82f6;
+  }
+
+  /* Loading states */
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+
+<style>
+  .back-button {
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .back-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .back-button:active {
+    transform: translateY(0);
+  }
+</style>
+<div class="relative">
+
+
+  {#<div id="activitySlider" class="slider-container mx-8">
+    <div class="flash-container space-y-2 mx-[10rem] my-[10rem]">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      {% if category == 'success' %}
+      <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-md relative"
+        role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-green-700 hover:text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-green-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Success!</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% elif category == 'error' or category == 'danger' %}
+      <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md relative" role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-red-700 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-red-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Error!</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% elif category == 'warning' %}
+      <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-md relative"
+        role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-yellow-700 hover:text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-yellow-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Warning:</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% else %}
+      <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-md relative" role="alert">
+        <button onclick="closeAlert(this)"
+          class="absolute top-2 right-2 text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-blue-200 transition-colors duration-200"
+          aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <p class="font-bold pr-8">Info:</p>
+        <p class="pr-8">{{ message }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+    </div>#}
+
+
+    {% for item in how_to_perform_activities%} {# Capture the current item's
+    loop index for use in nested IDs #} {% set item_loop_idx = loop.index0 %}
+    <div class="slider-item max-w-3xl mx-auto bg-white rounded-lg shadow-xl p-8 mb-8">
+      <!-- Back Button and Title Section -->
+      <div class="flex items-center justify-between mb-8">
+        <!-- Back Button -->
+        {% if clause_id %}
+        <button onclick="goBackToClauseTestSteps()"
+          class="flex items-center px-4 py-2 mt-4 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Clause Details
+        </button>
+        {% else %}
+        <button onclick="window.history.back()"
+          class="flex items-center px-4 py-2 mt-4 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back
+        </button>
+        {% endif %}
+
+        <!-- Title -->
+        <h1 class="text-3xl font-extrabold text-gray-900 text-center flex-1 mt-4">
+          Activity Details
+        </h1>
+
+        <!-- Spacer for alignment -->
+        <div class="w-32 mt-4"></div>
+      </div>
+      <!--<div class="flex">
+          <form action="{{url_for('audit.reevaluate_activity')}}" enctype="multipart/form-data" method="POST">
+            <input name="activity_code" value="{{item.data.activity_id}}" hidden/>
+            <textarea name="user_input" placeholder="Additional user input"></textarea>
+            <button
+              type="submit"
+              class="px-2 py-1 bg-orange-600 text-white rounded hover:bg-orange-700"
+            >
+              Evaluate
+            </button>
+          </form>
+        </div>-->
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-blue-50 p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-semibold text-blue-800 mb-3">
+            Core Activity Information
+          </h2>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Activity Code:</strong>
+            {{ item.data.activity_code }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Activity Name:</strong>
+            {{ item.data.activity_name }}
+          </p>
+          <p class="text-gray-700">
+            <strong class="font-medium text-gray-900">Owner:</strong> {{
+            item.data.owner }}
+          </p>
+        </div>
+        <div class="bg-purple-50 p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-semibold text-purple-800 mb-3">
+            Key Attributes
+          </h2>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Control Type:</strong>
+            {{ item.data.control_type }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Frequency:</strong> {{
+            item.data.frequency }}
+          </p>
+          <!-- <p class="text-gray-700">
+            <strong class="font-medium text-gray-900">Severity:</strong>
+            <span
+              class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-red-200 text-red-800' if item.data.severity == 'High' else 'bg-yellow-200 text-yellow-800' if item.data.severity == 'Medium' else 'bg-green-200 text-green-800' }}">{{
+              item.data.severity }}</span>
+          </p> -->
+        </div>
+      </div>
+
+      <div class="mb-8 p-6 bg-green-50 rounded-lg shadow-md">
+        <h2 class="text-2xl font-semibold text-green-800 mb-3">
+          Description & Objective
+        </h2>
+        <p class="text-gray-700 mb-4">
+          <strong class="font-medium text-gray-900">Description:</strong> {{
+          item.data.activity_description }}
+        </p>
+        <p class="text-gray-700">
+          <strong class="font-medium text-gray-900">Objective:</strong> {{
+          item.data.objective }}
+        </p>
+      </div>
+
+      <div class="bg-yellow-50 p-6 rounded-lg shadow-md mb-8">
+        <h2 class="text-2xl font-semibold text-yellow-800 mb-4">
+          Test Procedure
+        </h2>
+        <div>
+          {%if item.data.explain_test_procedure%}
+          {{item.data.explain_test_procedure | markdown}}
+          {%endif%}
+        </div>
+
+        <div class="bg-red-50 p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-semibold text-red-800 mb-3">
+            Evidences & Impact
+          </h2>
+          <div class="border-b border-gray-200 p-4">
+            <h3 class="text-xl font-semibold mb-2">Evidence Required</h3>
+            <ol class="list-decimal list-inside space-y-1">
+              {% for key, values in item.data.evidences_artifacts_needed.items() %}
+              {% for value in values %}
+              <li class="text-gray-700">{{ value.item }}</li>
+              {% endfor %}
+              {% endfor %}
+            </ol>
+          </div>
+
+          <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+              <button onclick="openTab(event, 'evidences-{{ item_loop_idx }}')"
+                class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-large text-xl border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                Evidences
+              </button>
+              <button onclick="openTab(event, 'interviews-{{ item_loop_idx }}')"
+                class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-large text-xl border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                Interviews
+              </button>
+            </nav>
+          </div>
+
+          <div id="evidences-{{ item_loop_idx }}" class="tab-content mt-4">
+            <div class="mb-4">
+              <strong class="font-medium text-gray-900">Evidences/Artifacts Needed:</strong>
+              <div class="flex border-b border-gray-300">
+                {% if item.data.evidences_artifacts_needed %} {% for key, values
+                in item.data.evidences_artifacts_needed.items() %}
+                <button
+                  class="w-1/{{ item.data.evidences_artifacts_needed.items()|length }} py-4 text-center font-medium text-gray-700 bg-gray-100 rounded-tl-lg focus:outline-none {% if loop.first %}bg-gray-200{% endif %}"
+                  onclick="openTab2(event, 'artifact-{{key}}')" id="btn-artifact-{{key}}">{{ key.replace('_', '
+                  ').title() }}</button>
+                {%endfor%}
+                <button
+                  class="w-1/{{ item.data.evidences_artifacts_needed.items()|length +1  }} py-4 text-center font-medium text-gray-700 bg-gray-100 rounded-tl-lg focus:outline-none "
+                  onclick="openTab2(event, 'artifact-other')" id="btn-artifact-other">Other Evidence</button>
+                {%endif%}
+              </div>
+              {% if item.data.evidences_artifacts_needed %} {% for key, values
+              in item.data.evidences_artifacts_needed.items() %}
+
+              <div id="artifact-{{key}}"
+                class="tab_cont_artif mb-4 mt-2 p-4 border border-red-200 rounded-lg bg-red-100 {% if not loop.first %}hidden{% endif %}">
+                <h3 class="text-lg font-medium text-red-700 mb-2">
+                  {{ key.replace('_', ' ').title() }}:
+                </h3>
+                {% set sanitized_key = key | replace(' ', '_') | lower %} {%
+                for value in values %}
+                <div class="mb-4 p-4 bg-white rounded-lg">
+                  <div class="flex justify-between items-start mb-2">
+                    <p class="text-gray-700">
+                      <strong class="font-medium text-gray-800">Item:</strong>
+                      {{ value.item }}
+                    </p>
+                    <div class="flex items-center space-x-2">
+                      <form id="evidence_delete_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        enctype="multipart/form-data" method="POST" action="{{url_for('audit.delete_evidence')}}">
+                        <input type="hidden" name="evidence_id" value="{{ value.id }}" />
+                        <button class="edit-btn">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="#f10202ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                              d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z">
+                            </path>
+                            <path d="m12 9 6 6"></path>
+                            <path d="m18 9-6 6"></path>
+                          </svg>
+                        </button>
+                      </form>
+                      {% if value.evidence_ans or value.files %}
+                      <button
+                        onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                        class="edit-btn">
+                        Edit
+                      </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% if value.evidence_ans or value.files %}
+                  <div id="evidence_display_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">
+                    {% if value.evidence_ans %}
+                    <p class="mb-2">
+                      <strong class="font-medium text-gray-800">Evidence:</strong>
+                      {{ value.evidence_ans | safe }}
+                    </p>
+                    {% endif %}
+
+                    {% if value.files %}
+                    {# Extract just the filename from the stored path #}
+                    {% set stored_path = value.files %}
+
+                    {# Extract filename - FIXED VERSION #}
+                    {% set filename = stored_path %}
+                    {# If it has path separators, get the last part #}
+                    {% if '\\' in stored_path %}
+                    {% set path_parts = stored_path.split('\\') %}
+                    {% set filename = path_parts[-1] %}
+                    {% elif '/' in stored_path %}
+                    {% set path_parts = stored_path.split('/') %}
+                    {% set filename = path_parts[-1] %}
+                    {% endif %}
+
+                    {# Create the URL - DON'T add evidences/ prefix #}
+                    {% set public_file_url = url_for('re.uploaded_file', filename=filename, _external=True) %}
+                    {% set file_extension = filename.split('.')[-1].lower() if '.' in filename else '' %}
+
+                    {# Debug info (optional) #}
+
+
+                    <div class="file-preview-container mt-4 p-4 bg-gray-50 rounded-lg">
+                      {% if file_extension in ['pdf', 'png', 'jpg', 'jpeg', 'gif'] %}
+                      <p class="text-green-600 font-medium mb-2">
+                        <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Document preview available.
+                      </p>
+                      <div class="my-4">
+                        {% if file_extension == 'pdf' %}
+                        <iframe src="{{ public_file_url }}#toolbar=0" width="100%" height="600px"
+                          class="border border-gray-300 rounded"></iframe>
+                        {% else %}
+                        <img src="{{ public_file_url }}" alt="Evidence Image"
+                          class="max-w-full h-auto rounded-lg shadow-md"
+                          onerror="this.onerror=null; this.src='#'; this.alt='Image failed to load';">
+                        {% endif %}
+                      </div>
+                      {% elif file_extension in ['docx', 'doc'] %}
+                      <p class="text-blue-600 font-medium mb-2">
+                        <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Word Document - View with Google Docs:
+                      </p>
+                      <div class="flex space-x-4 mb-3">
+                        <a href="https://docs.google.com/gview?url={{ public_file_url|urlencode }}&embedded=true"
+                          target="_blank"
+                          class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          Open in Google Docs
+                        </a>
+                      </div>
+                      <iframe src="https://docs.google.com/gview?url={{ public_file_url|urlencode }}&embedded=true"
+                        width="100%" height="600px" class="border border-gray-300 rounded" style="border: none;">
+                      </iframe>
+                      {% else %}
+                      <p class="text-orange-600 font-medium mb-2">
+                        <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        File type ({{ file_extension | upper }}) preview may not be available.
+                      </p>
+                      {% endif %}
+
+                      <!-- Download button -->
+                      <div class="mt-4 pt-4 border-t border-gray-200">
+                        <a href="{{ public_file_url }}" target="_blank" download="{{ filename }}"
+                          class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900">
+                          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download {{ filename }}
+                        </a>
+                      </div>
+                    </div>
+                    {% endif %} <!-- This closes the {% if value.files %} -->
+                  </div>
+                  {% endif %}
+
+
+                </div>
+
+                {% endif %}
+                <a href="{{ public_file_url }}" target="_blank" class="text-blue-500 underline">
+                  <button type="button" class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">
+                    Open in new tab
+                  </button>
+                </a>
+
+
+
+                <form id="evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                  enctype="multipart/form-data" method="POST" action="{{url_for('re.evidences')}}"
+                  class="{% if value.evidence_ans or value.files %}hidden-form{% endif %}">
+                  <input type="hidden" name="evidence_clause_description"
+                    value="{{ item.data.activity_description  }}" />
+                  <input type="hidden" name="evidence_id" value="{{ value.id }}" />
+                  <input type="hidden" name="evidence_item" value="{{ value.item }}" />
+                  <label class="block text-gray-700 text-sm font-bold mb-1">
+                    Your Observation:
+                  </label>
+                  <div id="evidence_editor_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                    class="quill-editor-container quill-editor"></div>
+                  <textarea name="evidence_content" class="hidden" autocomplete="on" autofocus
+                    id="evidence_hidden_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">{% if value.evidence_ans %}{{ value.evidence_ans | safe }}{% endif %}</textarea>
+
+                  <div class="mt-2 flex items-center">
+                    <label for="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                      class="block text-gray-700 text-sm font-bold mr-2">
+                      Upload Document (PDF/Image/Excel):
+                    </label>
+                    <input type="file" id="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                      name="evidence_file"
+                      class="block w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                      onchange="handleFileUpload(this, 'evidence_uploaded_path_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')" />
+                    <input type="hidden"
+                      id="evidence_uploaded_path_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                      name="evidence_uploaded_path" value="{{ value.files if value.files else '' }}" />
+                    <span id="evidence_file_status_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                      class="ml-2 text-sm text-gray-600">
+                      {% if value.files %}File uploaded: {{ value.files }}
+                      {%endif %}
+                    </span>
+                  </div>
+
+                  <div class="mt-2 flex justify-end space-x-2">
+                    <button type="button"
+                      onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                      class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">
+                      Cancel
+                    </button>
+                    <button type="submit" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                      Submit
+                    </button>
+                  </div>
+                </form>
+              </div>
+              {% endfor %}
+            </div>
+            {% endfor %}
+            <div id="artifact-other"
+              class="tab_cont_artif mb-4 mt-2 p-4 border border-red-200 rounded-lg bg-red-100 hidden">
+              <h3 class="text-lg font-medium text-red-700 mb-2">
+                Other Evidences/Artifacts:
+              </h3>
+              <div class="mb-4 p-4 bg-white rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                  <form enctype="multipart/form-data" method="POST" action="{{url_for('audit.new_evidances')}}"
+                    class="max-w-md mx-auto bg-white shadow-md rounded-lg p-6 space-y-4">
+                    <h2 class="text-xl font-bold mb-4 text-gray-700">Submit New Evidence Artifact</h2>
+                    <input type="hidden" name="control_id" value="{{ item.data.activity_id }}">
+                    <div>
+                      <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                      <input type="text" name="category" id="category_22" required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                      <label for="item" class="block text-sm font-medium text-gray-700">Item</label>
+                      <input type="text" name="item" id="item_22" required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                      <button type="submit"
+                        class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none">
+                        Submit Evidence
+                      </button>
+                    </div>
+                  </form>
+
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <p class="text-gray-700">
+              No specific evidences/artifacts listed.
+            </p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div id="interviews-{{ item_loop_idx }}" class="tab-content mt-4" style="display: none;">
+          <div class="mb-4">
+            <h3 class="text-lg font-medium text-yellow-700 mb-2">
+              Interviews:
+            </h3>
+            <p class="text-lg mb-1">
+              <strong class="font-medium text-gray-800">Roles:</strong> {{
+              item.data.test_procedure.interviews.roles | join(', ') }}
+            </p>
+            <h3 class="text-base font-medium text-yellow-700 mb-2">
+              Key Questions:
+            </h3>
+
+            <div class="questions-carousel-container" data-item-loop-idx="{{ item_loop_idx }}">
+              <div class="absolute left-0 top-1/2 -translate-y-1/2 flex justify-between w-full px-2 z-20">
+                <button class="question-nav-btn question-prev-btn" data-carousel-idx="{{ item_loop_idx }}">
+                  &#8249;
+                </button>
+                <button class="question-nav-btn question-next-btn" data-carousel-idx="{{ item_loop_idx }}">
+                  &#8250;
+                </button>
+              </div>
+
+              <div class="questions-carousel-track my-4">
+                {% for i in
+                range(item.data.test_procedure.interviews.key_questions |
+                length) %} {% set q =
+                item.data.test_procedure.interviews.key_questions[i] %}
+                <div class="question-carousel-item bg-red-200 rounded-lg shadow-md">
+                  <div class="flex justify-between p-6 items-start mb-2">
+                    <label class="block text-gray-700 text-xl font-bold mb-1">
+                      Question {{ i + 1 }}:
+                    </label>
+                    <div class="flex items-center space-x-2">
+                      <form id="question_delete_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        enctype="multipart/form-data" method="POST" action="{{url_for('audit.delete_question')}}">
+                        <input type="hidden" name="question_id" value="{{ q.id }}" />
+                        <button class="del-btn">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="#f10202ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                              d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z">
+                            </path>
+                            <path d="m12 9 6 6"></path>
+                            <path d="m18 9-6 6"></path>
+                          </svg>
+                        </button>
+                      </form>
+                      {% if q.answer | safe %}
+                      <button onclick="toggleEditForm('interview_form_{{ item_loop_idx }}_{{ loop.index0 }}')"
+                        class="edit-btn p-2 bg-red-300 hover:bg-red-500">
+                        Edit
+                      </button>
+                      {% endif %}
+                    </div>
+
+                  </div>
+                  <div class="bg-red-50 rounded-lg shadow-md p-4">
+                    <span class="flex px-[3rem]">
+                      <p class="text-xl pr-1"><strong>Question : </strong></p>
+                      <p class="text-xl  mb-[2rem]">{{ q.question }}</p>
+                    </span>
+
+                    <div id="interview_display_{{ item_loop_idx }}_{{ loop.index0 }}" class="{% if q.answer | safe == "
+                      None" %}hidden{% endif %}">
+                      <p class="text-lg px-[3rem]">
+                        <strong>Answer:</strong> {{ q.answer | safe }}
+                      </p>
+                    </div>
+
+                    <form id="interview_form_{{ item_loop_idx }}_{{ loop.index0 }}" method="POST"
+                      action="{{ url_for('audit.submit_interview_answer') }}" class="{% if q.answer | safe != " None"
+                      %}hidden-form{% endif %}">
+                      <input type="hidden" name="question_id" value="{{ q.id }}" />
+
+                      <div id="interview_editor_{{ item_loop_idx }}_{{ loop.index0 }}"
+                        class="quill-editor-container quill-editor"></div>
+
+                      <textarea name="answer" class="hidden" autocomplete="on" autofocus
+                        id="interview_hidden_{{ item_loop_idx }}_{{ loop.index0 }}">{% if  q.answer | safe != "None" %}{{ q.answer|safe }}{% endif %} </textarea>
+
+                      <div class="mt-2 flex justify-end space-x-2">
+                        <button type="button"
+                          onclick="toggleEditForm('interview_form_{{ item_loop_idx }}_{{ loop.index0 }}')"
+                          class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">
+                          Cancel
+                        </button>
+                        <button type="submit" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                          Submit
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endfor %}
+                <div class="question-carousel-item" id="add_question_slide_{{ item_loop_idx }}">
+                  <div id="add_question_button_container_{{ item_loop_idx }}"
+                    class="flex items-center justify-center h-full p-6">
+                    <button type="button" onclick="showAddQuestionForm('{{ item_loop_idx }}')"
+                      class="bg-blue-500 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-blue-600">
+                      + Add New Question
+                    </button>
+                  </div>
+                  <div id="add_question_form_container_{{ item_loop_idx }}"
+                    class="hidden p-6 bg-white rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-4">Add a New Question</h3>
+                    <form method="POST" action="{{ url_for('audit.add_interview_question') }}">
+                      <input type="hidden" name="activity_id" value="{{ item.data.activity_id }}">
+                      <div class="mb-4">
+                        <label for="new_question_{{ item_loop_idx }}"
+                          class="block text-gray-700 text-sm font-bold mb-2">Question:</label>
+                        <textarea id="new_question_{{ item_loop_idx }}" name="question" rows="4" autocomplete="on"
+                          autofocus
+                          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"></textarea>
+                      </div>
+                      <div class="flex justify-end space-x-2">
+                        <button type="button" onclick="hideAddQuestionForm('{{ item_loop_idx }}')"
+                          class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">Cancel</button>
+                        <button type="submit"
+                          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                          Save Question
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <form id="mom_upload_{{ item_loop_idx }}" method="POST"
+                action="{{url_for('audit.answer_question_from_mom')}}" enctype="multipart/form-data">
+                <label for="minute_of_meeting_{{ item_loop_idx }}"
+                  class="block text-gray-700 text-sm font-bold mr-2">Upload Minute of The Meetings:
+                </label>
+                {% for i in
+                range(item.data.test_procedure.interviews.key_questions |
+                length) %} {% set q =
+                item.data.test_procedure.interviews.key_questions[i] %}
+                <input type="hidden" name="question_id_{{ loop.index0 }}" value="{{ q.id }}" />
+                {% endfor %}
+                <input type="file" id="minute_of_meeting_{{ item_loop_idx }}" name="minute_of_meeting"
+                  class="block w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                  onchange="handleFileUpload(this, 'mom_uploaded_path_{{ item_loop_idx }}')" accept=".pdf, .docx" />
+                <input type="hidden" id="mom_uploaded_path_{{ item_loop_idx }}" name="mom_uploaded_path" value="" />
+                <div class="mt-2 flex justify-end space-x-2">
+                  <button type="submit" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    Submit
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Enhanced Walkthrough Section -->
+      <div class="mb-6 bg-white rounded-lg shadow-md border border-gray-200" style="margin-top: 45px;">
+        <div class="bg-blue-50 px-6 py-4 border-b border-blue-100">
+          <div class="flex justify-between items-center">
+            <h3 class="text-2xl font-semibold text-blue-800">Walkthrough</h3>
+             <div class="flex space-x-2">
+            <!-- Delete Main Walkthrough -->
+                <button type="button"
+                    class="delete-main-btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                    data-target="walkthrough" data-item-id="{{ item_loop_idx }}" data-field="walkthrough"
+                    data-activity-id="{{ item.data.activity_id }}">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Main
+                </button>
+                <!-- Delete Additional Walkthrough -->
+                {% if item.data.test_procedure.additional_walkthrough %}
+                <button type="button"
+                    class="delete-additional-btn bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                    data-target="walkthrough" data-item-id="{{ item_loop_idx }}" data-field="additional_walkthrough"
+                    data-activity-id="{{ item.data.activity_id }}">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Additional
+                </button>
+                {% endif %}
+            <button type="button"
+              class="edit-btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+              data-target="walkthrough" data-item-id="{{ item_loop_idx }}" data-field="additional_walkthrough"
+              data-activity-id="{{ item.data.activity_id }}">
+              <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Content
+            </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content Display -->
+        <div id="walkthrough_view_{{ item_loop_idx }}" class="p-6">
+          <div class="prose max-w-none">
+            <div class="content-container bg-gray-50 rounded-lg p-6 border-l-4 border-blue-500">
+              <!-- Combined Instructions and Additional Information -->
+              {% if item.data.test_procedure.Walkthrough or item.data.test_procedure.additional_walkthrough %}
+              <div class="space-y-4">
+                {% if item.data.test_procedure.Walkthrough %}
+                <div class="instruction-section">
+                  <h4 class="font-semibold text-gray-800 mb-3 text-lg flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Instructions
+                  </h4>
+                  <div class="bg-white rounded-md p-4 border">
+                    {{ item.data.test_procedure.Walkthrough | safe }}
+                  </div>
+                </div>
+                {% endif %}
+
+                {% if item.data.test_procedure.additional_walkthrough %}
+                <div class="additional-section">
+                  <h4 class="font-semibold text-gray-800 mb-3 text-lg flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Inputs Based On Walkthrough
+                  </h4>
+                  <div class="bg-green-50 rounded-md p-4 border border-green-200">
+                    {{ item.data.test_procedure.additional_walkthrough | safe }}
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p class="mt-2">No walkthrough content available. Click "Edit Content" to add information.</p>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- File Attachments -->
+          <!-- File Attachments Display -->
+          <div class="file-attachments mt-6">
+            <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+              <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Attached Files
+            </h4>
+            <div id="walkthrough_files_display_{{ item_loop_idx }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% if item.data.test_procedure.walkthrough_files %}
+              {% for file in item.data.test_procedure.walkthrough_files %}
+              <div
+                class="file-item flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-150">
+                <div class="flex items-center min-w-0">
+                  <svg class="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ file.filename }}</p>
+                    <p class="text-xs text-gray-500">{{ (file.file_size / 1024 / 1024) | round(2) }} MB</p>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-2 ml-3">
+                  <a href="{{ url_for('re.download_test_procedure_file', file_id=file.id) }}"
+                    class="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors duration-150"
+                    title="Download">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </a>
+                  <button type="button"
+                    class="delete-file-btn text-red-600 hover:text-red-800 p-1 rounded transition-colors duration-150"
+                    data-file-id="{{ file.id }}" data-target="walkthrough" data-item-id="{{ item_loop_idx }}"
+                    title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              {% endfor %}
+              {% else %}
+              <div class="no-files text-gray-500 italic text-center py-4 col-span-2">
+                No files attached
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Form -->
+        <div id="walkthrough_edit_{{ item_loop_idx }}" class="hidden p-6 border-t border-gray-200 bg-gray-50">
+          <div class="space-y-6">
+            <!-- Original Instructions Reference -->
+            {% if item.data.test_procedure.Walkthrough %}
+            <div class="bg-white rounded-lg border border-blue-200 p-4">
+              <h4 class="font-semibold text-blue-700 mb-3 flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Original Instructions (Reference)
+              </h4>
+              <div class="text-sm text-gray-600 bg-blue-50 rounded p-3">
+                {{ item.data.test_procedure.Walkthrough | safe }}
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Editor Section -->
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+              <label class="block text-sm font-semibold text-gray-700 mb-3">
+                Inputs Based On Walkthrough
+              </label>
+              <div id="walkthrough_editor_{{ item_loop_idx }}" class="quill-editor-container quill-editor"></div>
+              <textarea id="walkthrough_hidden_{{ item_loop_idx }}" name="additional_walkthrough" class="hidden">
+          {{ item.data.test_procedure.additional_walkthrough or '' }}
+        </textarea>
+              <p class="text-xs text-gray-500 mt-2">Add additional notes, observations, or supplementary information
+                here.</p>
+            </div>
+
+            <!-- File Upload Section -->
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+              <label class="block text-sm font-semibold text-gray-700 mb-3">
+                Upload Supporting Files
+              </label>
+              <div
+                class="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors duration-200">
+                <input type="file" id="walkthrough_files_{{ item_loop_idx }}" name="walkthrough_files" multiple
+                  class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt">
+                <div class="text-center">
+                  <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path
+                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <div class="flex text-sm text-gray-600 justify-center mt-2">
+                    <label for="walkthrough_files_{{ item_loop_idx }}"
+                      class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 px-3 py-1 border border-blue-600 rounded-md">
+                      <span>Choose files</span>
+                    </label>
+                    <p class="pl-3 self-center">or drag and drop</p>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">PDF, DOC, XLS, JPG, PNG up to 10MB each</p>
+                </div>
+              </div>
+
+              <!-- Selected Files Preview -->
+              <div id="walkthrough_files_preview_{{ item_loop_idx }}" class="mt-4 space-y-2"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-between items-center pt-4 border-t border-gray-200">
+              <div class="flex space-x-3">
+                <button type="button"
+                  class="save-btn bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                  data-target="walkthrough" data-item-id="{{ item_loop_idx }}" data-field="additional_walkthrough"
+                  data-activity-id="{{ item.data.activity_id }}">
+                  <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Save Changes
+                </button>
+                <button type="button"
+                  class="cancel-btn bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200"
+                  data-target="walkthrough" data-item-id="{{ item_loop_idx }}">
+                  Cancel
+                </button>
+              </div>
+
+              <button type="button"
+                class="upload-files-btn bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                data-target="walkthrough" data-item-id="{{ item_loop_idx }}"
+                data-activity-id="{{ item.data.activity_id }}">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload Files Only
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Enhanced Sampling Section -->
+      <div class="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+        <div class="bg-purple-50 px-6 py-4 border-b border-purple-100">
+          <div class="flex justify-between items-center">
+            <h3 class="text-2xl font-semibold text-purple-800">Sampling</h3>
+             <div class="flex space-x-2">
+            <!-- Delete Main Sampling -->
+                <button type="button"
+                    class="delete-main-btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                    data-target="sampling" data-item-id="{{ item_loop_idx }}" data-field="sampling"
+                    data-activity-id="{{ item.data.activity_id }}">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Main
+                </button>
+                <!-- Delete Additional Sampling -->
+                {% if item.data.test_procedure.additional_sampling %}
+                <button type="button"
+                    class="delete-additional-btn bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                    data-target="sampling" data-item-id="{{ item_loop_idx }}" data-field="additional_sampling"
+                    data-activity-id="{{ item.data.activity_id }}">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Additional
+                </button>
+                {% endif %}
+            <button type="button"
+              class="edit-btn bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+              data-target="sampling" data-item-id="{{ item_loop_idx }}" data-field="additional_sampling"
+              data-activity-id="{{ item.data.activity_id }}">
+              <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Content
+            </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content Display -->
+        <div id="sampling_view_{{ item_loop_idx }}" class="p-6">
+          <div class="prose max-w-none">
+            <div class="content-container bg-gray-50 rounded-lg p-6 border-l-4 border-purple-500">
+              <!-- Combined Instructions and Additional Information -->
+              {% if item.data.test_procedure.sampling or item.data.test_procedure.additional_sampling %}
+              <div class="space-y-4">
+                {% if item.data.test_procedure.sampling %}
+                <div class="instruction-section">
+                  <h4 class="font-semibold text-gray-800 mb-3 text-lg flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Instructions
+                  </h4>
+                  <div class="bg-white rounded-md p-4 border">
+                    {{ item.data.test_procedure.sampling | safe }}
+                  </div>
+                </div>
+                {% endif %}
+
+                {% if item.data.test_procedure.additional_sampling %}
+                <div class="additional-section">
+                  <h4 class="font-semibold text-gray-800 mb-3 text-lg flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Inputs Based On Sampling
+                  </h4>
+                  <div class="bg-green-50 rounded-md p-4 border border-green-200">
+                    {{ item.data.test_procedure.additional_sampling | safe }}
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <p class="mt-2">No sampling content available. Click "Edit Content" to add information.</p>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- File Attachments -->
+          <!-- File Attachments Display -->
+          <div class="file-attachments mt-6">
+            <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+              <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Attached Files
+            </h4>
+            <div id="sampling_files_display_{{ item_loop_idx }}" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% if item.data.test_procedure.sampling_files %}
+              {% for file in item.data.test_procedure.sampling_files %}
+              <div
+                class="file-item flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-150">
+                <div class="flex items-center min-w-0">
+                  <svg class="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ file.filename }}</p>
+                    <p class="text-xs text-gray-500">{{ (file.file_size / 1024 / 1024) | round(2) }} MB</p>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-2 ml-3">
+                  <a href="{{ url_for('re.download_test_procedure_file', file_id=file.id) }}"
+                    class="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors duration-150"
+                    title="Download">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </a>
+                  <button type="button"
+                    class="delete-file-btn text-red-600 hover:text-red-800 p-1 rounded transition-colors duration-150"
+                    data-file-id="{{ file.id }}" data-target="sampling" data-item-id="{{ item_loop_idx }}"
+                    title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              {% endfor %}
+              {% else %}
+              <div class="no-files text-gray-500 italic text-center py-4 col-span-2">
+                No files attached
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Form -->
+        <div id="sampling_edit_{{ item_loop_idx }}" class="hidden p-6 border-t border-gray-200 bg-gray-50">
+          <div class="space-y-6">
+            <!-- Original Instructions Reference -->
+            {% if item.data.test_procedure.sampling %}
+            <div class="bg-white rounded-lg border border-purple-200 p-4">
+              <h4 class="font-semibold text-purple-700 mb-3 flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Original Instructions (Reference)
+              </h4>
+              <div class="text-sm text-gray-600 bg-purple-50 rounded p-3">
+                {{ item.data.test_procedure.sampling | safe }}
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Editor Section -->
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+              <label class="block text-sm font-semibold text-gray-700 mb-3">
+                Inputs Based On Sampling
+              </label>
+              <div id="sampling_editor_{{ item_loop_idx }}" class="quill-editor-container quill-editor"></div>
+              <textarea id="sampling_hidden_{{ item_loop_idx }}" name="additional_sampling" class="hidden">
+          {{ item.data.test_procedure.additional_sampling or '' }}
+        </textarea>
+              <p class="text-xs text-gray-500 mt-2">Add additional notes, observations, or supplementary information
+                here.</p>
+            </div>
+
+            <!-- File Upload Section -->
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+              <label class="block text-sm font-semibold text-gray-700 mb-3">
+                Upload Supporting Files
+              </label>
+              <div
+                class="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-purple-400 transition-colors duration-200">
+                <input type="file" id="sampling_files_{{ item_loop_idx }}" name="sampling_files" multiple class="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt">
+                <div class="text-center">
+                  <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path
+                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <div class="flex text-sm text-gray-600 justify-center mt-2">
+                    <label for="sampling_files_{{ item_loop_idx }}"
+                      class="relative cursor-pointer bg-white rounded-md font-medium text-purple-600 hover:text-purple-500 focus-within:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 px-3 py-1 border border-purple-600 rounded-md">
+                      <span>Choose files</span>
+                    </label>
+                    <p class="pl-3 self-center">or drag and drop</p>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">PDF, DOC, XLS, JPG, PNG up to 10MB each</p>
+                </div>
+              </div>
+
+              <!-- Selected Files Preview -->
+              <div id="sampling_files_preview_{{ item_loop_idx }}" class="mt-4 space-y-2"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-between items-center pt-4 border-t border-gray-200">
+              <div class="flex space-x-3">
+                <button type="button"
+                  class="save-btn bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                  data-target="sampling" data-item-id="{{ item_loop_idx }}" data-field="additional_sampling"
+                  data-activity-id="{{ item.data.activity_id }}">
+                  <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Save Changes
+                </button>
+                <button type="button"
+                  class="cancel-btn bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200"
+                  data-target="sampling" data-item-id="{{ item_loop_idx }}">
+                  Cancel
+                </button>
+              </div>
+
+              <button type="button"
+                class="upload-files-btn bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                data-target="sampling" data-item-id="{{ item_loop_idx }}"
+                data-activity-id="{{ item.data.activity_id }}">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload Files Only
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
+
+
+
+    </div>
+
+
+
+
+  </div>
+
+</div>
+
+
+
+<div class="p-6 bg-gray-50 mb-4 rounded-lg shadow-md">
+
+  <!-- SECTION 1: Evidence Admissibility -->
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-blue-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">1. Evidence Admissibility</h3>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <p class="text-sm text-gray-600 mb-1">Admissibility Decision:</p>
+        <span
+          class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.evidence_admissibility_decision == 'Yes' else 'bg-red-200 text-red-800' }}">
+          {{ item.data.evidence_admissibility_decision or 'Not Evaluated' }}
+        </span>
+      </div>
+      <div>
+        <p class="text-sm text-gray-600 mb-1">Evidence Quality:</p>
+        <span class="px-3 py-1 rounded-full text-sm font-semibold 
+          {% if item.data.evidence_quality_rating == 'STRONG' %}bg-green-200 text-green-800
+          {% elif item.data.evidence_quality_rating == 'ADEQUATE' %}bg-blue-200 text-blue-800
+          {% elif item.data.evidence_quality_rating == 'WEAK' %}bg-yellow-200 text-yellow-800
+          {% elif item.data.evidence_quality_rating == 'INADMISSIBLE' %}bg-red-200 text-red-800
+          {% else %}bg-gray-200 text-gray-800{% endif %}">
+          {{ item.data.evidence_quality_rating or 'Not Rated' }}
+        </span>
+      </div>
+    </div>
+
+    {% if item.data.reason_for_inadmissibility and item.data.reason_for_inadmissibility != 'N/A' %}
+    <div class="mt-3 p-3 bg-red-50 rounded border border-red-200">
+      <p class="text-sm font-semibold text-red-800 mb-1">Reason for Inadmissibility:</p>
+      <p class="text-sm text-gray-700">{{ item.data.reason_for_inadmissibility }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- SECTION 2: Required Effectiveness Dimensions -->
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-purple-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">2. Required Effectiveness Dimensions</h3>
+    <div class="grid grid-cols-3 gap-4">
+      <div class="text-center">
+        <p class="text-sm text-gray-600 mb-2">Design Effectiveness</p>
+        <span
+          class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.required_effectiveness_design == 'yes' else 'bg-gray-200 text-gray-600' }}">
+          {{ item.data.required_effectiveness_design|upper if item.data.required_effectiveness_design else 'N/A' }}
+        </span>
+      </div>
+      <div class="text-center">
+        <p class="text-sm text-gray-600 mb-2">Implementation Effectiveness</p>
+        <span
+          class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.required_effectiveness_implementation == 'yes' else 'bg-gray-200 text-gray-600' }}">
+          {{ item.data.required_effectiveness_implementation|upper if item.data.required_effectiveness_implementation
+          else 'N/A' }}
+        </span>
+      </div>
+      <div class="text-center">
+        <p class="text-sm text-gray-600 mb-2">Operating Effectiveness</p>
+        <span
+          class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.required_effectiveness_operating == 'yes' else 'bg-gray-200 text-gray-600' }}">
+          {{ item.data.required_effectiveness_operating|upper if item.data.required_effectiveness_operating else 'N/A'
+          }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: Detailed Control Testing Results -->
+  {% if item.data.detailed_control_testing_results %}
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-indigo-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">3. Detailed Control Testing Results</h3>
+    <div class="prose max-w-none text-gray-700">
+      {{ item.data.detailed_control_testing_results | markdown | safe }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SECTION 4: Compliance Status -->
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-orange-500">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">4. Clause Compliance Conclusion</h3>
+        <p class="text-gray-700">
+          <strong class="text-lg text-gray-900">Status:</strong>
+          <span
+            class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-red-200 text-red-800' if item.data.compliant_status == 'Non-Compliant' else 'bg-yellow-200 text-yellow-800' if item.data.compliant_status == 'Partially Compliant' else 'bg-green-200 text-green-800' }}">
+            {{ item.data.compliant_status or 'Not Evaluated' }}
+          </span>
+        </p>
+      </div>
+
+      {% if item.data.observations or item.data.findings or item.data.recommendations %}
+      <button onclick="toggleEditForm('complianceForm_{{ item_loop_idx }}')" class="edit-btn">
+        Edit
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- SECTION 5: Observations -->
+  {% if item.data.observation %}
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-cyan-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">5. Observations</h3>
+    <div id="compliance_display_observations_{{ item_loop_idx }}" class="prose max-w-none text-gray-700">
+      {{ item.data.observation | markdown | safe }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SECTION 6: Findings -->
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-red-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">6. Findings</h3>
+    <div id="compliance_display_findings_{{ item_loop_idx }}" class="prose max-w-none text-gray-700">
+      {% if item.data.findings %}
+      {{ item.data.findings | markdown | safe }}
+      {% else %}
+      <p class="text-gray-500 italic">No findings recorded</p>
+      {% endif %}
+    </div>
+
+    <!-- Severity Classification per Finding -->
+    {% if item.data.severity_classification_per_finding and item.data.severity_classification_per_finding != 'N/A' %}
+    <div class="mt-4 p-3 bg-gray-50 rounded border">
+      <p class="text-sm font-semibold text-gray-800 mb-2">Severity Classification per Finding:</p>
+      <div class="text-sm text-gray-700">
+        {{ item.data.severity_classification_per_finding | markdown | safe }}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- SECTION 7: Recommendations -->
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-green-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">7. Recommendations</h3>
+    <div id="compliance_display_recommendations_{{ item_loop_idx }}" class="prose max-w-none text-gray-700">
+      {% if item.data.recommendations %}
+      {{ item.data.recommendations | markdown | safe }}
+      {% else %}
+      <p class="text-gray-500 italic">No recommendations recorded</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- SECTION 8: Overall Severity Rating -->
+  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-yellow-500">
+    <h3 class="text-xl font-bold text-gray-900 mb-3">8. Overall Severity Classification</h3>
+    <div class="flex items-center">
+      <span class="text-lg font-semibold mr-3">Overall Severity:</span>
+      <span class="px-4 py-2 rounded-full text-base font-bold 
+        {% if item.data.overall_severity_classification == 'Critical' %}bg-red-600 text-white
+        {% elif item.data.overall_severity_classification == 'Major' %}bg-orange-500 text-white
+        {% elif item.data.overall_severity_classification == 'Significant' %}bg-yellow-500 text-gray-900
+        {% elif item.data.overall_severity_classification == 'Minor' %}bg-blue-400 text-white
+        {% elif item.data.overall_severity_classification == 'No findings noted' %}bg-green-500 text-white
+        {% else %}bg-gray-400 text-white{% endif %}">
+        {{ item.data.overall_severity_classification or 'Not Classified' }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Edit Form (Keep existing form below, just update field references) -->
+  <form method="POST" id="complianceForm_{{ item_loop_idx }}" action="{{url_for('audit.update_control_activity')}}"
+    class="{% if item.data.findings or item.data.recommendations or item.data.observation %}hidden-form{% endif %}">
+    <input type="hidden" name="activity_id" value="{{item.data.activity_id}}" />
+
+    <label class="block mb-2 text-sm font-medium text-gray-700">
+      Select Compliance Status
+    </label>
+    <select id="compliant_status_{{ item_loop_idx }}" name="compliant_status" class="w-full mb-4 p-2 border rounded"
+      onchange="toggleFindingsSection('{{ item_loop_idx }}')">
+      <option value="">-- Select --</option>
+      <option value="Compliant" {% if item.data.compliant_status=='Compliant' %}selected{% endif %}>
+        Compliant
+      </option>
+      <option value="Partially Compliant" {% if item.data.compliant_status=='Partially Compliant' %}selected{% endif %}>
+        Partially Compliant
+      </option>
+      <option value="Non-Compliant" {% if item.data.compliant_status=='Non-Compliant' %}selected{% endif %}>
+        Non-Compliant
+      </option>
+    </select>
+
+    <div id="findings_section_{{ item_loop_idx }}"
+      class="mb-4 {% if item.data.compliant_status == 'Compliant' or not item.data.compliant_status %}hidden{% endif %}">
+      <label class="block mb-1 text-sm font-bold text-gray-700">
+        Observations
+      </label>
+      <div id="observation_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
+      <textarea name="observation_content" class="hidden" autocomplete="on" autofocus
+        id="observation_hidden_{{item_loop_idx}}">{% if item.data.observation %}{{ item.data.observation | markdown | safe }}{% endif %}</textarea>
+
+      <label class="block mb-1 text-sm font-bold text-gray-700">
+        Findings
+      </label>
+      <div id="findings_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
+      <textarea name="findings_content" class="hidden" autocomplete="on" autofocus
+        id="findings_hidden_{{item_loop_idx}}">{% if item.data.findings %}{{ item.data.findings | markdown | safe }}{% endif %}</textarea>
+
+      <label class="block mb-1 text-sm font-bold text-gray-700">
+        Recommendation
+      </label>
+      <div id="recommendation_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
+      <textarea name="recommendation_content" class="hidden" autocomplete="on" autofocus
+        id="recommendation_hidden_{{item_loop_idx}}">{% if item.data.recommendations %}{{ item.data.recommendations | markdown | safe }}{% endif %}</textarea>
+    </div>
+
+    <div class="flex justify-end space-x-2">
+      <button type="button" onclick="toggleEditForm('complianceForm_{{ item_loop_idx }}')"
+        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+        Cancel
+      </button>
+      <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        Submit
+      </button>
+    </div>
+  </form>
+</div>
+
+
+
+<div class="  p-6 bg-gray-50 mb-4 rounded-lg shadow-md flex">
+  <form action="{{ url_for('audit.reevaluate_activity') }}" enctype="multipart/form-data" method="POST"
+    class="flex flex-col gap-4 w-full mx-auto p-6 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+    <input name="activity_code" value="{{ item.data.activity_id }}" hidden />
+
+    <div class="space-y-1">
+      <label for="user_input" class="text-2xl xt-sm font-medium text-gray-700">Additional Instructions:</label>
+      <textarea id="user_input" name="user_input" rows="8"
+        placeholder="Provide additional context or instructions for the re-evaluation..."
+        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 transition duration-150 ease-in-out sm:text-sm p-3"></textarea>
+    </div>
+
+    {% if current_user.free_report_used %}
+    <!-- Disabled button when report is generated -->
+    <button type="button"
+      class="px-5 py-2.5 bg-gray-400 text-white font-medium rounded-md opacity-60 cursor-not-allowed transition duration-150 ease-in-out self-end"
+      disabled title="Editing disabled - Report already generated">
+      Evaluate
+    </button>
+    {% else %}
+    <!-- Active button when report is not generated -->
+    <button type="submit"
+      class="px-5 py-2.5 bg-orange-600 text-white font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-150 ease-in-out self-end">
+      Evaluate
+    </button>
+    {% endif %}
+  </form>
+</div>
+</div>
+
+</div>
+
+{% endfor %}
+</div>
+
+</div>
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+<script>
+  // GLOBAL notification function - accessible by all scripts
+  function showNotification(message, type) {
+    const existingNotifications = document.querySelectorAll('.custom-notification');
+    existingNotifications.forEach(notification => notification.remove());
+
+    const notification = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+    const icon = type === 'success' ?
+      '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' :
+      '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+
+    notification.className = `custom-notification fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg z-50 ${bgColor} text-white flex items-center transform transition-all duration-300`;
+    notification.innerHTML = `${icon}<span class="font-medium">${message}</span>`;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 300);
+    }, 4000);
+  }
+</script>
+
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Initialize all Quill editors for walkthrough and sampling
+    function initializeWalkthroughSamplingEditors(itemId) {
+      // Walkthrough editor
+      const walkthroughEditorContainer = document.getElementById(`walkthrough_editor_${itemId}`);
+      const walkthroughHiddenInput = document.getElementById(`walkthrough_hidden_${itemId}`);
+
+      if (walkthroughEditorContainer && !walkthroughEditorContainer.classList.contains('quill-initialized')) {
+        const initialContent = walkthroughHiddenInput ? walkthroughHiddenInput.value : '';
+        initializeQuill(`walkthrough_editor_${itemId}`, `walkthrough_hidden_${itemId}`, initialContent);
+        walkthroughEditorContainer.classList.add('quill-initialized');
+      }
+
+      // Sampling editor
+      const samplingEditorContainer = document.getElementById(`sampling_editor_${itemId}`);
+      const samplingHiddenInput = document.getElementById(`sampling_hidden_${itemId}`);
+
+      if (samplingEditorContainer && !samplingEditorContainer.classList.contains('quill-initialized')) {
+        const initialContent = samplingHiddenInput ? samplingHiddenInput.value : '';
+        initializeQuill(`sampling_editor_${itemId}`, `sampling_hidden_${itemId}`, initialContent);
+        samplingEditorContainer.classList.add('quill-initialized');
+      }
+    }
+
+    // Edit button handler
+    document.addEventListener('click', function (e) {
+      if (e.target.classList.contains('edit-btn') || e.target.closest('.edit-btn')) {
+        const btn = e.target.classList.contains('edit-btn') ? e.target : e.target.closest('.edit-btn');
+        const target = btn.getAttribute('data-target');
+        const itemId = btn.getAttribute('data-item-id');
+
+        document.getElementById(`${target}_view_${itemId}`).classList.add('hidden');
+        document.getElementById(`${target}_edit_${itemId}`).classList.remove('hidden');
+
+        // Initialize Quill editors
+        initializeWalkthroughSamplingEditors(itemId);
+      }
+    });
+
+    // Cancel button handler
+    document.addEventListener('click', function (e) {
+      if (e.target.classList.contains('cancel-btn') || e.target.closest('.cancel-btn')) {
+        const btn = e.target.classList.contains('cancel-btn') ? e.target : e.target.closest('.cancel-btn');
+        const target = btn.getAttribute('data-target');
+        const itemId = btn.getAttribute('data-item-id');
+
+        document.getElementById(`${target}_view_${itemId}`).classList.remove('hidden');
+        document.getElementById(`${target}_edit_${itemId}`).classList.add('hidden');
+      }
+    });
+
+    // Save button handler
+    document.addEventListener('click', function (e) {
+      if (e.target.classList.contains('save-btn') || e.target.closest('.save-btn')) {
+        const btn = e.target.classList.contains('save-btn') ? e.target : e.target.closest('.save-btn');
+        const target = btn.getAttribute('data-target');
+        const itemId = btn.getAttribute('data-item-id');
+        const field = btn.getAttribute('data-field');
+        const activityId = btn.getAttribute('data-activity-id');
+
+        const hiddenInput = document.getElementById(`${target}_hidden_${itemId}`);
+        const newValue = hiddenInput ? hiddenInput.value : '';
+
+        // Show loading state
+        const saveBtn = btn;
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Saving...
+      `;
+        saveBtn.disabled = true;
+
+        // Send AJAX request
+        fetch('/re/update_test_procedure', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            activity_id: activityId,
+            field: field,
+            value: newValue
+          })
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('Changes saved successfully!', 'success');
+              updateAdditionalContent(target, itemId, newValue);
+              document.getElementById(`${target}_view_${itemId}`).classList.remove('hidden');
+              document.getElementById(`${target}_edit_${itemId}`).classList.add('hidden');
+            } else {
+              throw new Error(data.message || 'Failed to save changes');
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error saving changes: ' + error.message, 'error');
+          })
+          .finally(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+          });
+      }
+    });
+
+
+    
+
+    // File input change handler
+    document.addEventListener('change', function (e) {
+      if (e.target.type === 'file' && (e.target.id.includes('walkthrough_files_') || e.target.id.includes('sampling_files_'))) {
+        const target = e.target.id.includes('walkthrough') ? 'walkthrough' : 'sampling';
+        const itemId = e.target.id.split('_').pop();
+        handleFileSelection(e.target, target, itemId);
+      }
+    });
+
+
+    // Delete file button handler - FIXED VERSION
+    document.addEventListener('click', function (e) {
+      const deleteBtn = e.target.closest('.delete-file-btn');
+      if (deleteBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const fileId = deleteBtn.getAttribute('data-file-id');
+        const target = deleteBtn.getAttribute('data-target');
+        const itemId = deleteBtn.getAttribute('data-item-id');
+
+        console.log('Delete button clicked:', { fileId, target, itemId });
+        console.log('Delete button element:', deleteBtn);
+
+        if (fileId && target && itemId) {
+          deleteFile(fileId, target, itemId, deleteBtn);
+        } else {
+          console.error('Missing data attributes:', { fileId, target, itemId });
+          showNotification('Error: Missing file information', 'error');
+        }
+      }
+    });
+
+
+
+
+    // Upload Files Only button handler
+    document.addEventListener('click', function (e) {
+      const uploadBtn = e.target.closest('.upload-files-btn');
+      if (uploadBtn) {
+        const target = uploadBtn.getAttribute('data-target');
+        const itemId = uploadBtn.getAttribute('data-item-id');
+        const activityId = uploadBtn.getAttribute('data-activity-id');
+
+        if (target && itemId && activityId) {
+          uploadFilesOnly(target, itemId, activityId);
+        }
+      }
+    });
+
+  });
+
+  // Enhanced file selection handler
+  function handleFileSelection(fileInput, target, itemId) {
+    const previewContainer = document.getElementById(`${target}_files_preview_${itemId}`);
+    previewContainer.innerHTML = '';
+
+    Array.from(fileInput.files).forEach((file, index) => {
+      const fileElement = document.createElement('div');
+      fileElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border';
+      fileElement.innerHTML = `
+      <div class="flex items-center min-w-0 flex-1">
+        <svg class="w-4 h-4 text-gray-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-gray-900 truncate">${file.name}</p>
+          <p class="text-xs text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+        </div>
+      </div>
+      <button type="button" class="remove-file text-red-600 hover:text-red-800 text-sm font-medium ml-3" data-index="${index}">
+        Remove
+      </button>
+    `;
+      previewContainer.appendChild(fileElement);
+    });
+
+    // Remove file from selection
+    previewContainer.addEventListener('click', function (e) {
+      if (e.target.classList.contains('remove-file')) {
+        const index = parseInt(e.target.getAttribute('data-index'));
+        const dt = new DataTransfer();
+        const files = Array.from(fileInput.files);
+
+        files.splice(index, 1);
+        files.forEach(file => dt.items.add(file));
+        fileInput.files = dt.files;
+
+        handleFileSelection(fileInput, target, itemId);
+      }
+    });
+  }
+
+  // Enhanced upload files function with proper timing
+  // Enhanced upload files function with proper DOM updates
+  function uploadFilesOnly(target, itemId, activityId) {
+    const fileInput = document.getElementById(`${target}_files_${itemId}`);
+    const files = fileInput.files;
+
+    if (files.length === 0) {
+      showNotification('Please select at least one file to upload.', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('activity_id', activityId);
+    formData.append('field', `${target}_files`);
+
+    Array.from(files).forEach(file => {
+      formData.append('files', file);
+    });
+
+    const uploadBtn = document.querySelector(`[data-target="${target}"][data-item-id="${itemId}"].upload-files-btn`);
+    const originalText = uploadBtn.innerHTML;
+    uploadBtn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Uploading...
+    `;
+    uploadBtn.disabled = true;
+
+    fetch('/re/upload_test_procedure_files', {
+      method: 'POST',
+      body: formData
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification(`Successfully uploaded ${files.length} file(s)!`, 'success');
+
+          // Clear file input and preview
+          fileInput.value = '';
+          document.getElementById(`${target}_files_preview_${itemId}`).innerHTML = '';
+
+          // Update the files display immediately
+          updateFilesDisplay(target, itemId, activityId);
+        } else {
+          throw new Error(data.message || 'Failed to upload files');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error uploading files: ' + error.message, 'error');
+      })
+      .finally(() => {
+        uploadBtn.innerHTML = originalText;
+        uploadBtn.disabled = false;
+      });
+  }
+
+
+  // Function to update files display dynamically
+  function updateFilesDisplay(target, itemId, activityId) {
+    const filesContainer = document.getElementById(`${target}_files_display_${itemId}`);
+
+    if (!filesContainer) {
+      console.error(`Files container not found: ${target}_files_display_${itemId}`);
+      return;
+    }
+
+    // Show loading state
+    filesContainer.innerHTML = `
+    <div class="flex justify-center items-center py-4 col-span-2">
+      <svg class="animate-spin h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span class="ml-2 text-gray-600">Loading files...</span>
+    </div>
+  `;
+
+    // Fetch updated files from server
+    fetch(`/re/get_test_procedure_files?activity_id=${activityId}&field=${target}_files`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          renderFilesDisplay(target, itemId, data.files);
+        } else {
+          throw new Error(data.message || 'Failed to fetch files');
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching files:', error);
+        filesContainer.innerHTML = `
+        <div class="text-red-500 text-center py-4 col-span-2">
+          Error loading files: ${error.message}
+        </div>
+      `;
+      });
+  }
+
+
+
+  // Function to render files in the display area
+  function renderFilesDisplay(target, itemId, files) {
+    const filesContainer = document.getElementById(`${target}_files_display_${itemId}`);
+
+    if (!filesContainer) {
+      console.error(`Files container not found: ${target}_files_display_${itemId}`);
+      return;
+    }
+
+    if (files && files.length > 0) {
+      let filesHTML = '';
+
+      files.forEach(file => {
+        filesHTML += `
+                <div class="file-item flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-150" data-file-id="${file.id}">
+                    <div class="flex items-center min-w-0">
+                        <svg class="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-900 truncate">${file.filename}</p>
+                            <p class="text-xs text-gray-500">${(file.file_size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 ml-3">
+                        <a href="${file.download_url}" 
+                           class="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors duration-150"
+                           title="Download">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                        </a>
+                        <button type="button" 
+                                class="delete-file-btn text-red-600 hover:text-red-800 p-1 rounded transition-colors duration-150"
+                                data-file-id="${file.id}" 
+                                data-target="${target}" 
+                                data-item-id="${itemId}"
+                                title="Delete">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+      });
+
+      filesContainer.innerHTML = filesHTML;
+    } else {
+      filesContainer.innerHTML = `
+            <div class="no-files text-gray-500 italic text-center py-4 col-span-2">
+                No files attached
+            </div>
+        `;
+    }
+  }
+
+  // FIXED delete file function - pass the deleteBtn directly
+  function deleteFile(fileId, target, itemId, deleteBtn) {
+    console.log('Starting delete process:', { fileId, target, itemId });
+
+    if (!confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+      console.log('User cancelled deletion');
+      return;
+    }
+
+    // Find the file element - MULTIPLE SELECTOR ATTEMPTS
+    let fileElement = deleteBtn.closest('.file-item');
+
+    if (!fileElement) {
+      // Try alternative selectors
+      fileElement = document.querySelector(`.file-item[data-file-id="${fileId}"]`);
+    }
+
+    if (!fileElement) {
+      fileElement = deleteBtn.closest('[data-file-id]');
+    }
+
+    console.log('File element found:', fileElement);
+
+    if (!fileElement) {
+      console.error('File element not found for fileId:', fileId);
+      console.log('Available file elements:', document.querySelectorAll('.file-item'));
+      showNotification('Error: Could not find file to delete', 'error');
+      return;
+    }
+
+    // Show loading state
+    fileElement.style.opacity = '0.6';
+    fileElement.style.pointerEvents = 'none';
+
+    const originalHtml = deleteBtn.innerHTML;
+    deleteBtn.innerHTML = `
+        <svg class="animate-spin h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    `;
+    deleteBtn.disabled = true;
+
+    // Send delete request
+    fetch('/re/delete_test_procedure_file', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file_id: parseInt(fileId),
+        field: `${target}_files`
+      })
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Delete response received:', data);
+        if (data.success) {
+          showNotification('File deleted successfully!', 'success');
+
+          // Remove file element from DOM with animation
+          fileElement.style.transition = 'all 0.3s ease';
+          fileElement.style.opacity = '0';
+          fileElement.style.transform = 'translateX(100%)';
+          fileElement.style.height = '0';
+          fileElement.style.margin = '0';
+          fileElement.style.padding = '0';
+          fileElement.style.border = '0';
+
+          setTimeout(() => {
+            fileElement.remove();
+            console.log('File element removed from DOM');
+
+            // Check if no files left and show empty state
+            const filesContainer = document.getElementById(`${target}_files_display_${itemId}`);
+            if (filesContainer) {
+              const remainingFiles = filesContainer.querySelectorAll('.file-item');
+              console.log('Remaining files count:', remainingFiles.length);
+
+              if (remainingFiles.length === 0) {
+                filesContainer.innerHTML = `
+                            <div class="no-files text-gray-500 italic text-center py-4 col-span-2">
+                                No files attached
+                            </div>
+                        `;
+                console.log('Empty state shown');
+              }
+            }
+          }, 300);
+        } else {
+          throw new Error(data.message || 'Failed to delete file');
+        }
+      })
+      .catch(error => {
+        console.error('Error deleting file:', error);
+        showNotification('Error deleting file: ' + error.message, 'error');
+
+        // Reset the file element state on error
+        fileElement.style.opacity = '1';
+        fileElement.style.pointerEvents = 'auto';
+        fileElement.style.transform = '';
+        fileElement.style.height = '';
+        fileElement.style.margin = '';
+        fileElement.style.padding = '';
+        fileElement.style.border = '';
+        deleteBtn.innerHTML = originalHtml;
+        deleteBtn.disabled = false;
+      });
+  }
+
+
+
+  // Enhanced content update function
+  function updateAdditionalContent(target, itemId, newValue) {
+    const viewContainer = document.getElementById(`${target}_view_${itemId}`);
+    const contentContainer = viewContainer.querySelector('.content-container');
+
+    if (!contentContainer) return;
+
+    let additionalSection = contentContainer.querySelector('.additional-section');
+    const instructionSection = contentContainer.querySelector('.instruction-section');
+    const emptyState = contentContainer.querySelector('.text-center');
+
+    if (newValue.trim()) {
+      // Create or update additional section
+      if (!additionalSection) {
+        additionalSection = document.createElement('div');
+        additionalSection.className = 'additional-section';
+        additionalSection.innerHTML = `
+        <h4 class="font-semibold text-gray-800 mb-3 text-lg flex items-center">
+          <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+          </svg>
+          Additional Information
+        </h4>
+        <div class="bg-green-50 rounded-md p-4 border border-green-200"></div>
+      `;
+
+        // Insert after instruction section or at the beginning
+        if (instructionSection) {
+          instructionSection.insertAdjacentElement('afterend', additionalSection);
+        } else {
+          contentContainer.insertBefore(additionalSection, contentContainer.firstChild);
+        }
+
+        // Remove empty state if it exists
+        if (emptyState) {
+          emptyState.remove();
+        }
+      }
+
+      // Update content
+      const contentDiv = additionalSection.querySelector('.bg-green-50');
+      contentDiv.innerHTML = newValue;
+    } else {
+      // Remove additional section if no content
+      if (additionalSection) {
+        additionalSection.remove();
+      }
+
+      // Show empty state if no content at all
+      if (!instructionSection && !contentContainer.querySelector('.additional-section')) {
+        if (!emptyState) {
+          contentContainer.innerHTML = `
+          <div class="text-center py-8 text-gray-500">
+            <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p class="mt-2">No ${target} content available. Click "Edit Content" to add information.</p>
+          </div>
+        `;
+        }
+      }
+    }
+  }
+</script>
+
+
+
+<script>
+  // A list to hold references to all Quill editor instances
+  const quillInstances = [];
+
+  // Function to initialize a single Quill editor
+  function initializeQuill(editorId, hiddenInputId, initialContent) {
+    const editorElement = document.getElementById(editorId);
+    const hiddenInputElement = document.getElementById(hiddenInputId);
+
+    if (!editorElement || !hiddenInputElement) {
+      console.warn(
+        `Could not find elements for editorId: ${editorId} or hiddenInputId: ${hiddenInputId}. This might be normal if elements are dynamically added/removed.`
+      );
+      return;
+    }
+
+    const quill = new Quill(editorElement, {
+      theme: "snow",
+      modules: {
+        toolbar: {
+          container: [
+            [{ header: [1, 2, 3, false] }],
+            ["bold", "italic", "underline", "strike"],
+            ["blockquote", "code-block"],
+            [{ list: "ordered" }, { list: "bullet" }],
+            [{ indent: "-1" }, { indent: "+1" }],
+            [{ direction: "rtl" }],
+            [{ color: [] }, { background: [] }],
+            [{ font: [] }],
+            [{ align: [] }],
+            ["link", "image", "video"],
+            ["clean"],
+          ],
+          handlers: {
+            image: function () {
+              let fileInput = this.container.querySelector(
+                "input.ql-image[type=file]"
+              );
+              if (fileInput == null) {
+                fileInput = document.createElement("input");
+                fileInput.setAttribute("type", "file");
+                fileInput.setAttribute("accept", "image/*");
+                fileInput.classList.add("ql-image");
+                fileInput.onchange = () => {
+                  if (fileInput.files != null && fileInput.files[0] != null) {
+                    const range = this.quill.getSelection(true);
+                    uploadFile(fileInput.files[0], (imageUrl) => {
+                      this.quill.insertEmbed(range.index, "image", imageUrl);
+                      this.quill.setSelection(range.index + 1);
+                    });
+                  }
+                };
+                this.container.appendChild(fileInput);
+              }
+              fileInput.click();
+            },
+          },
+        },
+      },
+      placeholder: "Enter details here..",
+    });
+
+    // Set initial content if it exists
+    if (initialContent) {
+      quill.clipboard.dangerouslyPasteHTML(initialContent);
+    }
+
+    quill.on("text-change", function () {
+      hiddenInputElement.value = quill.root.innerHTML;
+    });
+
+    quillInstances.push(quill);
+  }
+
+  function handleFileUpload(inputElement, hiddenInputId) {
+    const file = inputElement.files[0];
+    const hiddenInput = document.getElementById(hiddenInputId);
+    const statusElementId = hiddenInputId.replace("_path_", "_file_status_"); // This might need adjustment for mom_upload files
+
+    if (file) {
+      // Assuming 'uploadFile' is defined elsewhere and handles the actual upload
+      // For now, we'll just update the hidden input value as a placeholder.
+      // You'll need to ensure your 'uploadFile' function is available or implement
+      // AJAX for file uploads here.
+      console.log(`Simulating file upload for: ${file.name}`);
+      const dummyFilePath = `/uploads/${file.name}`; // Replace with actual path from server
+      hiddenInput.value = dummyFilePath;
+      const statusElement = document.getElementById(statusElementId);
+      if (statusElement) {
+        statusElement.textContent = `File selected: ${file.name}`;
+      } else {
+        console.warn(`Status element ${statusElementId} not found.`);
+      }
+    }
+  }
+
+  function showAddQuestionForm(itemLoopIdx) {
+    document.getElementById(`add_question_button_container_${itemLoopIdx}`).classList.add('hidden');
+    document.getElementById(`add_question_form_container_${itemLoopIdx}`).classList.remove('hidden');
+  }
+
+  function hideAddQuestionForm(itemLoopIdx) {
+    document.getElementById(`add_question_form_container_${itemLoopIdx}`).classList.add('hidden');
+    document.getElementById(`add_question_button_container_${itemLoopIdx}`).classList.remove('hidden');
+  }
+
+  // Function to toggle edit form visibility
+  function toggleEditForm(formId) {
+    const form = document.getElementById(formId);
+    let displayDiv = null;
+    // For compliance form
+    if (formId.startsWith("complianceForm_")) {
+      const idx = formId.split("_").pop();
+      displayDiv = document.getElementById(`compliance_display_${idx}`);
+    } else if (formId.startsWith("interview_form_")) {
+      displayDiv = document.getElementById(formId.replace("form_", "display_"));
+    } else if (formId.startsWith("evidence_form_")) {
+      displayDiv = document.getElementById(formId.replace("form_", "display_"));
+    }
+    if (form) {
+      form.classList.toggle("hidden-form");
+      // If form is now visible, initialize Quill if not already initialized
+      if (!form.classList.contains("hidden-form")) {
+        // Find all quill-editor-container inside this form
+        form
+          .querySelectorAll(".quill-editor-container")
+          .forEach((editorContainer) => {
+            // Check if the editor has already been initialized on this container
+            if (!editorContainer.classList.contains("quill-initialized")) {
+              const editorId = editorContainer.id;
+              const hiddenInputId = editorId.replace("_editor_", "_hidden_");
+              const hiddenInput = document.getElementById(hiddenInputId);
+              const initialContent = hiddenInput ? hiddenInput.value : "";
+              initializeQuill(editorId, hiddenInputId, initialContent);
+              editorContainer.classList.add("quill-initialized");
+            }
+          });
+      }
+    }
+    if (displayDiv) {
+      displayDiv.classList.toggle("hidden");
+    }
+  }
+
+  // Function to toggle findings section based on Compliance Status
+  function toggleFindingsSection(idx) {
+    const status = document.getElementById("compliant_status_" + idx).value;
+    const section = document.getElementById("findings_section_" + idx);
+    section.classList.toggle("hidden", status === "compliant" || status === "");
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    // Initialize Quill editors that are visible on initial load
+    document
+      .querySelectorAll(
+        ".quill-editor-container:not(.quill-initialized):not([id^='interview_q_editor_'])"
+      )
+      .forEach((editorContainer) => {
+        const editorId = editorContainer.id;
+        const hiddenInputId = editorId.replace("_editor_", "_hidden_");
+        const hiddenInput = document.getElementById(hiddenInputId);
+        const initialContent = hiddenInput ? hiddenInput.value : "";
+
+        initializeQuill(editorId, hiddenInputId, initialContent);
+        editorContainer.classList.add("quill-initialized");
+      });
+
+    // Initialize the findings section for each compliance form
+    {% for item in how_to_perform_activities %}
+    toggleFindingsSection("{{ loop.index0 }}");
+    {% endfor %}
+
+    // --- Main Activity Slider Navigation JavaScript ---
+    const slider = document.getElementById("activitySlider");
+    const prevButton = document.getElementById("prevSlide");
+    const nextButton = document.getElementById("nextSlide");
+
+    if (slider && prevButton && nextButton) {
+      const slides = slider.querySelectorAll(".slider-item");
+      const totalSlides = slides.length;
+
+      // Ensure slides array is not empty before proceeding
+      if (totalSlides === 0) {
+        prevButton.classList.add('hidden');
+        nextButton.classList.add('hidden');
+      } else {
+        let currentSlideIndex = 0;
+
+        const updateMainSliderPosition = () => {
+          slider.scrollTo({
+            left: currentSlideIndex * slides[0].offsetWidth,
+            behavior: "smooth",
+          });
+          updateMainNavButtons();
+        };
+
+        const updateMainNavButtons = () => {
+          prevButton.disabled = currentSlideIndex === 0;
+          nextButton.disabled = currentSlideIndex === totalSlides - 1;
+
+          if (totalSlides <= 1) { // Hide buttons if only one slide
+            prevButton.classList.add('hidden');
+            nextButton.classList.add('hidden');
+          } else {
+            prevButton.classList.remove('hidden');
+            nextButton.classList.remove('hidden');
+          }
+        };
+
+        nextButton.addEventListener("click", () => {
+          if (currentSlideIndex < totalSlides - 1) {
+            currentSlideIndex++;
+            updateMainSliderPosition();
+          }
+        });
+
+        prevButton.addEventListener("click", () => {
+          if (currentSlideIndex > 0) {
+            currentSlideIndex--;
+            updateMainSliderPosition();
+          }
+        });
+
+        // Optional: Update currentSlideIndex when user manually scrolls
+        slider.addEventListener('scroll', () => {
+          const newIndex = Math.round(slider.scrollLeft / slides[0].offsetWidth);
+          if (newIndex !== currentSlideIndex) {
+            currentSlideIndex = newIndex;
+            updateMainNavButtons();
+          }
+        });
+
+        updateMainNavButtons(); // Initial state
+      }
+    }
+
+    // --- Question Carousel JavaScript (for each activity item) ---
+    document.querySelectorAll(".questions-carousel-container").forEach((container) => {
+      const track = container.querySelector(".questions-carousel-track");
+      const items = track.querySelectorAll(".question-carousel-item");
+      const prevBtn = container.querySelector(".question-prev-btn");
+      const nextBtn = container.querySelector(".question-next-btn");
+
+      if (items.length === 0) {
+        // Hide buttons if no questions
+        if (prevBtn) prevBtn.classList.add('hidden');
+        if (nextBtn) nextBtn.classList.add('hidden');
+        return; // No items, no carousel needed
+      }
+
+      let currentQuestionIndex = 0;
+      const totalQuestions = items.length;
+
+      const updateQuestionCarousel = () => {
+        const offset = -currentQuestionIndex * 100;
+        track.style.transform = `translateX(${offset}%)`;
+        updateQuestionNavButtons();
+      };
+
+      const updateQuestionNavButtons = () => {
+        if (prevBtn) prevBtn.disabled = currentQuestionIndex === 0;
+        if (nextBtn) nextBtn.disabled = currentQuestionIndex === totalQuestions - 1;
+
+        if (totalQuestions <= 1) { // Hide buttons if only one question
+          if (prevBtn) prevBtn.classList.add('hidden');
+          if (nextBtn) nextBtn.classList.add('hidden');
+        } else {
+          if (prevBtn) prevBtn.classList.remove('hidden');
+          if (nextBtn) nextBtn.classList.remove('hidden');
+        }
+      };
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+          if (currentQuestionIndex < totalQuestions - 1) {
+            currentQuestionIndex++;
+            updateQuestionCarousel();
+          }
+        });
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+          if (currentQuestionIndex > 0) {
+            currentQuestionIndex--;
+            updateQuestionCarousel();
+          }
+        });
+      }
+
+      updateQuestionCarousel(); // Initialize state
+    });
+
+    // Check for a new question ID in the URL and open its form
+    const urlParams = new URLSearchParams(window.location.search);
+    const newQuestionId = urlParams.get('new_question_id');
+    if (newQuestionId) {
+      const newQuestionForm = document.querySelector(`input[name="question_id"][value="${newQuestionId}"]`);
+      if (newQuestionForm) {
+        const formId = newQuestionForm.closest('form').id;
+
+        // Ensure the form is not hidden
+        const formElement = document.getElementById(formId);
+        formElement.classList.remove('hidden-form');
+
+        // Initialize Quill on the new editor
+        const editorId = formId.replace('interview_form_', 'interview_q_editor_');
+        const hiddenInputId = formId.replace('interview_form_', 'interview_q_hidden_');
+        initializeQuill(editorId, hiddenInputId, '');
+
+        // Scroll to the form
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    // Initialize the first tab of each tab group
+    document.querySelectorAll('.slider-item').forEach(slider => {
+      const firstTab = slider.querySelector('.tab-button');
+      if (firstTab) {
+        firstTab.click();
+      }
+    });
+  });
+
+  function openTab(event, tabName) {
+    let i, tabcontent, tablinks;
+    const sliderItem = event.currentTarget.closest('.slider-item');
+
+    tabcontent = sliderItem.querySelectorAll(".tab-content");
+    for (i = 0; i < tabcontent.length; i++) {
+      tabcontent[i].style.display = "none";
+    }
+
+    tablinks = sliderItem.querySelectorAll(".tab-button");
+    for (i = 0; i < tablinks.length; i++) {
+      tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    event.currentTarget.className += " active";
+  }
+</script>
+
+<script>
+  function openTab2(evt, tabName) {
+    const allTabs = document.querySelectorAll('.tab_cont_artif');
+
+    allTabs.forEach(tab => {
+      if (tab.id === tabName) {
+        tab.classList.remove('hidden'); // show selected tab
+      } else {
+        tab.classList.add('hidden'); // hide all others
+      }
+    });
+
+    // Update button styles
+    const allButtons = document.querySelectorAll('[id^="btn-artifact"]');
+    allButtons.forEach(btn => {
+      btn.classList.remove('bg-gray-200');
+      btn.classList.add('bg-gray-100');
+    });
+
+    evt.currentTarget.classList.add('bg-gray-200');
+    evt.currentTarget.classList.remove('bg-gray-100');
+  }
+</script>
+
+<script>
+  function closeAlert(button) {
+    const alert = button.parentElement;
+
+    // Add fade out animation
+    alert.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+    alert.style.opacity = '0';
+    alert.style.transform = 'translateX(100%)';
+
+    // Remove element after animation
+    setTimeout(() => {
+      alert.remove();
+
+      // Check if flash container is empty and hide it
+      const flashContainer = document.querySelector('.flash-container');
+      if (flashContainer && flashContainer.children.length === 0) {
+        flashContainer.style.display = 'none';
+      }
+    }, 300);
+  }
+
+  // Optional: Auto-dismiss messages after 5 seconds
+  document.addEventListener('DOMContentLoaded', function () {
+    const alerts = document.querySelectorAll('[role="alert"]');
+
+    alerts.forEach(alert => {
+      // Only auto-dismiss success and info messages, not errors
+      const isSuccess = alert.classList.contains('bg-green-100');
+      const isInfo = alert.classList.contains('bg-blue-100');
+
+      if (isSuccess || isInfo) {
+        setTimeout(() => {
+          const closeButton = alert.querySelector('button');
+          if (closeButton && alert.parentElement) {
+            closeAlert(closeButton);
+          }
+        }, 5000); // 5 seconds
+      }
+    });
+  });
+</script>
+<script src="{{url_for('re.static',filename='js/view.js')}}"></script>
+
+<script>
+  // Function to go back to clause test steps page with forced reload
+  function goBackToClauseTestSteps() {
+    {% if clause_id %}
+    // Construct the URL to go back to clause test steps
+    const clauseId = {{ clause_id }};
+  if (clauseId) {
+    // Create the URL for the clause test steps page
+    const url = `/audit/clause/${clauseId}/test-steps`;
+
+    // Add a timestamp parameter to force reload
+    const timestamp = new Date().getTime();
+    const reloadUrl = `${url}?reload=${timestamp}`;
+
+    // Store the current activity ID in sessionStorage to identify this session
+    sessionStorage.setItem('last_activity_id', '{{ activity_id }}');
+    sessionStorage.setItem('last_visited_time', timestamp);
+
+    // Navigate to the clause test steps page
+    window.location.href = reloadUrl;
+  } else {
+    // Fallback to history back
+    window.history.back();
+  }
+  {% else %}
+  // Fallback to history back
+  window.history.back();
+  {% endif %}
+}
+</script>
+
+<script>
+  // Enhance Quill initialization to track instances
+function initializeQuill(editorId, hiddenInputId, initialContent) {
+  const editorElement = document.getElementById(editorId);
+  const hiddenInputElement = document.getElementById(hiddenInputId);
+
+  if (!editorElement || !hiddenInputElement) {
+    console.warn(
+      `Could not find elements for editorId: ${editorId} or hiddenInputId: ${hiddenInputId}.`
+    );
+    return;
+  }
+
+  const quill = new Quill(editorElement, {
+    theme: "snow",
+    modules: {
+      toolbar: {
+        container: [
+          [{ header: [1, 2, 3, false] }],
+          ["bold", "italic", "underline", "strike"],
+          ["blockquote", "code-block"],
+          [{ list: "ordered" }, { list: "bullet" }],
+          [{ indent: "-1" }, { indent: "+1" }],
+          [{ direction: "rtl" }],
+          [{ color: [] }, { background: [] }],
+          [{ font: [] }],
+          [{ align: [] }],
+          ["link", "image", "video"],
+          ["clean"],
+        ],
+      },
+    },
+    placeholder: "Enter details here..",
+  });
+
+  // Store quill instance on the element for later access
+  editorElement.__quill = quill;
+
+  // Set initial content if it exists
+  if (initialContent) {
+    quill.clipboard.dangerouslyPasteHTML(initialContent);
+  }
+
+  quill.on("text-change", function () {
+    hiddenInputElement.value = quill.root.innerHTML;
+  });
+
+  quillInstances.push(quill);
+}
+</script>
+
+<!-- script for the delete buttons -->
+<script>
+  // Delete button handlers for main and additional content
+document.addEventListener('click', function (e) {
+    // Handle main content delete
+    const deleteMainBtn = e.target.closest('.delete-main-btn');
+    if (deleteMainBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const target = deleteMainBtn.getAttribute('data-target');
+        const itemId = deleteMainBtn.getAttribute('data-item-id');
+        const field = deleteMainBtn.getAttribute('data-field');
+        const activityId = deleteMainBtn.getAttribute('data-activity-id');
+        
+        if (target && itemId && field && activityId) {
+            deleteMainContent(target, itemId, field, activityId, deleteMainBtn);
+        }
+    }
+    
+    // Handle additional content delete
+    const deleteAdditionalBtn = e.target.closest('.delete-additional-btn');
+    if (deleteAdditionalBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const target = deleteAdditionalBtn.getAttribute('data-target');
+        const itemId = deleteAdditionalBtn.getAttribute('data-item-id');
+        const field = deleteAdditionalBtn.getAttribute('data-field');
+        const activityId = deleteAdditionalBtn.getAttribute('data-activity-id');
+        
+        if (target && itemId && field && activityId) {
+            deleteAdditionalContent(target, itemId, field, activityId, deleteAdditionalBtn);
+        }
+    }
+});
+
+function deleteMainContent(target, itemId, field, activityId, deleteBtn) {
+    const contentName = target === 'walkthrough' ? 'Walkthrough' : 'Sampling';
+    
+    if (!confirm(`Are you sure you want to delete the main ${contentName} content? This action cannot be undone.`)) {
+        return;
+    }
+    
+    const originalHtml = deleteBtn.innerHTML;
+    deleteBtn.innerHTML = `
+        <svg class="animate-spin h-4 w-4 mr-2 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Deleting...
+    `;
+    deleteBtn.disabled = true;
+    
+    fetch('/re/delete_test_procedure_main_content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            activity_id: parseInt(activityId),
+            field: target  // 'walkthrough' or 'sampling'
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            try { showNotification(`${contentName} deleted! Refreshing...`, 'success'); } catch(e) {}
+            setTimeout(() => { window.location.reload(); }, 1500);
+        } else {
+            throw new Error(data.message || 'Failed to delete content');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        try { showNotification('Error: ' + error.message, 'error'); } catch(e) {}
+        deleteBtn.innerHTML = originalHtml;
+        deleteBtn.disabled = false;
+    });
+}
+
+function deleteAdditionalContent(target, itemId, field, activityId, deleteBtn) {
+    const contentName = target === 'walkthrough' ? 'additional walkthrough' : 'additional sampling';
+    
+    if (!confirm(`Are you sure you want to delete the ${contentName} content? This action cannot be undone.`)) {
+        return;
+    }
+    
+    const originalHtml = deleteBtn.innerHTML;
+    deleteBtn.innerHTML = `
+        <svg class="animate-spin h-4 w-4 mr-2 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Deleting...
+    `;
+    deleteBtn.disabled = true;
+    
+    fetch('/re/delete_test_procedure_content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            activity_id: parseInt(activityId),
+            field: field  // 'additional_walkthrough' or 'additional_sampling'
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            try { showNotification(`${contentName} deleted! Refreshing...`, 'success'); } catch(e) {}
+            setTimeout(() => { window.location.reload(); }, 1500);
+        } else {
+            throw new Error(data.message || 'Failed to delete content');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        try { showNotification('Error: ' + error.message, 'error'); } catch(e) {}
+        deleteBtn.innerHTML = originalHtml;
+        deleteBtn.disabled = false;
+    });
+}
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ATTRIBUTE TESTING SECTION — Added safely, zero conflict        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+{% for item in how_to_perform_activities %}
+{% set item_loop_idx = loop.index %}
+<div id="attribute-testing-section-{{ item_loop_idx }}" class="mt-6 mx-4 mb-6">
+    
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-xl p-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="bg-white bg-opacity-20 rounded-lg p-2">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-white font-bold text-lg">Attribute Testing</h3>
+                <p class="text-indigo-200 text-xs">Upload data file to execute attribute tests</p>
+            </div>
+        </div>
+        <!-- Assessment Objective Badge -->
+        {% if item.data.assessment_objective %}
+        <span class="bg-white bg-opacity-20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            {{ item.data.assessment_objective }}
+        </span>
+        {% endif %}
+    </div>
+
+    <div class="bg-white border border-indigo-200 rounded-b-xl p-5">
+
+        <!-- Assessment Objective & Rationale -->
+        {% if item.data.assessment_objective %}
+        <div class="mb-5 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+            <div class="flex items-center space-x-2 mb-2">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span class="text-indigo-700 font-semibold text-sm">Assessment Objective</span>
+            </div>
+            <p class="text-indigo-800 font-bold">{{ item.data.assessment_objective }}</p>
+            {% if item.data.assessment_objective_rationale %}
+            <p class="text-indigo-600 text-sm mt-1">{{ item.data.assessment_objective_rationale }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Test Attributes List -->
+        {% if item.data.test_attributes %}
+        <div class="mb-5">
+            <h4 class="text-gray-700 font-semibold text-sm mb-3 flex items-center space-x-2">
+                <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>Test Attributes ({{ item.data.test_attributes | length }})</span>
+            </h4>
+
+            <div class="space-y-3">
+            {% if item.data.test_attributes is mapping %}
+                {% for key, attr in item.data.test_attributes.items() %}
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
+                                #{{ attr.testing_sequence if attr.testing_sequence else loop.index }}
+                            </span>
+                            <span class="font-semibold text-gray-800 text-sm">{{ attr.attribute_name }}</span>
+                        </div>
+                        {% if attr.severity_if_failed %}
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full
+                            {% if attr.severity_if_failed == 'Critical' %}bg-red-100 text-red-700
+                            {% elif attr.severity_if_failed == 'Major' %}bg-orange-100 text-orange-700
+                            {% elif attr.severity_if_failed == 'Significant' %}bg-yellow-100 text-yellow-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ attr.severity_if_failed }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-gray-600 text-xs mb-3">{{ attr.attribute_description }}</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-green-50 border border-green-200 rounded p-2">
+                            <span class="text-green-700 font-semibold block mb-1">✓ Pass Criteria</span>
+                            <span class="text-green-800">{{ attr.pass_criteria }}</span>
+                        </div>
+                        <div class="bg-red-50 border border-red-200 rounded p-2">
+                            <span class="text-red-700 font-semibold block mb-1">✗ Fail Criteria</span>
+                            <span class="text-red-800">{{ attr.fail_criteria }}</span>
+                        </div>
+                    </div>
+                    {% if attr.population_description %}
+                    <div class="mt-2 text-xs text-gray-500">
+                        <span class="font-medium">Population:</span> {{ attr.population_description }}
+                    </div>
+                    {% endif %}
+                    {% if attr.regulatory_reference %}
+                    <div class="mt-1 text-xs text-indigo-600">
+                        <span class="font-medium">Ref:</span> {{ attr.regulatory_reference }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                {% for attr in item.data.test_attributes %}
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
+                                #{{ attr.testing_sequence if attr.testing_sequence else loop.index }}
+                            </span>
+                            <span class="font-semibold text-gray-800 text-sm">{{ attr.attribute_name }}</span>
+                        </div>
+                        {% if attr.severity_if_failed %}
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full
+                            {% if attr.severity_if_failed == 'Critical' %}bg-red-100 text-red-700
+                            {% elif attr.severity_if_failed == 'Major' %}bg-orange-100 text-orange-700
+                            {% elif attr.severity_if_failed == 'Significant' %}bg-yellow-100 text-yellow-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ attr.severity_if_failed }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-gray-600 text-xs mb-3">{{ attr.attribute_description }}</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-green-50 border border-green-200 rounded p-2">
+                            <span class="text-green-700 font-semibold block mb-1">✓ Pass Criteria</span>
+                            <span class="text-green-800">{{ attr.pass_criteria }}</span>
+                        </div>
+                        <div class="bg-red-50 border border-red-200 rounded p-2">
+                            <span class="text-red-700 font-semibold block mb-1">✗ Fail Criteria</span>
+                            <span class="text-red-800">{{ attr.fail_criteria }}</span>
+                        </div>
+                    </div>
+                    {% if attr.population_description %}
+                    <div class="mt-2 text-xs text-gray-500">
+                        <span class="font-medium">Population:</span> {{ attr.population_description }}
+                    </div>
+                    {% endif %}
+                    {% if attr.regulatory_reference %}
+                    <div class="mt-1 text-xs text-indigo-600">
+                        <span class="font-medium">Ref:</span> {{ attr.regulatory_reference }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Data Upload Section -->
+        <div class="border-2 border-dashed border-indigo-300 rounded-xl p-6 bg-indigo-50 text-center"
+             id="upload-area-{{ item_loop_idx }}"
+             ondragover="event.preventDefault()"
+             ondrop="handleDrop(event, '{{ item_loop_idx }}')">
+            
+            <svg class="w-12 h-12 text-indigo-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            
+            <p class="text-indigo-700 font-semibold mb-1">Upload Test Data File</p>
+            <p class="text-indigo-500 text-sm mb-4">Excel (.xlsx, .xls) or CSV (.csv) — Drag & drop or click to browse</p>
+            
+            <input type="file" 
+                   id="attr-file-input-{{ item_loop_idx }}" 
+                   accept=".xlsx,.xls,.csv" 
+                   class="hidden"
+                   onchange="handleFileSelect(this, '{{ item_loop_idx }}', '{{ item.data.activity_id if item.data.activity_id else '' }}')">
+            
+            <button onclick="document.getElementById('attr-file-input-{{ item_loop_idx }}').click()"
+                    class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
+                Choose File
+            </button>
+            
+            <div id="selected-file-{{ item_loop_idx }}" class="hidden mt-3 text-sm text-indigo-700 font-medium"></div>
+        </div>
+
+        <!-- Run Test Button -->
+        <div class="mt-4 flex justify-center">
+            <button id="run-attr-test-{{ item_loop_idx }}"
+                    onclick="runAttributeTest('{{ item_loop_idx }}', '{{ item.data.activity_id if item.data.activity_id else '' }}')"
+                    disabled
+                    class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>Run Attribute Tests</span>
+            </button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="attr-loading-{{ item_loop_idx }}" class="hidden mt-4 text-center">
+            <div class="inline-flex items-center space-x-3 bg-indigo-50 border border-indigo-200 rounded-xl px-6 py-3">
+                <svg class="animate-spin w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 5 2.927 5 2.927L4 12z"/>
+                </svg>
+                <span class="text-indigo-700 font-medium text-sm">Running attribute tests... This may take a moment</span>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="attr-results-{{ item_loop_idx }}" class="hidden mt-6">
+            
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-4 gap-3 mb-5" id="attr-summary-{{ item_loop_idx }}"></div>
+            
+            <!-- Attribute Results -->
+            <div id="attr-detail-{{ item_loop_idx }}" class="space-y-4"></div>
+            
+            <!-- Audit Finding -->
+            <div id="attr-finding-{{ item_loop_idx }}" class="hidden mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <h5 class="text-amber-800 font-bold mb-2 flex items-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span>Auto-Generated Audit Finding</span>
+                </h5>
+                <div id="attr-finding-text-{{ item_loop_idx }}" class="text-amber-900 text-sm whitespace-pre-wrap"></div>
+            </div>
+
+            <!-- Download Button -->
+            <div class="mt-4 flex justify-end">
+                <button onclick="downloadResults('{{ item_loop_idx }}')"
+                        id="download-btn-{{ item_loop_idx }}"
+                        class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span>Download Exception Report</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endfor %}
+
+<script>
+// ─── Attribute Testing JavaScript ───────────────────────────────
+let attrTestFiles = {};
+let attrTestResults = {};
+
+function handleDrop(event, idx) {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file) setFile(file, idx);
+}
+
+function handleFileSelect(input, idx, activityId) {
+    const file = input.files[0];
+    if (file) setFile(file, idx);
+}
+
+function setFile(file, idx) {
+    attrTestFiles[idx] = file;
+    const display = document.getElementById(`selected-file-${idx}`);
+    display.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+    display.classList.remove('hidden');
+    const btn = document.getElementById(`run-attr-test-${idx}`);
+    if (btn) btn.disabled = false;
+}
+
+function runAttributeTest(idx, activityId) {
+    const file = attrTestFiles[idx];
+    if (!file) {
+        alert('Please select a file first');
+        return;
+    }
+    if (!activityId) {
+        alert('Activity ID not found');
+        return;
+    }
+
+    // Show loading
+    document.getElementById(`attr-loading-${idx}`).classList.remove('hidden');
+    document.getElementById(`attr-results-${idx}`).classList.add('hidden');
+    document.getElementById(`run-attr-test-${idx}`).disabled = true;
+
+    // Build form data
+    const formData = new FormData();
+    formData.append('test_data_file', file);
+    formData.append('activity_id', activityId);
+
+    fetch('/audit/upload_test_data', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById(`attr-loading-${idx}`).classList.add('hidden');
+        document.getElementById(`run-attr-test-${idx}`).disabled = false;
+
+        if (data.status === 'error') {
+            alert('Error: ' + data.message);
+            return;
+        }
+
+        attrTestResults[idx] = data;
+        displayResults(idx, data);
+    })
+    .catch(error => {
+        document.getElementById(`attr-loading-${idx}`).classList.add('hidden');
+        document.getElementById(`run-attr-test-${idx}`).disabled = false;
+        alert('Error running tests: ' + error.message);
+    });
+}
+
+function displayResults(idx, data) {
+    const results = data.test_results;
+    const resultsDiv = document.getElementById(`attr-results-${idx}`);
+    resultsDiv.classList.remove('hidden');
+
+    // Summary cards
+    const summaryDiv = document.getElementById(`attr-summary-${idx}`);
+    const totalExceptions = results.total_exceptions_found || 0;
+    const severity = results.overall_severity || 'No exceptions';
+    const severityColor = totalExceptions > 0 ? 
+        (severity === 'Critical' ? 'red' : severity === 'Major' ? 'orange' : 'yellow') : 'green';
+
+    summaryDiv.innerHTML = `
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-blue-700">${results.total_population || 0}</div>
+            <div class="text-xs text-blue-600 mt-1">Total Records</div>
+        </div>
+        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-indigo-700">${results.total_attributes_tested || 0}</div>
+            <div class="text-xs text-indigo-600 mt-1">Attributes Tested</div>
+        </div>
+        <div class="bg-${totalExceptions > 0 ? 'red' : 'green'}-50 border border-${totalExceptions > 0 ? 'red' : 'green'}-200 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-${totalExceptions > 0 ? 'red' : 'green'}-700">${totalExceptions}</div>
+            <div class="text-xs text-${totalExceptions > 0 ? 'red' : 'green'}-600 mt-1">Total Exceptions</div>
+        </div>
+        <div class="bg-${severityColor}-50 border border-${severityColor}-200 rounded-xl p-4 text-center">
+            <div class="text-sm font-bold text-${severityColor}-700">${severity}</div>
+            <div class="text-xs text-${severityColor}-600 mt-1">Overall Severity</div>
+        </div>
+    `;
+
+    // Attribute detail results
+    const detailDiv = document.getElementById(`attr-detail-${idx}`);
+    detailDiv.innerHTML = '';
+
+    (results.attribute_results || []).forEach(attr => {
+        const hasExceptions = attr.exceptions > 0;
+        const exceptionRate = attr.exception_rate || 0;
+
+        let exceptionsHTML = '';
+        if (hasExceptions && attr.exception_list && attr.exception_list.length > 0) {
+            exceptionsHTML = `
+                <div class="mt-3">
+                    <p class="text-xs font-semibold text-red-700 mb-2">Exception List (${attr.exception_list.length} records):</p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-red-100">
+                                    <th class="border border-red-200 px-2 py-1 text-left">Identifier</th>
+                                    <th class="border border-red-200 px-2 py-1 text-left">Actual Value</th>
+                                    <th class="border border-red-200 px-2 py-1 text-left">Expected Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${attr.exception_list.slice(0, 10).map(exc => `
+                                    <tr class="hover:bg-red-50">
+                                        <td class="border border-red-200 px-2 py-1 font-medium">${exc.identifier}</td>
+                                        <td class="border border-red-200 px-2 py-1 text-red-700">${exc.actual_value}</td>
+                                        <td class="border border-red-200 px-2 py-1 text-green-700">${exc.expected_value}</td>
+                                    </tr>
+                                `).join('')}
+                                ${attr.exception_list.length > 10 ? `
+                                    <tr><td colspan="3" class="border border-red-200 px-2 py-1 text-center text-red-600 font-medium">
+                                        ... and ${attr.exception_list.length - 10} more exceptions
+                                    </td></tr>
+                                ` : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        detailDiv.innerHTML += `
+            <div class="border ${hasExceptions ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'} rounded-xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="${hasExceptions ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'} text-xs font-bold px-2 py-1 rounded-full">
+                            ${hasExceptions ? '✗ EXCEPTIONS FOUND' : '✓ PASSED'}
+                        </span>
+                        <span class="font-semibold text-gray-800 text-sm">${attr.attribute_name || 'Attribute'}</span>
+                    </div>
+                    ${attr.severity && hasExceptions ? `
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                            ${attr.severity}
+                        </span>
+                    ` : ''}
+                </div>
+                
+                <div class="grid grid-cols-4 gap-3 text-center text-xs mb-3">
+                    <div class="bg-white rounded-lg p-2 border">
+                        <div class="font-bold text-gray-700">${attr.population_tested || 0}</div>
+                        <div class="text-gray-500">Population</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2 border">
+                        <div class="font-bold text-green-600">${attr.passed || 0}</div>
+                        <div class="text-gray-500">Passed</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2 border">
+                        <div class="font-bold text-red-600">${attr.exceptions || 0}</div>
+                        <div class="text-gray-500">Exceptions</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2 border">
+                        <div class="font-bold ${exceptionRate > 5 ? 'text-red-600' : 'text-orange-600'}">${exceptionRate}%</div>
+                        <div class="text-gray-500">Exception Rate</div>
+                    </div>
+                </div>
+
+                ${attr.regulatory_reference ? `
+                    <p class="text-xs text-indigo-600 mb-2"><span class="font-medium">Regulatory Ref:</span> ${attr.regulatory_reference}</p>
+                ` : ''}
+
+                ${exceptionsHTML}
+            </div>
+        `;
+    });
+
+    // Audit finding
+    if (data.audit_finding) {
+        const findingDiv = document.getElementById(`attr-finding-${idx}`);
+        findingDiv.classList.remove('hidden');
+        document.getElementById(`attr-finding-text-${idx}`).textContent = data.audit_finding;
+    }
+}
+
+function downloadResults(idx) {
+    const results = attrTestResults[idx];
+    if (!results) return;
+
+    // Build CSV
+    let csv = 'Attribute Name,Population Tested,Passed,Exceptions,Exception Rate,Severity
+';
+    (results.test_results?.attribute_results || []).forEach(attr => {
+        csv += `"${attr.attribute_name}",${attr.population_tested},${attr.passed},${attr.exceptions},${attr.exception_rate}%,${attr.severity || 'N/A'}
+`;
+    });
+
+    // Exception details
+    csv += '
+
+EXCEPTION DETAILS
+';
+    csv += 'Attribute,Identifier,Actual Value,Expected Value
+';
+    (results.test_results?.attribute_results || []).forEach(attr => {
+        (attr.exception_list || []).forEach(exc => {
+            csv += `"${attr.attribute_name}","${exc.identifier}","${exc.actual_value}","${exc.expected_value}"
+`;
+        });
+    });
+
+    // Download
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attribute_testing_exceptions_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+
+{% endblock %}

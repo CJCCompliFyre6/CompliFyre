@@ -1,0 +1,15 @@
+# docker/Dockerfile.frontend
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY frontend/package.json frontend/yarn.lock ./
+RUN yarn install
+
+# No build step in development - we'll run the dev server
+
+EXPOSE 3000
+
+# Run development server with hot reload
+CMD ["yarn", "dev"]

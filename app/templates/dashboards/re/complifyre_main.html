@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CompliFyre</title>
+  <meta name="viewport" content="width=device-width, initial-scale=0.75" "shrink-to-fit=no"  />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&display=swap" rel="stylesheet">
+</head>
+<body class="m-0 p-0 bg-[#fff1e6] font-serif ">
+
+
+  <script src="https://cdn.tailwindcss.com"></script>
+<!-- Phosphor Icons for the checkmark and other icons -->
+<script src="https://unpkg.com/@phosphor-icons/web@2.0.3/dist/phosphor.js"></script>
+
+<style>
+  /* Custom text shadow for the glass-morphism effect */
+  .text-shadow-orange {
+    text-shadow: 0 0 12px rgba(255, 140, 0, 0.6); /* Darker orange shadow, increased blur */
+  }
+
+  /* Animation for cards */
+  @media (min-width: 768px) {
+    .card-container-animation {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      /* Adjust gap to allow overlap */
+      gap: 0; /* Keep gap 0 as we're using translateX for overlap */
+      width: 100%; /* Ensure container takes full width */
+      max-width: 1200px; /* Max width for the entire card container */
+      margin: 0 auto; /* Center the container */
+    }
+
+    .card-item-animated {
+      transition: transform 0.4s ease-in-out, z-index 0.4s ease-in-out, box-shadow 0.4s ease-in-out;
+      position: relative;
+      flex-shrink: 0; /* Prevent shrinking */
+      width: 40%; /* Slightly less than 33.33% to allow more overlap */
+      max-width: 475px; /* Increased max width for larger individual cards */
+      min-width: 325px; /* Ensure a minimum width */
+    }
+
+    /* Initial state for left and right cards */
+    .card-item-animated:nth-child(1) { /* Left card */
+      transform: translateX(25%) scale(0.9); /* Adjusted translation and scale down */
+      z-index: 10;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-item-animated:nth-child(2) { /* Middle card */
+      z-index: 20; /* Bring to front */
+      transform: scale(1);
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .card-item-animated:nth-child(3) { /* Right card */
+      transform: translateX(-25%) scale(0.9); /* Adjusted translation and scale down */
+      z-index: 10;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Hover state for left and right cards */
+    .card-item-animated:nth-child(1):hover,
+    .card-item-animated:nth-child(3):hover {
+      transform: translateX(0) scale(1.05); /* Zoom in and center */
+      z-index: 30; /* Bring to very front on hover */
+      box-shadow: 0 20px 40px rgba(255, 140, 0, 0.7); /* More prominent orange shadow on hover */
+    }
+
+    /* Keep middle card's z-index high when not hovered */
+    .card-item-animated:nth-child(2):hover {
+      transform: scale(1.05); /* Slightly zoom middle card on hover */
+      box-shadow: 0 20px 40px rgba(255, 140, 0, 0.7);
+      z-index: 30; /* Ensure it stays on top if hovered */
+    }
+  }
+  /* Example of using rem for font sizes */
+body {
+  font-size: 16px; /* Base font size */
+  zoom:78%;
+}
+
+h1 {
+  font-size: 2rem; /* 2 * 16px = 32px */
+}
+
+/* Example of a media query for smaller screens */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}
+</style>
+
+  <!-- Hero Section -->
+  <div class="relative w-auto h-[46rem] mx-[2rem] mt-[8rem] bg-cover bg-center rounded-2xl overflow-hidden shadow-lg  bg-[url('{{ url_for('re.static', filename='img/background_new.png') }}')]  bg-cover bg-center" >
+    
+<nav class="fixed top-1 left-1 right-1 flex items-center justify-between mt-2 mx-8 px-5 py-4 bg-black/100 bg-opacity-90 backdrop-blur-sm rounded-xl shadow-md z-30">
+  <div class="flex items-center space-x-3">
+    <img src="{{ url_for('re.static', filename='img/complyfire_logo.png') }}" alt="Logo" class="w-16 h-16 rounded-md shadow-[0_0_10px_rgba(255,165,0,0.25)]">
+    <span class="text-orange-400 text-[2.5rem] font-semibold font-serif text-shadow-orange"><strong class="text-orange-500 text-[3rem]">C</strong>ompli<strong class="text-orange-400 text-[3rem]">F</strong>yre</span>
+  </div>
+
+  <div class="flex items-center space-x-8"> {# This new div will push to the far right due to nav's justify-between #}
+    <div class="space-x-8 hidden md:flex">
+      {% if  current_user.is_authenticated and current_user.role.name != "COMPLIFYRE" %}
+      <a href="{{url_for('audit.create_organization')}}" class="text-white text-base font-medium hover:text-orange-400 transition text text-xl">Create Auditing Organization</a>
+      {%endif%}
+      </div>
+
+    <div class="space-x-3 hidden md:flex">
+      {% if not current_user.is_authenticated %}
+      <a href="{{url_for('main.login')}}" class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Login</a>
+      <a href="{{url_for('main.register_user')}}" class="px-4 py-2 bg-orange-400 hover:bg-orange-600 text-white text-lg font-large rounded-lg transition">Sign up</a>
+
+      {%else%}
+      <a href="{{url_for('re.logout')}}" class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Logout</a>
+
+      {%endif%}
+    </div>
+  </div>
+</nav>
+
+    <!-- Dark overlay -->
+    <div class="absolute inset-0 bg-black bg-opacity-70"></div>
+
+    <!-- Content (left aligned) -->
+    <div class="relative z-10 flex items-center h-full px-20 text-white">
+      <div class="max-w-[60rem] ml-8">
+        <!-- Logo -->
+        <img src="{{ url_for('re.static', filename='img/complyfire_logo.png') }}" alt="CompliFyre Logo" class="w-24 h-24 mb-6 rounded-md shadow-lg">
+
+        <!-- Title -->
+        <h1 class="text-[3rem] font-bold font-serif mb-7"><strong class="text text-[4rem]">C</strong>ompli<strong class="text text-[4rem]">F</strong>yre</h1>
+
+        <!-- Tagline -->
+        <p class="text-[2rem] font-light font-serif mb-6">The Smartest Way to Audit. Built for Audit Firms Who Want to Scale.</p>
+
+        <!-- Buttons -->
+        <div class="flex space-x-4 mt-8">
+          <a href="#"
+            class="px-4 py-2.5 bg-orange-400 hover:bg-orange-600 text-black text-xl font-medium font-serif rounded-sm transition">
+            Book a Demo
+          </a>
+          <a href="#"
+            class="px-4 py-2.5 bg-orange-400 hover:bg-orange-600 text-black text-xl font-medium font-serif rounded-sm transition">
+            See How It Works
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+<!-- Audit Problems Section -->
+<section class="bg-[#fff9f9] my-4 w-auto mx-8 rounded-2xl bg-gradient-to-br from-white via-orange-200 to-orange-600 h-screen">
+  <div class="w-full px-4 py-4 flex flex-col md:flex-row items-center gap-4 ">
+
+    <!-- Left Content -->
+    <div class="flex-1 md:ml-[5rem] ">
+      <!-- Heading -->
+      <h2 class="text-5xl font-normal mb-8 leading-snug">
+        Stretched Teams. Growing Work. Broken Processes. Rising Costs.
+      </h2>  
+
+      <!-- First row of 2 cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="border border-gray-600 rounded-sm p-5 border-l-8 border-l-orange-500">
+          <h3 class="text-xl font-semibold mb-2">Increasing Demands</h3>
+          <p class="text-lg text-gray-600">You’re expected to do more audits, in less time, with fewer skilled people.</p>
+        </div>
+        <div class="border border-gray-600 rounded-sm p-5 border-l-8 border-l-orange-500">
+          <h3 class="text-xl font-semibold mb-2">Manual Bottlenecks</h3>
+          <p class="text-lg text-gray-600">Your team spends hours on formatting, interpreting, reviewing, and cross-checking.</p>
+        </div>
+      </div>
+
+      <!-- Full-width card -->
+      <div class="border border-gray-600 rounded-sm p-5 border-l-8 border-l-orange-500 mb-8">
+        <h3 class="text-xl font-semibold mb-2">Talent & Client Strain</h3>
+        <p class="text-lg text-gray-600">Good auditors are hard to hire, and client demands are only growing.</p>
+      </div>
+
+      <!-- Description paragraph -->
+      <p class="text-lg text-gray-600 mb-4">
+        Yet, most firms are still relying on static checklists, fragmented tools, and repeated manual reviews.
+        The result? Bottlenecks, inconsistency, and burned-out senior partners doing what software should.
+      </p>
+
+      <!-- Bold conclusion -->
+      <p class="text-lg font-semibold">
+        It’s time to rethink the way audits are done.
+      </p>
+    </div>
+
+    <!-- Right Image -->
+    <div class="flex-1 flex justify-end mr-8">
+      <img src="{{ url_for('re.static', filename='img/Auditor.png') }}" alt="Frustrated auditor with papers" class="rounded-xl border-3 border-black shadow-6xl shadow-orange-300/60 w-auto h-[38rem] object-cover">
+  </div>  
+  </div>
+</section>
+
+
+
+<!-- Meet CompliFyre Section -->
+<section class="relative w-auto mx-8 bg-no-repeat text-white px-5 py-9 rounded-2xl bg-[url('{{ url_for('re.static', filename='img/WorkerImg.jpg') }}')]  bg-cover bg-center ">
+
+  <div class="absolute top-0 left-1 right-1 bottom-0 bg-black bg-opacity-70 rounded-2xl"></div>
+
+  <div class="relative max-w-7xl mx-auto px-8 rounded-2xl">
+
+    <!-- Heading -->
+    <h2 class="text-5xl mb-4">Meet CompliFyre</h2>
+    <h3 class="text-3xl mb-6">Your AI-Powered Audit Assistant</h3>
+
+    <!-- Highlight Line -->
+    <p class="text-2xl font-bold mb-4">Audit smarter, faster, and better — with any team.</p>
+
+    <!-- Description -->
+    <p class="text-xl font-semibold mb-10">CompliFyre transforms your entire audit process into a guided, intelligent workflow so even your most junior staff can deliver audit reports that are complete, compliant, and client-ready — no grammar errors, no rework, no bottlenecks.</p>
+
+    <!-- Features Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-8 mb-10">
+
+      <div>
+        <i class="ph ph-skip-forward text-orange-500 text-4xl"></i>
+        <h4 class="text-xl font-normal mb-1">Guided Workflows</h4>
+        <p class="text-lg text-gray-200 font-light">Step-by-step guidance for every audit type.</p>
+      </div>
+
+      <div>
+        <i class="ph ph-brain text-orange-500 text-4xl"></i>
+        <h4 class="text-xl font-normal mb-1">Built-in Intelligence</h4>
+        <p class="text-lg text-gray-200 font-light">Evaluates evidence & drafts reports automatically.</p>
+      </div>
+
+      <div>
+        <i class="ph ph-network text-orange-500 text-4xl"></i>
+        <h4 class="text-xl font-normal mb-1">Smart Mapping</h4>
+        <p class="text-lg text-gray-200 font-light">Overlapping regulatory requirements are intuitively handled.</p>
+      </div>
+
+      <div>
+        <i class="ph ph-lock-simple text-orange-500 text-4xl"></i>
+        <h4 class="text-xl font-normal mb-1">Secure Architecture</h4>
+        <p class="text-lg text-gray-200 font-light">Full control over client data with robust security.</p>
+      </div>
+
+      <div>
+        <i class="ph ph-checks text-orange-500 text-4xl"></i>
+        <h4 class="text-xl font-normal mb-1">Broad Compatibility</h4>
+        <p class="text-lg text-gray-200 font-light">Works for RBI, NBFC, ISO, SOC, Internal audits & more.</p>
+      </div>
+
+    </div>
+
+    <!-- Highlighted Banner -->
+    <div class="bg-green-900 text-green-100 rounded-sm px-6 py-4">
+      <p class="flex items-center gap-2 text-xl">
+        <i class="ph ph-check-circle text-green-100 text-xl"></i>
+        No more scattered files, endless reviews, or rushed deadlines.</p>
+        <span class="font-bold text-white ml-7">Just great audits — from start to finish.</span>
+      </p>
+    </div>
+
+  </div>
+</section>
+
+
+
+<!-- Why Audit Firms Love Section -->
+<section class="bg-[#fff9f9] my-4 w-auto h-auto mx-8 rounded-2xl bg-gradient-to-br from-white via-orange-200 to-orange-600 ">
+
+  <div class="w-auto mx-8 h-auto py-16 flex flex-col md:flex-row items-start gap-12">
+
+    <!-- Left Image (reduced size) -->
+    <div class="flex-[0.9] flex justify-start -ml-8">
+      <img src="{{ url_for('re.static', filename='img/WorkerImg.jpg') }}" alt="Audit team working" class="rounded-sm w-[90%] object-cover mx-auto">
+    </div>
+
+    <!-- Right Content -->
+    <div class="flex-1 px-8">
+      <!-- Heading -->
+      <h2 class="text-5xl font-normal mb-8">Why Audit Firms Love CompliFyre</h2>
+
+      <!-- 2-column grid for features -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
+
+        <!-- Feature Item -->
+        <div class="flex flex-col items-start gap-2">
+        <i class="ph ph-graduation-cap text-orange-500 text-4xl"></i>
+        <h3 class="text-lg font-medium leading-tight">Turn Junior Staff Into Reliable Auditors</h3>
+        <p class="text-lg text-gray-700">Our intelligent system guides users step-by-step, helping even entry-level team members ask the right questions, collect evidence, and draft high-quality reports without senior oversight.</p>
+        </div>
+
+
+        <div class="flex flex-col items-start gap-2">
+         <i class="ph ph-timer text-orange-500 text-4xl"></i>
+          <h3 class="text-lg font-medium leading-tight">Cut Audit Time by 80%</h3>
+          <p class="text-lg text-gray-700">From interpreting regulations to final report writing, every part of the audit is streamlined. CompliFyre auto-generates observations and recommendations so you move faster with fewer mistakes.</p>
+        </div>
+
+        <div class="flex flex-col items-start gap-2">
+          <i class="ph ph-bed text-orange-500 text-4xl"></i>
+          <h3 class="text-lg font-medium leading-tight">No More Late-Night Reviews</h3>
+          <p class="text-lg text-gray-700">Built-in audit logic ensures each step is complete and accurate, eliminating the need for multi-level reviews and manual polishing of reports.</p>
+        </div>
+
+        <div class="flex flex-col items-start gap-2">
+          <i class="ph ph-hard-drives text-orange-500 text-4xl"></i>
+          <h3 class="text-lg font-medium leading-tight">Client Data Stays with You</h3>
+          <p class="text-lg text-gray-700">All audit evidence and client documents are encrypted and stored only on your systems.complifyre handles logic; you stay in full control.</p>
+        </div>
+
+        <div class="flex flex-col items-start gap-2">
+          <i class="ph ph-tree-structure text-orange-500 text-4xl"></i>
+          <h3 class="text-lg font-medium leading-tight">One Platform. All Your Audits.</h3>
+          <p class="text-lg text-gray-700">Use CompliFyre for RBI, NBFC, internal, ISO, SOC, and risk-based audits. The platform smartly reuses overlapping clauses across multiple standards, saving you time, every</p>
+        </div>
+
+        <div class="flex flex-col items-start gap-2">
+          <i class="ph ph-chart-bar text-orange-500 text-4xl"></i>
+          <h3 class="text-lg font-medium leading-tight">Scale Without Scaling Your Team</h3>
+          <p class="text-lg text-gray-700">Win more audits without hiring more seniors. Complifyre Empowers your existing team to handle more assignments with higher quality and less burnout - giving your firm true</p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+
+<section class="bg-[#fff9f9] my-4 w-auto h-auto mx-8 rounded-2xl bg-gradient-to-br from-white via-orange-200 to-orange-600 font-serif">
+  <div class="w-auto mx-8 h-auto py-16 flex flex-col items-center text-center">
+    <h2 class="text-5xl font-normal mb-12 text-gray-800">Flexible Plans for Every Audit Need</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto md:card-container-animation">
+
+      <!-- Free Trial Card -->
+      <div class="p-8 rounded-lg shadow-lg flex flex-col items-center
+                  bg-black/90 backdrop-blur-md border border-white/20 card-item-animated">
+        <h3 class="text-3xl font-bold text-white mb-4 text-shadow-orange">Free Trial</h3>
+        <p class="text-lg text-white mb-6 text-shadow-orange">Experience CompliFyre risk-free!</p>
+        <ul class="text-left text-white mb-6 space-y-2">
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Max 1 month or 2 reports (whichever is earlier)</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Requires official email & phone verification (OTP)</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Organization and client details required</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-user text-orange-200 mr-2 text-xl"></i> Single user access</li>
+        </ul>
+        <a href="#" class="mt-auto bg-orange-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:bg-orange-600 transition-colors text-shadow-orange">Start Free Trial</a>
+      </div>
+
+      <!-- Audit Packages Card -->
+      <div class="p-8 rounded-lg shadow-lg flex flex-col items-center
+                  bg-black/90 backdrop-blur-md border border-white/20 card-item-animated">
+        <h3 class="text-3xl font-bold text-white mb-4 text-shadow-orange">Audit Packages</h3>
+        <p class="text-lg text-white mb-6 text-shadow-orange">Ideal for proprietary firms and freelance auditors.</p>
+        <ul class="text-left text-white mb-6 space-y-2">
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Purchase packages of 3 or 5 audits</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Single user access for the entire audit process</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Official email & phone verification (OTP) required</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-users-three text-orange-200 mr-2 text-xl"></i> No collaboration features</li>
+        </ul>
+        <a href="#" class="mt-auto bg-orange-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:bg-orange-600 transition-colors text-shadow-orange">View Packages</a>
+      </div>
+
+      <!-- Corporate Version Card -->
+      <div class="p-8 rounded-lg shadow-lg flex flex-col items-center
+                  bg-black/90 backdrop-blur-md border border-white/20 card-item-animated">
+        <h3 class="text-3xl font-bold text-white mb-4 text-shadow-orange">Corporate Version</h3>
+        <p class="text-lg text-white mb-6 text-shadow-orange">Designed for consulting and audit firms with multiple users.</p>
+        <ul class="text-left text-white mb-6 space-y-2">
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Annual subscription model</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-check-circle text-orange-200 mr-2 text-xl"></i> Scalable based on the number of users</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-users-four text-orange-200 mr-2 text-xl"></i> Collaborative features for teams</li>
+          <li class="flex items-center text-shadow-orange"><i class="ph ph-buildings text-orange-200 mr-2 text-xl"></i> Ideal for firms needing multi-user access</li>
+        </ul>
+        <a href="#" class="mt-auto bg-orange-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:bg-orange-600 transition-colors text-shadow-orange">Contact Sales</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- Footer Section -->
+<footer class="bg-black my-4 w-auto mx-8 rounded-2xl text-gray-300 py-10">
+  <div class="max-w-7xl mx-auto px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+
+    <!-- Logo + Description -->
+    <div>
+<div class="relative w-28 h-28 flex items-center justify-center rounded-2xl
+            bg-white shadow-[0_0_25px_rgba(255,165,0,1)]">
+  <img src="{{ url_for('re.static', filename='img/complyfire_logo.png') }}" alt="CompliFyre Logo" class="w-29 h-29 rounded-2xl object-contain z-10">
+</div>
+  <p class="text-base mt-4">Your AI-Powered Audit Assistant. Helping firms work smarter, faster, and deliver audits with confidence.</p>
+    </div>
+
+    <!-- Quick Access Links -->
+    <div>
+      <h4 class="text-xl font-semibold mb-4">Quick Access</h4>
+      <ul class="space-y-2 text-base">
+        <li><a href="#" class="hover:text-white transition">Login</a></li>
+        <li><a href="#" class="hover:text-white transition">Register</a></li>
+        <li><a href="#" class="hover:text-white transition">Create Audit Firm</a></li>
+        <li><a href="#" class="hover:text-white transition">Support</a></li>
+      </ul>
+    </div>
+
+    <!-- Contact / Social Links (optional extra) -->
+    <div>
+      <h4 class="text-xl font-semibold mb-4">Contact</h4>
+      <p class="text-base mb-2">Email: support@complifyre.com</p>
+      <p class="text-base mb-2">Phone: +91 98765 43210</p>
+
+      <!-- Social Icons (if needed) -->
+      <div class="flex space-x-4 mt-4">
+        <a href="#" class="hover:text-white text-xl"><i class="ph ph-facebook-logo"></i></a>
+        <a href="#" class="hover:text-white text-xl"><i class="ph ph-linkedin-logo"></i></a>
+        <a href="#" class="hover:text-white text-xl"><i class="ph ph-twitter-logo"></i></a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Copyright -->
+  <div class="text-center text-xs text-gray-500 mt-8">
+    © 2025 CompliFyre. All rights reserved.
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    <style>
+ /* Global Reset */
+ * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #FEF8F5;
+  margin: 0;
+  padding: 0;
+}
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      header h2 {
+        margin-bottom: 5px;
+        color: #333;
+      }
+      nav span {
+        color: #f15b2a;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 20px;
+        overflow-x: auto;
+      }
+      .tabs button {
+        padding: 10px 16px;
+        border: none;
+        background-color: #f0f0f0;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .tabs .active {
+        background-color: #ff6b57;
+        color: #fff;
+      }
+      .search-export {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      input[type="text"] {
+        padding: 8px;
+        width: 250px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .export {
+        background-color: #ff6b57;
+        color: #fff;
+        border: none;
+        padding: 8px 16px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+      }
+      .export:hover {
+        background-color: #e55b44;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      th,
+      td {
+        padding: 12px;
+        border-bottom: 1px solid #e0e0e0;
+        text-align: left;
+      }
+      th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+      }
+      .passed {
+        color: green;
+        font-weight: bold;
+      }
+      .failed {
+        color: red;
+        font-weight: bold;
+      }
+      .table-content {
+        display: none;
+      }
+      .table-content.active {
+        display: block;
+      }
+
+      .pagination-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 800px;
+      }
+
+      .dropdown {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: #fafafa;
+        cursor: pointer;
+      }
+
+      .pagination {
+        display: flex;
+        gap: 4px;
+      }
+
+      .pagination button {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        background-color: #fff;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+
+      .pagination button.active {
+        background-color: orange;
+        color: white;
+      }
+
+      .pagination button:hover {
+        background-color: #f0f0f0;
+      }
+
+      .results {
+        color: #666;
+      }
+/* General Mobile Adjustments */
+@media screen and (max-width: 768px) {
+  /* Ensure content fits the screen */
+  .container {
+    width: 95%;
+    padding: 10px;
+  }
+
+  /* Adjust typography */
+  h1 {
+    font-size: 22px;
+  }
+  h2 {
+    font-size: 18px;
+  }
+  p, li {
+    font-size: 14px;
+  }
+
+  /* Responsive menu */
+  .menu-icon-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+  }
+
+  .dashboard-title h1 {
+    font-size: 18px;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    position: fixed;
+    width: 220px;
+    left: -220px;
+    top: 0;
+    bottom: 0;
+    background: #333;
+    transition: left 0.3s ease-in-out;
+    z-index: 1000;
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
+
+  /* Table responsiveness */
+  .table-container {
+    overflow-x: auto;
+    display: block;
+    width: 100%;
+  }
+
+  table {
+    width: 100%;
+    min-width: 600px; /* Ensures tables remain readable */
+  }
+
+  /* Pagination adjustments */
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination button {
+    font-size: 12px;
+    padding: 6px 10px;
+    margin: 2px;
+  }
+}
+
+
+
+        /* Header */
+  header {
+  background-color: #222;
+  color: white;
+  padding: 15px;
+  text-align: left;
+}
+
+
+/* Flexbox container for the menu icon and title */
+.menu-icon-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Styling for the menu icon */
+.menu-icon {
+  font-size: 30px;
+  color: black;
+  cursor: pointer;
+  margin-right: 20px;
+}
+
+/* Styling for the dashboard title */
+.dashboard-title {
+  flex-grow: 1;
+}
+
+.dashboard-title h1 {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+  color: black;
+}
+
+.dashboard-title p {
+  font-size: 16px;
+  color: #ffa62b;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.dashboard-title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* User Actions */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-left: auto;
+}
+
+.profile-icon, .logout-icon {
+  font-size: 24px;
+  cursor: pointer;
+  color: black;
+}
+
+.profile-icon:hover, .logout-icon:hover {
+  color: #ffa62b;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  left: -250px;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  background-color: black;
+  color: white;
+  transition: left 0.3s ease-in-out;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+/* Sidebar Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo img {
+  width: 150px;
+  height: auto;
+}
+
+/* Sidebar Menu */
+.menu {
+  list-style-type: none;
+}
+
+.menu li {
+  padding: 10px 0;
+}
+
+.menu li a {
+  color: white;
+  text-decoration: none;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.menu li a i {
+  font-size: 18px;
+}
+
+.menu li a:hover {
+  background: linear-gradient(135deg, #f76b1c, #ffa62b);
+}
+
+/* Sidebar Submenu */
+/* Submenu Scroll */
+.submenu .submenu-items {
+display: none;
+max-height: 250px; /* Adjust this value as needed */
+overflow-y: auto;
+list-style: none;
+padding-left: 20px;
+background-color: black;
+border: 1px solid black;
+border-radius: 5px;
+}
+
+.submenu .submenu-items.active {
+display: block;
+}
+
+/* Custom Scrollbar Style */
+.submenu .submenu-items::-webkit-scrollbar {
+width: 8px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb {
+background: #575757;
+border-radius: 4px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+background: #444;
+}
+
+/* Phase Labels Styling */
+.submenu li.view-clients,
+.submenu li.audit-phase,
+.submenu li.risk-phase,
+.submenu li.field-phase,
+.submenu li.report-phase,
+.submenu li.up-phase {
+color: #514a4a;
+cursor: default;
+font-weight: bold;
+}
+
+
+/* Sidebar Footer */
+.footer {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  padding: 10px;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: white;
+  text-decoration: none;
+}
+
+.footer a i {
+  font-size: 18px;
+}
+    </style>
+
+<link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+
+<body>
+<!-- Header -->
+<div class="menu-icon-container">
+  <div class="menu-icon" onclick="toggleSidebar()">
+    <i class="bx bx-menu"></i>
+  </div>
+  <div class="dashboard-title">
+    <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+    <p>Dashboard</p>
+  </div>
+<!-- Profile and Logout Icons aligned to the right -->
+<div class="user-actions">
+  <!-- Profile Icon -->
+  <a href="#" class="profile-icon">
+      <i class="bx bx-user"></i>
+  </a>
+
+  <!-- Logout Icon -->
+  <span class="logout-icon" onclick="logout()">
+      <i class="bx bx-log-out"></i>
+  </span>
+</div>
+</div>
+
+
+<div id="sidebar" class="sidebar">
+  <div class="logo">
+    <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+  </div>
+
+  <ul class="menu">
+    <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+      </a>
+      <ul class="submenu-items">
+        <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+        <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+      </ul>
+    </li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+      </a>
+    <ul class="submenu-items">
+     <li class="view-clients">View Clients</li>
+     <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+     <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+    </ul>
+    </li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+      </a>
+      <ul class="submenu-items">
+        <li class="audit-phase">Audit / Assessment Phase</li>
+        <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+
+        <li class="risk-phase">Risk Assessment Phase</li>
+        <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+        <li><a href="{{url_for('audit.dam')}}">Audit Strategy Memo</a></li>
+        <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+        <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+        <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+        <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+        <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+        <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+
+        <li class="field-phase">FieldWork Phase (Execution)</li>
+        <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+        <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+        <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+        <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+        <li><a href="#">FieldWork Documentation</a></li>
+        <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+        <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+        <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+
+        <li class="report-phase">Reporting Phase</li>
+        <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+        <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+
+        <li class="up-phase">Follow-Up Phase</li>
+        <li><a href="#">Action Tracker</a></li>
+      </ul>
+    </li>
+
+  <main class="footer">
+    <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+    <a href="#"><i class="bx bx-support"></i> Support Center</a>
+  </div>
+</div>
+
+<!-- Main Content -->
+    <main class="main" style="padding: 20px">
+      <div class="breadcrumb" style="margin-bottom: 24px">
+        <h1 style="margin-bottom: 8px">Control Testing Results</h1>
+        <a href="#" style="color: #007bff; text-decoration: none">Dashboard</a>
+        / Control Testing Results
+      </div>
+
+      <div class="container" style="margin-bottom: 32px">
+        <div class="section" style="margin-bottom: 24px; line-height: 1.4">
+          <div class="tabs">
+            <button class="active" onclick="switchTab(0)">
+              Loan Classification and NPA Provisioning Controls (RBI IRAC Norms)
+            </button>
+            <button onclick="switchTab(1)">
+              Data Protection and Cybersecurity Controls (RBI Cybersecurity
+              Guidelines)
+            </button>
+            <button onclick="switchTab(2)">
+              Access Control and Authorization Mechanisms
+            </button>
+            <button onclick="switchTab(3)">
+              Incident Response and Recovery Procedures
+            </button>
+            <button onclick="switchTab(4)">
+              Third-Party Vendor Risk Management
+            </button>
+            <button onclick="switchTab(5)">
+              Financial Reporting and Reconciliations
+            </button>
+          </div>
+
+          <div class="table-content active">
+            <div class="search-export">
+              <input
+                type="text"
+                id="search"
+                placeholder="Search.."
+                onkeyup="filterTable()"
+              />
+              <button class="export" onclick="exportToCSV()">
+                Export to CSV
+              </button>
+            </div>
+
+            <div class="table-container">
+            <table id="data-table">
+              <thead>
+                <tr>
+                  <th>Control ID</th>
+                  <th>Control Description</th>
+                  <th>Test Description</th>
+                  <th>Control Questions (Y/N)</th>
+                  <th>Test Type</th>
+                  <th>Evidence Seen</th>
+                  <th>Test Results</th>
+                  <th>Inherent Risk</th>
+                  <th>Control Risk</th>
+                  <th>Residual Risk</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <br />
+
+            <div class="pagination-container">
+              <select class="dropdown">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+
+              <div class="pagination">
+                <button onclick="firstPage()">«</button>
+                <button onclick="prevPage()">‹</button>
+                <button class="active">1</button>
+                <button>2</button>
+                <button>3</button>
+                <span>...</span>
+                <button>10</button>
+                <button onclick="nextPage()">›</button>
+                <button onclick="lastPage()">»</button>
+              </div>
+
+              <div class="results">Results: 1-6 Of 6</div>
+            </div>
+          <br />
+
+          <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">Additional</h2>
+  <table style="width: 100%; border-collapse: collapse; background-color: #fff; border: 1px solid #eee; border-radius: 8px; overflow: hidden;">
+    <thead>
+      <tr>
+        <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; background-color: #faf7f5; font-weight: bold;">Control Owner</th>
+        <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; background-color: #faf7f5; font-weight: bold;">Test Frequency</th>
+        <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; background-color: #faf7f5; font-weight: bold;">Control Effectiveness Rating</th>
+        <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; background-color: #faf7f5; font-weight: bold;">Mitigating Controls</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background-color: #faf7f5;">
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Operations Head</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Quarterly</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Effective</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">N/A</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">CFO</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Monthly</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Effective</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Backup process</td>
+      </tr>
+      <tr style="background-color: #faf7f5;">
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Finance Manager</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Weekly</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Ineffective</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px;">Pending review</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: none; font-size: 14px;">Compliance Team</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: none; font-size: 14px;">Monthly</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: none; font-size: 14px;">Effective</td>
+        <td style="padding: 12px 16px; text-align: left; border-bottom: none; font-size: 14px;">Automation planned</td>
+      </tr>
+    </tbody>
+  </table>
+  <br />
+
+  <div style="margin-top: 20px; font-size: 14px; color: #555;">
+    <p><strong style="font-weight: bold; color: #000;">Inherent Risk</strong> refers to the natural level of risk in the process without any controls in place.</p>
+    <p><strong style="font-weight: bold; color: #000;">Control Risk</strong> evaluates the chance of controls failing to detect or mitigate risk.</p>
+    <p><strong style="font-weight: bold; color: #000;">Residual Risk</strong> is the level of risk remaining after the application of the controls.</p>
+    <p><strong style="font-weight: bold; color: #000;">Control Effectiveness Rating</strong> gives an overall assessment based on the test results and adequacy of the control.</p>
+  </div>
+        </div>
+    </main>
+
+    <script>
+      function firstPage() {
+        console.log("First page clicked");
+      }
+
+      function prevPage() {
+        console.log("Previous page clicked");
+      }
+
+      function nextPage() {
+        console.log("Next page clicked");
+      }
+
+      function lastPage() {
+        console.log("Last page clicked");
+      }
+
+      const dataSets = [
+      [
+  // Loan Classification and Provisioning[
+  ["LC-001", "Classification of loans based on IRAC norms", "Sampled 20 loan accounts for proper classification", "Were loans classified correctly? (Y/N)", "Sampling, Inspection", "Loan documents, internal classification logs", "Passed", "High", "Medium", "Low"],
+  ["LC-002", "Timely provisioning for NPAs", "Verified the provisioning logs for 15 accounts", "Were provisioning entries accurate? (Y/N)", "Recalculation, Inspection", "Monthly provisioning reports", "Passed", "High", "Low", "Low"],
+  ["LC-003", "Early Warning System for NPAs", "Reviewed EWS logs for identification of potential NPAs", "Was EWS system functioning as expected? (Y/N)", "Walkthrough, Observation", "System reports, monitoring logs", "Failed", "High", "High", "Medium"],
+  ["LC-004", "Approval workflow for loan restructuring and NPAs", "Tested 10 restructured loans for proper approval workflow", "Were approvals taken before restructuring? (Y/N)", "Sampling, Inspection", "Approval forms, escalation logs", "Passed", "Medium", "Low", "Low"],
+    ],
+    [
+  // Data Protection and Cybersecurity Controls
+  ["DP-001", "Encryption of sensitive customer data", "Checked encryption protocols used across 10 systems", "Is encryption method adequate for sensitive data? (Y/N)", "Inspection, Recalculation", "Encryption logs, key management policies", "Passed", "High", "Low", "Low"],
+  ["DP-002", "Regular patching and updates to critical infrastructure", "Verified system patching logs for critical servers", "Are critical systems patched timely? (Y/N)", "Walkthrough, Inspection", "Patch management logs, server reports", "Passed", "High", "Medium", "Low"],
+  ["DP-003", "Role-based access control (RBAC)", "Tested user access to sensitive financial data", "Is access appropriately restricted? (Y/N)", "Reperformance, Inspection", "Role assignments, access logs", "Failed", "Medium", "High", "Medium"],
+  ["DP-004", "Periodic cybersecurity audits and vulnerability assessments", "Reviewed audit reports for last two assessments", "Were vulnerabilities addressed timely? (Y/N)", "Documentation Review", "Cybersecurity audit reports", "Passed", "High", "Low", "Low"],
+    ],
+    [
+  // Access Control and Authorization Mechanisms
+  ["AC-001", "Multi-factor authentication (MFA)", "Tested MFA implementation on 5 critical systems", "Is MFA implemented on critical systems? (Y/N)", "Walkthrough, Reperformance", "Authentication logs", "Passed", "High", "Low", "Low"],
+  ["AC-002", "User access reviews for sensitive applications", "Verified user access reviews were completed timely", "Are access reviews performed as scheduled? (Y/N)", "Inspection, Documentation", "Review schedules, access review logs", "Passed", "Medium", "Medium", "Low"],
+  ["AC-003", "Segregation of duties in role assignments", "Reviewed role assignments to check segregation of duties", "Are duties appropriately segregated? (Y/N)", "Reperformance, Sampling", "Role mapping charts, access logs", "Failed", "High", "High", "Medium"],
+  ["AC-004", "Log and audit trail of access changes", "Reviewed logs of access changes for the last 6 months", "Are access changes properly logged? (Y/N)", "Documentation Review", "Access change logs", "Passed", "High", "Low", "Low"],
+    ],
+    [
+  // Incident Response and Recovery Procedures
+  ["IR-001", "Incident response plan and escalation protocol", "Verified incident response times and escalation protocol", "Is the escalation protocol followed? (Y/N)", "Walkthrough, Documentation", "Incident reports, escalation logs", "Failed", "High", "High", "Medium"],
+  ["IR-002", "Backup and recovery of critical systems", "Tested system backups and recovery procedures", "Are backups regularly tested for recovery? (Y/N)", "Reperformance, Inspection", "Backup logs, recovery reports", "Passed", "High", "Medium", "Low"],
+  ["IR-003", "Staff training on incident response procedures", "Checked incident response training completion rates", "Are staff adequately trained on incident response? (Y/N)", "Inspection, Documentation", "Training completion records", "Passed", "Medium", "Low", "Low"],
+  ["IR-004", "Testing of incident response with simulated attack scenarios", "Tested incident response in simulated phishing attack", "Was the response effective during the simulation? (Y/N)", "Walkthrough, Reperformance", "Simulated attack reports, monitoring logs", "Failed", "High", "High", "Medium"],
+    ],
+    [
+  // Third-Party Vendor Risk Management
+  ["TV-001", "Vendor due diligence", "Reviewed due diligence reports for major vendors", "Was due diligence completed before vendor engagement? (Y/N)", "Inspection, Documentation", "Due diligence reports, vendor contracts", "Failed", "High", "High", "Medium"],
+  ["TV-002", "Monitoring of service level agreements (SLAs)", "Checked SLA performance monitoring for key vendors", "Are vendor SLAs being monitored? (Y/N)", "Documentation Review", "SLA performance reports", "Passed", "Medium", "Low", "Low"],
+  ["TV-003", "Cybersecurity risk assessment for vendors", "Reviewed vendor cybersecurity compliance reports", "Are vendors compliant with cybersecurity protocols? (Y/N)", "Inspection, Reperformance", "Cybersecurity assessments, vendor reports", "Passed", "High", "Medium", "Low"],
+  ["TV-004", "Termination procedures and data retrieval", "Reviewed vendor termination procedures for recent exits", "Were termination procedures followed correctly? (Y/N)", "Walkthrough, Documentation", "Vendor termination agreements, logs", "Passed", "Medium", "Low", "Low"],
+    ],
+    [
+  // Financial Reporting and Reconciliations
+  ["FR-001", "Reconciliation of loan balances", "Checked reconciliation logs for accuracy", "Are loan balances properly reconciled? (Y/N)", "Sampling, Inspection", "Reconciliation logs, financial statements", "Passed", "High", "Low", "Low"],
+  ["FR-002", "Timely provisioning for NPAs", "Verified the accuracy of NPA provisioning entries", "Is provisioning accurate and timely? (Y/N)", "Reperformance, Inspection", "Provisioning reports, NPA records", "Passed", "High", "Medium", "Low"],
+  ["FR-003", "Revenue recognition as per RBI norms", "Verified revenue recognition process for 15 loan accounts", "Was revenue recognized correctly based on norms? (Y/N)", "Sampling, Recalculation", "Financial records, loan agreements", "Passed", "Medium", "Low", "Low"],
+  ["FR-004", "Bank reconciliations for all accounts", "Checked bank reconciliation statements for accuracy", "Are bank reconciliations accurate and timely? (Y/N)", "Inspection, Reperformance", "Bank statements, reconciliation logs", "Passed", "High", "Low", "Low"],
+  ["FR-005", "Reconciliation of inter-branch accounts", "Reviewed reconciliation of inter-branch accounts", "Were inter-branch accounts reconciled accurately? (Y/N)", "Documentation Review", "Reconciliation logs, inter-branch reports", "Failed", "Medium", "High", "Medium"],
+  ["FR-006", "Journal entry reviews and approval for financial statements", "Tested journal entry process for final financial statements", "Were journal entries approved and reviewed? (Y/N)", "Walkthrough, Inspection", "Journal entry logs, approval workflows", "Passed", "High", "Medium", "Low"]
+    ],
+  ];
+
+      let currentTab = 0;
+
+      function populateTable() {
+        const tableBody = document.querySelector("#data-table tbody");
+        tableBody.innerHTML = "";
+        dataSets[currentTab].forEach((row) => {
+          const tr = document.createElement("tr");
+          row.forEach((cell, index) => {
+            const td = document.createElement("td");
+            td.textContent = cell;
+            if (index === 10)
+              td.classList.add(cell === "Passed" ? "passed" : "failed");
+            tr.appendChild(td);
+          });
+          tableBody.appendChild(tr);
+        });
+      }
+
+      function switchTab(index) {
+        currentTab = index;
+        document
+          .querySelectorAll(".tabs button")
+          .forEach((btn, idx) => btn.classList.toggle("active", idx === index));
+        populateTable();
+      }
+
+      populateTable();
+
+
+      // Toggle Sidebar
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("open");
+    const menuIcon = document.querySelector(".menu-icon i"); // Get the current icon
+
+    // Toggle the icon when the sidebar opens or closes
+    if (menuIcon.classList.contains("bx-menu")) {
+        menuIcon.classList.replace("bx-menu", "bx-x"); // Switch to close icon
+    } else {
+        menuIcon.classList.replace("bx-x", "bx-menu"); // Switch back to menu icon
+    }
+}
+
+// Function to close the sidebar when clicking outside
+function closeSidebarIfClickedOutside(event) {
+    const sidebar = document.getElementById("sidebar");
+    const menuIcon = document.querySelector(".menu-icon i");
+    
+    // Check if the click is outside the sidebar and not on the menu icon
+    if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+        sidebar.classList.remove("open");
+        menuIcon.classList.replace("bx-x", "bx-menu"); // Revert the icon back to the menu
+    }
+}
+
+// Add the event listener to close sidebar if clicking outside
+document.addEventListener("click", closeSidebarIfClickedOutside);
+
+
+function toggleSubmenu(event) {
+  event.preventDefault(); // Prevents page reload
+
+  let parent = event.target.closest(".submenu"); // Find the clicked <li>
+  let submenu = parent.querySelector(".submenu-items"); // Find submenu in this <li>
+
+  // Close all other submenus before opening the clicked one
+  document.querySelectorAll(".submenu-items").forEach((item) => {
+    if (item !== submenu) {
+      item.classList.remove("open"); // Use class to control the display
+      item.style.display = "none"; // Remove inline style if necessary
+      item.parentElement.classList.remove("open");
+    }
+  });
+
+  // Toggle the clicked submenu
+  if (submenu.classList.contains("open")) {
+    submenu.classList.remove("open");
+    submenu.style.display = "none"; // Close
+    parent.classList.remove("open");
+  } else {
+    submenu.classList.add("open");
+    submenu.style.display = "block"; // Open
+    parent.classList.add("open");
+  }
+}
+
+
+function toggleSubmenu(event) {
+    event.preventDefault();
+    const submenu = event.target.nextElementSibling;
+    if (submenu) {
+      submenu.classList.toggle('active');
+    }
+  }
+    </script>
+  </body>
+</html>

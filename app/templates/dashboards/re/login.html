@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-vertical-style="overlay" data-theme-mode="light" data-header-styles="light" data-menu-styles="light" data-toggled="close">
+
+<head>
+
+    <!-- Meta Data -->
+    <meta charset="UTF-8">
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Complifyre</title>
+    <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+    <meta name="Author" content="Spruko Technologies Private Limited">
+<meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Style Css -->
+<style>
+    /* Global Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+/* Body Styling */
+body {
+  zoom:80%;
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  /* background-color: #000; */
+  color: #fff;
+}
+
+/* Logo Styling */
+.logo {
+  width: 150px;
+  height: auto;
+  margin: 0 auto;
+  display: block;
+  max-width: 100%; /* Ensures logo scales properly */
+}
+
+/* Custom Card (Login Container) */
+.custom-card {
+  background-color: #1c1c1c;
+  border-radius: 20px;
+  box-shadow: 0 10px 6px rgba(0, 0, 0, 0.2);
+  padding: 40px;
+  text-align: left;
+  width: 100%; 
+  max-width: 350px; /* Prevents overflow on small screens */
+}
+
+/* Heading and Subheading */
+.custom-card p.h4 {
+  font-size: 24px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.custom-card p.text-muted {
+  margin-bottom: 30px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Form Controls */
+.form-control {
+  width: 100%;
+  padding: 10px;
+  margin: 15px 0;
+  border: 2px black/100;
+  border-radius: 6px;
+
+  font-size: 16px;
+  text-align: left;
+}
+
+.custom-card .form-label {
+  margin-bottom: 10px;
+}
+
+.custom-card .form-control {
+  margin-top: 10px;
+}
+
+/* Password Visibility Button */
+.position-relative {
+  width: 100%;
+}
+
+.show-password-button {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #999;
+}
+
+.show-password-button:hover {
+  color: #fff;
+}
+
+/* Continue Button */
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(to right, #f76b1c, #ffa62b);
+  border: none;
+  border-radius: 25px;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 10px rgba(255, 166, 43, 0.4);
+  margin-top: 10px;
+  text-decoration: none;
+}
+
+.btn-primary:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(255, 166, 43, 0.6);
+}
+
+/* Grid Styling */
+.d-grid {
+  display: grid;
+  place-items: center;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* ✅ Responsive Fixes */
+@media (max-width: 576px) {
+    .custom-card {
+        padding: 20px;
+    }
+
+    .custom-card p.h4 {
+        font-size: 20px;
+    }
+
+    .custom-card p.text-muted {
+        font-size: 12px;
+    }
+
+    .form-control {
+        font-size: 14px;
+        padding: 8px;
+    }
+
+    .btn-primary {
+        font-size: 18px;
+        padding: 10px;
+    }
+}
+
+</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* Custom styles for focus states and general form aesthetics */
+  input:focus, select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.5); /* Orange ring on focus */
+    border-color: #fb923c; /* Orange border on focus */
+  }
+
+  /* Custom orange shadow for the form - Adjusted for all-direction glow */
+  .form-shadow-orange {
+    box-shadow: 0 0 60px 15px rgba(255, 140, 0, 0.8); /* Centered, larger, more spread orange shadow */
+  }
+</style>
+</head>
+<body class="flex flex-col" >
+
+  <!-- Fixed Navbar -->
+ 
+  <div class="navbar-container">
+    <nav class="fixed top-1 left-1 right-1 flex items-center justify-between mt-2 mx-8 px-5 py-4 bg-black/100 bg-opacity-90 backdrop-blur-sm rounded-xl shadow-md z-30">
+  <div class="flex items-center space-x-3">
+    <img src="{{ url_for('re.static', filename='img/complyfire_logo.png') }}" alt="Logo" class="w-16 h-16 rounded-md shadow-[0_0_10px_rgba(255,165,0,0.25)]">
+    <span class="text-orange-400 text-[2.5rem] font-semibold font-serif text-shadow-orange"><strong class="text-orange-500 text-[3rem]">C</strong>ompli<strong class="text-orange-400 text-[3rem]">F</strong>yre</span>
+  </div>
+
+  <div class="flex items-center space-x-8"> {# This new div will push to the far right due to nav's justify-between #}
+    <div class="space-x-8 hidden md:flex">
+      {% if  current_user.is_authenticated %}
+      <a href="{{url_for('audit.create_organization')}}" class="text-white text-base font-medium hover:text-orange-400 transition text text-xl">Create Auditing Organization</a>
+      {%endif%}
+      </div>
+
+    <div class="space-x-3 hidden md:flex">
+      {% if not current_user.is_authenticated %}
+      <a href="{{url_for('main.login')}}" class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Login</a>
+      <a href="{{url_for('main.register_user')}}" class="px-4 py-2 bg-orange-400 hover:bg-orange-600 text-white text-lg font-large rounded-lg transition">Sign up</a>
+      
+      {%else%}
+      <a href="{{url_for('re.logout')}}" class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Logout</a>
+
+      {%endif%}
+    </div>
+  </div>
+</nav>
+  </div>
+    
+<!-- Flash Message Container -->
+<div class="flash-container fixed top-24 right-8 z-50 space-y-2">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {% for category, message in messages %}
+  <!-- Success Message -->
+  {% if category == 'success' %}
+  <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-md relative" role="alert">
+    <button onclick="closeAlert(this)"
+      class="absolute top-2 right-2 text-green-700 hover:text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-green-200 transition-colors duration-200"
+      aria-label="Close">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    </button>
+    <p class="font-bold pr-8">Success!</p>
+    <p class="pr-8">{{ message }}</p>
+  </div>
+  <!-- Error/Danger Message -->
+  {% elif category == 'error' or category == 'danger' %}
+  <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md relative" role="alert">
+    <button onclick="closeAlert(this)"
+      class="absolute top-2 right-2 text-red-700 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-red-200 transition-colors duration-200"
+      aria-label="Close">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    </button>
+    <p class="font-bold pr-8">Error!</p>
+    <p class="pr-8">{{ message }}</p>
+  </div>
+  <!-- Warning Message -->
+  {% elif category == 'warning' %}
+  <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-md relative"
+    role="alert">
+    <button onclick="closeAlert(this)"
+      class="absolute top-2 right-2 text-yellow-700 hover:text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-yellow-200 transition-colors duration-200"
+      aria-label="Close">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    </button>
+    <p class="font-bold pr-8">Warning:</p>
+    <p class="pr-8">{{ message }}</p>
+  </div>
+  <!-- Default/Info Message -->
+  {% else %}
+  <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-md relative" role="alert">
+    <button onclick="closeAlert(this)"
+      class="absolute top-2 right-2 text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-blue-200 transition-colors duration-200"
+      aria-label="Close">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    </button>
+    <p class="font-bold pr-8">Info:</p>
+    <p class="pr-8">{{ message }}</p>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
+</div>
+<!-- Outer Padding and Margin -->
+<!-- Full-width outer container with spacing from fixed navbar -->
+<!-- Increased padding top from pt-32 to pt-48 -->
+<div class="relative mt-[18rem]  w-full">
+
+  <!-- Gradient Background Section -->
+<div class="rounded-3xl shadow-md mx-8 flex flex-col items-center text-center   bg-black  min-h-[85vh]  ">    <!-- Centered Login Card -->
+    <div class="bg-gradient-to-br  from-gray-50 to-white p-8 rounded-lg shadow-[0_0_15px_rgba(255,165,0,0.2)] max-w-2xl w-[30rem] my-[6rem] text-black text-left border border-gray-100">
+
+      
+      <!-- Logo -->
+      <div class="flex justify-center mb-6">
+        <img src="{{ url_for('re.static', filename='img/logo_horizontal_new_transparent.png') }}" alt="logo" class="h-12">
+      </div>
+
+      <!-- Heading -->
+      <h2 class="text-2xl font-bold font-serif mb-2 text-center">Login</h2>
+      <p class="text-sm text-gray-600 font-serif mb-6 text-center">Welcome back! Select method to log in:</p>
+
+      <!-- Login Form -->
+      <form method="POST" action="{{ url_for('main.login_user_route') }}" class="space-y-4">
+        <div class="row gy-3">
+                  <div class="col-xl-12">
+                    <label for="email" class="form-label font-serif text-default">Email</label>
+                    <input type="email" class="form-control border border-black" id="email" name="email" placeholder="Enter Email" required>
+                  </div>
+
+
+        <div class="col-xl-12">
+                    <label for="password" class="form-label font-serif text-default">Password</label>
+                    <div class="position-relative">
+                      <input type="password" class="form-control border border-black" id="password" name="password" placeholder="Password" required>
+                      <a href="javascript:void(0);" class="show-password-button text-muted" onclick="createpassword('password', this)" id="button-addon2">
+                        <i class="ri-eye-off-line align-middle"></i>
+                      </a>
+                    </div>
+                  </div>
+
+
+        <div class="d-grid mt-4">
+                  <button type="submit" font-serif class="btn btn-primary">Login</button>
+                </div>
+
+      </form>
+      <div class="text-center mt-4">
+            <a href="{{ url_for('main.request_password_reset') }}" class="text-sm text-gray-600 hover:text-orange-600">Forgot your password?</a>
+        </div>
+
+    </div>
+  </div>
+</div>
+
+
+</div>
+
+<script>
+  // Flash Message Handler
+function closeAlert(button) {
+  const alert = button.parentElement;
+  alert.style.transition = "opacity 0.3s ease-out, transform 0.3s ease-out";
+  alert.style.opacity = "0";
+  alert.style.transform = "translateX(100%)";
+
+  setTimeout(() => {
+    alert.remove();
+    const flashContainer = document.querySelector(".flash-container");
+    if (flashContainer && flashContainer.children.length === 0) {
+      flashContainer.style.display = "none";
+    }
+  }, 300);
+}
+
+// Auto-dismiss success messages
+document.addEventListener('DOMContentLoaded', function () {
+    const alerts = document.querySelectorAll('[role="alert"]');
+
+    alerts.forEach(alert => {
+      const isSuccess = alert.classList.contains('bg-green-100');
+      const isInfo = alert.classList.contains('bg-blue-100');
+      
+      // Auto-dismiss logic for success and info messages
+      if (isSuccess || isInfo) {
+          setTimeout(() => {
+              const closeButton = alert.querySelector('button');
+              if (closeButton) {
+                  closeAlert(closeButton);
+              }
+          }, 5000); // 5 seconds
+      }
+    });
+});
+</script>
+</body>
+</html>

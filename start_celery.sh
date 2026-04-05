@@ -1,0 +1,4 @@
+#!/bin/bash
+cd /Users/nitinagrawal/Downloads/complifyre-main
+source venv/bin/activate
+celery -A celery_worker.celery worker --loglevel=info --concurrency=2 -Q celery,extract_guidelines,extract_clauses,extract_activities,extract_test_procedures,extract_all_activities_and_tests,extract_selected_activities_and_tests,consolidate_evidence_task,generate_consolidated_test_procedure,generate_consolidated_observation_summary,generate_consolidated_findings_summary,generate_consolidated_recommendations_summary,generate_missing_activities_for_guideline,generate_single_clause_activities,eve_context,eve_checklist,eve_evaluate

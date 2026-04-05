@@ -1,0 +1,73 @@
+{% extends "audit_base.html" %} 
+{% block content %}
+
+    <!-- Include Toast UI Editor CSS and JS -->
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+
+    <div class="w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center min-h-[105vh]">
+        <div class="flex flex-col items-center py-10 px-4 flex-grow">
+            <div class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative">
+                
+                <form action="{{ url_for('main.edit_clause', clause_id=clause.id) }}" method="POST" id="edit-clause-form" class="form-step flex flex-col items-center">
+                    <h2 class="text-2xl font-semibold mb-6 text-orange-800">Edit Clause</h2>
+                    <div class="space-y-4 w-full max-w-xl">
+                        
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700" for="edit-clause-no">Clause Number</label>
+                            <input type="text" id="edit-clause-no" name="clause_no" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500" value="{{ clause.clause_no or '' }}">
+                        </div>
+
+                        <div>
+                            <label class="block mb-1 font-medium text-gray-700" for="edit_clause_text">Clause Text</label>
+                            <div id="editor" class="bg-white rounded-lg"></div>
+                            <input type="hidden" id="edit_clause_text" name="clause_text">
+                        </div>
+
+                    </div>
+                    <div class="mt-8 flex gap-4">
+                        <button type="button" onclick="window.history.back()" class="px-8 py-3 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-8 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Use Jinja's 'tojson' filter to safely pass the clause text to JavaScript
+            const initialContent = {{ clause.clause_text|tojson|safe }};
+
+            // Initialize Toast UI Editor for the edit form
+            const editor = new toastui.Editor({
+                el: document.querySelector('#editor'),
+                height: '300px',
+                initialEditType: 'wysiwyg',
+                previewStyle: 'vertical',
+                initialValue: initialContent || ''
+            });
+
+            // Set hidden input value on form submission
+            document.querySelector("#edit-clause-form").addEventListener("submit", function (event) {
+                const markdown = editor.getMarkdown();
+                if (!markdown || markdown.trim() === '') {
+                    alert('Clause text cannot be empty.');
+                    event.preventDefault();
+                    return;
+                }
+                document.querySelector("#edit_clause_text").value = markdown;
+            });
+        });
+    </script>
+{%endblock%}

@@ -1,0 +1,219 @@
+{% extends "re_base.html" %}
+{% block content %} 
+ <link rel="stylesheet" href="{{url_for('re.static', filename="css/compliance.css")}}" />
+    
+
+    <main class="main">
+          <div class="container">
+            <div class="tabs">
+                <div class="tab active" onclick="showContent('dashboard1', event)">Compliance Status Dashboard</div>
+                <div class="tab" onclick="showContent('dashboard2', event)">Compliance Status Dashboard2</div>
+                <div class="tab" onclick="showContent('riskAnalysis', event)">Regulatory Risk Analysis</div>
+            </div>
+            
+            <div id="dashboard1" class="content active">
+              <div class="search-export">
+                <input type="text" id="search" placeholder="Search..." onkeyup="searchTable('complianceTable')">
+                <span class="export" onclick="exportToCSV('dashboard1')">Export to CSV</span>
+                </div>
+
+                <table id="complianceTable">
+                    <thead class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+                        <tr>
+                            <th>Regulation Name</th>
+                            <th>Compliance Percentage</th>
+                            <th>Last Audit Date</th>
+                            <th>Comments</th>
+                            <th>No of high risk compliance breaches</th>
+                            <th>No of medium risk compliance breaches</th>
+                            <th>No of low risk compliance breaches</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Reserve Bank of India Guidelines</td>
+                            <td>95%</td>
+                            <td>15-Sep-23</td>
+                            <td>On track, minor adjustments needed</td>
+                            <td>1</td>
+                            <td>3</td>
+                            <td>0</td>
+                        </tr>
+                        <tr>
+                            <td>Prevention of Money Laundering Act</td>
+                            <td>90%</td>
+                            <td>12-Aug-23</td>
+                            <td>High risk areas identified</td>
+                            <td>0</td>
+                            <td>2</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Basel III Framework</td>
+                            <td>85%</td>
+                            <td>10-Sep-23</td>
+                            <td>Further improvements needed</td>
+                            <td>2</td>
+                            <td>3</td>
+                            <td>2</td>
+                        </tr>
+                        <tr>
+                            <td>Cybersecurity Guidelines</td>
+                            <td>100%</td>
+                            <td>30-Sep-23</td>
+                            <td>Fully compliant</td>
+                            <td>0</td>
+                            <td>0</td>
+                            <td>0</td>
+                        </tr>
+                        <tr>
+                            <td>Companies Act</td>
+                            <td>98%</td>
+                            <td>25-Aug-23</td>
+                            <td>Minor non-compliance issues resolved</td>
+                            <td>0</td>
+                            <td>1</td>
+                            <td>0</td>
+                        </tr>
+                      </table>
+                      <div class="pagination" id="paginationDashboard1"></div>
+                      <div class="entries-box">
+                          <label for="entries"></label>
+                          <select id="entries" onchange="updateEntries()">
+                              <option value="5">5</option>
+                              <option value="10" selected>10</option>
+                              <option value="15">15</option>
+                          </select>
+                      </div>
+                      <div class="chart1-container">
+                        <div class="chart-box">
+                        <h3>Compliance Status</h3>
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Number of Compliance Breaches and Resolution Status</h3>
+                        <canvas id="breachChart"></canvas>
+                    </div>
+                </div>
+                </div>
+            
+                <div id="dashboard2" class="content">
+                  <div class="search-export">
+                  <input type="text" id="search" id="searchdashboard2" placeholder="Search..." onkeyup="searchTable('searchdashboard2')">
+                  <span class="export" onclick="exportToCSV('dashboard2')">Export to CSV</span>
+                  </div>
+
+                  <div class="dashboard-container">
+                      <table id="dashboard2">
+                          <tr>
+                              <th>Owner</th>
+                              <th>Average of Current Compliance Status</th>
+                          </tr>
+                          <tr><td>CFO</td><td>100%</td></tr>
+                          <tr><td>Operations Head</td><td>90%</td></tr>
+                          <tr><td>IT Security Head</td><td>80%</td></tr>
+                          <tr><td>Risk Manager</td><td>75%</td></tr>
+                          <tr><td>Compliance Office</td><td>60%</td></tr>
+                          <tr class="total-row"><td>Grand Total</td><td>81%</td></tr>
+                      </table>
+                      <div class="chart-container1">
+                          <canvas id="complianceChart"></canvas>
+                      </div>
+                  </div>
+              </div>
+              
+            
+            
+            <div id="riskAnalysis" class="content">
+              <div class="search-export">
+                <input type="text" id="search" id="searchRiskAnalysis" placeholder="Search..." onkeyup="searchTable('riskAnalysisTable', 'searchRiskAnalysis')">
+                <span class="export" onclick="exportToCSV('riskAnalysis')">Export to CSV</span>
+                </div>
+
+                  <table id="riskAnalysisTable">
+                    <thead>
+                        <tr>
+                        <th>Regulation</th>
+                        <th>Risk Description</th>
+                        <th>Impact on Business Processes</th>
+                        <th>Risk Severity</th>
+                        <th>Current Compliance Status</th>
+                        <th>Risk Mitigation Strategy</th>
+                        <th>Monitoring Method</th>
+                        <th>Owner</th>
+                        <th>Due Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>RBI Cybersecurity Guidelines</td>
+                            <td>Risk of data breaches or failure to secure customer information.</td>
+                            <td>IT Security, Customer Data Protection</td>
+                            <td>High</td>
+                            <td>80%</td>
+                            <td>Implement advanced security tools (firewalls, encryption), employee cybersecurity training, and annual security audits.</td>
+                            <td>IT audits, continuous monitoring</td>
+                            <td>IT Security Head</td>
+                            <td>31-Dec-24</td>
+                        </tr>
+                        <tr>
+                            <td>Prudential IRAC Norms</td>
+                            <td>Risk of improper classification of loans leading to incorrect reporting of NPAs (Non-Performing Assets).</td>
+                            <td>Loan Approval, Credit Management</td>
+                            <td>High</td>
+                            <td>75%</td>
+                            <td>Automate loan classification systems, regular training for credit officers, and monthly reviews of high-risk loan portfolios.</td>
+                            <td>Monthly credit reviews</td>
+                            <td>Risk Manager</td>
+                            <td>31-Dec-24</td>
+                        </tr>
+                        <tr>
+                            <td>SEBI AML Guidelines</td>
+                            <td>Risk of non-compliance with Anti-Money Laundering (AML) guidelines, leading to reputational and legal risks.</td>
+                            <td>Customer Onboarding, Transaction Monitoring</td>
+                            <td>Medium</td>
+                            <td>60%</td>
+                            <td>Strengthen AML systems, ensure continuous monitoring of transactions, conduct employee training, and establish a clear escalation process for suspicious activity.</td>
+                            <td>Regular AML reporting</td>
+                            <td>Compliance Officer</td>
+                            <td>15-Nov-24</td>
+                        </tr>
+                        <tr>
+                            <td>Companies Act, 2013</td>
+                            <td>Risk of failure to comply with company governance and financial reporting obligations.</td>
+                            <td>Financial Reporting, Corporate Governance</td>
+                            <td>Low</td>
+                            <td>100%</td>
+                            <td>Maintain updated financial records, regular BoD meetings, and external audits to ensure adherence to reporting requirements.</td>
+                            <td>Quarterly external audits</td>
+                            <td>CFO</td>
+                            <td>NA</td>
+                        </tr>
+                        <tr>
+                            <td>RBI KYC Guidelines</td>
+                            <td>Risk of inadequate customer verification leading to money laundering or fraud.</td>
+                            <td>Customer Onboarding, Transaction Monitoring</td>
+                            <td>Medium</td>
+                            <td>90%</td>
+                            <td>Implement enhanced KYC procedures, periodic verification of high-risk customers, and conduct employee awareness programs.</td>
+                            <td>Internal KYC audits</td>
+                            <td>Operations Head</td>
+                            <td>30-Nov-24</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="pagination" id="paginationRiskAnalysis"></div>
+                <div class="entries-box">
+                    <label for="entries"></label>
+                    <select id="entries" onchange="updateEntries()">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="15">15</option>
+                    </select>
+                </div>
+            </div>
+            </div>
+            </main>
+    
+        <script src="assets/js/compliance.js"></script>
+{%endblock%}

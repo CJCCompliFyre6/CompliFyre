@@ -1,0 +1,1230 @@
+{% extends "audit_base.html" %} {% block content %}
+<link rel="stylesheet" href="{{url_for('re.static',filename='css/view.css')}}" />
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
+<style>
+  /* Optional: Custom scrollbar for better aesthetics if content overflows */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  /* Style for the div elements that will become Quill editors */
+  .quill-editor-container {
+    @apply mt-1 block w-full rounded-md shadow-sm border border-gray-300;
+  }
+
+  .quill-editor {
+    /* Quill's own styling for the editor area */
+    min-height: 120px;
+    /* Adjust height as needed */
+  }
+
+  /* Edit button style */
+  .edit-btn {
+    @apply px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm;
+  }
+
+  /* Hidden class */
+  .hidden-form {
+    display: none;
+  }
+
+  /* --- Main Activity Slider Styles --- */
+  .slider-container {
+    display: flex;
+    overflow-x: scroll;
+    /* Enable horizontal scrolling */
+    scroll-snap-type: x mandatory;
+    /* Snap to child elements */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scrolling on iOS */
+    scroll-behavior: smooth;
+    /* Smooth scroll on button click */
+    scrollbar-width: none;
+    /* Hide scrollbar for Firefox */
+    -ms-overflow-style: none;
+    /* Hide scrollbar for IE/Edge */
+    margin-bottom: 2rem;
+    /* Add some space below the slider */
+    margin-right: 10rem;
+    margin-left: 10rem
+  }
+
+  /* Hide scrollbar for Webkit browsers (Chrome, Safari) */
+  .slider-container::-webkit-scrollbar {
+    display: none;
+  }
+
+  .slider-item {
+    flex: 0 0 100%;
+    /* Each item takes full width of the container */
+    scroll-snap-align: start;
+    /* Snap to the start of each item */
+    width: 100%;
+    /* Ensure it takes full width for snapping */
+    max-width: 100%;
+    /* Override max-width from original element if present */
+    box-sizing: border-box;
+    /* Include padding in element's total width */
+    padding: 0 1rem;
+    /* Add horizontal padding between slides, adjust as needed */
+  }
+
+  /* Adjust padding for the first and last items if needed to align nicely */
+  .slider-item:first-child {
+    padding-left: 2rem;
+    /* Adjust as needed */
+  }
+
+  .slider-item:last-child {
+    padding-right: 2rem;
+    /* Adjust as needed */
+  }
+
+  /* --- Question Carousel Styles --- */
+  .questions-carousel-container {
+    overflow: hidden;
+    /* Hide overflow to show only one question at a time */
+    position: relative;
+    /* For absolute positioning of navigation */
+    width: 100%;
+    /* Ensure it takes full width available */
+    /* New: Highlight background color and padding */
+    @apply bg-blue-50 p-4 rounded-lg shadow-md;
+    /* A light blue that fits the theme */
+
+  }
+
+  .questions-carousel-track {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+    /* Smooth transition for sliding */
+  }
+
+  .question-carousel-item {
+    flex-shrink: 0;
+    /* Prevent items from shrinking */
+    width: 100%;
+    /* Each item takes the full width of the container */
+    box-sizing: border-box;
+    /* Include padding in the item's width */
+    padding: 1rem;
+    /* Padding inside each question slide */
+    /* Optional: Add a subtle background to each question item if desired */
+    @apply bg-white rounded-lg shadow-sm;
+  }
+
+  /* Navigation buttons for the question carousel */
+  .question-nav-btn {
+    @apply bg-gray-800 text-white p-2 rounded-full shadow hover:bg-gray-500 focus:outline-none;
+    /* New: Bigger size and transparency */
+    width: 40px;
+    /* Make the button wider */
+    height: 40px;
+    /* Make the button taller */
+    font-size: 3rem;
+    /* Make the arrow character bigger */
+    display: flex;
+    /* Use flexbox to center the arrow */
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    /* Make it transparent */
+    transition: opacity 0.3s ease;
+    /* Smooth transition for hover effect */
+  }
+
+  .question-nav-btn:hover {
+
+    opacity: 1;
+    /* Fully opaque on hover */
+  }
+
+  .question-nav-btn:disabled {
+    @apply opacity-30 cursor-not-allowed;
+    /* Slightly less opaque when disabled */
+  }
+
+  /* Ensure the absolute positioning of navigation buttons for the question carousel */
+  .questions-carousel-container>.absolute {
+    position: absolute;
+    /* Re-apply absolute if overwritten by @apply */
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 0.5rem;
+    /* Add some horizontal padding */
+    z-index: 20;
+    pointer-events: none;
+    /* Allows clicks to pass through to elements behind unless on a button */
+  }
+
+  .questions-carousel-container>.absolute>.question-nav-btn {
+    pointer-events: auto;
+    /* Re-enable pointer events for the buttons themselves */
+  }
+</style>
+
+<!-- 
+<main class="main"> -->
+<div class="relative">
+  <div class="absolute left-0 top-1/2 -translate-y-1/2 flex justify-between w-full px-4 z-10">
+    <button id="prevSlide"
+      class="bg-gray-800 text-white p-2 mx-4 rounded-full shadow-lg hover:bg-gray-700 focus:outline-none">
+      &#8249;
+    </button>
+    <button id="nextSlide"
+      class="bg-gray-800 text-white p-2 mx-4 rounded-full shadow-lg hover:bg-gray-700 focus:outline-none">
+      &#8250;
+    </button>
+  </div>
+
+  <div id="activitySlider" class="slider-container mx-8">
+    {% for item in how_to_perform_activities%} {# Capture the current item's
+    loop index for use in nested IDs #} {% set item_loop_idx = loop.index0 %}
+    <div class="slider-item max-w-3xl mx-auto bg-white rounded-lg shadow-xl p-8 mb-8">
+      <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">
+        Activity Details
+      </h1>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-blue-50 p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-blue-800 mb-3">
+            Core Activity Information
+          </h2>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Activity Code:</strong>
+            {{ item.data.activity_code }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Activity Name:</strong>
+            {{ item.data.activity_name }}
+          </p>
+          <p class="text-gray-700">
+            <strong class="font-medium text-gray-900">Owner:</strong> {{
+            item.data.owner }}
+          </p>
+        </div>
+        <div class="bg-purple-50 p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-purple-800 mb-3">
+            Key Attributes
+          </h2>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Control Type:</strong>
+            {{ item.data.control_type }}
+          </p>
+          <p class="text-gray-700 mb-2">
+            <strong class="font-medium text-gray-900">Frequency:</strong> {{
+            item.data.frequency }}
+          </p>
+          <p class="text-gray-700">
+            <strong class="font-medium text-gray-900">Severity:</strong>
+            <span
+              class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-red-200 text-red-800' if item.data.severity == 'High' else 'bg-yellow-200 text-yellow-800' if item.data.severity == 'Medium' else 'bg-green-200 text-green-800' }}">{{
+              item.data.severity }}</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="mb-8 p-6 bg-green-50 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-green-800 mb-3">
+          Description & Objective
+        </h2>
+        <p class="text-gray-700 mb-4">
+          <strong class="font-medium text-gray-900">Description:</strong> {{
+          item.data.activity_description }}
+        </p>
+        <p class="text-gray-700">
+          <strong class="font-medium text-gray-900">Objective:</strong> {{
+          item.data.objective }}
+        </p>
+      </div>
+
+      <div class="bg-yellow-50 p-6 rounded-lg shadow-md mb-8">
+        <h2 class="text-xl font-semibold text-yellow-800 mb-4">
+          Test Procedure
+        </h2>
+
+        <!--=========================================================================-->
+        <div>
+          {%if item.data.explain_test_procedure %}
+          {{item.data.explain_test_procedure | markdown }}
+          {%endif%}
+        </div>
+        <div class="bg-red-50 p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-red-800 mb-3">
+            Evidences & Impact
+          </h2>
+          <div class="border-b border-gray-200 p-4">
+            <h3 class="text-xl font-semibold mb-2">Evidence Required</h3>
+            <ol class="list-decimal list-inside space-y-1">
+              {% for key, values in item.data.evidences_artifacts_needed.items() %}
+              {% for value in values %}
+              <li class="text-gray-700">{{ value.item }}</li>
+              {% endfor %}
+              {% endfor %}
+            </ol>
+          </div>
+          <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+              <button onclick="openTab(event, 'evidences-{{ item_loop_idx }}')"
+                class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-large text-xl border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                Evidences
+              </button>
+              <button onclick="openTab(event, 'interviews-{{ item_loop_idx }}')"
+                class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-large text-xl border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                Interviews
+              </button>
+            </nav>
+          </div>
+
+          <div id="evidences-{{ item_loop_idx }}" class="tab-content mt-4">
+            <div class="mb-4">
+              <strong class="font-medium text-gray-900">Evidences/Artifacts Needed:</strong>
+              <div class="flex border-b border-gray-300">
+                {% if item.data.evidences_artifacts_needed %} {% for key, values
+                in item.data.evidences_artifacts_needed.items() %}
+                <button
+                  class="w-1/{{ item.data.evidences_artifacts_needed.items()|length }} py-4 text-center font-medium text-gray-700 bg-gray-100 rounded-tl-lg focus:outline-none {% if loop.first %}bg-gray-200{% endif %}"
+                  onclick="openTab2(event, 'artifact-{{key}}')" id="btn-artifact-{{key}}">{{ key.replace('_', '
+                  ').title() }}</button>
+                {%endfor%}
+                <button
+                  class="w-1/{{ item.data.evidences_artifacts_needed.items()|length +1  }} py-4 text-center font-medium text-gray-700 bg-gray-100 rounded-tl-lg focus:outline-none "
+                  onclick="openTab2(event, 'artifact-other')" id="btn-artifact-other">Other Evidence</button>
+                {%endif%}
+              </div>
+              {% if item.data.evidences_artifacts_needed %} {% for key, values
+              in item.data.evidences_artifacts_needed.items() %}
+
+              <div id="artifact-{{key}}"
+                class="tab_cont_artif mb-4 mt-2 p-4 border border-red-200 rounded-lg bg-red-100 {% if not loop.first %}hidden{% endif %}">
+                <h3 class="text-lg font-medium text-red-700 mb-2">
+                  {{ key.replace('_', ' ').title() }}:
+                </h3>
+                {% set sanitized_key = key | replace(' ', '_') | lower %} {%
+                for value in values %}
+                <div class="mb-4 p-4 bg-white rounded-lg">
+                  <div class="flex justify-between items-start mb-2">
+                    <p class="text-gray-700">
+                      <strong class="font-medium text-gray-800">Item:</strong>
+                      {{ value.item }}
+                    </p>
+                    {% if value.evidence_ans or value.files %}
+                    <button
+                      onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                      class="edit-btn">
+                      Edit
+                    </button>
+                    {% endif %}
+                  </div>
+
+                  {% if value.evidence_ans or value.files %}
+                  <div id="evidence_display_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">
+                    {% if value.evidence_ans %}
+                    <p class="mb-2">
+                      <strong class="font-medium text-gray-800">Evidence:</strong>
+                      {{ value.evidence_ans | safe }}
+                    </p>
+                    {% endif %} {% if value.files %}
+
+                    {% set file_extension = value.files.split('.')[-1].lower() %}
+                    {% set public_file_url = url_for('uploaded_file', filename=value.files, _external=True) %}
+
+
+                    {% set iframe_src = public_file_url %}
+
+                    {% if file_extension == 'docx' or file_extension == 'doc' %}
+                    {% set iframe_src = 'https://docs.google.com/gview?url=' + public_file_url %}
+                    <p class="alert alert-info">
+                      This document is being displayed using Google docs Online Viewer.
+                    </p>
+                    {% elif file_extension == 'pdf' or file_extension in ['png', 'jpg', 'jpeg', 'gif'] %}
+                    {# These types are typically well-supported by browsers directly #}
+                    <p class="alert alert-success">
+                      Document preview available.
+                    </p>
+                    {% else %}
+                    <p class="alert alert-warning">
+                      File type ({{ file_extension | upper }}) may not be directly viewable in the browser. Please
+                      download.
+                    </p>
+                    {% endif %}
+                    <div class="my-4">
+                      <iframe src="{{ iframe_src }}" width="100%" height="500px"></iframe>
+                    </div>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+
+                  <form id="evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                    enctype="multipart/form-data" method="POST" action="{{url_for('re.evidences')}}"
+                    class="{% if value.evidence_ans or value.files %}hidden-form{% endif %}" hidden disabled>
+                    <input type="hidden" name="evidence_id" value="{{ value.id }}" />
+                    <input type="hidden" name="evidence_item" value="{{ value.item }}" />
+                    <label class="block text-gray-700 text-sm font-bold mb-1">
+                      Your Observation:
+                    </label>
+                    <div id="evidence_editor_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                      class="quill-editor-container quill-editor"></div>
+                    <textarea name="evidence_content" class="hidden" autocomplete="on" autofocus
+                      id="evidence_hidden_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">{% if value.evidence_ans %}{{ value.evidence_ans | safe }}{% endif %}</textarea>
+
+                    <div class="mt-2 flex items-center">
+                      <label for="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        class="block text-gray-700 text-sm font-bold mr-2">
+                        Upload Document (PDF/Image):
+                      </label>
+                      <input type="file" id="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        name="evidence_file"
+                        class="block w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                        onchange="handleFileUpload(this, 'evidence_uploaded_path_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')" />
+                      <input type="hidden"
+                        id="evidence_uploaded_path_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        name="evidence_uploaded_path" value="{{ value.files if value.files else '' }}" />
+                      <span id="evidence_file_status_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        class="ml-2 text-sm text-gray-600">
+                        {% if value.files %}File uploaded: {{ value.files }}{%
+                        endif %}
+                      </span>
+                    </div>
+
+                    <div class="mt-2 flex justify-end space-x-2">
+                      <button type="button"
+                        onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                        class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        Cancel
+                      </button>
+                      <button type="submit" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        Submit
+                      </button>
+                    </div>
+                  </form>
+                </div>
+                {% endfor %}
+              </div>
+              {% endfor %}
+              <div id="artifact-other"
+                class="tab_cont_artif mb-4 mt-2 p-4 border border-red-200 rounded-lg bg-red-100 hidden">
+                <h3 class="text-lg font-medium text-red-700 mb-2">
+                  Other Evidences/Artifacts:
+                </h3>
+                <div class="mb-4 p-4 bg-white rounded-lg">
+                  <div class="flex justify-between items-start mb-2">
+                    <form enctype="multipart/form-data" method="POST" action="{{url_for('audit.new_evidances')}}"
+                      class="max-w-md mx-auto bg-white shadow-md rounded-lg p-6 space-y-4" hidden disabled>
+                      <h2 class="text-xl font-bold mb-4 text-gray-700">Submit New Evidence Artifact</h2>
+                      <input type="hidden" name="control_id" value="{{ item.data.activity_id }}">
+                      <!-- Category Input -->
+                      <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                        <input type="text" name="category" id="category_22" required
+                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                      </div>
+
+                      <!-- Item Input -->
+                      <div>
+                        <label for="item" class="block text-sm font-medium text-gray-700">Item</label>
+                        <input type="text" name="item" id="item_22" required
+                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                      </div>
+
+                      <!-- Submit Button -->
+                      <div>
+                        <button type="submit"
+                          class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none">
+                          Submit Evidence
+                        </button>
+                      </div>
+                    </form>
+
+                  </div>
+                </div>
+              </div>
+              {% else %}
+              <p class="text-gray-700">
+                No specific evidences/artifacts listed.
+              </p>
+              {% endif %}
+            </div>
+          </div>
+
+          <div id="interviews-{{ item_loop_idx }}" class="tab-content mt-4" style="display: none;">
+            <div class="mb-4">
+              <h3 class="text-lg font-medium text-yellow-700 mb-2">
+                Interviews:
+              </h3>
+              <p class="text-lg mb-1">
+                <strong class="font-medium text-gray-800">Roles:</strong> {{
+                item.data.test_procedure.interviews.roles | join(', ') }}
+              </p>
+              <h3 class="text-base font-medium text-yellow-700 mb-2">
+                Key Questions:
+              </h3>
+
+              <div class="questions-carousel-container" data-item-loop-idx="{{ item_loop_idx }}">
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 flex justify-between w-full px-2 z-20">
+                  <button class="question-nav-btn question-prev-btn" data-carousel-idx="{{ item_loop_idx }}">
+                    &#8249;
+                  </button>
+                  <button class="question-nav-btn question-next-btn" data-carousel-idx="{{ item_loop_idx }}">
+                    &#8250;
+                  </button>
+                </div>
+
+                <div class="questions-carousel-track my-4">
+                  {% for i in
+                  range(item.data.test_procedure.interviews.key_questions |
+                  length) %} {% set q =
+                  item.data.test_procedure.interviews.key_questions[i] %}
+                  <div class="question-carousel-item bg-red-200 rounded-lg shadow-md">
+                    <div class="flex justify-between p-6 items-start mb-2">
+                      <label class="block text-gray-700 text-xl font-bold mb-1">
+                        Question {{ i + 1 }}:
+                      </label>
+                      {% if q.answer %}
+                      <button onclick="toggleEditForm('interview_form_{{ item_loop_idx }}_{{ loop.index0 }}')"
+                        class="edit-btn p-2 bg-red-300 hover:bg-red-500">
+                        Edit
+                      </button>
+                      {% endif %}
+                    </div>
+                    <div class="bg-red-50 rounded-lg shadow-md p-4">
+                      <span class="flex px-[3rem]">
+                        <p class="text-xl pr-1"><strong>Question : </strong></p>
+                        <p class="text-xl  mb-[2rem]">{{ q.question }}</p>
+                      </span>
+
+                      {% if q.answer %}
+                      <div id="interview_display_{{ item_loop_idx }}_{{ loop.index0 }}">
+                        <p class="text-lg px-[3rem]">
+                          <strong>Answer:</strong> {{ q.answer | safe }}
+                        </p>
+                      </div>
+                      {% endif %}
+
+                      <form id="interview_form_{{ item_loop_idx }}_{{ loop.index0 }}" method="POST"
+                        action="{{ url_for('audit.submit_interview_answer') }}"
+                        class="{% if q.answer and not request.args.get('new_question_id') == q.id|string %}hidden-form{% endif %}"
+                        hidden disabled>
+                        <input type="hidden" name="question_id" value="{{ q.id }}" />
+
+                        <div id="interview_q_editor_{{ item_loop_idx }}_{{ loop.index0 }}"
+                          class="quill-editor-container quill-editor"></div>
+
+                        <textarea name="answer" class="hidden" autocomplete="on" autofocus
+                          id="interview_q_hidden_{{ item_loop_idx }}_{{ loop.index0 }}">{% if q.answer %}{{ q.answer | safe }}{% endif %}</textarea>
+
+                        <div class="mt-2 flex justify-end space-x-2">
+                          <button type="button"
+                            onclick="toggleEditForm('interview_form_{{ item_loop_idx }}_{{ loop.index0 }}')"
+                            class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            Cancel
+                          </button>
+                          <button type="submit" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                            Submit
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                  {% endfor %}
+                  <div class="question-carousel-item" id="add_question_slide_{{ item_loop_idx }}">
+                    <div id="add_question_button_container_{{ item_loop_idx }}"
+                      class="flex items-center justify-center h-full p-6">
+                      <button type="button" onclick="showAddQuestionForm('{{ item_loop_idx }}')"
+                        class="bg-blue-500 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-blue-600">
+                        + Add New Question
+                      </button>
+                    </div>
+                    <div id="add_question_form_container_{{ item_loop_idx }}"
+                      class="hidden p-6 bg-white rounded-lg shadow-md">
+                      <h3 class="text-xl font-bold mb-4">Add a New Question</h3>
+                      <form method="POST" action="{{ url_for('audit.add_interview_question') }}" hidden disabled>
+                        <input type="hidden" name="activity_id" value="{{ item.data.activity_id }}">
+                        <div class="mb-4">
+                          <label for="new_question_{{ item_loop_idx }}"
+                            class="block text-gray-700 text-sm font-bold mb-2">Question:</label>
+                          <textarea id="new_question_{{ item_loop_idx }}" name="question" rows="4" autocomplete="on"
+                            autofocus
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"></textarea>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                          <button type="button" onclick="hideAddQuestionForm('{{ item_loop_idx }}')"
+                            class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">Cancel</button>
+                          <button type="submit"
+                            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            Save Question
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <form id="mom_upload_{{ item_loop_idx }}" method="POST"
+                  action="{{url_for('audit.answer_question_from_mom')}}" enctype="multipart/form-data">
+                  <label for="minute_of_meeting_{{ item_loop_idx }}"
+                    class="block text-gray-700 text-sm font-bold mr-2">Upload Minute of The Meetings:
+                  </label>
+                  {% for i in
+                  range(item.data.test_procedure.interviews.key_questions |
+                  length) %} {% set q =
+                  item.data.test_procedure.interviews.key_questions[i] %}
+                  <input type="hidden" name="question_id_{{ loop.index0 }}" value="{{ q.id }}" />
+                  {% endfor %}
+                  <input type="file" id="minute_of_meeting_{{ item_loop_idx }}" name="minute_of_meeting"
+                    class="block w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                    onchange="handleFileUpload(this, 'mom_uploaded_path_{{ item_loop_idx }}')" accept=".pdf, .docx" />
+                  <input type="hidden" id="mom_uploaded_path_{{ item_loop_idx }}" name="mom_uploaded_path" value="" />
+                  <div class="mt-2 flex justify-end space-x-2">
+                    <button type="submit" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                      Submit
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mb-4 mt-2 p-4 border border-red-200 rounded-lg bg-red-100">
+          <div class="mb-4">
+            <label for="walkthrough_editor_{{ item_loop_idx }}" {# Added item_loop_idx for consistency even if not an
+              editor #} class="block text-gray-700 text-sm font-bold mb-2">Walkthrough:</label>
+            <p>{{ item.data.test_procedure.Walkthrough }}</p>
+          </div>
+
+          <div class="mb-4">
+            <label for="sampling_editor_{{ item_loop_idx }}"
+              class="block text-gray-700 text-sm font-bold mb-2">Sampling:</label>
+            <p>{{ item.data.test_procedure.sampling }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mb-8">
+          <div class="bg-red-50 p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold text-red-800 mb-3">
+              Evidences & Impact
+            </h2>
+            <div class="mb-4">
+              <strong class="font-medium text-gray-900"
+                >Evidences/Artifacts Needed:</strong
+              >
+              {% if item.data.evidences_artifacts_needed %} {% for key, values
+              in item.data.evidences_artifacts_needed.items() %}
+              <div
+                class="mb-4 mt-2 p-4 border border-red-200 rounded-lg bg-red-100"
+              >
+                <h3 class="text-lg font-medium text-red-700 mb-2">
+                  {{ key.replace('_', ' ').title() }}:
+                </h3>
+                {% set sanitized_key = key | replace(' ', '_') | lower %} {%
+                for value in values %}
+                <div class="mb-4 p-4 bg-white rounded-lg">
+                  <div class="flex justify-between items-start mb-2">
+                    <p class="text-gray-700">
+                      <strong class="font-medium text-gray-800">Item:</strong>
+                      {{ value.item }}
+                    </p>
+                    {% if value.evidence_ans or value.files %}
+                    <button
+                      onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                      class="edit-btn"
+                    >
+                      Edit
+                    </button>
+                    {% endif %}
+                  </div>
+
+                  {% if value.evidence_ans or value.files %}
+                  <div
+                    id="evidence_display_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                  >
+                    {% if value.evidence_ans %}
+                    <p class="mb-2">
+                      <strong class="font-medium text-gray-800"
+                        >Evidence:</strong
+                      >
+                      {{ value.evidence_ans | safe }}
+                    </p>
+                    {% endif %} {% if value.files %}
+                    <div class="my-4">
+                      <iframe
+                        src="{{ url_for('uploaded_file', filename=value.files) }}"
+                        width="100%"
+                        height="500px"
+                      ></iframe>
+                    </div>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+
+                  <form
+                    id="evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                    enctype="multipart/form-data"
+                    method="POST"
+                    action="{{url_for('re.evidences')}}"
+                    class="{% if value.evidence_ans or value.files %}hidden-form{% endif %}"
+                  >
+                    <input
+                      type="hidden"
+                      name="evidence_id"
+                      value="{{ value.id }}"
+                    />
+
+                    <label
+                      class="block text-gray-700 text-sm font-bold mb-1"
+                    >
+                      Your Observation:
+                    </label>
+                    <div
+                      id="evidence_editor_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                      class="quill-editor-container quill-editor"
+                    ></div>
+                    <textarea
+                      name="evidence_content"
+                      class="hidden"
+                      id="evidence_hidden_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                    >{% if value.evidence_ans %}{{ value.evidence_ans | safe }}{% endif %}</textarea>
+
+                    <div class="mt-2 flex items-center">
+                      <label
+                        for="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        class="block text-gray-700 text-sm font-bold mr-2"
+                      >
+                        Upload Document (PDF/Image):
+                      </label>
+                      <input
+                        type="file"
+                        id="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        name="evidence_file"
+                        class="block w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                        onchange="handleFileUpload(this, 'evidence_uploaded_path_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                      />
+                      <input
+                        type="hidden"
+                        id="evidence_uploaded_path_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        name="evidence_uploaded_path"
+                        value="{{ value.files if value.files else '' }}"
+                      />
+                      <span
+                        id="evidence_file_status_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
+                        class="ml-2 text-sm text-gray-600"
+                      >
+                        {% if value.files %}File uploaded: {{ value.files }}{%
+                        endif %}
+                      </span>
+                    </div>
+
+                    <div class="mt-2 flex justify-end space-x-2">
+                      <button
+                        type="button"
+                        onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
+                        class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  </form>
+                </div>
+                {% endfor %}
+              </div>
+              {% endfor %} {% else %}
+              <p class="text-gray-700">
+                No specific evidences/artifacts listed.
+              </p>
+              {% endif %}
+            </div>
+          </div>
+      -->
+      <div class="p-6 bg-gray-50 rounded-lg shadow-md">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <p class="text-gray-700">
+              <strong class="font-medium text-gray-900">Compliance Status:</strong>
+              <span
+                class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-red-200 text-red-800' if item.data.compliant_status == 'not compliant' else 'bg-yellow-200 text-yellow-800' if item.data.compliant_status == 'partially compliant' else 'bg-green-200 text-green-800' }}">
+                {{ item.data.compliant_status }}
+              </span>
+            </p>
+          </div>
+
+          {% if item.data.control_finding or item.data.control_recomend %}
+          <button onclick="toggleEditForm('complianceForm_{{ item_loop_idx }}')" class="edit-btn">
+            Edit
+          </button>
+          {% endif %}
+        </div>
+
+        {% if item.data.control_finding or item.data.control_recomend %}
+        <div id="compliance_display_{{ item_loop_idx }}">
+          <div class="mb-4">
+            <strong class="font-medium text-gray-900">Findings:</strong>
+            {{ item.data.control_finding | safe }}
+          </div>
+          <div class="mb-4">
+            <strong class="font-medium text-gray-900">Recommendation:</strong>
+            {{ item.data.control_recomend | safe }}
+          </div>
+        </div>
+        {% endif %}
+
+        <form method="POST" id="complianceForm_{{ item_loop_idx }}"
+          action="{{url_for('audit.update_control_activity')}}"
+          class="{% if item.data.control_finding or item.data.control_recomend %}hidden-form{% endif %}" hidden
+          disabled>
+          <input type="hidden" name="activity_id" value="{{item.data.activity_id}}" />
+
+          <label class="block mb-2 text-sm font-medium text-gray-700">
+            Select Compliance Status
+          </label>
+          <select id="compliant_status_{{ item_loop_idx }}" name="compliant_status"
+            class="w-full mb-4 p-2 border rounded" onchange="toggleFindingsSection('{{ item_loop_idx }}')">
+            <option value="">-- Select --</option>
+            <option value="compliant" {% if item.data.compliant_status=='compliant' %}selected{% endif %}>
+              Compliant
+            </option>
+            <option value="partially compliant" {% if item.data.compliant_status=='partially
+                  compliant' %}selected{% endif %}>
+              Partially Compliant
+            </option>
+            <option value="not compliant" {% if item.data.compliant_status=='not
+                  compliant' %}selected{% endif %}>
+              Not Compliant
+            </option>
+          </select>
+
+          <div id="findings_section_{{ item_loop_idx }}"
+            class="mb-4 {% if item.data.compliant_status == 'compliant' or not item.data.compliant_status %}hidden{% endif %}">
+            <label class="block mb-1 text-sm font-bold text-gray-700">
+              Findings
+            </label>
+            <div id="findings_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
+            <textarea name="findings_content" class="hidden" autocomplete="on" autofocus
+              id="findings_hidden_{{item_loop_idx}}">{% if item.data.control_finding %}{{ item.data.control_finding | safe }}{% endif %}</textarea>
+
+            <label class="block mb-1 text-sm font-bold text-gray-700">
+              Recommendation
+            </label>
+            <div id="recommendation_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
+            <textarea name="recommendation_content" class="hidden" autocomplete="on" autofocus
+              id="recommendation_hidden_{{item_loop_idx}}">{% if item.data.control_recomend %}{{ item.data.control_recomend | safe }}{% endif %}</textarea>
+          </div>
+
+          <div class="flex justify-end space-x-2">
+            <button type="button" onclick="toggleEditForm('complianceForm_{{ item_loop_idx }}')"
+              class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+              Cancel
+            </button>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Submit
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor%}
+</div>
+</div>
+<!-- </main> -->
+
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script>
+  // A list to hold references to all Quill editor instances
+  const quillInstances = [];
+
+  // Function to initialize a single Quill editor
+  function initializeQuill(editorId, hiddenInputId, initialContent) {
+    const editorElement = document.getElementById(editorId);
+    const hiddenInputElement = document.getElementById(hiddenInputId);
+
+    if (!editorElement || !hiddenInputElement) {
+      console.warn(
+        `Could not find elements for editorId: ${editorId} or hiddenInputId: ${hiddenInputId}. This might be normal if elements are dynamically added/removed.`
+      );
+      return;
+    }
+
+    const quill = new Quill(editorElement, {
+      theme: "snow",
+      modules: {
+        toolbar: {
+          container: [
+            [{ header: [1, 2, 3, false] }],
+            ["bold", "italic", "underline", "strike"],
+            ["blockquote", "code-block"],
+            [{ list: "ordered" }, { list: "bullet" }],
+            [{ indent: "-1" }, { indent: "+1" }],
+            [{ direction: "rtl" }],
+            [{ color: [] }, { background: [] }],
+            [{ font: [] }],
+            [{ align: [] }],
+            ["link", "image", "video"],
+            ["clean"],
+          ],
+          handlers: {
+            image: function () {
+              let fileInput = this.container.querySelector(
+                "input.ql-image[type=file]"
+              );
+              if (fileInput == null) {
+                fileInput = document.createElement("input");
+                fileInput.setAttribute("type", "file");
+                fileInput.setAttribute("accept", "image/*");
+                fileInput.classList.add("ql-image");
+                fileInput.onchange = () => {
+                  if (fileInput.files != null && fileInput.files[0] != null) {
+                    const range = this.quill.getSelection(true);
+                    uploadFile(fileInput.files[0], (imageUrl) => {
+                      this.quill.insertEmbed(range.index, "image", imageUrl);
+                      this.quill.setSelection(range.index + 1);
+                    });
+                  }
+                };
+                this.container.appendChild(fileInput);
+              }
+              fileInput.click();
+            },
+          },
+        },
+      },
+      placeholder: "Enter details here..",
+    });
+
+    // Set initial content if it exists
+    if (initialContent) {
+      quill.clipboard.dangerouslyPasteHTML(initialContent);
+    }
+
+    quill.on("text-change", function () {
+      hiddenInputElement.value = quill.root.innerHTML;
+    });
+
+    quillInstances.push(quill);
+  }
+
+  function handleFileUpload(inputElement, hiddenInputId) {
+    const file = inputElement.files[0];
+    const hiddenInput = document.getElementById(hiddenInputId);
+    const statusElementId = hiddenInputId.replace("_path_", "_file_status_"); // This might need adjustment for mom_upload files
+
+    if (file) {
+      // Assuming 'uploadFile' is defined elsewhere and handles the actual upload
+      // For now, we'll just update the hidden input value as a placeholder.
+      // You'll need to ensure your 'uploadFile' function is available or implement
+      // AJAX for file uploads here.
+      console.log(`Simulating file upload for: ${file.name}`);
+      const dummyFilePath = `/uploads/${file.name}`; // Replace with actual path from server
+      hiddenInput.value = dummyFilePath;
+      const statusElement = document.getElementById(statusElementId);
+      if (statusElement) {
+        statusElement.textContent = `File selected: ${file.name}`;
+      } else {
+        console.warn(`Status element ${statusElementId} not found.`);
+      }
+    }
+  }
+
+  function showAddQuestionForm(itemLoopIdx) {
+    document.getElementById(`add_question_button_container_${itemLoopIdx}`).classList.add('hidden');
+    document.getElementById(`add_question_form_container_${itemLoopIdx}`).classList.remove('hidden');
+  }
+
+  function hideAddQuestionForm(itemLoopIdx) {
+    document.getElementById(`add_question_form_container_${itemLoopIdx}`).classList.add('hidden');
+    document.getElementById(`add_question_button_container_${itemLoopIdx}`).classList.remove('hidden');
+  }
+
+  // Function to toggle edit form visibility
+  function toggleEditForm(formId) {
+    const form = document.getElementById(formId);
+    let displayDiv = null;
+    // For compliance form
+    if (formId.startsWith("complianceForm_")) {
+      const idx = formId.split("_").pop();
+      displayDiv = document.getElementById(`compliance_display_${idx}`);
+    } else if (formId.startsWith("interview_form_")) {
+      displayDiv = document.getElementById(formId.replace("form_", "display_"));
+    } else if (formId.startsWith("evidence_form_")) {
+      displayDiv = document.getElementById(formId.replace("form_", "display_"));
+    }
+    if (form) {
+      form.classList.toggle("hidden-form");
+      // If form is now visible, initialize Quill if not already initialized
+      if (!form.classList.contains("hidden-form")) {
+        // Find all quill-editor-container inside this form
+        form
+          .querySelectorAll(".quill-editor-container")
+          .forEach((editorContainer) => {
+            // Check if the editor has already been initialized on this container
+            if (!editorContainer.classList.contains("quill-initialized")) {
+              const editorId = editorContainer.id;
+              const hiddenInputId = editorId.replace("_editor_", "_hidden_");
+              const hiddenInput = document.getElementById(hiddenInputId);
+              const initialContent = hiddenInput ? hiddenInput.value : "";
+              initializeQuill(editorId, hiddenInputId, initialContent);
+              editorContainer.classList.add("quill-initialized");
+            }
+          });
+      }
+    }
+    if (displayDiv) {
+      displayDiv.classList.toggle("hidden");
+    }
+  }
+
+  // Function to toggle findings section based on Compliance Status
+  function toggleFindingsSection(idx) {
+    const status = document.getElementById("compliant_status_" + idx).value;
+    const section = document.getElementById("findings_section_" + idx);
+    section.classList.toggle("hidden", status === "compliant" || status === "");
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    // Initialize Quill editors that are visible on initial load
+    document
+      .querySelectorAll(
+        ".quill-editor-container:not(.quill-initialized):not([id^='interview_q_editor_'])"
+      )
+      .forEach((editorContainer) => {
+        const editorId = editorContainer.id;
+        const hiddenInputId = editorId.replace("_editor_", "_hidden_");
+        const hiddenInput = document.getElementById(hiddenInputId);
+        const initialContent = hiddenInput ? hiddenInput.value : "";
+
+        initializeQuill(editorId, hiddenInputId, initialContent);
+        editorContainer.classList.add("quill-initialized");
+      });
+
+    // Initialize the findings section for each compliance form
+    {% for item in how_to_perform_activities %}
+    toggleFindingsSection("{{ loop.index0 }}");
+    {% endfor %}
+
+    // --- Main Activity Slider Navigation JavaScript ---
+    const slider = document.getElementById("activitySlider");
+    const prevButton = document.getElementById("prevSlide");
+    const nextButton = document.getElementById("nextSlide");
+
+    if (slider && prevButton && nextButton) {
+      const slides = slider.querySelectorAll(".slider-item");
+      const totalSlides = slides.length;
+
+      // Ensure slides array is not empty before proceeding
+      if (totalSlides === 0) {
+        prevButton.classList.add('hidden');
+        nextButton.classList.add('hidden');
+      } else {
+        let currentSlideIndex = 0;
+
+        const updateMainSliderPosition = () => {
+          slider.scrollTo({
+            left: currentSlideIndex * slides[0].offsetWidth,
+            behavior: "smooth",
+          });
+          updateMainNavButtons();
+        };
+
+        const updateMainNavButtons = () => {
+          prevButton.disabled = currentSlideIndex === 0;
+          nextButton.disabled = currentSlideIndex === totalSlides - 1;
+
+          if (totalSlides <= 1) { // Hide buttons if only one slide
+            prevButton.classList.add('hidden');
+            nextButton.classList.add('hidden');
+          } else {
+            prevButton.classList.remove('hidden');
+            nextButton.classList.remove('hidden');
+          }
+        };
+
+        nextButton.addEventListener("click", () => {
+          if (currentSlideIndex < totalSlides - 1) {
+            currentSlideIndex++;
+            updateMainSliderPosition();
+          }
+        });
+
+        prevButton.addEventListener("click", () => {
+          if (currentSlideIndex > 0) {
+            currentSlideIndex--;
+            updateMainSliderPosition();
+          }
+        });
+
+        // Optional: Update currentSlideIndex when user manually scrolls
+        slider.addEventListener('scroll', () => {
+          const newIndex = Math.round(slider.scrollLeft / slides[0].offsetWidth);
+          if (newIndex !== currentSlideIndex) {
+            currentSlideIndex = newIndex;
+            updateMainNavButtons();
+          }
+        });
+
+        updateMainNavButtons(); // Initial state
+      }
+    }
+
+    // --- Question Carousel JavaScript (for each activity item) ---
+    document.querySelectorAll(".questions-carousel-container").forEach((container) => {
+      const track = container.querySelector(".questions-carousel-track");
+      const items = track.querySelectorAll(".question-carousel-item");
+      const prevBtn = container.querySelector(".question-prev-btn");
+      const nextBtn = container.querySelector(".question-next-btn");
+
+      if (items.length === 0) {
+        // Hide buttons if no questions
+        if (prevBtn) prevBtn.classList.add('hidden');
+        if (nextBtn) nextBtn.classList.add('hidden');
+        return; // No items, no carousel needed
+      }
+
+      let currentQuestionIndex = 0;
+      const totalQuestions = items.length;
+
+      const updateQuestionCarousel = () => {
+        const offset = -currentQuestionIndex * 100;
+        track.style.transform = `translateX(${offset}%)`;
+        updateQuestionNavButtons();
+      };
+
+      const updateQuestionNavButtons = () => {
+        if (prevBtn) prevBtn.disabled = currentQuestionIndex === 0;
+        if (nextBtn) nextBtn.disabled = currentQuestionIndex === totalQuestions - 1;
+
+        if (totalQuestions <= 1) { // Hide buttons if only one question
+          if (prevBtn) prevBtn.classList.add('hidden');
+          if (nextBtn) nextBtn.classList.add('hidden');
+        } else {
+          if (prevBtn) prevBtn.classList.remove('hidden');
+          if (nextBtn) nextBtn.classList.remove('hidden');
+        }
+      };
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+          if (currentQuestionIndex < totalQuestions - 1) {
+            currentQuestionIndex++;
+            updateQuestionCarousel();
+          }
+        });
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+          if (currentQuestionIndex > 0) {
+            currentQuestionIndex--;
+            updateQuestionCarousel();
+          }
+        });
+      }
+
+      updateQuestionCarousel(); // Initialize state
+    });
+
+    // Check for a new question ID in the URL and open its form
+    const urlParams = new URLSearchParams(window.location.search);
+    const newQuestionId = urlParams.get('new_question_id');
+    if (newQuestionId) {
+      const newQuestionForm = document.querySelector(`input[name="question_id"][value="${newQuestionId}"]`);
+      if (newQuestionForm) {
+        const formId = newQuestionForm.closest('form').id;
+
+        // Ensure the form is not hidden
+        const formElement = document.getElementById(formId);
+        formElement.classList.remove('hidden-form');
+
+        // Initialize Quill on the new editor
+        const editorId = formId.replace('interview_form_', 'interview_q_editor_');
+        const hiddenInputId = formId.replace('interview_form_', 'interview_q_hidden_');
+        initializeQuill(editorId, hiddenInputId, '');
+
+        // Scroll to the form
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    // Initialize the first tab of each tab group
+    document.querySelectorAll('.slider-item').forEach(slider => {
+      const firstTab = slider.querySelector('.tab-button');
+      if (firstTab) {
+        firstTab.click();
+      }
+    });
+  });
+
+  function openTab(event, tabName) {
+    let i, tabcontent, tablinks;
+    const sliderItem = event.currentTarget.closest('.slider-item');
+
+    tabcontent = sliderItem.querySelectorAll(".tab-content");
+    for (i = 0; i < tabcontent.length; i++) {
+      tabcontent[i].style.display = "none";
+    }
+
+    tablinks = sliderItem.querySelectorAll(".tab-button");
+    for (i = 0; i < tablinks.length; i++) {
+      tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    event.currentTarget.className += " active";
+  }
+</script>
+
+<script>
+  function openTab2(evt, tabName) {
+    const allTabs = document.querySelectorAll('.tab_cont_artif');
+
+    allTabs.forEach(tab => {
+      if (tab.id === tabName) {
+        tab.classList.remove('hidden'); // show selected tab
+      } else {
+        tab.classList.add('hidden'); // hide all others
+      }
+    });
+
+    // Update button styles
+    const allButtons = document.querySelectorAll('[id^="btn-artifact"]');
+    allButtons.forEach(btn => {
+      btn.classList.remove('bg-gray-200');
+      btn.classList.add('bg-gray-100');
+    });
+
+    evt.currentTarget.classList.add('bg-gray-200');
+    evt.currentTarget.classList.remove('bg-gray-100');
+  }
+
+
+</script>
+
+<script src="{{url_for('re.static',filename='js/view.js')}}"></script>
+
+{% endblock %}

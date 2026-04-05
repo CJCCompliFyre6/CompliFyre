@@ -1,0 +1,818 @@
+{% extends "audit_base.html" %}
+{%block content%}
+
+
+<!-- CSS for the IMAGE-BASED Audit Dashboard Section -->
+<style>
+    .findings_category_chart_div {
+        color: #fff !important;
+    }
+
+    .audit-dashboard-section-wrapper {
+        font-family: Arial, Helvetica, sans-serif;
+        background-color: #fff;
+        border-radius: 15px;
+        box-shadow: 10px 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        margin-top: 30px;
+        margin-bottom: 30px;
+    }
+
+    .audit-dashboard-header {
+        /* ... other audit-dashboard styles ... */
+    }
+
+    .audit-kpi-row {
+        /* ... */
+    }
+
+    .audit-kpi-box,
+    .audit-kpi-detail-box {
+        /* ... */
+    }
+
+    /* (Include all styles from the previous "Image-Based Audit Dashboard" CSS here) */
+    .audit-kpi-row {
+        display: flex;
+        gap: 20px;
+        justify-content: space-between;
+    }
+
+    .audit-kpi-box,
+    .audit-kpi-detail-box {
+        background-color: black;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100px;
+    }
+
+    .audit-kpi-box .kpi-title {
+        font-size: 0.9em;
+        margin-bottom: 8px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .audit-kpi-box .kpi-value {
+        font-size: 2em;
+        font-weight: bold;
+    }
+
+    .audit-kpi-box.summary-title-box {
+        background-color: #D35400;
+    }
+
+    .audit-kpi-box.summary-title-box .kpi-title {
+        font-size: 1.1em;
+    }
+
+    .audit-kpi-detail-box {
+        background-color: #eee;
+        color: #ffa62b;
+        min-height: 180px;
+    }
+
+    .audit-kpi-detail-box .kpi-title {
+        /* Title within detail box, e.g., Total Findings */
+        font-size: 0.95em;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .audit-kpi-detail-box .kpi-big-value {
+        font-size: 2.8em;
+        font-weight: bold;
+        color: #D35400;
+        margin-top: 10px;
+    }
+
+    .audit-kpi-detail-box .planned-audits p {
+        margin: 5px 0;
+        font-size: 1em;
+    }
+
+    .audit-kpi-detail-box .planned-audits .count {
+        font-weight: bold;
+        font-size: 1.2em;
+        color: #BF360C;
+    }
+
+    .audit-chart-placeholder {
+        width: 100%;
+        height: 150px;
+    }
+
+    .audit-findings-category-box .audit-chart-placeholder {
+        height: 250px;
+    }
+
+    .audit-departmental-charts-box .audit-chart-placeholder {
+        height: 280px;
+    }
+
+    .audit-findings-category-box {
+        background-color: #000;
+        padding: 20px;
+        border-radius: 8px;
+        color: #fff;
+    }
+
+    .audit-findings-category-box h2 {
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 1.4em;
+    }
+
+    .audit-departmental-charts-row {
+        display: flex;
+        gap: 20px;
+    }
+
+    .audit-departmental-charts-box {
+        flex: 1;
+        background-color: #eee;
+        padding: 15px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .audit-departmental-charts-box h3 {
+        text-align: center;
+        margin-top: 0;
+        color: #D35400;
+        font-size: 1.2em;
+    }
+</style>
+
+<!-- CSS for the NEW STRATEGIC ENHANCEMENTS LIST Section -->
+<style>
+    /* Prefixing with enhancements- to avoid conflicts */
+
+
+
+    .enhancements-body-styles {
+        /* Applied to a wrapper to simulate body styles */
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.7;
+        color: #343a40;
+        margin-top: 30px;
+        /* Space from previous dashboard */
+    }
+
+    .enhancements-container {
+        width: 100%;
+        /* Take full width within main content area */
+        /* max-width: 1000px; -- Let main's width control this */
+
+    }
+
+    .enhancements-container header h1 {
+        /* Styles for h1 within enhancements-container header */
+        color: #0056b3;
+        text-align: center;
+        margin-bottom: 15px;
+        font-size: 2.0em;
+        /* Slightly smaller to fit context */
+    }
+
+    .enhancements-container header p.intro {
+        text-align: center;
+        color: #6c757d;
+        margin-bottom: 35px;
+        font-size: 1.1em;
+    }
+
+    .enhancements-section {
+        /* Renamed from enhancement-section */
+        margin-bottom: 40px;
+        padding: 25px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        background-color: #fdfdfd;
+        transition: box-shadow 0.3s ease;
+    }
+
+    .enhancements-section:hover {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .enhancements-section h2 {
+        color: #007bff;
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 1.7em;
+        border-bottom: 2px solid #dee2e6;
+        padding-bottom: 10px;
+    }
+
+    .enhancements-section h2 .icon {
+        margin-right: 12px;
+        font-size: 1.0em;
+        display: inline-block;
+    }
+
+    .enhancements-section h3 {
+        color: #17a2b8;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 1.3em;
+    }
+
+    .enhancements-section p,
+    .enhancements-section ul {
+        margin-bottom: 15px;
+        color: #495057;
+    }
+
+    .enhancements-section ul {
+        list-style-type: disc;
+        padding-left: 25px;
+    }
+
+    .enhancements-section ul li {
+        margin-bottom: 8px;
+    }
+
+    .enhancements-rationale,
+    /* Renamed */
+    .enhancements-value-proposition {
+        /* Renamed */
+        background-color: #e6f7ff;
+        border-left: 4px solid #007bff;
+        padding: 15px 20px;
+        margin-top: 18px;
+        font-style: italic;
+        color: #004085;
+        border-radius: 0 4px 4px 0;
+    }
+
+    .enhancements-discussion-point {
+        /* Renamed */
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 18px;
+        margin-top: 22px;
+        border-radius: 4px;
+    }
+
+    .enhancements-discussion-point h4 {
+        margin-top: 0;
+        color: #856404;
+        font-size: 1.2em;
+    }
+
+    .enhancements-discussion-point ul {
+        color: #856404;
+    }
+
+    .enhancements-charts-container {
+        /* Renamed */
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px dashed #ced4da;
+    }
+
+    .enhancements-chart-wrapper {
+        /* Renamed */
+        margin-bottom: 25px;
+        text-align: center;
+    }
+
+    .enhancements-chart-div {
+        /* Renamed */
+        width: 100%;
+        height: 300px;
+        margin: 0 auto 10px auto;
+        border: 1px solid #dcdcdc;
+        border-radius: 5px;
+    }
+
+    .enhancements-chart-wrapper p.caption {
+        font-size: 0.9em;
+        color: #555;
+        margin-top: 0;
+    }
+
+    .enhancements-implementation-note {
+        /* Renamed */
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 10px 15px;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        margin: 30px 0;
+        text-align: center;
+        font-size: 0.95em;
+    }
+
+    /* End of CSS for NEW STRATEGIC ENHANCEMENTS LIST Section */
+</style>
+
+
+<style>
+    @keyframes float {
+
+        0%,
+        100% {
+            transform: translateY(0px);
+        }
+
+        50% {
+            transform: translateY(-20px);
+        }
+    }
+
+    @keyframes glow {
+
+        0%,
+        100% {
+            box-shadow: 0 0 20px rgba(255, 165, 87, 0.3);
+        }
+
+        50% {
+            box-shadow: 0 0 40px rgba(255, 165, 87, 0.6);
+        }
+    }
+
+    @keyframes pulse-ring {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+
+        100% {
+            transform: scale(2.4);
+            opacity: 0;
+        }
+    }
+
+    .float-animation {
+        animation: float 6s ease-in-out infinite;
+    }
+
+    .glow-animation {
+        animation: glow 3s ease-in-out infinite;
+    }
+
+    .pulse-ring {
+        animation: pulse-ring 3s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+    }
+
+    .gradient-orange {
+        background: linear-gradient(135deg, #ffb366 0%, #ff8c42 25%, #ff7519 50%, #e65c00 75%, #cc5200 100%);
+    }
+
+    .glass-effect {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+</style>
+<style>
+    @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes spin-reverse-medium {
+        from { transform: rotate(360deg); }
+        to { transform: rotate(0deg); }
+    }
+    .animate-spin-slow {
+        animation: spin-slow 20s linear infinite;
+    }
+    .animate-spin-reverse-medium {
+        animation: spin-reverse-medium 15s linear infinite;
+    }
+</style>
+<style>
+    
+    /* NEW Keyframe for flowing particles */
+    @keyframes flow {
+        from {
+            stroke-dashoffset: 20;
+        }
+        to {
+            stroke-dashoffset: 0;
+        }
+    }
+
+    /* UPDATED Keyframe for a more organic, complex pulse */
+    @keyframes pulse-complex {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 0.6;
+        }
+        40% {
+            transform: scale(1.5);
+            opacity: 1;
+        }
+        60% {
+            transform: scale(1.2);
+            opacity: 0.8;
+        }
+    }
+
+    /* Keyframe for overall rotation */
+    @keyframes slow-spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Applying animations */
+    .animate-slow-spin {
+        animation: slow-spin 45s linear infinite; /* Slowed down for a more majestic feel */
+    }
+
+    .ai-node-orange {
+        fill: #ea580c; /* orange-600 for slightly deeper color */
+        transform-origin: center center;
+        animation-name: pulse-complex;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+        transition: animation-duration 0.3s ease; /* Smooth transition for hover effect */
+    }
+
+    .ai-connection {
+        /* This pattern creates a "particle" (a 2px dash) followed by a long gap (18px) */
+        stroke-dasharray: 2 18;
+        animation: flow 1.5s linear infinite;
+        transition: animation-duration 0.3s ease; /* Smooth transition for hover effect */
+    }
+
+    /* Interactive Hover Effect: Speeds up the animation */
+    #ai-visualization:hover .ai-connection {
+        animation-duration: 0.5s;
+    }
+    #ai-visualization:hover .ai-node-orange {
+        animation-duration: 1.5s;
+    }
+</style>
+
+<main class="main mx-4">
+
+
+
+    <!-- SECTION 1: BANK INFO & PROCESSES (Original to RE Dashboard) -->
+
+
+    <!-- SECTION 2: IMAGE-BASED AUDIT DASHBOARD (Integrated from previous step) -->
+    <h2 class="text-2xl m-2"> Welcome <span class="font-bold text-orange-600">{{ organization.firm_name }}</span> !</h2>
+    {% if current_user.is_authenticated and  current_user.role.name != "COMPLIFYRE"%}
+    <section class="audit-dashboard-section-wrapper bank-info">
+
+        <section class="audit-kpi-row info-tags">
+            <!-- ... (AUDIT SUMMARY, Audit Plan, Conducted, Pending KPI boxes) ... -->
+            <!-- <div class="audit-kpi-box "> <span class="kpi-title ">AUDIT SUMMARY</span> </div> -->
+            <a class="audit-kpi-box  transform transition-transform duration-300 hover:scale-95"
+                href="{%if current_user.auditor_profile_id %}{{url_for('re.orgnization')}}{%else%}#{%endif%}">
+                <div class="audit-kpi-box"><span class="kpi-value">{{info_data.total_clients}}</span> <span
+                        class="kpi-title">Clients</span> </div>
+            </a>
+            <a class="audit-kpi-box  transform transition-transform duration-300 hover:scale-95"
+                href="{%if current_user.auditor_profile_id %}{{url_for('re.guidelines')}}{%else%}#{%endif%}">
+                <div class="audit-kpi-box"> <span class="kpi-value">{{info_data.total_guidelines}}</span> <span
+                        class="kpi-title">Guidelines</span> </div>
+            </a>
+            <a class="audit-kpi-box  transform transition-transform duration-300 hover:scale-95"
+                href="{%if current_user.auditor_profile_id %}{{url_for('audit.my_projects')}}{%else%}#{%endif%}">
+                <div class="audit-kpi-box"> <span class="kpi-value">{{info_data.total_projects}}</span> <span
+                        class="kpi-title">Projects</span> </div>
+            </a>
+        </section>
+        {%endif%}
+        <!--<section class="audit-kpi-row">
+                
+                 <div class="audit-kpi-detail-box total-findings-box"> <span class="kpi-title">Total Findings</span> <span class="kpi-big-value">35</span> </div> 
+                  <div class="audit-kpi-detail-box"> <div id="closed_findings_chart_div" class="audit-chart-placeholder"></div> </div> 
+                 <div class="audit-kpi-detail-box"> <div id="open_findings_chart_div" class="audit-chart-placeholder"></div> </div> 
+                 <div class="audit-kpi-detail-box planned-audits-box"> <div class="planned-audits"> <p><span class="count">12</span> Internal Audit Planned</p> <p><span class="count">2</span> External Audit Planned</p> </div> </div>
+            </section>
+            <section class="audit-findings-category-box">
+                <h2 style="color:#fff !important;">Findings by Category</h2>
+                <div id="findings_category_chart_div" class="audit-chart-placeholder"></div>
+            </section>
+            <section class="audit-departmental-charts-row">
+              
+                 <div class="audit-departmental-charts-box"> 
+					 <h3>Findings by Department</h3> 
+					 <div id="findings_by_dept_chart_div" class="audit-chart-placeholder"></div> 
+				</div> 
+				<div class="audit-departmental-charts-box"> 
+					<h3>Open Findings % by Department</h3> 
+					<div id="open_findings_by_dept_chart_div" class="audit-chart-placeholder"></div> 
+				</div>
+            </section>-->
+    </section>
+
+
+    <!-- Welcome Section -->
+    <section class="bg-amber-100 text-slate-800 rounded-3xl shadow-lg p-8 lg:p-12 mb-10 mt-6 overflow-hidden relative border-l-8 border-amber-300">
+    <div class="absolute inset-0 z-0 opacity-[0.04]"
+        style="background-image: linear-gradient(theme('colors.orange.900') 1px, transparent 1px), linear-gradient(90deg, theme('colors.orange.900') 1px, transparent 1px); background-size: 20px 20px;">
+    </div>
+
+    <div class="relative z-10 flex flex-col lg:flex-row items-center gap-12">
+
+        <div class="lg:w-3/5">
+            <h1 class="text-4xl lg:text-5xl font-bold mb-3 text-slate-800">Welcome to CompliFyre</h1>
+            <h2 class="text-xl lg:text-2xl font-light text-orange-700 mb-10">The world's most intelligent audit companion.</h2>
+            <div class="flex items-center gap-4 mb-10">
+                <div class="text-3xl">👋</div>
+                <div>
+                    <p class="text-lg font-medium text-slate-700">Hello, I am your AI-powered audit assistant.</p>
+                    <p class="text-slate-600">Auditing with me is the most efficient and effective way to perform all your compliance audits.</p>
+                </div>
+            </div>
+            <div class="mb-10">
+                <h3 class="text-lg font-semibold mb-5 text-orange-600 flex items-center">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 mr-2">
+                        <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201-5.462A5.5 5.5 0 0110 3a5.5 5.5 0 015.312 8.424zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" clip-rule="evenodd" />
+                        <path d="M9.975 18a9 9 0 100-18 9 9 0 000 18zM10 20a10 10 0 100-20 10 10 0 000 20z" />
+                    </svg>
+                    Here’s a streamlined overview of our process:
+                </h3>
+                <ul class="space-y-3">
+                    <li class="flex items-start p-3 rounded-lg transition-colors duration-300 hover:bg-amber-200"><svg class="h-6 w-6 mr-3 mt-1 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg><span class="text-slate-600">Create your client and define the audit scope.</span></li>
+                    <li class="flex items-start p-3 rounded-lg transition-colors duration-300 hover:bg-amber-200"><svg class="h-6 w-6 mr-3 mt-1 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg><span class="text-slate-600">I'll provide a clear, step-by-step checklist of evidence to collect.</span></li>
+                    <li class="flex items-start p-3 rounded-lg transition-colors duration-300 hover:bg-amber-200"><svg class="h-6 w-6 mr-3 mt-1 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span class="text-slate-600">Once evidence is uploaded, I will evaluate it automatically against compliance controls.</span></li>
+                    <li class="flex items-start p-3 rounded-lg transition-colors duration-300 hover:bg-amber-200"><svg class="h-6 w-6 mr-3 mt-1 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg><span class="text-slate-600">Finally, I generate a high-quality draft report—complete with findings and recommendations—for your review.</span></li>
+                </ul>
+            </div>
+            <a href="#" class="inline-block bg-orange-500 text-white hover:bg-orange-600 font-bold py-3 px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-orange-500/40 text-lg group">
+                Let's Get Started
+                <span class="inline-block transition-transform duration-300 group-hover:translate-x-1 ml-2">→</span>
+            </a>
+        </div>
+
+        <div id="ai-visualization" class="lg:w-2/5 flex justify-center items-center p-6">
+            <svg class="w-full max-w-sm h-auto animate-slow-spin" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <filter id="glow-orange">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <path d="M 100,25 L 50,50 M 100,25 L 150,50 M 100,25 L 100,75 M 50,50 L 25,100 M 50,50 L 75,125 M 150,50 L 125,125 M 150,50 L 175,100 M 100,175 L 25,100 M 100,175 L 75,125 M 100,175 L 125,125 M 100,175 L 175,100" stroke="#fb923c" stroke-width="0.5" stroke-opacity="0.3"/>
+                <path class="ai-connection" d="M 100,25 L 50,50 M 100,25 L 150,50 M 100,25 L 100,75 M 50,50 L 25,100 M 50,50 L 75,125 M 150,50 L 125,125 M 150,50 L 175,100 M 100,175 L 25,100 M 100,175 L 75,125 M 100,175 L 125,125 M 100,175 L 175,100" stroke="#f97316" stroke-width="1.5" fill="none" />
+
+                <circle class="ai-node-orange" cx="100" cy="25" r="4" style="animation-duration: 3.5s;" />
+                <circle class="ai-node-orange" cx="50" cy="50" r="4" style="animation-duration: 4.2s; animation-delay: 0.2s;" />
+                <circle class="ai-node-orange" cx="150" cy="50" r="4" style="animation-duration: 3.8s; animation-delay: 0.4s;" />
+                <circle class="ai-node-orange" cx="100" cy="75" r="5" style="animation-duration: 3.2s; animation-delay: 0.6s;" />
+                <circle class="ai-node-orange" cx="25" cy="100" r="4" style="animation-duration: 4.5s; animation-delay: 0.8s;" />
+                <circle class="ai-node-orange" cx="175" cy="100" r="4" style="animation-duration: 3.6s; animation-delay: 1s;" />
+                <circle class="ai-node-orange" cx="75" cy="125" r="4" style="animation-duration: 4.8s; animation-delay: 1.2s;" />
+                <circle class="ai-node-orange" cx="125" cy="125" r="4" style="animation-duration: 3.3s; animation-delay: 1.4s;" />
+                <circle class="ai-node-orange" cx="100" cy="175" r="4" style="animation-duration: 4.1s; animation-delay: 1.6s;" />
+                <circle cx="100" cy="100" r="10" fill="#f97316" filter="url(#glow-orange)"/>
+                <circle class="ai-node-orange" cx="100" cy="100" r="10" style="animation-duration: 3s; animation-delay: 1.8s;" />
+            </svg>
+        </div>
+    </div>
+</section>
+
+
+
+    <!-- SECTION 3: STRATEGIC ENHANCEMENTS LIST (Newly Integrated) -->
+    <section class="enhancements-body-styles bank-info">
+        <div class="enhancements-container">
+
+
+            <main> <!-- This <main> is specific to the enhancements content structure -->
+                <!-- <article class="enhancements-section">
+                        <h2><span class="icon">📊</span> Elevating Audit Excellence with Quality Metrics</h2>
+                        <p><strong>Description:</strong> Introduce a robust set of Key Performance Indicators (KPIs) to meticulously track and measure audit effectiveness and efficiency.</p>
+                        <ul>
+                            <li><strong>Average Audit Duration:</strong> Monitor the time from audit initiation to completion.</li>
+                            <li><strong>Findings per Audit:</strong> Quantify the number of actionable issues identified.</li>
+                            
+                            <li><strong>Client Satisfaction Index:</strong> Aggregate client feedback post-audit to gauge service quality.</li>
+                        </ul>
+                        <div class="enhancements-charts-container">
+                           <h3>Visualizing Audit Quality:</h3>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_avg_audit_duration_chart" class="enhancements-chart-div"></div>
+                                <p class="caption">Chart showing the trend of average audit duration over the last 12 months...</p>
+                            </div>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_findings_per_audit_type_chart" class="enhancements-chart-div"></div>
+                                <p class="caption">Bar chart illustrating the average number of findings categorized by audit type...</p>
+                            </div>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_client_satisfaction_gauge" class="enhancements-chart-div" style="height:200px; width:300px;"></div>
+                                <p class="caption">Gauge chart displaying the current overall client satisfaction score...</p>
+                            </div>
+                        </div>
+                        <div class="enhancements-value-proposition">
+                            <strong>Value Proposition:</strong> Provides data-driven insights for continuous improvement...
+                        </div>
+                    </article>
+
+                    <article class="enhancements-section">
+                        <h2><span class="icon">🔔</span> Proactive Regulatory Change Management & Alerts</h2>
+                
+                        <div class="enhancements-value-proposition"><strong>Value Proposition:</strong> Ensures auditors remain current...</div>
+                    </article>
+
+                    <article class="enhancements-section">
+                        <h2><span class="icon">🎯</span> Intelligent Client Risk Profiling & Prioritization</h2>
+                        <p><strong>Description:</strong> Develop an advanced risk assessment module...</p>
+                        <div class="enhancements-charts-container">
+                            <h3>Visualizing Client Risk:</h3>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_client_risk_distribution_chart" class="enhancements-chart-div"></div>
+                                <p class="caption">Chart showing the distribution of clients across different risk profiles...</p>
+                            </div>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_risk_factors_by_industry_chart" class="enhancements-chart-div" style="height:350px;"></div>
+                                <p class="caption">Stacked bar chart illustrating key risk factors...</p>
+                            </div>
+                        </div>
+                        <div class="enhancements-value-proposition">
+                            <strong>Value Proposition:</strong> Enables targeted audit planning...
+                        </div>
+                    </article>
+                    
+                    <article class="enhancements-section">
+                        <h2><span class="icon">📈</span> Advanced Benchmarking & Trend Analysis Capabilities</h2>
+                        <p><strong>Description:</strong> Equip the dashboard with analytical tools...</p>
+                        <div class="enhancements-charts-container">
+                            <h3>Visualizing Trends & Benchmarks:</h3>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_remediation_time_trend_chart" class="enhancements-chart-div"></div>
+                                <p class="caption">Line chart showing the trend of average issue remediation time...</p>
+                            </div>
+                            <div class="enhancements-chart-wrapper">
+                                <div id="enhancements_benchmarking_vs_industry_chart" class="enhancements-chart-div" style="height:350px;"></div>
+                                <p class="caption">Chart comparing key internal audit metrics...</p>
+                            </div>
+                        </div>
+                        <div class="enhancements-value-proposition">
+                            <strong>Value Proposition:</strong> Facilitates strategic decision-making...
+                        </div>
+                    </article> -->
+            </main>
+        </div>
+    </section>
+
+
+    <!-- SECTION 4: ORIGINAL RE DASHBOARD CHARTS (Chart.js) -->
+
+
+    <style>
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        .chart-container {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .chart-container h3 {
+            margin-bottom: 20px;
+        }
+    </style>
+</main>
+
+<script src="assets/js/dash.js"></script>
+<script>
+    function logout() {
+        window.location.href = "{{ url_for('re.logout') }}";
+    }
+
+    // Load ALL Google Charts packages needed (corechart for most, gauge for gauge)
+    google.charts.load('current', { 'packages': ['corechart', 'bar', 'gauge'] }); // Added 'bar' explicitly for image-based dash `BarChart`
+
+    // Set combined callback
+    google.charts.setOnLoadCallback(drawAllGoogleCharts);
+
+    function drawAllGoogleCharts() {
+        // --- Callbacks for Image-Based Audit Dashboard ---
+        //drawClosedFindingsChart();
+        //drawOpenFindingsChart();
+        //drawFindingsCategoryChart();
+        //drawFindingsByDeptChart();
+        //drawOpenFindingsByDeptChart();
+
+        // --- Callbacks for Strategic Enhancements List Charts ---
+        drawEnhancementsAvgAuditDurationChart();
+        drawEnhancementsFindingsPerAuditTypeChart();
+        drawEnhancementsClientSatisfactionGauge();
+        drawEnhancementsClientRiskDistributionChart();
+        drawEnhancementsRiskFactorsByIndustryChart();
+        drawEnhancementsRemediationTimeTrendChart();
+        drawEnhancementsBenchmarkingVsIndustryChart();
+    }
+
+    // --- Functions for Image-Based Audit Dashboard ---
+    //function drawClosedFindingsChart() { /* ... (same as before) ... */
+    //     var data = google.visualization.arrayToDataTable([['Status', 'Percentage'],['Closed', 54],['Remaining', 46]]); var options = {title: 'Closed Finding %', pieHole: 0.6, legend: 'none', pieSliceText: 'value', pieSliceTextStyle: { color: '#5D4037', fontSize: 22, bold: true }, slices: { 0: { color: '#D35400' }, 1: { color: '#E0E0E0' } }, tooltip: { trigger: 'none' }, backgroundColor: 'transparent', chartArea: { left: 10, top: 20, width: '90%', height: '75%' }}; var chart = new google.visualization.PieChart(document.getElementById('closed_findings_chart_div')); chart.draw(data, options);
+    //}
+    //function drawOpenFindingsChart() { /* ... (same as before) ... */
+    //     var data = google.visualization.arrayToDataTable([['Status', 'Percentage'],['Open', 46],['Remaining', 54]]); var options = {title: 'Open Finding %', pieHole: 0.6, legend: 'none', pieSliceText: 'value', pieSliceTextStyle: { color: '#5D4037', fontSize: 22, bold: true }, slices: { 0: { color: '#FF8F00' }, 1: { color: '#E0E0E0' } }, tooltip: { trigger: 'none' }, backgroundColor: 'transparent', chartArea: { left: 10, top: 20, width: '90%', height: '75%' }}; var chart = new google.visualization.PieChart(document.getElementById('open_findings_chart_div')); chart.draw(data, options);
+    //}
+    //function drawFindingsCategoryChart() { /* ... (same as before) ... */
+    //      var data = google.visualization.arrayToDataTable([['Category', 'Count', { role: 'annotation' }, { role: 'style' }],['Test Name', 2, '2', '#ffa62b'],['Good Practices', 3, '3', '#ffa62b'],['Observations', 25, '25', '#D35400'],['Minor', 10, '10', '#ffa62b'],['Major', 5, '5', '#ffa62b']]); var options = {title: 'Findings by Category', titleTextStyle: { color: '#fff', fontSize: 16, bold: false, italic: false }, chartArea: { width: '70%', height: '80%' }, legend: { position: 'none' }, hAxis: { textPosition: 'none', gridlines: { color: 'transparent' } }, vAxis: { textStyle: { color: '#fff', fontSize: 11, bold: true } }, annotations: {alwaysOutside: false, textStyle: {fontSize: 12, bold: true, color: '#FFFFFF', auraColor: 'none'}, stem: { color: 'transparent' }}, backgroundColor: 'transparent', bars: 'horizontal'}; var chart = new google.visualization.BarChart(document.getElementById('findings_category_chart_div')); chart.draw(data, options);
+    //}
+    //function drawFindingsByDeptChart() { /* ... (same as before) ... */
+    //    var data = google.visualization.arrayToDataTable([['Department', 'Findings'],['Finance', 8], ['HR', 4], ['Procurement', 5], ['HSE', 3], ['Operations', 8], ['Logistics', 7]]); var options = { title: 'Findings by Department', titleTextStyle: { color: '#D35400', fontSize: 16, bold: false, italic: false }, pieHole: 0.4, legend: { position: 'right', textStyle: { color: '#5D4037', fontSize: 11 } }, colors: ['#D35400', '#FF8F00', '#ffa62b', '#7CB342', '#4E342E', '#FFAB40', '#8D6E63'], backgroundColor: 'transparent', chartArea:{left:10,top:30,width:'90%',height:'80%'}, pieSliceText: 'value', pieSliceTextStyle: { color: 'white', fontSize: 10 }}; var chart = new google.visualization.PieChart(document.getElementById('findings_by_dept_chart_div')); chart.draw(data, options);
+    //}
+    //function drawOpenFindingsByDeptChart() { /* ... (same as before, with corrected data example) ... */
+    //    var data = google.visualization.arrayToDataTable([['Department', 'Share of Open Findings', { role: 'tooltip', type: 'string' }],['Finance (25% open)', 20, 'Finance: 25% of its findings are open'],['HR (25% open)', 10, 'HR: 25% of its findings are open'],['Procurement (20% open)', 12, 'Procurement: 20% of its findings are open'],['HSE (33% open)', 8, 'HSE: 33% of its findings are open'],['Operations (38% open)', 30, 'Operations: 38% of its findings are open'],['Logistics (57% open)', 20, 'Logistics: 57% of its findings are open']]); var options = { title: 'Open Findings % by Department', titleTextStyle: { color: '#D35400', fontSize: 16, bold: false, italic: false }, pieHole: 0.5, legend: { position: 'right', textStyle: { color: '#5D4037', fontSize: 11 } }, colors: ['#D35400','#ffa62b', '#BF360C', '#D35400', '#FF8F00','#5D4037'], backgroundColor: 'transparent', chartArea:{left:10,top:30,width:'90%',height:'80%'}, pieSliceText: 'none', tooltip: { isHtml: true }}; var chart = new google.visualization.PieChart(document.getElementById('open_findings_by_dept_chart_div')); chart.draw(data, options);
+    //}
+
+
+    // --- Functions for Strategic Enhancements List Charts ---
+    // (Make sure div IDs for these charts are unique, e.g., 'enhancements_avg_audit_duration_chart')
+    function drawEnhancementsAvgAuditDurationChart() {
+        var data = google.visualization.arrayToDataTable([
+            ['Month', 'Avg Duration (Days)'],
+            ['Jan', 28], ['Feb', 25], ['Mar', 26], ['Apr', 30], ['May', 29], ['Jun', 27],
+            ['Jul', 26], ['Aug', 24], ['Sep', 25], ['Oct', 22], ['Nov', 23], ['Dec', 20]
+        ]);
+        var options = { title: 'Average Audit Duration', curveType: 'function', legend: { position: 'bottom' }, height: 300, colors: ['#007bff'] };
+        var chart = new google.visualization.LineChart(document.getElementById('enhancements_avg_audit_duration_chart'));
+        chart.draw(data, options);
+    }
+    function drawEnhancementsFindingsPerAuditTypeChart() {
+        var data = google.visualization.arrayToDataTable([
+            ['Audit Type', 'Average Findings', { role: 'style' }],
+            ['ISO 27001', 8, '#007bff'], ['SOC 2', 12, '#17a2b8'], ['Internal Policy', 5, '#28a745'], ['PCI DSS', 10, '#ffc107']
+        ]);
+        var options = { title: 'Average Findings per Audit Type', legend: { position: 'none' }, hAxis: { title: 'Audit Type' }, vAxis: { title: 'Average Findings' }, height: 300, bar: { groupWidth: "50%" } };
+        var chart = new google.visualization.ColumnChart(document.getElementById('enhancements_findings_per_audit_type_chart'));
+        chart.draw(data, options);
+    }
+    function drawEnhancementsClientSatisfactionGauge() {
+        var data = google.visualization.arrayToDataTable([['Label', 'Value'], ['Satisfaction', 82]]);
+        var options = { width: 300, height: 200, redFrom: 0, redTo: 50, yellowFrom: 50, yellowTo: 75, greenFrom: 75, greenTo: 100, minorTicks: 5, max: 100 };
+        var chart = new google.visualization.Gauge(document.getElementById('enhancements_client_satisfaction_gauge'));
+        chart.draw(data, options);
+    }
+    function drawEnhancementsClientRiskDistributionChart() {
+        var data = google.visualization.arrayToDataTable([['Risk Profile', 'Number of Clients'], ['High Risk', 15], ['Medium Risk', 45], ['Low Risk', 90]]);
+        var options = { title: 'Client Risk Profile Distribution', pieHole: 0.4, height: 300, colors: ['#dc3545', '#ffc107', '#28a745'] };
+        var chart = new google.visualization.PieChart(document.getElementById('enhancements_client_risk_distribution_chart'));
+        chart.draw(data, options);
+    }
+    function drawEnhancementsRiskFactorsByIndustryChart() {
+        var data = google.visualization.arrayToDataTable([
+            ['Industry', 'Data Security Breaches', 'Regulatory Non-compliance', 'Third-party Risks', 'Internal Control Weakness'],
+            ['Finance', 20, 30, 15, 10], ['Healthcare', 25, 20, 20, 15], ['Technology', 15, 10, 25, 5], ['Manufacturing', 10, 15, 10, 20]
+        ]);
+        var options = { title: 'Key Risk Factors Contributing to Profiles by Client Industry', isStacked: true, legend: { position: 'top', maxLines: 3 }, hAxis: { title: 'Industry' }, vAxis: { title: 'Number of Occurrences / Impact Score' }, height: 350, colors: ['#007bff', '#17a2b8', '#ffc107', '#dc3545'] };
+        var chart = new google.visualization.ColumnChart(document.getElementById('enhancements_risk_factors_by_industry_chart'));
+        chart.draw(data, options);
+    }
+    function drawEnhancementsRemediationTimeTrendChart() {
+        var data = google.visualization.arrayToDataTable([
+            ['Quarter', 'Severity - High', 'Severity - Medium'],
+            ['Q1 2023', 45, 25], ['Q2 2023', 42, 22], ['Q3 2023', 38, 20], ['Q4 2023', 35, 18], ['Q1 2024', 30, 15]
+        ]);
+        var options = { title: 'Trend of Average Issue Remediation Time (by Severity)', legend: { position: 'bottom' }, height: 300, colors: ['#dc3545', '#ffc107'] };
+        var chart = new google.visualization.LineChart(document.getElementById('enhancements_remediation_time_trend_chart'));
+        chart.draw(data, options);
+    }
+    function drawEnhancementsBenchmarkingVsIndustryChart() {
+        var data = google.visualization.arrayToDataTable([
+            ['Metric', 'Complifyre Internal', 'Industry Average'],
+            ['Avg Audit Duration (Days)', 25, 30], ['Findings per Audit', 7, 9], ['Avg Remediation Time (High Severity)', 30, 40]
+        ]);
+        const company_name_encoded = "{{ organization.firm_name }}";
+
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = company_name_encoded;
+        const company_name = textarea.value;
+
+        var options = { title: `Key Audit Metrics: ${company_name} vs. Industry Average`, legend: { position: 'top' }, vAxis: { title: 'Value' }, hAxis: { title: 'Metric' }, height: 350, colors: ['#007bff', '#6c757d'], seriesType: 'bars' };
+        var chart = new google.visualization.ColumnChart(document.getElementById('enhancements_benchmarking_vs_industry_chart'));
+        chart.draw(data, options);
+    }
+    // End of JavaScript for Strategic Enhancements List
+</script>
+{%endblock%}

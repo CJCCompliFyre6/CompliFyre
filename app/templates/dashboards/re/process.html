@@ -1,0 +1,377 @@
+{% extends "re_base.html" %} 
+{% block content %}
+    <link rel="stylesheet" href="assets/css/process.css" />
+   
+
+    <main class="main">
+      <div class="process-list">
+          <h3>Process Details</h3>
+          <p><span class="dashboard-text">Dashboard /</span> Process Details</p>
+        </div>
+      
+      
+      
+              <div class="container">
+  
+          <div class="top-buttons">
+              <div class="search-bar">
+                  <input type="text" id="searchInput" placeholder="Search..">
+              </div>
+              <button id="exportCSV">Export to CSV</button>
+          </div>
+  
+          <table id="processTable">
+            <thead>
+            <tr>
+                <th>Business Process Name</th>
+                <th>Location</th>
+                <th>Key Locations Impacted</th>
+                <th>Process Description</th>
+                <th>Process Owner</th>
+                <th>Reviewer</th>
+                <th>Approver</th>
+                <th>Risk Impact</th>
+                <th>Notes/Comments</th>
+                <th>Action</th>
+            </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Loan Approval</td>
+                <td>Mumbai HQ</td>
+                <td>All India Branches</td>
+                <td>Process for reviewing and approving retail and corporate loans</td>
+                <td>Rajesh Sharma</td>
+                <td>Neeta Singh</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Key focus on credit risk and KYC compliance</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+          <td>Loan Approval</td>
+          <td>Mumbai HQ</td>
+          <td>All India Branches</td>
+          <td>Process for reviewing and approving retail and corporate loans</td>
+          <td>Rajesh Sharma</td>
+          <td>Neeta Singh</td>
+          <td>NA</td>
+          <td>High</td>
+          <td>Key focus on credit risk and KYC compliance</td>
+          <td>
+            <div class="action-menu">
+              <span onclick="toggleDropdown(this)">&#x22EE;</span>
+              <div class="dropdown-content">
+                  <a href="#">View Controls</a>
+              </div>
+          </div>
+            </td>
+        </tr>
+        
+
+           </tr>
+            <tr>
+                <td>Treasury Operations</td>
+                <td>Mumbai HQ</td>
+                <td>International Branches</td>
+                <td>Manages the bank&#39;s investment portfolio and liquidity</td>
+                <td>Pooja Sinha</td>
+                <td>Suresh Kumar</td>
+                <td>Anil Desai</td>
+                <td>Medium</td>
+                <td>FX transactions, liquidity risk focus</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Customer Onboarding</td>
+                <td>Bengaluru</td>
+                <td>Tier 1 &amp; Tier 2 Cities</td>
+                <td>Process of verifying customer KYC documents for new accounts</td>
+                <td>Priya Verma</td>
+                <td>Vikram Mehta</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Important for compliance with AML laws</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Cybersecurity Incident Response</td>
+                <td>Hyderabad</td>
+                <td>Data Centers in Hyderabad and Bangalore</td>
+                <td>Manages response to security breaches and data loss prevention</td>
+                <td>Rahul Nair</td>
+                <td>Sneha Rao</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Follows RBI Cybersecurity Guidelines</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>NPA Management</td>
+                <td>Delhi</td>
+                <td>Corporate Loan Divisions</td>
+                <td>Identification and management of non-performing assets (NPAs)</td>
+                <td>Kiran Rao</td>
+                <td>Satish Menon</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Based on RBI IRAC norms</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Financial Reporting</td>
+                <td>Mumbai HQ</td>
+                <td>All India Branches</td>
+                <td>Preparation of quarterly and annual financial statements</td>
+                <td>Priya Gupta</td>
+                <td>Ramesh Kumar</td>
+                <td>Vikram Mehta</td>
+                <td>Medium</td>
+                <td>Ensures compliance with Companies Act</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Credit Risk Assessment</td>
+                <td>Pune</td>
+                <td>All Corporate Loan Divisions</td>
+                <td>Evaluation of credit risk for corporate loan applicants</td>
+                <td>Sneha Bhat</td>
+                <td>Anil Desai</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Focus on large corporate accounts</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Regulatory Compliance</td>
+                <td>Kolkata</td>
+                <td>All Locations</td>
+                <td>Ensures compliance with RBI and other financial regulations</td>
+                <td>Amit Rao</td>
+                <td>Vikram Mehta</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Ongoing monitoring for regulatory changes</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Data Privacy Management</td>
+                <td>Mumbai HQ</td>
+                <td>All Branches &amp; Call Centers</td>
+                <td>Manages protection of customer data under Data Protection laws</td>
+                <td>Neeta Singh</td>
+                <td>Rajesh Sharma</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Ensures data encryption and privacy</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>AML Monitoring</td>
+                <td>Chennai</td>
+                <td>All Branches</td>
+                <td>Monitors transactions for anti-money laundering (AML) compliance</td>
+                <td>Sneha Rao</td>
+                <td>Kiran Rao</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Tracks suspicious transaction reporting</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Internal Audit</td>
+                <td>Mumbai HQ</td>
+                <td>All Branches</td>
+                <td>Conducts internal audits of bank operations and processes</td>
+                <td>Vikram Mehta</td>
+                <td>Rajesh Sharma</td>
+                <td>Neeta Singh</td>
+                <td>High</td>
+                <td>Periodic audits required for all major processes</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Vendor Management</td>
+                <td>Delhi</td>
+                <td>Key outsourced IT &amp; service vendors</td>
+                <td>Manages contracts, performance, and risk assessment for vendors</td>
+                <td>Suresh Patel</td>
+                <td>Kiran Rao</td>
+                <td>NA</td>
+                <td>Medium</td>
+                <td>Focus on third-party risk management</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Fraud Detection</td>
+                <td>Mumbai HQ</td>
+                <td>High-risk Transaction Centers</td>
+                <td>Detects and prevents fraudulent transactions across all services</td>
+                <td>Rajesh Sharma</td>
+                <td>Priya Gupta</td>
+                <td>NA</td>
+                <td>High</td>
+                <td>Focus on digital banking fraud</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>Cash Management</td>
+                <td>Mumbai HQ</td>
+                <td>All India Branches</td>
+                <td>Manages cash flow and liquidity positions for the bank</td>
+                <td>Sneha Rao</td>
+                <td>Pooja Sinha</td>
+                <td>Anil Desai</td>
+                <td>Medium</td>
+                <td>Monitors liquidity risk</td>
+                <td>
+                  <div class="action-menu">
+                    <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                    <div class="dropdown-content">
+                        <a href="v#">View Controls</a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+            </tr>
+            <tr>
+                <td>HR Payroll Processing</td>
+                <td>Bengaluru</td>
+                <td>HR Departments</td>
+                <td>Handles employee payroll and benefits administration</td>
+                <td>Kiran Rao</td>
+                <td>Priya Verma</td>
+                <td>NA</td>
+                <td>Low</td>
+                <td>Ensures salary disbursement compliance</td>
+                <td>
+                <div class="action-menu">
+                  <span onclick="toggleDropdown(this)">&#x22EE;</span>
+                  <div class="dropdown-content">
+                      <a href="#">View Controls</a>
+                  </div>
+              </div>
+          </td>
+      </tr> 
+  </tbody>
+</table>
+
+<div class="bottom-controls">
+  <div class="entries-box">
+      <select id="entriesSelect">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+      </select>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+</div>
+</main>
+<script src="assets/js/process.js"></script>
+
+{% endblock %}

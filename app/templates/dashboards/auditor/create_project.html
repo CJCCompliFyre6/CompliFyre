@@ -1,0 +1,806 @@
+{% extends "audit_base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('audit.static', filename='css/profile.css') }}" />
+
+<style>
+  #activity-select option {
+    white-space: normal;
+    line-height: 1.5;
+    padding: 8px;
+  }
+</style>
+
+<style>
+  .required-field::after {
+    content: " *";
+    color: #ef4444;
+  }
+
+  .guideline-error {
+    animation: shake 0.5s ease-in-out;
+  }
+
+  @keyframes shake {
+
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    25% {
+      transform: translateX(-5px);
+    }
+
+    75% {
+      transform: translateX(5px);
+    }
+  }
+
+  .border-red-500 {
+    border-color: #ef4444 !important;
+  }
+
+  .border-red-500-border {
+    border-color: #ef4444 !important;
+    border-width: 2px !important;
+  }
+
+  .field-error {
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+  <div class="organization px-6 py-4">
+    <h1 class="text-2xl ">Add New Projects</h1>
+    <!-- <p><a href="#">Dashboard</a> / Organization Profile</p> -->
+  </div>
+</main>
+
+<main>
+  <div class="flex  w-auto mx-8 p-8 my-4 bg-orange-100 z-1 rounded-xl justify-center  items-center">
+    <form id="projectForm" action="{{url_for('audit.create_new_project')}}" method="POST"
+      class="p-8 bg-orange-200 rounded-xl">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="required-field">Client Name<span class="text-red-500 ml-1">*</span></label>
+          <select name="org_id">
+            {% for client in unique_clients %}
+            <option value="{{ client.organization_id }}" {% if client==org_id %}selected{% endif %}>
+              {{ client.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="required-field">Project Name<span class="text-red-500 ml-1">*</span></label>
+          <input type="text" name="project_name" placeholder="Enter project name" required />
+        </div>
+        <div class="form-group">
+          <label class="required-field">Project Description<span class="text-red-500 ml-1">*</span></label>
+          <textarea name="project_description" rows="4" placeholder="Describe the project..."
+            class="w-full p-3 border rounded-lg shadow-sm text-sm text-gray-800 resize-y"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group w-64">
+          <label>Location</label>
+          <div class="relative">
+            <div id="locationDropdownBtn"
+              class="w-full p-2 border rounded bg-white cursor-pointer flex justify-between items-center">
+              <span id="locationDropdownLabel">Select Location</span>
+              <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="locationDropdownMenu"
+              class="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg z-10 hidden max-h-60 overflow-y-auto">
+              <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+                <input type="checkbox" id="selectAllLocationsChk" class="form-checkbox h-4 w-4 text-blue-600 mr-2">
+                <span class="text-sm text-gray-700">Select All</span>
+              </div>
+              <div id="locationCheckboxes"></div>
+            </div>
+            <input type="hidden" name="location" id="locationHiddenInput" />
+          </div>
+          <div id="locationTags" class="flex flex-wrap gap-2 mt-2"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group w-64">
+          <label class="required-field">Department<span class="text-red-500 ml-1">*</span></label>
+          <div class="relative">
+            <div id="departmentDropdownBtn"
+              class="w-full p-2 border rounded bg-white cursor-pointer flex justify-between items-center">
+              <span id="departmentDropdownLabel">Select Department</span>
+              <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="departmentDropdownMenu"
+              class="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg z-10 hidden max-h-60 overflow-y-auto">
+              <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+                <input type="checkbox" id="selectAllDepartmentsChk" class="form-checkbox h-4 w-4 text-blue-600 mr-2">
+                <span class="text-sm text-gray-700">Select All</span>
+              </div>
+              <div id="departmentCheckboxes"></div>
+            </div>
+            <input type="hidden" name="department" id="departmentHiddenInput" />
+          </div>
+          <div id="departmentTags" class="flex flex-wrap gap-2 mt-2"></div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group w-64">
+          <label class="flex items-center required-field">Guideline<span class="text-red-500 ml-1">*</span></label>
+
+          <div class="relative">
+            <div id="guidelineDropdownBtn"
+              class="w-full p-2 border rounded bg-white cursor-pointer flex justify-between items-center">
+              <span id="guidelineDropdownLabel">Select Guideline</span>
+              <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="guidelineDropdownMenu"
+              class="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg z-10 hidden max-h-60 overflow-y-auto">
+              <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+                <input type="checkbox" id="selectAllGuidelinesChk" class="form-checkbox h-4 w-4 text-blue-600 mr-2">
+                <span class="text-sm text-gray-700">Select All</span>
+              </div>
+              <div id="guidelineCheckboxes"></div>
+            </div>
+            <input type="hidden" name="guidelines" id="guidelineHiddenInput" />
+          </div>
+          <div id="guidelineTags" class="flex flex-wrap gap-2 mt-2"></div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group w-64">
+          <label class="required-field">Project Start Date<span class="text-red-500 ml-1">*</span></label>
+          <div class="relative">
+
+            <div>
+              <input type="date" placeholder="Start Date" id="proj_start_date" name="proj_start_date" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group w-64">
+          <label >Assessment Period</label>
+          <div class="grid grid-cols-2 gap-4">
+
+            <div>
+              <label class="required-field">Start Date<span class="text-red-500 ml-1">*</span></label>
+              <input type="date" placeholder="Start Date" id="assisment_start_date" name="assisment_start_date" />
+            </div>
+            <div>
+              <label class="required-field">End Date<span class="text-red-500 ml-1">*</span></label>
+              <input type="date" placeholder="End Date" id="assisment_end_date" name="assisment_end_date" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-flow-col justify-items-center mt-5">
+        <button type="button"
+          class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full">Cancel</button>
+        <button type="submit"
+          class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full">Save</button>
+      </div>
+    </form>
+  </div>
+</main>
+<script src="{{ url_for('audit.static', filename='js/profile.js') }}"></script>
+
+<script>
+  const guidelineActivityMap = {{ activity_map | tojson }};
+  const guidelineSelect = document.getElementById('guideline');
+  const activityDropdownBtn = document.getElementById('activityDropdownBtn');
+  const activityDropdownMenu = document.getElementById('activityDropdownMenu');
+  const activityCheckboxes = document.getElementById('activityCheckboxes');
+  const activityDropdownLabel = document.getElementById('activityDropdownLabel');
+  const activityHiddenInput = document.getElementById('activityHiddenInput');
+  const selectAllActivitiesChk = document.getElementById('selectAllActivitiesChk');
+
+  const departments = [{% for d in departments %}'{{ d | safe}}', {% endfor %}];
+  const guidelines = [
+    {% for g in guidelines %}{ id: '{{ g.id }}', name: `{{ g.guideline_data.DocumentDetails.DocumentName }}` }, {% endfor %}
+];
+  const locations = {{ location| tojson}};
+  // Department Multi-select
+  const departmentDropdownBtn = document.getElementById('departmentDropdownBtn');
+  const departmentDropdownMenu = document.getElementById('departmentDropdownMenu');
+  const departmentCheckboxes = document.getElementById('departmentCheckboxes');
+  const departmentDropdownLabel = document.getElementById('departmentDropdownLabel');
+  const departmentHiddenInput = document.getElementById('departmentHiddenInput');
+  const departmentTags = document.getElementById('departmentTags');
+  const selectAllDepartmentsChk = document.getElementById('selectAllDepartmentsChk');
+  let selectedDepartments = [];
+
+  departmentDropdownBtn.addEventListener('click', function () {
+    departmentDropdownMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', function (e) {
+    if (!departmentDropdownBtn.contains(e.target) && !departmentDropdownMenu.contains(e.target)) {
+      departmentDropdownMenu.classList.add('hidden');
+    }
+  });
+  function renderDepartmentCheckboxes() {
+    departmentCheckboxes.innerHTML = '';
+    departments.forEach(dep => {
+      const id = `department_${dep.replace(/\s+/g, '_')}`;
+      const checked = selectedDepartments.includes(dep) ? 'checked' : '';
+      departmentCheckboxes.innerHTML += `
+      <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+        <input type="checkbox" class="form-checkbox h-4 w-4 text-blue-600 mr-2 department-chk" id="${id}" value="${dep}" ${checked}>
+        <label for="${id}" class="text-sm text-gray-700">${dep}</label>
+      </div>
+    `;
+    });
+    departmentCheckboxes.querySelectorAll('.department-chk').forEach(chk => {
+      chk.addEventListener('change', function () {
+        if (this.checked) {
+          if (!selectedDepartments.includes(this.value)) selectedDepartments.push(this.value);
+        } else {
+          selectedDepartments = selectedDepartments.filter(d => d !== this.value);
+        }
+        updateDepartmentLabel();
+        updateDepartmentTags();
+        updateDepartmentHiddenInput();
+        updateSelectAllDepartmentsCheckbox();
+      });
+    });
+    updateSelectAllDepartmentsCheckbox();
+  }
+  function updateDepartmentLabel() {
+    if (selectedDepartments.length === 0) {
+      departmentDropdownLabel.textContent = 'Select Department';
+    } else if (selectedDepartments.length === departments.length) {
+      departmentDropdownLabel.textContent = 'All Departments Selected';
+    } else {
+      departmentDropdownLabel.textContent = selectedDepartments.join(', ');
+    }
+  }
+  function updateDepartmentTags() {
+    departmentTags.innerHTML = '';
+    selectedDepartments.forEach(dep => {
+      const tag = document.createElement('span');
+      tag.className = 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full flex items-center gap-1';
+      tag.textContent = dep;
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'ml-1 text-red-500';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = function () {
+        selectedDepartments = selectedDepartments.filter(d => d !== dep);
+        renderDepartmentCheckboxes();
+        updateDepartmentLabel();
+        updateDepartmentTags();
+        updateDepartmentHiddenInput();
+      };
+      tag.appendChild(removeBtn);
+      departmentTags.appendChild(tag);
+    });
+  }
+  function updateDepartmentHiddenInput() {
+    departmentHiddenInput.value = selectedDepartments.join(',');
+  }
+  selectAllDepartmentsChk.addEventListener('change', function () {
+    if (this.checked) {
+      selectedDepartments = [...departments];
+    } else {
+      selectedDepartments = [];
+    }
+    renderDepartmentCheckboxes();
+    updateDepartmentLabel();
+    updateDepartmentTags();
+    updateDepartmentHiddenInput();
+  });
+  function updateSelectAllDepartmentsCheckbox() {
+    selectAllDepartmentsChk.checked = selectedDepartments.length === departments.length && departments.length > 0;
+  }
+  renderDepartmentCheckboxes();
+  updateDepartmentLabel();
+  updateDepartmentTags();
+  updateDepartmentHiddenInput();
+
+  // Guideline Multi-select
+  const guidelineDropdownBtn = document.getElementById('guidelineDropdownBtn');
+  const guidelineDropdownMenu = document.getElementById('guidelineDropdownMenu');
+  const guidelineCheckboxes = document.getElementById('guidelineCheckboxes');
+  const guidelineDropdownLabel = document.getElementById('guidelineDropdownLabel');
+  const guidelineHiddenInput = document.getElementById('guidelineHiddenInput');
+  const guidelineTags = document.getElementById('guidelineTags');
+  const selectAllGuidelinesChk = document.getElementById('selectAllGuidelinesChk');
+  let selectedGuidelines = {{ selected_guidelines | tojson }}
+
+  guidelineDropdownBtn.addEventListener('click', function () {
+    guidelineDropdownMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', function (e) {
+    if (!guidelineDropdownBtn.contains(e.target) && !guidelineDropdownMenu.contains(e.target)) {
+      guidelineDropdownMenu.classList.add('hidden');
+    }
+  });
+  function renderGuidelineCheckboxes() {
+    guidelineCheckboxes.innerHTML = '';
+    guidelines.forEach(g => {
+      const id = `guideline_${g.id}`;
+      const checked = selectedGuidelines.includes(g.id) ? 'checked' : '';
+      guidelineCheckboxes.innerHTML += `
+      <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+        <input type="checkbox" class="form-checkbox h-4 w-4 text-blue-600 mr-2 guideline-chk" id="${id}" value="${g.id}" ${checked}>
+        <label for="${id}" class="text-sm text-gray-700">${g.name}</label>
+      </div>
+    `;
+    });
+    guidelineCheckboxes.querySelectorAll('.guideline-chk').forEach(chk => {
+      chk.addEventListener('change', function () {
+        if (this.checked) {
+          if (!selectedGuidelines.includes(this.value)) selectedGuidelines.push(this.value);
+        } else {
+          selectedGuidelines = selectedGuidelines.filter(id => id !== this.value);
+        }
+        updateGuidelineLabel();
+        updateGuidelineTags();
+        updateGuidelineHiddenInput();
+        updateSelectAllGuidelinesCheckbox();
+      });
+    });
+    updateSelectAllGuidelinesCheckbox();
+  }
+  function updateGuidelineLabel() {
+    if (selectedGuidelines.length === 0) {
+      guidelineDropdownLabel.textContent = 'Select Guideline';
+    } else if (selectedGuidelines.length === guidelines.length) {
+      guidelineDropdownLabel.textContent = 'All Guidelines Selected';
+    } else {
+      const selectedNames = guidelines.filter(g => selectedGuidelines.includes(g.id)).map(g => g.name);
+      guidelineDropdownLabel.textContent = selectedNames.join(', ');
+    }
+  }
+  function updateGuidelineTags() {
+    guidelineTags.innerHTML = '';
+    selectedGuidelines.forEach(gid => {
+      const g = guidelines.find(x => x.id === gid);
+      if (!g) return;
+      const tag = document.createElement('span');
+      tag.className = 'bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1';
+      tag.textContent = g.name;
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'ml-1 text-red-500';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = function () {
+        selectedGuidelines = selectedGuidelines.filter(id => id !== gid);
+        renderGuidelineCheckboxes();
+        updateGuidelineLabel();
+        updateGuidelineTags();
+        updateGuidelineHiddenInput();
+      };
+      tag.appendChild(removeBtn);
+      guidelineTags.appendChild(tag);
+    });
+  }
+  function updateGuidelineHiddenInput() {
+    guidelineHiddenInput.value = selectedGuidelines.join(',');
+  }
+  selectAllGuidelinesChk.addEventListener('change', function () {
+    if (this.checked) {
+      selectedGuidelines = guidelines.map(g => g.id);
+    } else {
+      selectedGuidelines = [];
+    }
+    renderGuidelineCheckboxes();
+    updateGuidelineLabel();
+    updateGuidelineTags();
+    updateGuidelineHiddenInput();
+  });
+  function updateSelectAllGuidelinesCheckbox() {
+    selectAllGuidelinesChk.checked = selectedGuidelines.length === guidelines.length && guidelines.length > 0;
+  }
+  renderGuidelineCheckboxes();
+  updateGuidelineLabel();
+  updateGuidelineTags();
+  updateGuidelineHiddenInput();
+
+  // Location Multi-select
+  const locationDropdownBtn = document.getElementById('locationDropdownBtn');
+  const locationDropdownMenu = document.getElementById('locationDropdownMenu');
+  const locationCheckboxes = document.getElementById('locationCheckboxes');
+  const locationDropdownLabel = document.getElementById('locationDropdownLabel');
+  const locationHiddenInput = document.getElementById('locationHiddenInput');
+  const locationTags = document.getElementById('locationTags');
+  const selectAllLocationsChk = document.getElementById('selectAllLocationsChk');
+  let selectedLocations = [];
+
+  locationDropdownBtn.addEventListener('click', function () {
+    locationDropdownMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', function (e) {
+    if (!locationDropdownBtn.contains(e.target) && !locationDropdownMenu.contains(e.target)) {
+      locationDropdownMenu.classList.add('hidden');
+    }
+  });
+  function renderLocationCheckboxes() {
+    locationCheckboxes.innerHTML = '';
+    locations.forEach(loc => {
+      const id = `location_${loc.replace(/\s+/g, '_')}`;
+      const checked = selectedLocations.includes(loc) ? 'checked' : '';
+      locationCheckboxes.innerHTML += `
+      <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+        <input type="checkbox" class="form-checkbox h-4 w-4 text-blue-600 mr-2 location-chk" id="${id}" value="${loc}" ${checked}>
+        <label for="${id}" class="text-sm text-gray-700">${loc}</label>
+      </div>
+    `;
+    });
+    locationCheckboxes.querySelectorAll('.location-chk').forEach(chk => {
+      chk.addEventListener('change', function () {
+        if (this.checked) {
+          if (!selectedLocations.includes(this.value)) selectedLocations.push(this.value);
+        } else {
+          selectedLocations = selectedLocations.filter(l => l !== this.value);
+        }
+        updateLocationLabel();
+        updateLocationTags();
+        updateLocationHiddenInput();
+        updateSelectAllLocationsCheckbox();
+      });
+    });
+    updateSelectAllLocationsCheckbox();
+  }
+  function updateLocationLabel() {
+    if (selectedLocations.length === 0) {
+      locationDropdownLabel.textContent = 'Select Location';
+    } else if (selectedLocations.length === locations.length) {
+      locationDropdownLabel.textContent = 'All Locations Selected';
+    } else {
+      locationDropdownLabel.textContent = selectedLocations.join(', ');
+    }
+  }
+  function updateLocationTags() {
+    locationTags.innerHTML = '';
+    selectedLocations.forEach(loc => {
+      const tag = document.createElement('span');
+      tag.className = 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full flex items-center gap-1';
+      tag.textContent = loc;
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'ml-1 text-red-500';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = function () {
+        selectedLocations = selectedLocations.filter(l => l !== loc);
+        renderLocationCheckboxes();
+        updateLocationLabel();
+        updateLocationTags();
+        updateLocationHiddenInput();
+      };
+      tag.appendChild(removeBtn);
+      locationTags.appendChild(tag);
+    });
+  }
+  function updateLocationHiddenInput() {
+    locationHiddenInput.value = selectedLocations.join(',');
+  }
+  selectAllLocationsChk.addEventListener('change', function () {
+    if (this.checked) {
+      selectedLocations = [...locations];
+    } else {
+      selectedLocations = [];
+    }
+    renderLocationCheckboxes();
+    updateLocationLabel();
+    updateLocationTags();
+    updateLocationHiddenInput();
+  });
+  function updateSelectAllLocationsCheckbox() {
+    selectAllLocationsChk.checked = selectedLocations.length === locations.length && locations.length > 0;
+  }
+  renderLocationCheckboxes();
+  updateLocationLabel();
+  updateLocationTags();
+  updateLocationHiddenInput();
+
+  // Show/hide dropdown
+  activityDropdownBtn.addEventListener('click', function () {
+    activityDropdownMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', function (e) {
+    if (!activityDropdownBtn.contains(e.target) && !activityDropdownMenu.contains(e.target)) {
+      activityDropdownMenu.classList.add('hidden');
+    }
+  });
+
+  guidelineSelect.addEventListener('change', function () {
+    const guidelineId = this.value;
+    currentActivities = guidelineActivityMap[guidelineId] || [];
+    selectedActivities = [];
+    renderActivityCheckboxes();
+    updateActivityLabel();
+  });
+
+  function renderActivityCheckboxes() {
+    activityCheckboxes.innerHTML = '';
+    currentActivities.forEach(activity => {
+      const id = `activity_${activity.id}`;
+      const checked = selectedActivities.includes(activity.id) ? 'checked' : '';
+      activityCheckboxes.innerHTML += `
+      <div class="flex items-center px-4 py-2 hover:bg-gray-100">
+        <input type="checkbox" class="form-checkbox h-4 w-4 text-blue-600 mr-2 activity-chk" id="${id}" value="${activity.id}" ${checked}>
+        <label for="${id}" class="text-sm text-gray-700">${activity.sub_process}</label>
+      </div>
+    `;
+    });
+    // Add event listeners for checkboxes
+    activityCheckboxes.querySelectorAll('.activity-chk').forEach(chk => {
+      chk.addEventListener('change', function () {
+        if (this.checked) {
+          if (!selectedActivities.includes(this.value)) selectedActivities.push(this.value);
+        } else {
+          selectedActivities = selectedActivities.filter(id => id !== this.value);
+        }
+        updateActivityLabel();
+        updateHiddenInput();
+        updateSelectAllCheckbox();
+      });
+    });
+    updateSelectAllCheckbox();
+  }
+
+  function updateActivityLabel() {
+    if (selectedActivities.length === 0) {
+      activityDropdownLabel.textContent = 'Select Activity';
+    } else if (selectedActivities.length === currentActivities.length) {
+      activityDropdownLabel.textContent = 'All Activities Selected';
+    } else {
+      const selectedNames = currentActivities.filter(a => selectedActivities.includes(a.id.toString())).map(a => a.sub_process);
+      activityDropdownLabel.textContent = selectedNames.join(', ');
+    }
+  }
+
+  function updateHiddenInput() {
+    activityHiddenInput.value = selectedActivities.join(',');
+  }
+
+  selectAllActivitiesChk.addEventListener('change', function () {
+    if (this.checked) {
+      selectedActivities = currentActivities.map(a => a.id.toString());
+    } else {
+      selectedActivities = [];
+    }
+    renderActivityCheckboxes();
+    updateActivityLabel();
+    updateHiddenInput();
+  });
+
+  function updateSelectAllCheckbox() {
+    selectAllActivitiesChk.checked = selectedActivities.length === currentActivities.length && currentActivities.length > 0;
+  }
+
+
+</script>
+
+<script>
+  // Form validation
+  document.getElementById('projectForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    let hasErrors = false;
+
+    // Clear all existing errors first
+    clearAllErrors();
+
+    // 1. Check Client Name
+    const orgSelect = document.querySelector('select[name="org_id"]');
+    if (!orgSelect.value) {
+      showError(orgSelect, 'Please select a client');
+      hasErrors = true;
+    }
+
+    // 2. Check Project Name
+    const projectName = document.querySelector('input[name="project_name"]');
+    if (!projectName.value.trim()) {
+      showError(projectName, 'Please enter a project name');
+      hasErrors = true;
+    }
+
+    // 3. Check Project Description
+    const projectDesc = document.querySelector('textarea[name="project_description"]');
+    if (!projectDesc.value.trim()) {
+      showError(projectDesc, 'Please enter a project description');
+      hasErrors = true;
+    }
+
+    // 4. Check Department (at least one selected)
+    if (selectedDepartments.length === 0) {
+      showDropdownError(departmentDropdownBtn, 'Please select at least one department');
+      hasErrors = true;
+    }
+
+    // 5. Check Guideline (at least one selected)
+    if (selectedGuidelines.length === 0) {
+      showDropdownError(guidelineDropdownBtn, 'Please select at least one guideline');
+      hasErrors = true;
+    }
+
+    // 6. Check Project Start Date
+    const projStartDate = document.querySelector('input[name="proj_start_date"]');
+    if (!projStartDate.value) {
+      showError(projStartDate, 'Please select a project start date');
+      hasErrors = true;
+    }
+
+    // 7. Check Assessment Start Date
+    const assismentStartDate = document.querySelector('input[name="assisment_start_date"]');
+    if (!assismentStartDate.value) {
+      showError(assismentStartDate, 'Please select an assessment start date');
+      hasErrors = true;
+    }
+
+    // 8. Check Assessment End Date
+    const assismentEndDate = document.querySelector('input[name="assisment_end_date"]');
+    if (!assismentEndDate.value) {
+      showError(assismentEndDate, 'Please select an assessment end date');
+      hasErrors = true;
+    }
+
+    // 9. Validate date ranges
+    if (assismentStartDate.value && assismentEndDate.value) {
+      const startDate = new Date(assismentStartDate.value);
+      const endDate = new Date(assismentEndDate.value);
+
+      if (endDate < startDate) {
+        showError(assismentEndDate, 'Assessment end date must be after start date');
+        hasErrors = true;
+      }
+    }
+
+    // If no errors, submit the form
+    if (!hasErrors) {
+      this.submit();
+    } else {
+      // Scroll to first error
+      scrollToFirstError();
+    }
+  });
+
+  // Helper functions
+  function clearAllErrors() {
+    // Remove all error messages
+    document.querySelectorAll('.field-error').forEach(el => el.remove());
+
+    // Remove error borders
+    document.querySelectorAll('.border-red-500').forEach(el => {
+      el.classList.remove('border-red-500');
+    });
+
+    document.querySelectorAll('.border-red-500-border').forEach(el => {
+      el.classList.remove('border-red-500-border');
+    });
+  }
+
+  function showError(element, message) {
+    // Add red border to input
+    element.classList.add('border-red-500');
+
+    // Create error message element
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'field-error text-red-600 text-sm mt-1 bg-red-100 p-2 rounded border border-red-300';
+    errorDiv.textContent = message;
+
+    // Insert error message after the input field
+    element.parentNode.insertBefore(errorDiv, element.nextSibling);
+  }
+
+  function showDropdownError(dropdownBtn, message) {
+    // Add red border to dropdown
+    dropdownBtn.classList.add('border-red-500-border');
+
+    // Create error message element
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'field-error text-red-600 text-sm mt-1 bg-red-100 p-2 rounded border border-red-300';
+    errorDiv.textContent = message;
+
+    // Find the parent form-group and insert error
+    const formGroup = dropdownBtn.closest('.form-group');
+    const tagsElement = formGroup.querySelector('#departmentTags') ||
+      formGroup.querySelector('#guidelineTags');
+
+    if (tagsElement) {
+      tagsElement.parentNode.insertBefore(errorDiv, tagsElement.nextSibling);
+    } else {
+      dropdownBtn.parentNode.insertBefore(errorDiv, dropdownBtn.nextSibling);
+    }
+  }
+
+  function scrollToFirstError() {
+    const firstError = document.querySelector('.field-error');
+    if (firstError) {
+      firstError.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }
+
+  // Real-time validation - remove error when user starts typing/selecting
+  document.querySelector('select[name="org_id"]').addEventListener('change', function () {
+    if (this.value) {
+      clearFieldError(this);
+    }
+  });
+
+  document.querySelector('input[name="project_name"]').addEventListener('input', function () {
+    if (this.value.trim()) {
+      clearFieldError(this);
+    }
+  });
+
+  document.querySelector('textarea[name="project_description"]').addEventListener('input', function () {
+    if (this.value.trim()) {
+      clearFieldError(this);
+    }
+  });
+
+  // Add event listeners for department changes
+  departmentCheckboxes.addEventListener('change', function () {
+    if (selectedDepartments.length > 0) {
+      clearDropdownError(departmentDropdownBtn);
+    }
+  });
+
+  // Add event listener for guideline changes
+  guidelineCheckboxes.addEventListener('change', function () {
+    if (selectedGuidelines.length > 0) {
+      clearDropdownError(guidelineDropdownBtn);
+    }
+  });
+
+  // Date field event listeners
+  document.querySelectorAll('input[type="date"]').forEach(input => {
+    input.addEventListener('change', function () {
+      if (this.value) {
+        clearFieldError(this);
+      }
+    });
+  });
+
+  function clearFieldError(element) {
+    element.classList.remove('border-red-500');
+    const errorDiv = element.parentNode.querySelector('.field-error');
+    if (errorDiv) {
+      errorDiv.remove();
+    }
+  }
+
+  function clearDropdownError(dropdownBtn) {
+    dropdownBtn.classList.remove('border-red-500-border');
+    const formGroup = dropdownBtn.closest('.form-group');
+    const errorDiv = formGroup.querySelector('.field-error');
+    if (errorDiv) {
+      errorDiv.remove();
+    }
+  }
+</script>
+
+{% endblock %}

@@ -1,0 +1,327 @@
+{% extends "audit_base.html" %} {%block content%}
+<style>
+  .select-dropdown {
+    position: absolute;
+    height: 200px;
+    min-width: 300px;
+    overflow-y: scroll;
+    z-index: 10;
+  }
+
+  /* Form row styling for contact persons */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    background-color: #f9fafb;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .form-group label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+  }
+
+  .remove-person {
+    align-self: center;
+    margin-top: 1.5rem;
+  }
+</style>
+
+<main class="main">
+  <div class="profile mx-20">
+    <p><a href="#">Auditor Organization</a> / Create Organization</p>
+  </div>
+
+  <div class="container">
+    <div class="flex justify-end">
+      <a href="{{ url_for('audit.edit_profile') }}"
+        class="inline-block px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-300 ease-in-out">
+        ✏️ Edit Profile
+      </a>
+    </div>
+    <form id="orgProfileForm" action="{{url_for('audit.create_organization_post')}}" method="POST">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Firm Name</label>
+          <input type="text" name="org_name" placeholder="ARL BANK-001" required />
+        </div>
+        <div class="form-group">
+          <label>Firm Registration Number</label>
+          <input type="text" name="org_reg_no" placeholder="ARL BANK" required />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Firm Description</label>
+          <textarea id="description" name="description" rows="4" placeholder="Enter your description here..."
+            class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-800 resize-y"></textarea>
+        </div>
+      </div>
+      <h2>Head Office Location</h2>
+      <div class="form-row">
+        <div class="form-group w-64">
+          <label>Address</label>
+          <input type="text" name="address" placeholder="Street No 12" />
+        </div>
+
+
+        <div class="form-group w-64">
+          <label class="block text-sm font-medium text-gray-700">City</label>
+          <input type="text" id="head-city-input"
+            class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" name="city"
+            placeholder="Enter city name" />
+        </div>
+        <div class="form-group w-64">
+          <label class="block text-sm font-medium text-gray-700">State</label>
+          <input type="text" id="head-state-input"
+            class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" name="state"
+            placeholder="Enter state name" />
+        </div>
+        <div class="form-group w-64">
+          <label class="block text-sm font-medium text-gray-700">Country</label>
+          <input type="text" id="head-country-input"
+            class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" name="country"
+            placeholder="Enter country name" />
+        </div>
+      </div>
+
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Number of Employees</label>
+          <input type="number" name="num_employees" placeholder="100" required />
+        </div>
+      </div>
+      <h2>Primary Contact Person</h2>
+      <div id="directors-container">
+        <div class="form-row director-row">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" name="name_person[]" placeholder="Mr. Rajesh Sharma"
+              class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email_person[]" placeholder="rajesh.sharma@example.com"
+              class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" name="phone_person[]" placeholder="9876543210"
+              class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" />
+          </div>
+          <div class="form-group">
+            <button type="button"
+              class="remove-person bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mt-6"
+              onclick="removeperson(this)" style="display: none">
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full mt-4"
+        onclick="addDirector()">
+        Add Contact
+      </button>
+      <div class="grid grid-flow-col justify-items-center mt-5">
+        <button type="button" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full"
+          onclick="window.history.back()">
+          Cancel
+        </button>
+        <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full">
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+  // Add Director/Contact Person Function
+  function addDirector() {
+    console.log('Add Director function called');
+    const container = document.getElementById('directors-container');
+
+    const newDirector = document.createElement('div');
+    newDirector.className = 'form-row director-row';
+    newDirector.innerHTML = `
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" name="name_person[]" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="Mr. Rajesh Sharma" required />
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email_person[]" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="rajesh.sharma@example.com" required />
+        </div>
+        <div class="form-group">
+            <label>Phone</label>
+            <input type="text" name="phone_person[]" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" placeholder="9876543210" />
+        </div>
+        <div class="form-group">
+            <button type="button" class="remove-person bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mt-6" onclick="removeperson(this)">
+                Remove
+            </button>
+        </div>
+    `;
+
+    container.appendChild(newDirector);
+
+    // Show remove buttons for all rows
+    const removeButtons = container.querySelectorAll('.remove-person');
+    removeButtons.forEach(button => button.style.display = 'block');
+
+    console.log(`Added contact person. Total: ${removeButtons.length}`);
+  }
+
+  // Remove Director/Contact Person Function
+  function removeperson(button) {
+    console.log('Remove person function called');
+    const row = button.closest('.director-row');
+    row.remove();
+
+    // Hide remove button if only one row remains
+    const container = document.getElementById('directors-container');
+    const removeButtons = container.querySelectorAll('.remove-person');
+    if (removeButtons.length === 1) {
+      removeButtons[0].style.display = 'none';
+    }
+
+    console.log(`Removed contact person. Total: ${removeButtons.length}`);
+  }
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function () {
+    console.log('Page loaded, initializing contact form');
+
+    // Hide the first remove button
+    const firstRemoveButton = document.querySelector('.remove-person');
+    if (firstRemoveButton) {
+      firstRemoveButton.style.display = 'none';
+    }
+
+    // Your existing country, state, city dropdown code
+    const countryInput = document.getElementById("head-country-input");
+    const countryDropdown = document.getElementById("head-country-dropdown");
+    const countryOptionsList = document.getElementById("head-country-options");
+
+    const stateInput = document.getElementById("head-state-input");
+    const stateDropdown = document.getElementById("head-state-dropdown");
+    const stateOptionsList = document.getElementById("head-state-options");
+
+    const cityInput = document.getElementById("head-city-input");
+    const cityDropdown = document.getElementById("head-city-dropdown");
+    const cityOptionsList = document.getElementById("head-city-options");
+
+    let selectedCountryId = null;
+    let selectedStateId = null;
+
+    // Load countries from backend
+    if (countryInput) {
+      axios.get("/api/countries").then((res) => {
+        const countries = res.data;
+        countryOptionsList.innerHTML = "";
+        countries.forEach((country) => {
+          const li = document.createElement("li");
+          li.className = "p-2 hover:bg-gray-100 flex items-center cursor-pointer";
+          li.innerHTML = `
+                    <input type="radio" class="mr-2 h-4 w-4" name="head-country" value="${country.name}" id="head-country-${country.id}" />
+                    <label for="head-country-${country.id}" class="ml-1">${country.name}</label>
+                `;
+          li.querySelector("input").addEventListener("change", () => {
+            countryInput.value = country.name;
+            selectedCountryId = country.id;
+            countryDropdown.classList.add("hidden");
+            stateInput.value = "";
+            cityInput.value = "";
+            stateOptionsList.innerHTML = "";
+            cityOptionsList.innerHTML = "";
+          });
+          countryOptionsList.appendChild(li);
+        });
+      });
+
+      // Show/Hide country dropdown
+      countryInput.addEventListener("click", () => {
+        countryDropdown.classList.toggle("hidden");
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      if (countryInput && !countryInput.contains(e.target) && !countryDropdown.contains(e.target)) {
+        countryDropdown.classList.add("hidden");
+      }
+      if (stateInput && !stateInput.contains(e.target) && !stateDropdown.contains(e.target)) {
+        stateDropdown.classList.add("hidden");
+      }
+      if (cityInput && !cityInput.contains(e.target) && !cityDropdown.contains(e.target)) {
+        cityDropdown.classList.add("hidden");
+      }
+    });
+
+    // Load states dynamically
+    if (stateInput) {
+      stateInput.addEventListener("click", () => {
+        if (!selectedCountryId) return;
+        axios.get(`/api/states/${selectedCountryId}`).then((res) => {
+          stateOptionsList.innerHTML = "";
+          res.data.forEach((state) => {
+            const li = document.createElement("li");
+            li.className = "p-2 hover:bg-gray-100 cursor-pointer";
+            li.textContent = state.name;
+            li.addEventListener("click", () => {
+              stateInput.value = state.name;
+              selectedStateId = state.id;
+              stateDropdown.classList.add("hidden");
+              cityInput.value = "";
+              cityOptionsList.innerHTML = "";
+            });
+            stateOptionsList.appendChild(li);
+          });
+          stateDropdown.classList.toggle("hidden");
+        });
+      });
+    }
+
+    // Load cities dynamically
+    if (cityInput) {
+      cityInput.addEventListener("click", () => {
+        if (!selectedStateId) return;
+        axios.get(`/api/cities/${selectedStateId}`).then((res) => {
+          cityOptionsList.innerHTML = "";
+          res.data.forEach((city) => {
+            const li = document.createElement("li");
+            li.className = "p-2 hover:bg-gray-100 cursor-pointer";
+            li.textContent = city.name;
+            li.addEventListener("click", () => {
+              cityInput.value = city.name;
+              cityDropdown.classList.add("hidden");
+            });
+            cityOptionsList.appendChild(li);
+          });
+          cityDropdown.classList.toggle("hidden");
+        });
+      });
+    }
+  });
+</script>
+{% endblock%}

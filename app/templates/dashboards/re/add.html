@@ -1,0 +1,66 @@
+{% extends "re_base.html" %}
+{% block content %} 
+   <link rel="stylesheet" href="assets/css/add.css" />
+   
+
+<main class="main">
+
+
+    <div class="container">
+        <form id="guidelineForm">
+            <div class="form-group">
+                <label for="guidelineName">Guideline Name</label>
+                <input type="text" id="guidelineName" placeholder="Enter Guideline Name">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="gid">GID</label>
+                    <input type="text" id="gid" placeholder="Enter GID">
+                </div>
+                <div class="form-group">
+                    <label for="issuingAuthority">Issuing Authority</label>
+                    <input type="text" id="issuingAuthority" placeholder="Enter Issuing Authority">
+                </div>
+               
+                <div class="form-group">
+                    <label for="dateOfIssue">Date of Issue</label>
+                    <input type="date" id="dateOfIssue">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="complianceDate">Effective Date for Compliance</label>
+                    <input type="date" id="complianceDate">
+                </div>
+
+                <div class="form-group">
+                    <label>Mandatory (Yes/No)</label>
+                    <div class="radio-group">
+                        <input type="radio" name="mandatory" value="Yes"> Yes
+                        <input type="radio" name="mandatory" value="No"> No
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Certification Available (Yes/No)</label>
+                    <div class="radio-group">
+                        <input type="radio" name="certification" value="Yes"> Yes
+                        <input type="radio" name="certification" value="No"> No
+                    </div>
+                </div>
+                
+                 <divclass="upload-container">
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">Upload</button>
+        <p id="fileName"></p>
+    </div>
+            </div>
+
+            <button type="submit">Add</button>
+        </form>
+    </div>
+</main>
+    <script src="assets/js/add.js"></script>
+{%endblock%}

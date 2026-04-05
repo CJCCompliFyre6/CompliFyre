@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fictional Audit Report</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+      /* Custom styles for print, if needed (though html2pdf.js handles some aspects) */
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+          background-color: #fff;
+        }
+        .container {
+          box-shadow: none;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+        }
+        /* Hide the button when printing via browser's print dialog */
+        .no-print {
+          display: none;
+        }
+      }
+      /* Optional: Add a subtle border or background to image placeholders for visibility */
+      img[src*="placeholder"] {
+        border: 1px dashed #ccc;
+        background-color: #f9f9f9;
+        display: block; /* Ensures images behave as block elements for layout */
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 font-sans text-gray-800 leading-normal">
+    <div class="container mx-auto p-8 bg-white shadow-lg my-8 md:my-12">
+      <div class="no-print text-center mb-8">
+        <button id="downloadPdf" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full shadow mr-4">Download PDF</button>
+        <button onclick="generate()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full shadow">Generate Editable PDF</button>
+        <p class="text-sm text-gray-600 mt-2">
+          This will generate and download the report as a PDF file.
+        </p>
+      </div>
+
+      <div id="pdf-content" class="min-h-screen">
+        <header class="text-center mb-16 pt-12" id="audit-report">
+          <img
+            src="https://via.placeholder.com/150x150?text=Auditing+Org+Logo"
+            alt="Auditing Organization Logo"
+            class="mx-auto mb-8 w-32 h-32 object-contain"
+          />
+          <p class="text-xs text-red-600 mb-8 max-w-2xl mx-auto font-medium">
+            (This is a highly confidential sample document which should not be
+            shared with anyone for any purpose. Please do not reproduce any part
+            of it. All organization names, People names and screenshots are
+            fictional)
+          </p>
+          <h1 class="text-5xl font-extrabold text-gray-900 mb-6 mt-12">
+            Audit Report
+          </h1>
+          <div
+            class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left max-w-xl mx-auto text-lg pt-4"
+          >
+            <p>
+              <strong>Report Release Date:</strong>
+              <span class="font-normal">13-01-2025</span>
+            </p>
+            <p>
+              <strong>Type of Audit:</strong>
+              <span class="font-normal">Information Security Audit</span>
+            </p>
+            <p>
+              <strong>Type of Audit Report:</strong>
+              <span class="font-normal">First Audit Report</span>
+            </p>
+            <p>
+              <strong>Period:</strong>
+              <span class="font-normal">1-Jan-2024 to 31-Dec-2024</span>
+            </p>
+          </div>
+          <div
+            class="border-t border-gray-300 mt-16 pt-4 text-sm text-gray-500"
+          >
+            <p>Fictional Audit Report for Internal Demo and Discussion Only</p>
+          </div>
+        </header>
+
+        <section class="mb-16 mt-24" id="document-control">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Document Control
+          </h2>
+          <div
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-3 text-lg mb-8"
+          >
+            <p><strong>Document Preparation:</strong> Shridhar</p>
+            <p>
+              <strong>Document Title:</strong> ITGRC Audit Report for ANIXO BANK
+            </p>
+            <p>
+              <strong>Document ID:</strong>
+              <span class="text-gray-500 italic">(Not specified)</span>
+            </p>
+            <p><strong>Document Version:</strong> 1.0</p>
+            <p><strong>Prepared by:</strong> Shridhar</p>
+            <p><strong>Reviewed by:</strong> Shubha</p>
+            <p><strong>Approved by:</strong> Shakti</p>
+            <p><strong>Released by:</strong> Shubha</p>
+            <p><strong>Release date:</strong> 14-01-2025</p>
+          </div>
+
+          <h3 class="text-2xl font-semibold text-gray-800 mt-10 mb-4">
+            Document Change History
+          </h3>
+          <div class="overflow-x-auto shadow-md rounded-lg">
+            <table class="min-w-full bg-white border border-gray-300">
+              <thead>
+                <tr
+                  class="bg-gray-200 text-gray-700 uppercase text-sm leading-normal"
+                >
+                  <th class="py-3 px-6 text-left border-b">Version</th>
+                  <th class="py-3 px-6 text-left border-b">Date</th>
+                  <th class="py-3 px-6 text-left border-b">Remarks</th>
+                </tr>
+              </thead>
+              <tbody class="text-gray-700 text-base font-light">
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">1.0</td>
+                  <td class="py-3 px-6 text-left">13-01-2024</td>
+                  <td class="py-3 px-6 text-left">Initial Draft</td>
+                </tr>
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">1.1</td>
+                  <td class="py-3 px-6 text-left">20-01-2024</td>
+                  <td class="py-3 px-6 text-left">Minor revisions</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="text-2xl font-semibold text-gray-800 mt-10 mb-4">
+            Document Distribution List
+          </h3>
+          <div class="overflow-x-auto shadow-md rounded-lg">
+            <table class="min-w-full bg-white border border-gray-300">
+              <thead>
+                <tr
+                  class="bg-gray-200 text-gray-700 uppercase text-sm leading-normal"
+                >
+                  <th class="py-3 px-6 text-left border-b">Name</th>
+                  <th class="py-3 px-6 text-left border-b">Organisation</th>
+                  <th class="py-3 px-6 text-left border-b">Designation</th>
+                  <th class="py-3 px-6 text-left border-b">Email Id</th>
+                </tr>
+              </thead>
+              <tbody class="text-gray-700 text-base font-light">
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">
+                    Sangeeta Mehta
+                  </td>
+                  <td class="py-3 px-6 text-left">ANIXO BANK</td>
+                  <td class="py-3 px-6 text-left">Head of IT</td>
+                  <td class="py-3 px-6 text-left">s.mehta@anixobank.com</td>
+                </tr>
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">
+                    Dinkar Mehta
+                  </td>
+                  <td class="py-3 px-6 text-left">ANIXO BANK</td>
+                  <td class="py-3 px-6 text-left">
+                    Chief Information Security Officer
+                  </td>
+                  <td class="py-3 px-6 text-left">d.mehta@anixobank.com</td>
+                </tr>
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">
+                    Pranali Ganorkar
+                  </td>
+                  <td class="py-3 px-6 text-left">ANIXO BANK</td>
+                  <td class="py-3 px-6 text-left">Compliance Manager</td>
+                  <td class="py-3 px-6 text-left">p.ganorkar@anixobank.com</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="mb-16 mt-24" id="contents">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Contents
+          </h2>
+          <ul class="space-y-3 text-lg text-blue-700">
+            <li>
+              <a
+                href="#audit-report"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Audit Report <span class="text-gray-600 text-sm">0</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#document-control"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Document Control
+                <span class="text-gray-600 text-sm">1</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#introduction"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Introduction <span class="text-gray-600 text-sm">3</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#engagement-scope"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Engagement Scope
+                <span class="text-gray-600 text-sm">4</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#auditing-team"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Details of Auditing Team
+                <span class="text-gray-600 text-sm">5</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#audit-activities"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Audit Activities and Timelines
+                <span class="text-gray-600 text-sm">6</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#audit-methodology"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Audit Methodology and Criteria / Standard
+                <span class="text-gray-600 text-sm">7</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#tools-software"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Tools Software Used
+                <span class="text-gray-600 text-sm">8</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#executive-summary"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Executive Summary
+                <span class="text-gray-600 text-sm">9</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#limitations-disclaimers"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Limitations and Disclaimers
+                <span class="text-gray-600 text-sm">11</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="#pocs"
+                class="hover:underline hover:text-blue-800 flex justify-between items-center"
+                >Proof of Concepts (POCs) and Images
+                <span class="text-gray-600 text-sm">12</span></a
+              >
+            </li>
+          </ul>
+        </section>
+
+        <section id="introduction" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Introduction
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            This section provides an introduction to the audit report, outlining
+            its purpose, objectives, and the context of the audit conducted for
+            ANIXO BANK. The audit aims to assess the information security
+            posture and compliance with relevant standards and policies.
+          </p>
+          <p class="text-lg leading-relaxed">
+            The findings and recommendations presented in this report are based
+            on the audit activities performed during the specified period.
+          </p>
+        </section>
+
+        <section id="engagement-scope" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Engagement Scope
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            The scope of this information security audit included, but was not
+            limited to, the following areas within ANIXO BANK:
+          </p>
+          <ul
+            class="list-disc list-inside text-lg leading-relaxed space-y-2 pl-4"
+          >
+            <li>Review of IT Governance Framework.</li>
+            <li>Assessment of Information Security Policies and Procedures.</li>
+            <li>Evaluation of Network Security Controls.</li>
+            <li>Review of Access Control Mechanisms.</li>
+            <li>Audit of Data Backup and Recovery Procedures.</li>
+            <li>
+              Examination of Incident Management and Business Continuity Plans.
+            </li>
+            <li>
+              Assessment of Application Security and Development Lifecycle.
+            </li>
+            <li>Review of Vendor and Third-Party Risk Management.</li>
+          </ul>
+          <p class="text-lg leading-relaxed mt-4">
+            Any specific exclusions or limitations to the scope are detailed in
+            the "Limitations and Disclaimers" section.
+          </p>
+        </section>
+
+        <section id="auditing-team" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Details of Auditing Team
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-lg">
+            <div>
+              <p><strong>Lead Auditor:</strong> Shridhar R.</p>
+              <p><strong>Role:</strong> Lead Information Security Auditor</p>
+              <p><strong>Email:</strong> shridhar.r@example.com</p>
+            </div>
+            <div>
+              <p><strong>Senior Auditor:</strong> Shubha V.</p>
+              <p><strong>Role:</strong> Senior IT Audit Specialist</p>
+              <p><strong>Email:</strong> shubha.v@example.com</p>
+            </div>
+            <div>
+              <p><strong>Audit Assistant:</strong> Shakti D.</p>
+              <p><strong>Role:</strong> Junior Auditor</p>
+              <p><strong>Email:</strong> shakti.d@example.com</p>
+            </div>
+            <div>
+              <p><strong>Support Staff:</strong> Raj N.</p>
+              <p><strong>Role:</strong> Audit Support</p>
+              <p><strong>Email:</strong> raj.n@example.com</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="audit-activities" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Audit Activities and Timelines
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            The audit was conducted over a period of three weeks, involving
+            various activities such as document review, interviews, technical
+            testing, and evidence collection.
+          </p>
+          <div class="overflow-x-auto shadow-md rounded-lg">
+            <table class="min-w-full bg-white border border-gray-300">
+              <thead>
+                <tr
+                  class="bg-gray-200 text-gray-700 uppercase text-sm leading-normal"
+                >
+                  <th class="py-3 px-6 text-left border-b">Phase</th>
+                  <th class="py-3 px-6 text-left border-b">Activity</th>
+                  <th class="py-3 px-6 text-left border-b">Start Date</th>
+                  <th class="py-3 px-6 text-left border-b">End Date</th>
+                </tr>
+              </thead>
+              <tbody class="text-gray-700 text-base font-light">
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">
+                    Planning
+                  </td>
+                  <td class="py-3 px-6 text-left">
+                    Kick-off Meeting, Scope Finalization
+                  </td>
+                  <td class="py-3 px-6 text-left">01-Jan-2025</td>
+                  <td class="py-3 px-6 text-left">05-Jan-2025</td>
+                </tr>
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">
+                    Fieldwork
+                  </td>
+                  <td class="py-3 px-6 text-left">
+                    Data Collection, Interviews, Testing
+                  </td>
+                  <td class="py-3 px-6 text-left">06-Jan-2025</td>
+                  <td class="py-3 px-6 text-left">20-Jan-2025</td>
+                </tr>
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                  <td class="py-3 px-6 text-left whitespace-nowrap">
+                    Reporting
+                  </td>
+                  <td class="py-3 px-6 text-left">
+                    Drafting, Review, Finalization
+                  </td>
+                  <td class="py-3 px-6 text-left">21-Jan-2025</td>
+                  <td class="py-3 px-6 text-left">31-Jan-2025</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="audit-methodology" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Audit Methodology and Criteria / Standard
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            The audit was conducted in accordance with industry best practices
+            and standards, including:
+          </p>
+          <ul
+            class="list-disc list-inside text-lg leading-relaxed space-y-2 pl-4"
+          >
+            <li>
+              **ISO 27001:** Information Security Management Systems
+              requirements.
+            </li>
+            <li>
+              **NIST Cybersecurity Framework:** Guidelines for improving
+              critical infrastructure cybersecurity.
+            </li>
+            <li>
+              **Internal IT Security Policies of ANIXO BANK:** Review against
+              the organization's documented policies.
+            </li>
+            <li>**COBIT 5:** For IT governance and management.</li>
+          </ul>
+          <p class="text-lg leading-relaxed mt-4">
+            A risk-based approach was utilized to prioritize audit areas and
+            allocate resources effectively.
+          </p>
+        </section>
+
+        <section id="tools-software" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Tools Software Used
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            The following tools and software were utilized during the audit for
+            data collection, analysis, and vulnerability assessment:
+          </p>
+          <ul
+            class="list-disc list-inside text-lg leading-relaxed space-y-2 pl-4"
+          >
+            <li>**Nessus:** For vulnerability scanning.</li>
+            <li>**Wireshark:** For network traffic analysis.</li>
+            <li>
+              **Microsoft Excel/Access:** For data analysis and record keeping.
+            </li>
+            <li>
+              **Custom scripts:** Developed for specific data extraction and
+              analysis tasks.
+            </li>
+            <li>**Interviewing and documentation review tools.**</li>
+          </ul>
+        </section>
+
+        <section id="executive-summary" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Executive Summary
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            This executive summary provides a high-level overview of the
+            significant findings, strengths, and areas for improvement
+            identified during the audit.
+          </p>
+          <h3 class="text-2xl font-semibold text-gray-800 mb-3">
+            Overall Assessment:
+          </h3>
+          <p class="text-lg leading-relaxed mb-4">
+            ANIXO BANK has a foundational information security framework in
+            place. Several controls are effectively implemented, demonstrating a
+            commitment to protecting sensitive information. However, certain
+            areas require attention to strengthen the overall security posture
+            and ensure full compliance.
+          </p>
+          <h3 class="text-2xl font-semibold text-gray-800 mb-3">
+            Key Strengths:
+          </h3>
+          <ul
+            class="list-disc list-inside text-lg leading-relaxed space-y-2 pl-4"
+          >
+            <li>Strong management commitment to information security.</li>
+            <li>Well-defined access control policies for critical systems.</li>
+            <li>Regular security awareness training for employees.</li>
+          </ul>
+          <h3 class="text-2xl font-semibold text-gray-800 mb-3 mt-4">
+            Areas for Improvement:
+          </h3>
+          <ul
+            class="list-disc list-inside text-lg leading-relaxed space-y-2 pl-4"
+          >
+            <li>
+              Further development and formalization of incident response
+              procedures.
+            </li>
+            <li>
+              Enhancement of patch management processes for timely updates.
+            </li>
+            <li>
+              Regular independent penetration testing to identify
+              vulnerabilities proactively.
+            </li>
+          </ul>
+          <p class="text-lg leading-relaxed mt-4">
+            Detailed findings and recommendations are provided in subsequent
+            sections of this report.
+          </p>
+        </section>
+
+        <section id="limitations-disclaimers" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Limitations and Disclaimers
+          </h2>
+          <p class="text-lg leading-relaxed mb-4">
+            This audit report is based on the information and evidence available
+            at the time of the audit and is subject to the following
+            limitations:
+          </p>
+          <ul
+            class="list-disc list-inside text-lg leading-relaxed space-y-2 pl-4"
+          >
+            <li>
+              The audit was conducted on a sample basis; therefore, it may not
+              identify every potential issue.
+            </li>
+            <li>
+              The scope was limited to the areas agreed upon during the planning
+              phase.
+            </li>
+            <li>
+              Future changes in technology, threats, or the organization's
+              environment may impact the validity of the findings.
+            </li>
+            <li>
+              This report is for the exclusive use of ANIXO BANK and should not
+              be distributed to third parties without prior written consent.
+            </li>
+          </ul>
+          <p class="text-lg leading-relaxed mt-4">
+            The findings and recommendations herein are intended to provide
+            guidance and do not constitute legal advice.
+          </p>
+        </section>
+
+        <section id="pocs" class="mb-16 mt-24">
+          <h2
+            class="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2"
+          >
+            Proof of Concepts (POCs) and Images
+          </h2>
+          <p class="text-lg leading-relaxed mb-8">
+            This section presents various Proof of Concepts (POCs) and
+            supporting images referenced throughout the audit report. These
+            visuals provide evidence and context for the audit findings.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 22.1 – IT Asset Inventory– Document control
+              </h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+62+-+IT+Asset+Inventory"
+                alt="POC 22.1 Image"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Screenshot depicting the IT Asset Inventory document control
+                process.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">POC 23 – IT Org Chart</h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+63+-+IT+Org+Chart"
+                alt="POC 23 Image"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Organizational chart for the IT department.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 24 – DR Drill Calendar
+              </h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+64+-+DR+Drill+Calendar"
+                alt="POC 24 Image"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Calendar showing scheduled Disaster Recovery (DR) drills.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">POC 25 – IS Org Chart</h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+65+-+IS+Org+Chart"
+                alt="POC 25 Image"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Organizational chart for the Information Security department.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 26 – Outsourcing Framework
+              </h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+66+-+Outsourcing+Framework"
+                alt="POC 26 Image"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Document outlining the organization's outsourcing framework.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center col-span-1 md:col-span-2 lg:col-span-3"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 27 – Change & Patch Management SOP
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 27.1 - CMPM - Revision History
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+67+-+CMPM+Rev+History"
+                    alt="CMPM Revision History"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Revision history of the Change & Patch Management SOP.
+                  </p>
+                </div>
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 27.2 - CMPM - Process details
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+68+-+CMPM+Process+Details"
+                    alt="CMPM Process Details"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Details of the Change & Patch Management process.
+                  </p>
+                </div>
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 27.3 - CMPM - Approval matrix
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+69+-+CMPM+Approval+Matrix"
+                    alt="CMPM Approval Matrix"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Approval matrix for Change & Patch Management activities.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center col-span-1 md:col-span-2 lg:col-span-3"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 28 – Incident Management SOP
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 28.1 - IMS - Revision History
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+70+-+IMS+Rev+History"
+                    alt="IMS Revision History"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Revision history of the Incident Management SOP.
+                  </p>
+                </div>
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 28.1 - IMS - Process Details
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+71+-+IMS+Process+Details"
+                    alt="IMS Process Details"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Details of the Incident Management process.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">POC 29 – BIA Template</h3>
+              <h4 class="text-lg font-medium mb-2">
+                POC 29.1 - BIA - Revision History
+              </h4>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+72+-+BIA+Rev+History"
+                alt="BIA Revision History"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Revision history of the Business Impact Analysis (BIA) template.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">POC 30 – SLA</h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+73+-+SLA"
+                alt="SLA Document"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                Screenshot of the Service Level Agreement (SLA) document.
+              </p>
+            </div>
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center"
+            >
+              <h3 class="text-xl font-semibold mb-3">Related Image</h3>
+              <img
+                src="https://via.placeholder.com/400x250?text=Image+74"
+                alt="Related Image"
+                class="w-full h-auto rounded-md object-cover mb-2"
+              />
+              <p class="text-sm text-gray-600">
+                An additional image related to SLA or previous section.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center col-span-1 md:col-span-2 lg:col-span-3"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 31 – Certificate of Source code
+              </h3>
+              <img
+                src="https://via.placeholder.com/600x400?text=Image+75+-+Certificate+of+Source+Code"
+                alt="Certificate of Source Code"
+                class="w-full h-auto rounded-md object-cover mb-4"
+              />
+              <p class="text-sm text-gray-600">
+                Image showing the certificate of source code for an application.
+              </p>
+            </div>
+
+            <div
+              class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col items-center text-center col-span-1 md:col-span-2 lg:col-span-3"
+            >
+              <h3 class="text-xl font-semibold mb-3">
+                POC 32 – Data migration SOP
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 32.1 - DMS - Revision History
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+76+-+DMS+Rev+History"
+                    alt="DMS Revision History"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Revision history of the Data Migration SOP.
+                  </p>
+                </div>
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 32.2 - DMS - Process details
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+77+-+DMS+Process+Details"
+                    alt="DMS Process Details"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Process details for data migration.
+                  </p>
+                </div>
+                <div>
+                  <h4 class="text-lg font-medium mb-2">
+                    POC 32.3 - DMS - Compliance requirement
+                  </h4>
+                  <img
+                    src="https://via.placeholder.com/400x250?text=Image+78+-+DMS+Compliance"
+                    alt="DMS Compliance Requirement"
+                    class="w-full h-auto rounded-md object-cover mb-2"
+                  />
+                  <p class="text-sm text-gray-600">
+                    Compliance requirements related to data migration.
+                  </p>
+                </div>
+                <div class="md:col-span-3 text-center pt-4">
+                  <p class="text-md text-gray-700 italic">
+                    Additional images (Image 79, 80) related to DMS compliance
+                    would be placed here.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      document.getElementById('downloadPdf').addEventListener('click', function() {
+          const element = document.getElementById('pdf-content');
+          // Use px for margin for more predictable output
+          const opt = {
+              margin:       10, // 10px margin
+              filename:     'Fictional_Audit_Report.pdf',
+              image:        { type: 'jpeg', quality: 0.98 },
+              html2canvas:  { scale: 2, useCORS: true, logging: false },
+              jsPDF:        { unit: 'pt', format: 'a4', orientation: 'portrait' },
+              pagebreak:    { mode: ['css', 'legacy'] }
+          };
+          html2pdf().set(opt).from(element).save();
+      });
+    </script>
+   <script>
+function generate() {
+  const element = document.getElementById('pdf-content');
+  const opt = {
+    margin: 10,
+    filename: 'Fictional_Audit_Report.pdf',
+    image: { type: 'none' }, // Do not rasterize text, keep as selectable text
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'] }
+  };
+  html2pdf().set(opt).from(element).save();
+}
+</script>
+  </body>
+</html>

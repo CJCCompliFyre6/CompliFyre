@@ -1,0 +1,68 @@
+{% extends "audit_base.html" %} {% block content %}
+
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .quill-container {
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            height: 200px;
+            background-color: white;
+            padding: 0.5rem;
+        }
+    </style>
+
+
+    <div class="w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center min-h-[105vh]">
+        <div class="flex flex-col items-center py-10 px-4 flex-grow">
+            <div class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative">
+                
+                    <form action="{{url_for('main.edit_prompt', prompt_id=prompt.prompt_id)}}" method="POST" id="ai-prompt-form" class="form-step flex flex-col items-center">
+                        <h2 class="text-2xl font-semibold mb-6 text-orange-800">Edit AI Prompt Information</h2>
+                        <div class="space-y-4 max-w-xl">
+                            
+                            <div>
+                                <label class="block mb-1 font-medium text-gray-700" for="prompt_type">Prompt Type</label>
+                                <input type="text" id="prompt_type" name="prompt_type" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" value="{{prompt.prompt_type}}" readonly />
+                            </div>
+
+                            <div>
+                                <label class="block mb-1 font-medium text-gray-700" for="prompt_text">Prompt Text</label>
+                                <div id="editor"></div>
+                                <input type="hidden" id="prompt_text" name="prompt_text">
+                            </div>
+
+                            <div>
+                                <input type="number" id="version" name="version" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm" value="{{prompt.version}}" hidden />
+                            </div>
+
+                          
+
+                        </div>
+                        <div class="mt-6 flex justify-between">
+                            <button type="submit" class="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Update Prompt</button>
+                        </div>
+                    </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Toast UI Editor
+        const editor = new toastui.Editor({
+            el: document.querySelector('#editor'),
+            height: '200px',
+            initialEditType: 'wysiwyg',
+            previewStyle: 'vertical',
+            initialValue: `{{prompt.prompt_text | safe}}` // Use | safe filter to render HTML correctly
+        });
+
+        document.querySelector("#ai-prompt-form").addEventListener("submit", function () {
+            document.querySelector("#prompt_text").value = editor.getMarkdown();
+        });
+    </script>
+{% endblock %}

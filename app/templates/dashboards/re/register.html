@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-vertical-style="overlay" data-theme-mode="light"
+  data-header-styles="light" data-menu-styles="light" data-toggled="close">
+
+<head>
+
+  <!-- Meta Data -->
+  <meta charset="UTF-8">
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Complifyre">
+  <meta name="keywords"
+    content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Style Css -->
+  <style>
+    /* Global Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* Body Styling */
+    body {
+      zoom: 80%;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      /* background-color: #000; */
+      color: #fff;
+    }
+
+    /* Logo Styling */
+    .logo {
+      width: 150px;
+      height: auto;
+      margin: 0 auto;
+      display: block;
+      max-width: 100%;
+      /* Ensures logo scales properly */
+    }
+
+    /* Custom Card (Login Container) */
+    .custom-card {
+      background-color: #1c1c1c;
+      border-radius: 20px;
+      box-shadow: 0 10px 6px rgba(0, 0, 0, 0.2);
+      padding: 40px;
+      text-align: left;
+      width: 100%;
+      max-width: 350px;
+      /* Prevents overflow on small screens */
+    }
+
+    /* Heading and Subheading */
+    .custom-card p.h4 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .custom-card p.text-muted {
+      margin-bottom: 30px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    /* Form Controls */
+    .form-control {
+      width: 100%;
+      padding: 10px;
+      margin: 15px 0;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: #fff;
+      font-size: 16px;
+      text-align: left;
+    }
+
+    .custom-card .form-label {
+      margin-bottom: 10px;
+    }
+
+    .custom-card .form-control {
+      margin-top: 10px;
+    }
+
+    /* Password Visibility Button */
+    .position-relative {
+      width: 100%;
+    }
+
+    .show-password-button {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #999;
+    }
+
+    .show-password-button:hover {
+      color: #fff;
+    }
+
+    /* Continue Button */
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(to right, #f76b1c, #ffa62b);
+      border: none;
+      border-radius: 25px;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 10px rgba(255, 166, 43, 0.4);
+      margin-top: 10px;
+      text-decoration: none;
+    }
+
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 15px rgba(255, 166, 43, 0.6);
+    }
+
+    /* Grid Styling */
+    .d-grid {
+      display: grid;
+      place-items: center;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* ✅ Responsive Fixes */
+    @media (max-width: 576px) {
+      .custom-card {
+        padding: 20px;
+      }
+
+      .custom-card p.h4 {
+        font-size: 20px;
+      }
+
+      .custom-card p.text-muted {
+        font-size: 12px;
+      }
+
+      .form-control {
+        font-size: 14px;
+        padding: 8px;
+      }
+
+      .btn-primary {
+        font-size: 18px;
+        padding: 10px;
+      }
+    }
+
+    .flash-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+    }
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom styles for focus states and general form aesthetics */
+    input:focus,
+    select:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.5);
+      /* Orange ring on focus */
+      border-color: #fb923c;
+      /* Orange border on focus */
+    }
+
+    /* Custom orange shadow for the form - Adjusted for all-direction glow */
+    .form-shadow-orange {
+      box-shadow: 0 0 60px 15px rgba(255, 140, 0, 0.8);
+      /* Centered, larger, more spread orange shadow */
+    }
+  </style>
+
+  <!-- Add this CSS in the style section -->
+  <style>
+    .password-requirements {
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .requirement {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.25rem;
+      color: #6b7280;
+      /* gray-500 */
+    }
+
+    .requirement.valid {
+      color: #10b981;
+      /* green-500 */
+    }
+
+    .requirement.invalid {
+      color: #ef4444;
+      /* red-500 */
+    }
+
+    .requirement-icon {
+      margin-right: 0.5rem;
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .password-strength {
+      margin-top: 0.5rem;
+      height: 4px;
+      border-radius: 2px;
+      background-color: #e5e7eb;
+      /* gray-200 */
+      overflow: hidden;
+    }
+
+    .strength-bar {
+      height: 100%;
+      width: 0%;
+      transition: all 0.3s ease;
+    }
+
+    .strength-weak {
+      background-color: #ef4444;
+      width: 25%;
+    }
+
+    /* red-500 */
+    .strength-fair {
+      background-color: #f59e0b;
+      width: 50%;
+    }
+
+    /* amber-500 */
+    .strength-good {
+      background-color: #3b82f6;
+      width: 75%;
+    }
+
+    /* blue-500 */
+    .strength-strong {
+      background-color: #10b981;
+      width: 100%;
+    }
+
+    /* green-500 */
+
+    .error-message {
+      color: #ef4444;
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+      display: none;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col font-serif">
+
+  <!-- Fixed Navbar -->
+
+  <div class="navbar-container">
+    <nav
+      class="fixed top-1 left-1 right-1 flex items-center justify-between mt-2 mx-8 px-5 py-4 bg-black/100 bg-opacity-90 backdrop-blur-sm rounded-xl shadow-md z-30">
+      <div class="flex items-center space-x-3">
+        <img src="{{ url_for('re.static', filename='img/complyfire_logo.png') }}" alt="Logo"
+          class="w-16 h-16 rounded-md shadow-[0_0_10px_rgba(255,165,0,0.25)]">
+        <span class="text-orange-400 text-[2.5rem] font-semibold font-serif text-shadow-orange"><strong
+            class="text-orange-500 text-[3rem]">C</strong>ompli<strong
+            class="text-orange-400 text-[3rem]">F</strong>yre</span>
+      </div>
+
+      <div class="flex items-center space-x-8"> {# This new div will push to the far right due to nav's justify-between
+        #}
+        <div class="space-x-8 hidden md:flex">
+          {% if current_user.is_authenticated %}
+          {{current_user.is_authenticated}}
+          <a href="{{url_for('audit.create_organization')}}"
+            class="text-white text-base font-medium hover:text-orange-400 transition text text-xl">Create Auditing
+            Organization</a>
+          {%endif%}
+        </div>
+
+        <div class="space-x-3 hidden md:flex">
+          {% if not current_user.is_authenticated %}
+          <a href="{{url_for('main.login')}}"
+            class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Login</a>
+          <a href="{{url_for('main.register_user')}}"
+            class="px-4 py-2 bg-orange-400 hover:bg-orange-600 text-white text-lg font-large rounded-lg transition">Sign
+            up</a>
+
+          {%else%}
+          <a href="{{url_for('re.logout')}}"
+            class="px-4 py-2 border border-orange-300 text-white text-lg text-base font-large rounded-lg hover:bg-orange-600 transition">Logout</a>
+
+          {%endif%}
+        </div>
+      </div>
+    </nav>
+  </div>
+
+
+  <div class="relative mt-[18rem] mx-8  w-full h-auto">
+    <div class="flash-container space-y-2 mx-[10rem] my-[10rem]">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      {% if category == 'success' %}
+      <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-md" role="alert">
+        <p class="font-bold">Success!</p>
+        <p>{{ message }}</p>
+      </div>
+      {% elif category == 'error' %}
+      <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md" role="alert">
+        <p class="font-bold">Error!</p>
+        <p>{{ message }}</p>
+      </div>
+      {% else %}
+      <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-md" role="alert">
+        <p class="font-bold">Info:</p>
+        <p>{{ message }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+    </div>
+    <section class="relative mt-[21rem] bg-black w-auto h-auto mx-8 rounded-2xl font-sans">
+      <div class="w-auto mx-8 h-auto py-16 flex flex-col items-center text-center">
+        <!-- <h2 class="text-5xl font-normal mb-12 text-white">Register New User</h2> -->
+
+        <div
+          class="bg-gradient-to-br from-gray-50 to-white p-8 rounded-lg shadow-[0_0_15px_rgba(255,165,0,0.2)] max-w-2xl w-full text-left border border-gray-100">
+          <!-- Form Header -->
+          <div class="mb-8 text-center">
+            <h3 class="text-3xl font-semibold text-gray-800 mb-2">Create Your Account</h3>
+            <p class="text-gray-800">Join CompliFyre to streamline your audit processes.</p>
+          </div>
+
+          <form action="{{url_for('main.create_user')}}" method="POST" class="space-y-6 text text-black">
+            <div>
+              <label for="role" class="block text-sm font-medium text-gray-800 mb-1">Account Type</label>
+              <select id="role" name="role"
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200"
+                required>
+                {% for role in roles %}
+                {% if role.name == "AUDITOR" %}
+                <option value="{{role.role_id}}">{{role.name}}</option>
+                {% endif %}
+                {%endfor%}
+              </select>
+            </div>
+            <!-- Email -->
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-800 mb-1">Official Email ID</label>
+              <input type="email" id="email" name="email" required
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200">
+            </div>
+
+            <!-- Phone Number -->
+            <div>
+              <label for="phone_no" class="block text-sm font-medium text-gray-800 mb-1">Phone Number</label>
+              <input type="tel" id="phone_no" name="phone_no" required
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200">
+            </div>
+
+            <!-- Name -->
+            <div>
+              <label for="name" class="block text-sm font-medium text-gray-800 mb-1">First Name</label>
+              <input type="text" id="fname" name="fname" required
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200">
+            </div>
+
+            <div>
+              <label for="name" class="block text-sm font-medium text-gray-800 mb-1">Last Name</label>
+              <input type="text" id="lname" name="lname" required
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200">
+            </div>
+
+            <!-- Password -->
+            <div>
+              <label for="password" class="block text-sm font-medium text-gray-800 mb-1">Password</label>
+              <input type="password" id="password" name="password_hash" required
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200">
+
+              <!-- Password Strength Bar -->
+              <div class="password-strength">
+                <div class="strength-bar" id="password-strength-bar"></div>
+              </div>
+
+              <!-- Password Requirements -->
+              <div class="password-requirements" id="password-requirements">
+                <div class="requirement" id="req-length">
+                  <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  At least 8 characters
+                </div>
+                <div class="requirement" id="req-uppercase">
+                  <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  One uppercase letter (A-Z)
+                </div>
+                <div class="requirement" id="req-lowercase">
+                  <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  One lowercase letter (a-z)
+                </div>
+                <div class="requirement" id="req-number">
+                  <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  One number (0-9)
+                </div>
+                <div class="requirement" id="req-special">
+                  <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  One special character (!@#$%^&*)
+                </div>
+              </div>
+
+              <div class="error-message" id="password-error"></div>
+            </div>
+
+            <!-- Confirm Password -->
+            <div>
+              <label for="confirm_password" class="block text-sm font-medium text-gray-800 mb-1">Confirm
+                Password</label>
+              <input type="password" id="confirm_password" name="confirm_password" required
+                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:ring-orange-500 focus:border-orange-600 sm:text-sm transition-colors duration-200">
+
+              <div class="error-message" id="confirm-password-error"></div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-center pt-4">
+              <button type="submit"
+                class="inline-flex justify-center py-3 px-8 border border-transparent shadow-md text-base font-medium rounded-full text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 ease-in-out transform hover:scale-105">
+                Register User
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const passwordInput = document.getElementById('password');
+      const confirmPasswordInput = document.getElementById('confirm_password');
+      const passwordError = document.getElementById('password-error');
+      const confirmPasswordError = document.getElementById('confirm-password-error');
+      const passwordStrengthBar = document.getElementById('password-strength-bar');
+      const form = document.querySelector('form');
+
+      // Password requirements elements
+      const reqLength = document.getElementById('req-length');
+      const reqUppercase = document.getElementById('req-uppercase');
+      const reqLowercase = document.getElementById('req-lowercase');
+      const reqNumber = document.getElementById('req-number');
+      const reqSpecial = document.getElementById('req-special');
+
+      // Password validation rules
+      const passwordRules = {
+        length: (password) => password.length >= 8,
+        uppercase: (password) => /[A-Z]/.test(password),
+        lowercase: (password) => /[a-z]/.test(password),
+        number: (password) => /[0-9]/.test(password),
+        special: (password) => /[!@#$%^&*]/.test(password)
+      };
+
+      // Update password strength and requirements
+      function updatePasswordRequirements(password) {
+        const requirements = {
+          length: passwordRules.length(password),
+          uppercase: passwordRules.uppercase(password),
+          lowercase: passwordRules.lowercase(password),
+          number: passwordRules.number(password),
+          special: passwordRules.special(password)
+        };
+
+        // Update requirement indicators
+        reqLength.classList.toggle('valid', requirements.length);
+        reqLength.classList.toggle('invalid', !requirements.length);
+
+        reqUppercase.classList.toggle('valid', requirements.uppercase);
+        reqUppercase.classList.toggle('invalid', !requirements.uppercase);
+
+        reqLowercase.classList.toggle('valid', requirements.lowercase);
+        reqLowercase.classList.toggle('invalid', !requirements.lowercase);
+
+        reqNumber.classList.toggle('valid', requirements.number);
+        reqNumber.classList.toggle('invalid', !requirements.number);
+
+        reqSpecial.classList.toggle('valid', requirements.special);
+        reqSpecial.classList.toggle('invalid', !requirements.special);
+
+        // Calculate password strength
+        const metRequirements = Object.values(requirements).filter(Boolean).length;
+        const totalRequirements = Object.values(requirements).length;
+        const strength = (metRequirements / totalRequirements) * 100;
+
+        // Update strength bar
+        passwordStrengthBar.className = 'strength-bar';
+        if (strength <= 25) {
+          passwordStrengthBar.classList.add('strength-weak');
+        } else if (strength <= 50) {
+          passwordStrengthBar.classList.add('strength-fair');
+        } else if (strength <= 75) {
+          passwordStrengthBar.classList.add('strength-good');
+        } else {
+          passwordStrengthBar.classList.add('strength-strong');
+        }
+
+        return requirements;
+      }
+
+      // Validate password
+      function validatePassword(password) {
+        const requirements = updatePasswordRequirements(password);
+        const allMet = Object.values(requirements).every(Boolean);
+
+        if (!allMet && password.length > 0) {
+          passwordError.textContent = 'Password does not meet all requirements';
+          passwordError.style.display = 'block';
+          return false;
+        } else {
+          passwordError.style.display = 'none';
+          return allMet;
+        }
+      }
+
+      // Validate password confirmation
+      function validatePasswordConfirmation(password, confirmPassword) {
+        if (password !== confirmPassword && confirmPassword.length > 0) {
+          confirmPasswordError.textContent = 'Passwords do not match';
+          confirmPasswordError.style.display = 'block';
+          return false;
+        } else {
+          confirmPasswordError.style.display = 'none';
+          return true;
+        }
+      }
+
+      // Event listeners
+      passwordInput.addEventListener('input', function () {
+        validatePassword(this.value);
+        validatePasswordConfirmation(this.value, confirmPasswordInput.value);
+      });
+
+      confirmPasswordInput.addEventListener('input', function () {
+        validatePasswordConfirmation(passwordInput.value, this.value);
+      });
+
+      // Form submission validation
+      form.addEventListener('submit', function (event) {
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+
+        const isPasswordValid = validatePassword(password);
+        const isConfirmationValid = validatePasswordConfirmation(password, confirmPassword);
+
+        if (!isPasswordValid || !isConfirmationValid) {
+          event.preventDefault();
+
+          if (!isPasswordValid) {
+            passwordError.textContent = 'Please fix password requirements before submitting';
+            passwordError.style.display = 'block';
+          }
+
+          if (!isConfirmationValid) {
+            confirmPasswordError.textContent = 'Please fix password confirmation before submitting';
+            confirmPasswordError.style.display = 'block';
+          }
+
+          // Scroll to first error
+          const firstError = document.querySelector('.error-message[style*="display: block"]');
+          if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      });
+
+      // Initial validation on page load (for browser autofill)
+      setTimeout(() => {
+        if (passwordInput.value) {
+          validatePassword(passwordInput.value);
+        }
+        if (confirmPasswordInput.value) {
+          validatePasswordConfirmation(passwordInput.value, confirmPasswordInput.value);
+        }
+      }, 100);
+    });
+  </script>
+
+</body>
+
+
+
+</html>

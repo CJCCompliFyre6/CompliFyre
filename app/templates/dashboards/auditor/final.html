@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    <style>
+ /* Global Reset */
+ * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #FEF8F5;
+  margin: 0;
+  padding: 0;
+}
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      h1, h2 {
+      color: #000;
+      font-weight: bold;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: 20px;
+      margin-top: 20px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    p {
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #000;
+    }
+    .faded {
+      color: #999;
+    }
+
+
+
+
+
+
+
+
+
+      /* Header */
+  header {
+  background-color: #222;
+  color: white;
+  padding: 15px;
+  text-align: left;
+}
+
+/* Flexbox container for the menu icon and title */
+.menu-icon-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Styling for the menu icon */
+.menu-icon {
+  font-size: 30px;
+  color: black;
+  cursor: pointer;
+  margin-right: 20px;
+}
+
+/* Styling for the dashboard title */
+.dashboard-title {
+  flex-grow: 1;
+}
+
+.dashboard-title h1 {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+  color: black;
+}
+
+.dashboard-title p {
+  font-size: 16px;
+  color: #ffa62b;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.dashboard-title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* User Actions */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-left: auto;
+}
+
+.profile-icon, .logout-icon {
+  font-size: 24px;
+  cursor: pointer;
+  color: black;
+}
+
+.profile-icon:hover, .logout-icon:hover {
+  color: #ffa62b;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  left: -250px;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  background-color: black;
+  color: white;
+  transition: left 0.3s ease-in-out;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+/* Sidebar Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo img {
+  width: 150px;
+  height: auto;
+}
+
+/* Sidebar Menu */
+.menu {
+  list-style-type: none;
+}
+
+.menu li {
+  padding: 10px 0;
+}
+
+.menu li a {
+  color: white;
+  text-decoration: none;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.menu li a i {
+  font-size: 18px;
+}
+
+.menu li a:hover {
+  background: linear-gradient(135deg, #f76b1c, #ffa62b);
+}
+
+/* Sidebar Submenu */
+/* Submenu Scroll */
+.submenu .submenu-items {
+display: none;
+max-height: 250px; /* Adjust this value as needed */
+overflow-y: auto;
+list-style: none;
+padding-left: 20px;
+background-color: black;
+border: 1px solid black;
+border-radius: 5px;
+}
+
+.submenu .submenu-items.active {
+display: block;
+}
+
+/* Custom Scrollbar Style */
+.submenu .submenu-items::-webkit-scrollbar {
+width: 8px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb {
+background: #575757;
+border-radius: 4px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+background: #444;
+}
+
+/* Phase Labels Styling */
+.submenu li.view-clients,
+.submenu li.audit-phase,
+.submenu li.risk-phase,
+.submenu li.field-phase,
+.submenu li.report-phase,
+.submenu li.up-phase {
+color: #514a4a;
+cursor: default;
+font-weight: bold;
+}
+
+
+/* Sidebar Footer */
+.footer {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  padding: 10px;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: white;
+  text-decoration: none;
+}
+
+.footer a i {
+  font-size: 18px;
+}
+    </style>
+
+<link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+
+<body>
+<!-- Header -->
+<div class="menu-icon-container">
+  <div class="menu-icon" onclick="toggleSidebar()">
+    <i class="bx bx-menu"></i>
+  </div>
+  <div class="dashboard-title">
+    <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+    <p>Dashboard</p>
+  </div>
+<!-- Profile and Logout Icons aligned to the right -->
+<div class="user-actions">
+  <!-- Profile Icon -->
+  <a href="#" class="profile-icon">
+      <i class="bx bx-user"></i>
+  </a>
+
+  <!-- Logout Icon -->
+  <span class="logout-icon" onclick="logout()">
+      <i class="bx bx-log-out"></i>
+  </span>
+</div>
+</div>
+
+
+<div id="sidebar" class="sidebar">
+  <div class="logo">
+    <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+  </div>
+
+  <ul class="menu">
+    <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+      </a>
+      <ul class="submenu-items">
+        <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+        <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+      </ul>
+    </li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+      </a>
+    <ul class="submenu-items">
+     <li class="view-clients">View Clients</li>
+     <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+     <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+    </ul>
+    </li>
+
+    <li class="submenu">
+      <a href="#" onclick="toggleSubmenu(event)">
+        <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+      </a>
+      <ul class="submenu-items">
+        <li class="audit-phase">Audit / Assessment Phase</li>
+        <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+
+        <li class="risk-phase">Risk Assessment Phase</li>
+        <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+        <li><a href="{{url_for('audit.dam')}}">Audit Strategy Memo</a></li>
+        <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+        <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+        <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+        <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+        <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+        <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+
+        <li class="field-phase">FieldWork Phase (Execution)</li>
+        <li><a href="{{url_for('audit.risk')}}">Risk Control Matrics</a></li>
+        <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+        <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+        <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+        <li><a href="#">FieldWork Documentation</a></li>
+        <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+        <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+        <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+
+        <li class="report-phase">Reporting Phase</li>
+        <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+        <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+
+        <li class="up-phase">Follow-Up Phase</li>
+        <li><a href="#">Action Tracker</a></li>
+      </ul>
+    </li>
+
+  <main class="footer">
+    <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+    <a href="#"><i class="bx bx-support"></i> Support Center</a>
+  </div>
+</div>
+
+<!-- Main Content -->
+    <main class="main" style="padding: 20px">
+      <div class="breadcrumb" style="margin-bottom: 24px">
+        <h1 style="margin-bottom: 8px">Final Audit Report</h1>
+        <a href="#" style="color: #007bff; text-decoration: none">Dashboard</a>
+        / Final Audit Report
+      </div>
+
+      <div class="container" style="margin-bottom: 32px">
+      <p><span class="highlight">Audit Scope:</span> As defined in prior documents, the fieldwork focuses on <span class="highlight">RBI Cybersecurity Guidelines</span> and <span class="highlight">RBI Prudential IRAC norms</span>, covering the identified key processes: <span class="highlight">Loan Classification and NPA Provisioning, Cybersecurity and Data Protection, Access Controls, Incident Response, and Vendor Management.</span></p>
+
+      <h2>1. Purpose of Fieldwork</h2>
+      <p>The fieldwork stage aims to gather sufficient and appropriate audit evidence by:</p>
+      <p>Reviewing client documentation related to critical controls and processes.</p>
+      <p>Observing client procedures to assess control design and operational effectiveness.</p>
+      <p>Conducting interviews with client personnel to understand operational workflows and responsibilities.</p>
+      <p>Executing <span class="highlight">control tests and substantive testing</span> to validate the accuracy and completeness of records.</p>
+  
+      <p class="section-title">Objectives:</p>
+      <p class="faded">Evaluate adherence to <span class="highlight">RBI IRAC norms</span> for <span class="highlight">Loan Classification</span> and <span class="highlight">NPA provisioning</span>.</p>
+      <p class="faded">Ensure compliance with <span class="highlight">RBI Cybersecurity Guidelines</span> through testing of <span class="highlight">Data Protection, Incident Response,</span> and <span class="highlight">Access Control</span> mechanisms.</p>
+  
+      <h2>2. Process Overview</h2>
+      <p class="section-title">1. Document Review</p>
+      <p>Obtain <span class="highlight">policy documents</span>, system reports, and <span class="highlight">internal manuals</span> related to the processes under review.</p>
+      <p><span class="highlight">Key Documents:</span> Loan files, provisioning worksheets, security policies, encryption standards, user access logs, incident response plans.</p>
+  
+      <p class="section-title">2. Observations</p>
+      <p>Observe how <span class="highlight">loan classifications</span> are assigned in real-time to verify compliance with RBI IRAC norms.</p>
+      <p>Monitor how <span class="highlight">incident response teams</span> react to simulated cybersecurity breaches.</p>
+  
+      <p class="section-title">3. Interviews</p>
+      <p>Discuss with <span class="highlight">Risk Management</span> teams to understand NPA provisioning strategies.</p>
+      <p>Engage with the <span class="highlight">IT Security Team</span> to assess how they ensure compliance with cybersecurity guidelines.</p>
+  
+      <p class="section-title">4. Control Testing</p>
+      <p><span class="highlight">Loan Classification Controls:</span> Test if loan classifications align with IRAC guidelines through sample-based testing.</p>
+      <p><span class="highlight">Cybersecurity Controls:</span> Test encryption methods, access control configurations, and incident response procedures.</p>
+  
+      <p class="section-title">5. Substantive Testing</p>
+      <p><span class="highlight">Loan Reclassification:</span> Recalculate the provisioning for NPAs and ensure alignment with regulatory expectations.</p>
+    
+      <h2>3. Key Deliverables from Fieldwork</h2>
+
+    <h3>A. Audit Workpapers</h3>
+    <p>Audit workpapers document the audit team’s testing of controls and substantive testing procedures. <span class="highlight">Key sections include:</span></p>
+    <p><span class="highlight">Loan Classification and NPA Provisioning:</span> <span class="faded">Documentation of the sample loans tested, provisioning recalculations, and any misclassifications found.</span></p>
+    <p><span class="highlight">Cybersecurity Controls:</span> <span class="faded">Evidence of data encryption compliance and results from incident response simulations.</span></p>
+
+    <h3>B. Fieldwork Notes</h3>
+    <p>Fieldwork notes capture insights from observations, interviews, and preliminary testing results:</p>
+    <p><span class="highlight">Loan Classification Fieldwork Note:</span> <span class="faded">"Loan 10234 was incorrectly classified as ‘Standard’ instead of ‘Sub-standard’ as it exceeded the 90-day overdue limit, which could have led to under-provisioning."</span></p>
+    <p><span class="highlight">Cybersecurity Fieldwork Note:</span> <span class="faded">"Incident response simulation revealed that the breach took longer than acceptable to be identified and escalated to senior management, indicating a weakness in monitoring."</span></p>
+
+    <h3>C. Documentation of Findings</h3>
+    <p>Initial documentation of audit findings, including:</p>
+    <p><span class="highlight">Loan Classification Fieldwork Note:</span></p>
+    <p class="faded">Loan misclassification identified due to outdated borrower financial data.</p>
+    <p class="faded">Unauthorized access to sensitive financial data by junior staff due to improper role assignment.</p>
+    <p><span class="highlight">Non-compliance with RBI Guidelines:</span></p>
+
+    <h2>4. Detailed Fieldwork Steps for Each Process</h2>
+
+    <h3>1. Loan Classification and NPA Provisioning (RBI IRAC Norms)</h3>
+    <p><span class="highlight">Tests Performed:</span></p>
+    <p><span class="highlight">Loan Sampling:</span> Selected 50 loans across sectors and verified their classification based on borrower repayment history.</p>
+    <p><span class="highlight">Provisioning Check:</span> Recalculated provisioning amounts for sampled NPAs to ensure accuracy as per RBI guidelines.</p>
+
+    <p><span class="highlight">Control Questions:</span></p>
+    <p>Are the loans correctly classified as per IRAC norms? (Yes/No)</p>
+    <p>Has provisioning been adequately calculated for NPAs? (Yes/No)</p>
+
+    <p><span class="highlight">Results:</span></p>
+    <p>10% of sampled loans were misclassified, leading to incorrect provisioning amounts.</p>
+  
+    <h2>2. Data Protection and Cybersecurity Controls (RBI Cybersecurity Guidelines)</h2>
+
+    <p><span class="highlight">Tests Performed:</span></p>
+    <p><span class="highlight">Access Log Review:</span> Verified that user access to sensitive financial data is restricted to authorized personnel.</p>
+    <p><span class="highlight">Encryption Testing:</span> Confirmed that all sensitive customer data is encrypted both at rest and in transit.</p>
+
+    <p><span class="highlight">Control Questions:</span></p>
+    <p>Is access to critical data appropriately restricted? (Yes/No)</p>
+    <p>Is customer data properly encrypted? (Yes/No)</p>
+
+    <p><span class="highlight">Results:</span></p>
+    <p>5 instances of unauthorized access to sensitive financial data were identified due to role misassignment.</p>
+    <p>Encryption protocols were fully compliant with RBI requirements.</p>
+
+    <h2>3. Access Control and Authorization Mechanisms</h2>
+
+    <p><span class="highlight">Tests Performed:</span></p>
+    <p><span class="highlight">User Role Review:</span> Assessed if users have been assigned appropriate roles and permissions based on their responsibilities.</p>
+    <p><span class="highlight">Segregation of Duties Testing:</span> Verified whether duties related to high-risk transactions are segregated to mitigate the risk of fraud.</p>
+
+    <p><span class="highlight">Control Questions:</span></p>
+    <p>Are user roles aligned with job responsibilities? (Yes/No)</p>
+    <p>Are critical functions segregated? (Yes/No)</p>
+
+    <p><span class="highlight">Results:</span></p>
+    <p>Control gaps were identified in the segregation of duties for high-value transaction approvals, increasing fraud risk.</p>
+
+    <h2>4. Incident Response and Recovery Procedures</h2>
+
+    <p><span class="highlight">Tests Performed:</span></p>
+    <p><span class="highlight">Incident Response Plan Testing:</span> Simulated a cybersecurity breach and assessed the bank’s response times.</p>
+    <p><span class="highlight">Recovery Time Objective (RTO) Testing:</span> Evaluated whether critical systems meet RTO during disaster recovery scenarios.</p>
+
+    <p><span class="highlight">Control Questions:</span></p>
+    <p>Did the bank respond to incidents within the defined time? (Yes/No)</p>
+    <p>Did the systems recover within the required RTO? (Yes/No)</p>
+    
+    <p><span class="highlight">Results:</span></p>
+    <p>Response times exceeded acceptable thresholds, indicating gaps in the bank’s incident management process.</p>
+    <p>RTOs were met for 90% of critical systems; delays were noted in non-core systems.</p>
+
+    <h2>Next Steps in Fieldwork:</h2>
+    <p>Continue gathering evidence and documenting observations.</p>
+    <p>Review findings with the client’s management team to confirm accuracy and obtain explanations for any control deficiencies.</p>
+    <p>Begin drafting interim audit reports highlighting key issues and remediation recommendations.</p>
+  </div>
+  </main>
+  <script>
+    // Toggle Sidebar
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("open");
+    const menuIcon = document.querySelector(".menu-icon i"); // Get the current icon
+
+    // Toggle the icon when the sidebar opens or closes
+    if (menuIcon.classList.contains("bx-menu")) {
+        menuIcon.classList.replace("bx-menu", "bx-x"); // Switch to close icon
+    } else {
+        menuIcon.classList.replace("bx-x", "bx-menu"); // Switch back to menu icon
+    }
+}
+
+// Function to close the sidebar when clicking outside
+function closeSidebarIfClickedOutside(event) {
+    const sidebar = document.getElementById("sidebar");
+    const menuIcon = document.querySelector(".menu-icon i");
+    
+    // Check if the click is outside the sidebar and not on the menu icon
+    if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+        sidebar.classList.remove("open");
+        menuIcon.classList.replace("bx-x", "bx-menu"); // Revert the icon back to the menu
+    }
+}
+
+// Add the event listener to close sidebar if clicking outside
+document.addEventListener("click", closeSidebarIfClickedOutside);
+
+
+function toggleSubmenu(event) {
+  event.preventDefault(); // Prevents page reload
+
+  let parent = event.target.closest(".submenu"); // Find the clicked <li>
+  let submenu = parent.querySelector(".submenu-items"); // Find submenu in this <li>
+
+  // Close all other submenus before opening the clicked one
+  document.querySelectorAll(".submenu-items").forEach((item) => {
+    if (item !== submenu) {
+      item.classList.remove("open"); // Use class to control the display
+      item.style.display = "none"; // Remove inline style if necessary
+      item.parentElement.classList.remove("open");
+    }
+  });
+
+  // Toggle the clicked submenu
+  if (submenu.classList.contains("open")) {
+    submenu.classList.remove("open");
+    submenu.style.display = "none"; // Close
+    parent.classList.remove("open");
+  } else {
+    submenu.classList.add("open");
+    submenu.style.display = "block"; // Open
+    parent.classList.add("open");
+  }
+}
+
+
+function toggleSubmenu(event) {
+    event.preventDefault();
+    const submenu = event.target.nextElementSibling;
+    if (submenu) {
+      submenu.classList.toggle('active');
+    }
+  }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1074 @@
+{% extends "audit_base.html" %}
+{% block content %} 
+
+ <link rel="stylesheet" href="{{url_for('re.static', filename="css/view.css")}}" />
+
+  <style>
+    .truncated-text {
+      cursor: pointer;
+      color: blue;
+    }
+
+    .truncated-text:hover {
+      text-decoration: underline;
+    }
+
+    .modal-content1 {
+      padding: 30px;
+      background: white;
+      border-radius: 16px;
+      max-width: 900px;
+      margin: auto;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .table_prompt {
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left-color: #000;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .spinner-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .spinner {
+      border: 8px solid rgba(0, 0, 0, 0.1);
+      border-left-color: orange;
+      border-radius: 50%;
+      width: 64px;
+      height: 64px;
+      animation: spin 1s linear infinite;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+      gap: 5px;
+    }
+
+    .pagination button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: white;
+      color: black;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .pagination button:hover {
+      background-color: #f0f0f0;
+    }
+
+    .pagination button.active {
+      background-color: orange;
+      color: white;
+      font-weight: bold;
+    }
+
+  
+
+    .clause_text {
+    display: none; 
+    position: absolute; 
+    top: 0; 
+    left: 100%;
+    height:100%;
+    width: 30rem;
+    background-color: #fff;
+    border: 1px solid #ccc; 
+    padding: 5px; 
+    z-index: 10;
+    white-space: wrap; 
+    margin-left: 3px; 
+  }
+    
+    .clause-number:hover .clause_text {
+    display: block; /* Change to block or inline-block to make it visible */
+  }
+  .flash-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+        }
+  </style>
+<style>
+        /* Custom font for a clean look */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for bullet points within the table */
+        .bullet-list {
+            list-style-type: disc; /* Default disc bullets */
+            padding-left: 1.25rem; /* Equivalent to pl-5 in Tailwind */
+            margin-bottom: 0; /* Remove default margin */
+        }
+        .bullet-list li {
+            margin-bottom: 0.25rem; /* Small spacing between list items */
+        }
+        .bullet-list li:last-child {
+            margin-bottom: 0; /* No margin for the last item */
+        }
+    </style>
+  
+
+  <main class="flex  w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+    
+    <!-- Flash Flask Messages-->
+
+    {#<div class="flash-container space-y-2 mx-[10rem] my-[10rem]">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      {% if category == 'success' %}
+      <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-md relative" role="alert">
+          <button onclick="closeAlert(this)" class="absolute top-2 right-2 text-green-700 hover:text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-green-200 transition-colors duration-200" aria-label="Close">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+          </button>
+          <p class="font-bold pr-8">Success!</p>
+          <p class="pr-8">{{ message }}</p>
+      </div>
+      {% elif category == 'error' or category == 'danger' %}
+      <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md relative" role="alert">
+          <button onclick="closeAlert(this)" class="absolute top-2 right-2 text-red-700 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-red-200 transition-colors duration-200" aria-label="Close">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+          </button>
+          <p class="font-bold pr-8">Error!</p>
+          <p class="pr-8">{{ message }}</p>
+      </div>
+      {% elif category == 'warning' %}
+      <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-md relative" role="alert">
+          <button onclick="closeAlert(this)" class="absolute top-2 right-2 text-yellow-700 hover:text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-yellow-200 transition-colors duration-200" aria-label="Close">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+          </button>
+          <p class="font-bold pr-8">Warning:</p>
+          <p class="pr-8">{{ message }}</p>
+      </div>
+      {% else %}
+      <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-md relative" role="alert">
+          <button onclick="closeAlert(this)" class="absolute top-2 right-2 text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded-full p-1 hover:bg-blue-200 transition-colors duration-200" aria-label="Close">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+          </button>
+          <p class="font-bold pr-8">Info:</p>
+          <p class="pr-8">{{ message }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+  </div>#}
+
+
+    <!-- Filter Section -->
+    
+
+    <div class="dropdown">
+          <!-- <a href="#" style="float: right;" class="add-new-guideline-btn" onclick="toggleDropdown(event)">Add New Guideline</a> -->
+          <div class="dropdown-content1" id="dropdown-menu">
+              <a href="#" onclick="openUploadModal()">Upload File</a>
+              <a href="{{url_for('re.add')}}">Add Guidelines</a>
+              <a href="#" onclick="openLinkSharingModal()">Link Sharing</a>
+              <a href="#" onclick="openPromptModel()">Prompts</a>
+          </div>
+      </div>
+  </main>
+
+  <div id="linkSharingModal" class="modal">
+      <div class="modal-content">
+          <span class="close" onclick="closeLinkSharingModal()">&times;</span>
+          <h2>Extract Notification from a Link</h2>
+          <form id="linkSharingForm" onsubmit="submitLink(event)">
+              <input type="text" id="shareableLink" required>
+              <button type="submit">Enter</button>
+          </form>
+          <div id="loadingIcon" class="spinner" style="display: none;"></div>
+      </div>
+  </div>
+  
+  
+
+  
+
+  <div id="loadingIconAnim" class="spinner" style="display: none;"></div>
+
+  <div id="loadingOverlay"
+     style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);  /* semi-transparent black */
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+     ">
+  <div class="spinner"></div>
+</div>
+
+
+ <!-- <main class="main mx-4"> -->
+    <main class="flex  w-auto mx-8 my-4 z-1 rounded-xl justify-between items-center">
+
+    <div class="container mx-8">
+
+      <div class="top-buttons">
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Search..">
+        </div>
+        <div class="flex flex-wrap gap-4 mb-6">
+      {% if project or guidelines %} 
+        
+        <!-- <div>
+          <label for="projectFilter" class="font-semibold mr-2">Filter by Project:</label>
+          <select id="projectFilter" class="border rounded p-2">
+            <option value="">All Projects</option>
+            {% for proj in project %}
+              <option value="{{ proj.project_name }}">{{ proj.project_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="guidelineFilter" class="font-semibold mr-2">Filter by Guideline:</label>
+          <select id="guidelineFilter" class="border rounded p-2">
+            <option value="">All Guidelines</option>
+            {% for guide in guidelines %}
+              <option value="{{ guide.id }}">{{ guide.guideline_data.DocumentDetails.DocumentName }}</option>
+            {% endfor %}
+          </select>
+        </div> -->
+      {% endif %}
+    </div>
+        <button id="exportCSV">Export to CSV</button>
+      </div>
+      <div class="w-full flex justify-between">
+        {#
+        <button id="generateAllActivitiesBtn"
+        class="mb-4 px-6 py-3 bg-green-600 text-white hover:bg-green-700 transition-all rounded">
+        Generate "Test Procedures" for All Activities
+      </button>
+      #}
+      
+      <form action="{{url_for('audit.evaluate_all_projects')}}" method='POST'>
+         <input name='project_name' value="{{project_name}}" hidden/>
+        <button id="evalauate"
+        class="mb-4 px-6 py-3 bg-orange-600 text-white hover:bg-orenge-700 transition-all rounded">
+        Evaluate
+      </button>
+      </form>
+      data {{consolidated_evidence}}
+      {% if not consolidated_evidence %}
+      <form action="{{url_for('audit.consolidate_evidence')}}" method='POST'>
+        <input name='consolidated_evidence' value="{{evidence_result}}" hidden/>
+         <input name='project_name' value="{{project_name}}" hidden/>
+        <button id="get_consolidated_evidences"
+        class="mb-4 px-6 py-3 bg-orange-600 text-white hover:bg-orenge-700 transition-all rounded">
+        Get Consolidated Evidence
+      </button>
+      </form>
+      {% else %}
+      <button id="openModalBtn" class="mb-4 px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-[2rem]">
+        Show Evidences
+    </button>
+    {% endif %}
+  </div>
+
+
+     <div id="evidenceModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <!-- Modal Content Box -->
+        <div class="bg-white rounded-lg shadow-xl p-6 relative w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Close Button -->
+            <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900 text-3xl font-semibold leading-none focus:outline-none">
+                &times;
+            </button>
+
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-3">Grouped Evidences</h2>
+
+            <!-- Table Container with Scroll -->
+            <div class="overflow-y-auto flex-grow rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200 table-auto">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Evidence Item Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Guideline IDs
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Clause IDs
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Activity IDs
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Evidence Names
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Action
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="evidenceTableBody" class="bg-white/100 divide-y divide-gray-200">
+                      {%if consolidated_evidence %}
+                      {%for evidence in consolidated_evidence.grouped_evidences %}
+                        <tr>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {{ evidence.evidence_item_name }}
+                          </td>
+                          <td class="px-6 py-4 text-sm text-gray-500">
+                              <ul class="bullet-list">
+                                  {% for guideline_id in evidence.required_by.guideline_ids %}
+                                      <li>
+                                          <span class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap inline-block" title="{{ guideline_id | e }}">
+                                              {{ guideline_id }}
+                                          </span>
+                                      </li>
+                                  {% endfor %}
+                              </ul>
+                          </td>
+                          <td class="px-6 py-4 text-sm text-gray-500">
+                              <ul class="bullet-list">
+                                  {% for clause_id in evidence.required_by.clause_ids %}
+                                      <li>
+                                          <span class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap inline-block" title="{{ clause_id | e }}">
+                                              {{ clause_id }}
+                                          </span>
+                                      </li>
+                                  {% endfor %}
+                              </ul>
+                          </td>
+                          <td class="px-6 py-4 text-sm text-gray-500">
+                              <ul class="bullet-list">
+                                  {% for activity_id in evidence.required_by.activity_ids %}
+                                      <li>
+                                          <span class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap inline-block" title="{{ activity_id | e }}">
+                                              {{ activity_id }}
+                                          </span>
+                                      </li>
+                                  {% endfor %}
+                              </ul>
+                          </td>
+                          <td class="px-6 py-4 text-sm text-gray-500">
+                              <ul class="bullet-list">
+                                  {% for evidence_item in evidence.required_by.evidence %}
+                                      <li>
+                                          <span class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap inline-block" title="{{ evidence_item.evidence_id | e }}">
+                                              {{ evidence_item.evidence_item }}
+                                          </span>
+                                      </li>
+                                  {% endfor %}
+                              </ul>
+                          </td>
+
+                          <td class="px-6 py-4 text-sm text-gray-500">
+                            <form action="{{url_for('audit.upload_to_multiple_evidences')}}" method="POST" enctype="multipart/form-data" id="evidence-form">
+                              
+                              <input name="evidence_ids" value="{{ (evidence.required_by.evidence | map(attribute='evidence_id') | list) | join(',')}}" type="hidden" />
+                              
+                              <div class="form-group">
+                                <label for="evidence_file">Upload Evidence File:</label>
+                                <input 
+                                    type="file" 
+                                    name="evidence_file" 
+                                    id="evidence_file"
+                                    accept=".pdf,.doc,.docx"
+                                    required 
+                                />
+                                <small class="form-text">Accepted formats: PDF, DOC, DOCX(Max: 20MB)</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="submit-btn">
+                                <span class="btn-text">Upload Evidence</span>
+                                <span class="btn-loading" style="display: none;">Uploading...</span>
+                            </button>
+                            </form>   
+                            
+                          </td>
+
+                      </tr>
+
+
+                      {%endfor%}
+                      {%endif%}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+      
+      
+      
+    <div>
+      </div> 
+      <table id="guidelinesTable">
+        <thead class="font-serif text-xl rounded-xl top-0 bg-white shadow-sm">
+            <tr>
+                <th><input type="checkbox" id="selectAllActivities" /></th>
+                <th>Activity ID</th>
+                <th>Guideline </th>
+                
+                <th>Activity Description</th>
+                <th>Clause</th>
+                <th>Relevant Departments</th>
+                <th>Process Name</th>
+               <!--<th>Sub-Process Name</th>--> 
+                <th>Responsible Party</th>
+                <th>Frequency</th>
+                <th>Evidence Required</th>
+                <th>Compliance Status</th>
+                <th>Actions</th>
+              </tr>
+        </thead>
+        <tbody>
+          {% if compliance_activities %}
+            {# <h1>Compliance Activities : {{compliance_activities}}</h1> #}
+          {% for activity in compliance_activities %}
+          <tr data-project-id="{{ activity.original_activity.project_id }}" data-guideline-id="{{ activity.original_activity.guideline_id }}">
+            <td><input type="checkbox" class="activity-checkbox" /></td>
+            
+            <td hidden>{{activity.original_activity.clause_id}} </td>
+            <td hidden>{{ activity.original_activity.id }}</td>
+            <td>{{activity.original_activity.activity_id}}</td>
+           <td> {{activity.original_activity.clauses.guideline.guideline_data.DocumentDetails.DocumentName}} </td>
+            
+            <td>{{activity.original_activity.activity_description}}</td>
+            <td class="clause-number">
+              {{activity.original_activity.clause_id}}
+              {{activity.original_activity.clauses.clause_text}}
+              <div class='clause_text'>
+                {{activity.original_activity.clauses.clause_text}}
+              </div>
+              </td>
+            <td>
+              {{activity.original_activity.relevant_departments}}
+            </td>
+            <td>{{activity.original_activity.process}}</td>
+           <!-- <td>{{activity.sub_process}}</td>-->
+            
+            <td>{{activity.original_activity.responsible_party}}</td>
+            <td>{{activity.original_activity.frequency}}</td>
+            <td>{{activity.original_activity.evidence_required}}</td>
+            
+            <td> {% if activity.original_activity.control_activities%} 
+              
+              <span
+                class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-red-200 text-red-800' if activity.original_activity.control_activities[0].compliant_status == 'not-compliant' else 'bg-yellow-200 text-yellow-800' if activity.original_activity.control_activities[0].compliant_status == 'partially-compliant' else 'bg-green-200 text-green-800' }}"
+              >{{activity.original_activity.control_activities[0].compliant_status}}</span
+            > 
+          {%else%}
+          <span class="px-3 py-1 rounded-full text-sm font-semibold "> To Be Assessed </span>
+         
+          {% endif %}
+        </td>
+            <td>
+              <a href="{{url_for('re.test_evidence_artifacts', activity_id=activity.id)}}" ><button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all">Test Steps</button></a>
+              
+          {#   <!-- {%  if current_user.role.name != 'AUDITOR'%}
+              <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="getActivityMapping({
+              id: '{{ activity.id }}',
+              clause_id: '{{ activity.clause_id }}',
+              clause_no: '{{ activity.clauses.clause_no }}',
+                clause_text: '{{ activity.clauses.clause_text }}',
+                relevant_departments: '{{ activity.relevant_departments }}',
+                process: '{{ activity.process }}',
+                sub_process: '{{ activity.sub_process }}',
+                activity_id: '{{ activity.activity_id }}',
+                activity_description: '{{ activity.activity_description }}',
+                responsible_party: '{{ activity.responsible_party }}',
+                frequency: '{{ activity.frequency }}',
+                evidence_required: '{{ activity.evidence_required }}'
+              })">Get Mapping And Redundancy</button> </div>
+              <button onclick="openModal()" class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all">Assign Activity</button>
+              
+              <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="getActivityMapping({
+              id: '{{ activity.id }}',
+              clause_id: '{{ activity.clause_id }}',
+              clause_no: '{{ activity.clauses.clause_no }}',
+                clause_text: '{{ activity.clauses.clause_text }}',
+                relevant_departments: '{{ activity.relevant_departments }}',
+                process: '{{ activity.process }}',
+                sub_process: '{{ activity.sub_process }}',
+                activity_id: '{{ activity.activity_id }}',
+                activity_description: '{{ activity.activity_description }}',
+                responsible_party: '{{ activity.responsible_party }}',
+                frequency: '{{ activity.frequency }}',
+                evidence_required: '{{ activity.evidence_required }}'
+              })">Get Mapping And Redundancy</button> </div>
+              {% endif %}--> #}
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="11">No activity data available.</td>
+          </tr>
+          {% endif %}
+
+        </tbody>
+      </table>
+
+      <div
+          id="assignModal"
+          class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 hidden"
+        >
+  <!-- Modal Content -->
+  <div class="bg-white rounded-lg shadow-lg w-96 p-20" style="padding: 1rem;">
+    <div class="flex justify-between items-center mb-4 m-10" style="padding: 1rem;">
+      <h2 class="text-xl font-bold">Select a User</h2>
+      <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">&times;</button>
+    </div>
+
+    <!-- User List -->
+    <ul class="space-y-2">
+      <li><input type="radio" name="user" value="1"> User 1</li>
+      <li><input type="radio" name="user" value="2"> User 2</li>
+      <li><input type="radio" name="user" value="3"> User 3</li>
+    </ul>
+
+    <!-- Action Buttons -->
+    <div class="mt-6 flex justify-end gap-2">
+      <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+      <button class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">Assign</button>
+    </div>
+  </div>
+</div>
+
+
+      <div class="bottom-controls">
+        <div class="entries-box">
+          <select id="entriesSelect" class="entriesSelect">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    
+  </main>
+  <script src="{{url_for('re.static',filename='js/view.js')}}"></script>
+  <script>
+    window.onload = function () {
+      const apiResult = localStorage.getItem("apiResult");
+      const tableBody = document.querySelector("#guidelinesTable tbody");
+      const pagination = document.getElementById("pagination");
+      const entriesSelect = document.getElementById("entriesSelect");
+
+      let currentPage = 1;
+      let entriesPerPage = parseInt(entriesSelect.value);
+      let pdfLinks = [];
+
+    
+      
+
+      function renderPagination() {
+        pagination.innerHTML = "";
+        const totalPages = Math.ceil(pdfLinks.length / entriesPerPage);
+
+        if (totalPages <= 1) return;
+
+        for (let i = 1; i <= totalPages; i++) {
+          const btn = document.createElement("button");
+          btn.textContent = i;
+          btn.classList.add("pagination-button");
+          if (i === currentPage) {
+            btn.classList.add("active");
+          }
+          btn.addEventListener("click", () => {
+            currentPage = i;
+            renderTable();
+            setActivePage(btn);
+          });
+          pagination.appendChild(btn);
+        }
+      }
+
+
+      entriesSelect.addEventListener("change", () => {
+        entriesPerPage = parseInt(entriesSelect.value);
+        currentPage = 1;
+        renderTable();
+      });
+    };
+    function analyzePDF(pdfUrl) {
+      var myHeaders = new Headers();
+      myHeaders.append("Content-Type", "application/json");
+
+      var raw = JSON.stringify({
+        "url": pdfUrl
+      });
+
+      var requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: raw,
+        redirect: 'follow'
+      };
+
+      showLoadingIcon();
+
+      fetch("{{url_for('retrive.analyze_retrive')}}", requestOptions)
+        .then(response => {
+          if (response.status === 200) {
+            hideLoadingIcon();
+            window.location.href = `${window.location.origin}/re/guidelines`;
+          } else {
+            hideLoadingIcon();
+            alert("The uploaded file appears to be mostly empty or not properly readable. It may be a corrupted or incompatible file format.");
+            throw new Error("File processing failed.");
+          }
+        })
+        .catch(error => {
+          hideLoadingIcon();
+          console.error('Error:', error);
+        });
+    }
+  </script>
+  <script>
+    // Show loading overlay only for important actions
+function showLoadingIcon() {
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  if (loadingOverlay) {
+    loadingOverlay.style.display = "flex";
+  }
+}
+function hideLoadingIcon() {
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  if (loadingOverlay) {
+    loadingOverlay.style.display = "none";
+  }
+}
+// Only attach loading icon to important buttons
+function attachLoadingToImportantButtons() {
+  // Add data-show-loading="true" to important buttons in your HTML for clarity
+  document.body.addEventListener('click', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    // Only show loading for buttons with data-show-loading attribute
+    if (btn.hasAttribute('data-show-loading')) {
+      showLoadingIcon();
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  attachLoadingToImportantButtons();
+  hideLoadingIcon();
+});
+  </script>
+  <script>
+    let prompts = [];
+
+async function fetchPrompts() {
+    try {
+      const response = await fetch("{{url_for('prompt.get_all_prompt')}}");
+      const data = await response.json();
+        prompts = data.prompts.map(p => ({ id: p.id, text: p.prompt }));
+        renderPrompts();
+    } catch (error) {
+        console.error('Error fetching prompts:', error);
+    }
+}
+function renderPrompts() {
+        const tableBody = document.querySelector('#promptTable tbody');
+        tableBody.innerHTML = '';
+
+        prompts.forEach(prompt => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <tr>
+                    <td class="p-4 border">${prompt.id}</td>
+                    <td class="p-4 border w-3/6">
+                        <span class="truncated-text block max-w-xs overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer text-blue-600" onclick="toggleText(this)">
+                            ${prompt.text.length > 20 ? prompt.text.substring(0, 20) + '...' : prompt.text}
+                        </span>
+                    </td>
+                    <td class="p-4 border flex gap-2 justify-center">
+                        <button onclick="updatePrompt(${prompt.id})" class="px-4 py-1 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition-all">Update</button>
+                        <button onclick="deletePrompt(${prompt.id})" class="px-4 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all">Delete</button>
+                    </td>
+                </tr>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    function toggleText(element) {
+        if (element.innerText.endsWith('...')) {
+            const prompt = prompts.find(p => p.text.startsWith(element.innerText.slice(0, 20)));
+            element.innerText = prompt.text;
+        } else {
+            element.innerText = element.innerText.substring(0, 20) + '...';
+        }
+    }
+
+    fetchPrompts();
+
+    async function createNewPrompt(event) {
+        event.preventDefault();
+
+        const promptText = document.getElementById('promptableLink').value;
+        console.log(promptText)
+        const requestOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: promptText }),
+            redirect: 'follow'
+        };
+
+        try {
+          const response = await fetch("{{url_for('prompt.create_prompt')}}", requestOptions);
+          const result = await response.json();
+            console.log(result);
+            if (response.status === 200) {
+                fetchPrompts();
+            }
+            
+        } catch (error) {
+            console.error('Error creating prompt:', error);
+        }
+    }
+
+
+function updatePrompt(id) {
+    const newText = prompt('Enter updated prompt:');
+    if (newText) {
+        const myHeaders = new Headers();
+        myHeaders.append("Content-Type", "application/json");
+
+        const raw = JSON.stringify({ "prompt": newText });
+
+        const requestOptions = {
+            method: 'PUT',
+            headers: myHeaders,
+            body: raw,
+            redirect: 'follow'
+        };
+
+        const updatePromptBaseUrl = "{{ url_for('prompt.update_prompt', prompt_id=0).replace('0', '') }}";
+        fetch(`${updatePromptBaseUrl}${id}`, requestOptions)            .then(response => response.text())
+            .then(result => {
+                console.log(result);
+                const prompt = prompts.find(p => p.id === id);
+                if (prompt) {
+                    prompt.text = newText;
+                    renderPrompts();
+                }
+            })
+            .catch(error => console.log('Error updating prompt:', error));
+    }
+}
+
+    function deletePrompt(id) {
+    const requestOptions = {
+        method: 'DELETE',
+        redirect: 'follow'
+    };
+
+    const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
+    fetch(`${updatePromptBaseUrl}${id}`, requestOptions)        .then(response => response.text())
+        .then(result => {
+            console.log(result);
+            const index = prompts.findIndex(p => p.id === id);
+            if (index > -1) {
+                prompts.splice(index, 1);
+                renderPrompts();
+            }
+        })
+        .catch(error => console.log('Error deleting prompt:', error));
+}
+
+    renderPrompts();
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const loadingOverlay = document.getElementById("loadingOverlay");
+      if (loadingOverlay) {
+        loadingOverlay.style.display = "none";
+      }
+    });
+  </script>
+  <script>
+    function setActivePage(button) {
+      const buttons = document.querySelectorAll('.pagination button');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+    }
+  </script>
+  <script>
+  function openModal() {
+    document.getElementById('assignModal').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('assignModal').classList.add('hidden');
+  }
+
+  async function getActivityMapping(activity_data) {
+          try {
+              showLoadingIcon();
+              console.log('Activity Data:', activity_data); // Log the activity data for debugging
+
+              const response = await fetch('{{url_for("re.activity_perform")}}', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(activity_data),
+              });
+
+              if (response.ok) {
+                  const data = await response.json();
+                  console.log('Response Data:', data);
+                  alert('Activity extracted and saved in the database.');
+              } else {
+                  const errorText = await response.text();
+                  console.error('Error Response:', errorText);
+                  alert(`Error: ${errorText || 'Failed to extract activity.'}`);
+              }
+          } catch (error) {
+              console.error('Error:', error);
+              alert('An unexpected error occurred.');
+          } finally {
+              hideLoadingIcon();
+          }
+      }
+</script>
+<script>
+document.getElementById('selectAllActivities').addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('.activity-checkbox');
+  checkboxes.forEach(cb => cb.checked = this.checked);
+});
+
+document.getElementById('generateAllActivitiesBtn').addEventListener('click', async function () {
+    const rows = document.querySelectorAll('#guidelinesTable tbody tr');
+    const activities = [];
+    rows.forEach(row => {
+        const checkbox = row.querySelector('.activity-checkbox');
+        if (checkbox && checkbox.checked) {
+            const clauseCell = row.querySelector('.clause-number');
+            const clauseNo = clauseCell?.childNodes[0]?.textContent.trim();
+            const clauseText = clauseCell?.querySelector('.clause_text')?.textContent.trim();
+            activities.push({
+                clause_id: row.children[1]?.textContent.trim(),
+                id: row.children[2]?.textContent.trim(),
+                activity_id: row.children[4]?.textContent.trim(),
+                activity_description: row.children[5]?.textContent.trim(),
+                clause_no: clauseNo,
+                clause_text: clauseText,
+                relevant_departments: row.children[7]?.textContent.trim(),
+                process: row.children[8]?.textContent.trim(),
+                sub_process: row.children[9]?.textContent.trim(),
+                responsible_party: row.children[10]?.textContent.trim(),
+                frequency: row.children[11]?.textContent.trim(),
+                evidence_required: row.children[12]?.textContent.trim()
+            });
+        }
+    });
+    if (activities.length === 0) {
+        alert('Please select at least one activity.');
+        return;
+    }
+    const all_activity = "{{ url_for('audit.test_procedures') }}";
+    try {
+        showLoadingIcon();
+        const response = await fetch(all_activity, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ activities })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to generate activity instructions.');
+        }
+        const result = await response.json();
+        alert(result.message || 'Activities generated successfully.');
+    } catch (error) {
+        console.error('Error generating activities:', error);
+        alert('Failed to generate activity instructions.');
+    } finally {
+        hideLoadingIcon();
+    }
+});
+
+</script>
+<script>
+// Filtering logic for guidelines/project
+function filterTable() {
+  // This function is now replaced by navigation logic below
+}
+
+// Project filter navigation
+const projectFilter = document.getElementById('projectFilter');
+if (projectFilter) {
+  projectFilter.addEventListener('change', function() {
+    if (this.value) {
+      window.location.href = `/re/activity/${encodeURIComponent(this.value)}`;
+    }
+  });
+}
+// Guideline filter navigation
+const guidelineFilter = document.getElementById('guidelineFilter');
+if (guidelineFilter) {
+  guidelineFilter.addEventListener('change', function() {
+    if (this.value) {
+      window.location.href = `/re/activity_by_guideline/${this.value}`;
+    }
+  });
+}
+
+
+
+const openModalBtn = document.getElementById('openModalBtn');
+const evidenceModal = document.getElementById('evidenceModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const evidenceTableBody = document.getElementById('evidenceTableBody');
+
+
+ openModalBtn.addEventListener('click', () => {
+            evidenceModal.classList.remove('hidden'); // Show the modal
+            populateTable(data.grouped_evidences); // Populate the table with data
+        });
+
+        // Event listener to close the modal using the close button
+        closeModalBtn.addEventListener('click', () => {
+            evidenceModal.classList.add('hidden'); // Hide the modal
+        });
+
+        // Event listener to close the modal when clicking outside the content (on the overlay)
+        evidenceModal.addEventListener('click', (event) => {
+            if (event.target === evidenceModal) {
+                evidenceModal.classList.add('hidden'); // Hide the modal
+            }
+        });
+
+        // Optional: Close modal with Escape key
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !evidenceModal.classList.contains('hidden')) {
+                evidenceModal.classList.add('hidden');
+            }
+        });
+
+        // Initial population of the table (if you want it to be visible on page load, otherwise remove this line)
+        // populateTable(data.grouped_evidences);
+    </script>
+</script>
+
+<script>
+// Add loading state and validation
+document.getElementById('evidence-form').addEventListener('submit', function(e) {
+    const fileInput = document.getElementById('evidence_file');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    // Check if file is selected
+    if (!fileInput.files.length) {
+        alert('Please select a file to upload');
+        e.preventDefault();
+        return;
+    }
+    
+    // Check file size (10MB limit)
+    const maxSize = 20 * 1024 * 1024; // 10MB in bytes
+    if (fileInput.files[0].size > maxSize) {
+        alert('File size must be less than 20MB');
+        e.preventDefault();
+        return;
+    }
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    document.querySelector('.btn-text').style.display = 'none';
+    document.querySelector('.btn-loading').style.display = 'inline';
+});
+</script>
+
+<script>
+function closeAlert(button) {
+    const alert = button.parentElement;
+    
+    // Add fade out animation
+    alert.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+    alert.style.opacity = '0';
+    alert.style.transform = 'translateX(100%)';
+    
+    // Remove element after animation
+    setTimeout(() => {
+        alert.remove();
+        
+        // Check if flash container is empty and hide it
+        const flashContainer = document.querySelector('.flash-container');
+        if (flashContainer && flashContainer.children.length === 0) {
+            flashContainer.style.display = 'none';
+        }
+    }, 300);
+}
+
+// Optional: Auto-dismiss messages after 5 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    const alerts = document.querySelectorAll('[role="alert"]');
+    
+    alerts.forEach(alert => {
+        // Only auto-dismiss success and info messages, not errors
+        const isSuccess = alert.classList.contains('bg-green-100');
+        const isInfo = alert.classList.contains('bg-blue-100');
+        
+        if (isSuccess || isInfo) {
+            setTimeout(() => {
+                const closeButton = alert.querySelector('button');
+                if (closeButton && alert.parentElement) {
+                    closeAlert(closeButton);
+                }
+            }, 5000); // 5 seconds
+        }
+    });
+});
+</script>
+{%endblock%}

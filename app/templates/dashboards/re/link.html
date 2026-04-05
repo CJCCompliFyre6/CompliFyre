@@ -1,0 +1,517 @@
+{% extends "re_base.html" %}
+{% block content %}  
+  <style>
+    .truncated-text {
+      cursor: pointer;
+      color: blue;
+    }
+
+    .truncated-text:hover {
+      text-decoration: underline;
+    }
+
+    .modal-content1 {
+      padding: 30px;
+      background: white;
+      border-radius: 16px;
+      max-width: 900px;
+      margin: auto;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .table_prompt {
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left-color: #000;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .spinner-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .spinner {
+      border: 8px solid rgba(0, 0, 0, 0.1);
+      border-left-color: orange;
+      border-radius: 50%;
+      width: 64px;
+      height: 64px;
+      animation: spin 1s linear infinite;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+      gap: 5px;
+    }
+
+    .pagination button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: white;
+      color: black;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .pagination button:hover {
+      background-color: #f0f0f0;
+    }
+
+    .pagination button.active {
+      background-color: orange;
+      color: white;
+      font-weight: bold;
+    }
+  </style>
+
+    <link rel="stylesheet" href="assets/css/view.css" />
+
+  
+
+  <main class="main">
+
+
+      <div class="dropdown">
+          <a href="#" style="float: right;" class="add-new-guideline-btn" onclick="toggleDropdown(event)">Add New Guideline</a>
+          <div class="dropdown-content1" id="dropdown-menu">
+              <a href="#" onclick="openUploadModal()">Upload File</a>
+              <a href="{{url_for('re.add')}}">Add Guidelines</a>
+              <a href="#" onclick="openLinkSharingModal()">Link Sharing</a>
+              <a href="#" onclick="openPromptModel()">Prompts</a>
+          </div>
+      </div>
+  </main>
+
+  <div id="linkSharingModal" class="modal">
+      <div class="modal-content">
+          <span class="close" onclick="closeLinkSharingModal()">&times;</span>
+          <h2>Extract Notification from a Link</h2>
+          <form id="linkSharingForm" onsubmit="submitLink(event)">
+              <input type="text" id="shareableLink" required>
+              <button type="submit">Enter</button>
+          </form>
+          <div id="loadingIcon" class="spinner" style="display: none;"></div>
+      </div>
+  </div>
+  
+  <div id="uploadModal" class="modal">
+      <div class="modal-content">
+          <span class="close" onclick="closeUploadModal()">&times;</span>
+          <h2>Extract information from the pdf</h2>
+          <form id="uploadForm" onsubmit="uploadLink(event)">
+              <input type="file" id="uploadableLink" accept="application/pdf"
+                  class="border border-gray-300 rounded-2xl shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                  required>
+              <button type="submit"
+                  class=" px-5 py-2.5 bg-green-500 rounded-full hover:bg-green-700 transition-all">Enter</button>
+          </form>
+          <div id="loadingIcon1" class="spinner" style="display: none;"></div>
+      </div>
+  </div>
+
+  <div id="promptModal" class="modal">
+      <div class="modal-content1">
+          <span class="close" onclick="closepromptModal()">&times;</span>
+          <h2 class="text-3xl font-bold mb-6 text-center">Write Prompt</h2>
+
+          <!-- Form for creating new prompt -->
+          <form id="promptForm" onsubmit="createNewPrompt(event)" class="flex flex-col gap-6 my-8">
+
+              <textarea id="promptableLink"
+                  class="w-full h-48  p-4 border border-gray-300 rounded-2xl shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                  required placeholder="Paste your prompt here..."></textarea>
+
+
+              <button
+                  class="px-5 py-2.5 mt-6 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all">Create
+                  New Prompt</button>
+          </form>
+
+
+          <!-- Loading Icon -->
+          <div id="loadingIcon1" class="spinner mt-4" style="display: none;"></div>
+
+          <!-- Table for displaying prompts -->
+          <div class="overflow-y-auto max-h-80 mt-8">
+              <table style="margin-top: 2rem;" id="promptTable"
+                  class="w-full mt-8 py-2.5 border-collapse border border-gray-300 rounded-xl shadow-lg table_prompt">
+                  <thead>
+                      <tr class="bg-gray-200 text-gray-700">
+                          <th class="p-3">Prompt ID</th>
+                          <th class="p-3">Prompt</th>
+                          <th class="p-3">Actions</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      <!-- Rows will be dynamically populated -->
+                  </tbody>
+              </table>
+          </div>
+      </div>
+  </div>
+
+  <div id="loadingIconAnim" class="spinner" style="display: none;"></div>
+
+  <div id="loadingOverlay"
+     style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.5);  /* semi-transparent black */
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+     ">
+  <div class="spinner"></div>
+</div>
+
+
+
+    <div class="container">
+
+      <div class="top-buttons">
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Search..">
+        </div>
+        <button id="exportCSV">Export to CSV</button>
+      </div>
+
+      <table id="guidelinesTable">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Link</th>
+            <th>Found PDFs</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+          {% if links %}
+
+          {% for link in links %}
+
+          <tr>
+            <td>{{link.title}}</td>
+            <td>
+              <a href="{{link.url}}" target="_blank">
+                {{link.url}}
+              </a>
+            </td>
+            <td>
+              
+              <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="showLoadingIcon(); analyzePDF('{{link.url}}')">Analyze</button>
+
+            </td>
+
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="3">No PDF data available.</td>
+          </tr>
+          {% endif %}
+
+        </tbody>
+      </table>
+
+      <div class="bottom-controls">
+        <div class="entries-box">
+          <select id="entriesSelect" class="entriesSelect">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    
+  </main>
+  <script src="assets/js/view.js"></script>
+  <script>
+    window.onload = function () {
+      const apiResult = localStorage.getItem("apiResult");
+      const tableBody = document.querySelector("#guidelinesTable tbody");
+      const pagination = document.getElementById("pagination");
+      const entriesSelect = document.getElementById("entriesSelect");
+
+      let currentPage = 1;
+      let entriesPerPage = parseInt(entriesSelect.value);
+      let pdfLinks = [];
+
+      if (apiResult) {
+        try {
+          const parsedData = JSON.parse(apiResult);
+          pdfLinks = Array.isArray(parsedData) ? parsedData : parsedData.pdfs || [];
+
+          if (pdfLinks.length === 0) {
+            tableBody.innerHTML = "<tr><td colspan='3'>No PDFs found.</td></tr>";
+            return;
+          }
+
+          renderTable();
+        } catch (error) {
+          console.error("Error parsing stored API result:", error);
+        }
+      } else {
+        tableBody.innerHTML = "<tr><td colspan='3'>No PDF data available.</td></tr>";
+      }
+
+      
+
+      function renderPagination() {
+        pagination.innerHTML = "";
+        const totalPages = Math.ceil(pdfLinks.length / entriesPerPage);
+
+        if (totalPages <= 1) return;
+
+        for (let i = 1; i <= totalPages; i++) {
+          const btn = document.createElement("button");
+          btn.textContent = i;
+          btn.classList.add("pagination-button");
+          if (i === currentPage) {
+            btn.classList.add("active");
+          }
+          btn.addEventListener("click", () => {
+            currentPage = i;
+            renderTable();
+            setActivePage(btn);
+          });
+          pagination.appendChild(btn);
+        }
+      }
+
+
+      entriesSelect.addEventListener("change", () => {
+        entriesPerPage = parseInt(entriesSelect.value);
+        currentPage = 1;
+        renderTable();
+      });
+    };
+    function analyzePDF(pdfUrl) {
+      var myHeaders = new Headers();
+      myHeaders.append("Content-Type", "application/json");
+
+      var raw = JSON.stringify({
+        "url": pdfUrl
+      });
+
+      var requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: raw,
+        redirect: 'follow'
+      };
+
+      showLoadingIcon();
+
+      fetch("{{url_for('retrive.analyze_retrive')}}", requestOptions)
+        .then(response => {
+          if (response.status === 200) {
+            hideLoadingIcon();
+            window.location.href = `${window.location.origin}/re/guidelines`;
+          } else {
+            hideLoadingIcon();
+            alert("The uploaded file appears to be mostly empty or not properly readable. It may be a corrupted or incompatible file format.");
+            throw new Error("File processing failed.");
+          }
+        })
+        .catch(error => {
+          hideLoadingIcon();
+          console.error('Error:', error);
+        });
+    }
+  </script>
+  <script>
+    function showLoadingIcon() {
+      const loadingOverlay = document.getElementById("loadingOverlay");
+      if (loadingOverlay) {
+        loadingOverlay.style.display = "flex";
+      }
+    }
+
+    function hideLoadingIcon() {
+      const loadingOverlay = document.getElementById("loadingOverlay");
+      if (loadingOverlay) {
+        loadingOverlay.style.display = "none";
+      }
+    }
+  </script>
+  <script>
+    let prompts = [];
+
+async function fetchPrompts() {
+    try {
+      const response = await fetch("{{url_for('prompt.get_all_prompt')}}");
+      const data = await response.json();
+        prompts = data.prompts.map(p => ({ id: p.id, text: p.prompt }));
+        renderPrompts();
+    } catch (error) {
+        console.error('Error fetching prompts:', error);
+    }
+}
+function renderPrompts() {
+        const tableBody = document.querySelector('#promptTable tbody');
+        tableBody.innerHTML = '';
+
+        prompts.forEach(prompt => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <tr>
+                    <td class="p-4 border">${prompt.id}</td>
+                    <td class="p-4 border w-3/6">
+                        <span class="truncated-text block max-w-xs overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer text-blue-600" onclick="toggleText(this)">
+                            ${prompt.text.length > 20 ? prompt.text.substring(0, 20) + '...' : prompt.text}
+                        </span>
+                    </td>
+                    <td class="p-4 border flex gap-2 justify-center">
+                        <button onclick="updatePrompt(${prompt.id})" class="px-4 py-1 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition-all">Update</button>
+                        <button onclick="deletePrompt(${prompt.id})" class="px-4 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all">Delete</button>
+                    </td>
+                </tr>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    function toggleText(element) {
+        if (element.innerText.endsWith('...')) {
+            const prompt = prompts.find(p => p.text.startsWith(element.innerText.slice(0, 20)));
+            element.innerText = prompt.text;
+        } else {
+            element.innerText = element.innerText.substring(0, 20) + '...';
+        }
+    }
+
+    fetchPrompts();
+
+    async function createNewPrompt(event) {
+        event.preventDefault();
+
+        const promptText = document.getElementById('promptableLink').value;
+        console.log(promptText)
+        const requestOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: promptText }),
+            redirect: 'follow'
+        };
+
+        try {
+          const response = await fetch("{{url_for('prompt.create_prompt')}}", requestOptions);
+          const result = await response.json();
+            console.log(result);
+            if (response.status === 200) {
+                fetchPrompts();
+            }
+            
+        } catch (error) {
+            console.error('Error creating prompt:', error);
+        }
+    }
+
+
+function updatePrompt(id) {
+    const newText = prompt('Enter updated prompt:');
+    if (newText) {
+        const myHeaders = new Headers();
+        myHeaders.append("Content-Type", "application/json");
+
+        const raw = JSON.stringify({ "prompt": newText });
+
+        const requestOptions = {
+            method: 'PUT',
+            headers: myHeaders,
+            body: raw,
+            redirect: 'follow'
+        };
+
+        const updatePromptBaseUrl = "{{ url_for('prompt.update_prompt', prompt_id=0).replace('0', '') }}";
+        fetch(`${updatePromptBaseUrl}${id}`, requestOptions)            .then(response => response.text())
+            .then(result => {
+                console.log(result);
+                const prompt = prompts.find(p => p.id === id);
+                if (prompt) {
+                    prompt.text = newText;
+                    renderPrompts();
+                }
+            })
+            .catch(error => console.log('Error updating prompt:', error));
+    }
+}
+
+    function deletePrompt(id) {
+    const requestOptions = {
+        method: 'DELETE',
+        redirect: 'follow'
+    };
+
+    const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
+    fetch(`${updatePromptBaseUrl}${id}`, requestOptions)        .then(response => response.text())
+        .then(result => {
+            console.log(result);
+            const index = prompts.findIndex(p => p.id === id);
+            if (index > -1) {
+                prompts.splice(index, 1);
+                renderPrompts();
+            }
+        })
+        .catch(error => console.log('Error deleting prompt:', error));
+}
+
+    renderPrompts();
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const loadingOverlay = document.getElementById("loadingOverlay");
+      if (loadingOverlay) {
+        loadingOverlay.style.display = "none";
+      }
+    });
+  </script>
+  <script>
+    function setActivePage(button) {
+      const buttons = document.querySelectorAll('.pagination button');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+    }
+  </script>
+{%endblock%}

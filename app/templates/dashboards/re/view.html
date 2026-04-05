@@ -1,0 +1,1402 @@
+{% extends "audit_base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="assets/css/view.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+    .truncated-text {
+        cursor: pointer;
+        color: blue;
+    }
+
+    .truncated-text:hover {
+        text-decoration: underline;
+    }
+
+    .modal-content1 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: auto;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-content2 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: 230px auto 0 auto;
+        /* Top margin added */
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        position: relative;
+        /* optional, for stacking elements like close buttons */
+    }
+
+
+    .table_prompt {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Progress Bar Styling */
+    #progress-container {
+        margin-top: 20px;
+        display: none;
+    }
+
+    .progress-bar {
+        width: 100%;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 10px;
+    }
+
+    .progress-bar-fill {
+        height: 20px;
+        width: 0%;
+        background-color: #007bff;
+        text-align: center;
+        color: white;
+        line-height: 20px;
+        transition: width 0.3s ease;
+    }
+
+    /* Log and Results Styling */
+    .log-area {
+        max-height: 200px;
+        overflow-y: scroll;
+        border: 1px solid #ccc;
+        padding: 10px;
+        background-color: #f9f9f9;
+        font-family: monospace;
+        font-size: 0.9em;
+        margin-top: 10px;
+    }
+
+    .results-area {
+        margin-top: 20px;
+    }
+
+    .status-message {
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .error-message {
+        color: red;
+        font-weight: bold;
+    }
+
+    .success-message {
+        color: green;
+        font-weight: bold;
+    }
+
+    /* Modal adjustments for progress */
+    #progressModal .modal-content2 {
+        max-width: 700px;
+    }
+
+    /* These should already be in your existing CSS */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-content2 {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+        max-width: 600px;
+        border-radius: 8px;
+    }
+
+    .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .close:hover {
+        color: black;
+    }
+</style>
+
+
+<style>
+    .truncated-text {
+        cursor: pointer;
+        color: blue;
+    }
+
+    .truncated-text:hover {
+        text-decoration: underline;
+    }
+
+    .modal-content1 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: auto;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-content2 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 900px;
+        margin: 230px auto 0 auto;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        position: relative;
+    }
+
+    .table_prompt {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Progress Bar Styling */
+    #progress-container {
+        margin-top: 20px;
+        display: none;
+    }
+
+    .progress-bar {
+        width: 100%;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 10px;
+    }
+
+    .progress-bar-fill {
+        height: 20px;
+        width: 0%;
+        background-color: #007bff;
+        text-align: center;
+        color: white;
+        line-height: 20px;
+        transition: width 0.3s ease;
+    }
+
+    /* Log and Results Styling */
+    .log-area {
+        max-height: 200px;
+        overflow-y: scroll;
+        border: 1px solid #ccc;
+        padding: 10px;
+        background-color: #f9f9f9;
+        font-family: monospace;
+        font-size: 0.9em;
+        margin-top: 10px;
+    }
+
+    .results-area {
+        margin-top: 20px;
+    }
+
+    .status-message {
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .error-message {
+        color: red;
+        font-weight: bold;
+    }
+
+    .success-message {
+        color: green;
+        font-weight: bold;
+    }
+
+    /* Modal adjustments for progress */
+    #progressModal .modal-content2 {
+        max-width: 700px;
+    }
+
+    /* FIXED: Single Modal CSS Definition */
+    .modal {
+        display: none;
+        /* This is important - starts hidden */
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        z-index: 1001;
+    }
+
+    .close:hover {
+        color: black;
+    }
+</style>
+
+
+
+{% if current_user.is_authenticated and current_user.role.name=="COMPLIFYRE"%}
+<main class="flex  w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+
+
+    <div class="dropdown p-4 text-right">
+        <!-- Trigger -->
+
+        <a href="#" class="add-new-guideline-btn" onclick="toggleDropdown(event)">Add New Guideline</a>
+
+        <!-- Dropdown content -->
+        <div id="dropdown-menu"
+            class="dropdown-content1 font-normal rounded-xl relative right-0 mx-4  mb-2 z-0 hidden bg-orange-500 border rounded shadow-md">
+            <a href="#" onclick="openUploadModal()"
+                class="block px-4 py-2 hover:bg-gray-100 text text-orange-500">Upload File</a>
+            <a href="{{url_for('re.add')}}" class="block px-4 py-2 hover:bg-gray-100 text text-orange-500">Add
+                Guidelines</a>
+            <a href="#" onclick="openLinkSharingModal()"
+                class="block px-4 py-2 hover:bg-gray-100 text text-orange-500">Link Sharing</a>
+            <!-- <a href="#" onclick="openPromptModel()" class="block px-4 py-2 hover:bg-gray-100 text text-orange-500">Prompts</a> -->
+        </div>
+    </div>
+</main>
+{%endif%}
+<div id="linkSharingModal" class="modal">
+    <div class="modal-content2">
+        <span class="close" onclick="closeLinkSharingModal()">&times;</span>
+        <h2>Extract Notification from a Link</h2>
+        <form id="linkSharingForm" onsubmit="submitLink(event)">
+            <input type="text" id="shareableLink" required>
+            <button type="submit">Enter</button>
+        </form>
+        <div id="loadingIcon" class="spinner" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- Progress Modal for Guideline Extraction -->
+<div id="guidelineProgressModal" class="modal">
+    <div class="modal-content2">
+        <span class="close" onclick="closeGuidelineProgressModal()">&times;</span>
+        <h2>Extracting Guidelines</h2>
+
+        <div id="guideline-progress-container">
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="guideline-progress-fill">0%</div>
+            </div>
+            <div id="guideline-log-area" class="log-area"></div>
+        </div>
+
+        <div id="guideline-results-area" class="results-area">
+            <!-- Results will be injected here -->
+        </div>
+    </div>
+</div>
+
+<div id="uploadModal" class="modal">
+    <div class="modal-content2">
+        <span class="close" onclick="closeUploadModal()">&times;</span>
+        <h2>Extract information from the pdf</h2>
+        <form id="uploadForm" onsubmit="uploadLink(event)">
+            <input type="file" id="uploadableLink" accept="application/pdf"
+                class="border border-gray-300 rounded-2xl shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                required>
+            <button type="submit"
+                class=" px-5 py-2.5 bg-green-500 rounded-full hover:bg-green-700 transition-all">Enter</button>
+        </form>
+        <!-- Remove the old spinner since we're using progress modal now -->
+    </div>
+</div>
+
+<div id="promptModal" class="modal">
+    <div class="modal-content1">
+        <span class="close" onclick="closepromptModal()">&times;</span>
+        <h2 class="text-3xl font-bold mb-6 text-center">Write Prompt</h2>
+
+        <!-- Form for creating new prompt -->
+        <form id="promptForm" onsubmit="createNewPrompt(event)" class="flex flex-col gap-6 my-8">
+
+            <textarea id="promptableLink"
+                class="w-full h-48  p-4 border border-gray-300 rounded-2xl shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                required placeholder="Paste your prompt here..."></textarea>
+
+
+            <button
+                class="px-5 py-2.5 mt-6 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all">Create
+                New Prompt</button>
+        </form>
+
+
+        <!-- Loading Icon -->
+        <div id="loadingIcon1" class="spinner mt-4" style="display: none;"></div>
+
+        <!-- Table for displaying prompts -->
+        <div class="overflow-y-auto max-h-80 mt-8">
+            <table style="margin-top: 2rem;" id="promptTable"
+                class="w-full mt-8 py-2.5 border-collapse border border-gray-300 rounded-xl shadow-lg table_prompt">
+                <thead>
+                    <tr class="bg-gray-200 text-gray-700">
+                        <th class="p-3">Prompt ID</th>
+                        <th class="p-3">Prompt</th>
+                        <th class="p-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be dynamically populated -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div id="loadingIconAnim" class="spinner" style="display: none;"></div>
+
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+  <div class="organization px-6 py-4">
+    <h1 class="text-2xl ">Download New Guidelines</h1>
+    <!-- <p><a href="#">Dashboard</a> / Organization Profile</p> -->
+  </div>
+</main>
+
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6" style="z-index: -20;">
+
+
+    <div class="top-buttons">
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search..">
+        </div>
+        <button id="exportCSV">Export to CSV</button>
+    </div>
+
+    <!-- Progress Modal for Clause Extraction -->
+    <div id="progressModal" class="modal">
+        <div class="modal-content2">
+            <span class="close" onclick="closeProgressModal()">&times;</span>
+            <h2>Extracting Clauses</h2>
+
+            <div id="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="progress-fill">0%</div>
+                </div>
+                <div id="log-area" class="log-area"></div>
+            </div>
+
+            <div id="results-area" class="results-area">
+                <!-- Results will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container  rounded-xl">
+        <div class="overflow-x-auto bg-white rounded-lg shadow-md">
+
+            <table id="guidelinesTable" class="w-full">
+                <thead class="bg-gray-50 border-b-2 border-gray-200">
+                    <tr>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Guideline Name</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">GID</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Issuing Authority</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Applicable Geography</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Applicable Industry</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Applicable Org Category</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Mandatory</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Certification</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Date of Issue</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Effective Date</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for item in guidelines%}
+                    {% if item.guideline_data and item.guideline_data | length > 0 %}
+                    <tr class="bg-white">
+                        <td class="p-3 text-lg text-gray-700">{{
+                            item.guideline_data.DocumentDetails.DocumentName }}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700">{{
+                            item.guideline_data.DocumentDetails.DocumentName }}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700">
+                            {{item.guideline_data.DocumentDetails.IssuingAuthority}}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700">
+                            {% set loc = item.guideline_data.DocumentDetails.ApplicableGeography %}
+                            {% if loc is string %}{{ loc }}{% elif loc is iterable %}{{ loc | join(', ') }}{% else %}{{
+                            loc }}{% endif %}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700">
+                            {% set industries = item.guideline_data.DocumentDetails.ApplicableIndustries %}
+                            {% if industries is string %}{{ industries }}{% elif industries is iterable %}{{ industries
+                            | join(', ') }}{% else %}{{ industries }}{% endif %}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700">
+                            {% set org = item.guideline_data.DocumentDetails.ApplicableOrganizations%}
+                            {% if org is string %}{{ org }}{% elif org is iterable %}{{ org | join(', ') }}{% else %}{{
+                            org }}{% endif %}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700">Yes</td>
+                        <td class="p-3 text-lg text-gray-700">No</td>
+                        <td class="p-3 text-lg text-gray-700">
+                            {{item.guideline_data.DocumentDetails.IssuanceDate}}</td>
+                        <td class="p-3 text-lg text-gray-700">
+                            {{item.guideline_data.DocumentDetails.ComplianceDeadline}}
+                        </td>
+                        <td class="p-3 text-lg text-gray-700 whitespace-nowrap">
+                            <div class="relative flex justify-center items-center">
+                                <button onclick="toggleMenu('{{ item.id  }}')"
+                                    class="inline-flex items-center p-2 text-lg font-medium text-center text-gray-900 bg-white rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-50">
+                                    <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                        fill="currentColor" viewBox="0 0 4 15">
+                                        <path
+                                            d="M3.5 1.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6.041a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 5.959a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                                    </svg>
+                                </button>
+                                <!-- Dropdown menu -->
+                                <div id="menu-{{ item.id }}"
+                                    class="z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 absolute right-0 top-8">
+                                    <ul class="py-2 text-lg text-gray-700">
+                                        {%if current_user.is_authenticated and current_user.role.name == "COMPLIFYRE"%}
+                                        <li>
+                                            <a href="{{ url_for('main.show_infographic', guideline_id=item.id) }}"
+                                                class="block px-4 py-2 hover:bg-gray-100">Edit Guideline</a>
+                                        </li>
+                                        <li>
+                                            <button onclick="extractClausesWithProgress('{{ item.id }}')"
+                                                class="block w-full text-left px-4 py-2 hover:bg-gray-100">Generate
+                                                Clauses</button>
+                                        </li>
+                                        <li class="relative">
+                                            <button onclick="regenerateClausesWithProgress('{{ item.id }}')"
+                                                class="block w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 border border-red-200 rounded regenerate-btn"
+                                                title="Warning: This will delete all existing clauses and start fresh">
+                                                Regenerate Clauses
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <a href="{{ url_for('re.get_clause', guideline_id=item.id) }}"
+                                                class="block px-4 py-2 hover:bg-gray-100">View Clauses</a>
+                                        </li>
+
+                                        <!-- Enable / Disable action -->
+                                        <li>
+                                            <button onclick="toggleEnabled('{{ item.id }}', this)" class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-full font-medium transition-colors duration-200
+             {% if item.enabled %}
+                bg-green-100 text-green-800 hover:bg-green-200
+             {% else %}
+                bg-gray-200 text-gray-700 hover:bg-gray-300
+             {% endif %}" data-enabled="{{ 'true' if item.enabled else 'false' }}">
+
+                                                {% if item.enabled %}
+                                                <svg class="w-4 h-4 text-green-600" fill="currentColor"
+                                                    viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd"
+                                                        d="M16.707 5.293a1 1 0 010 1.414l-8.25 8.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 7.543-7.543a1 1 0 011.414 0z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                                Enabled
+                                                {% else %}
+                                                <svg class="w-4 h-4 text-gray-500" fill="currentColor"
+                                                    viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd"
+                                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.536-10.95a1 1 0 00-1.414-1.414L10 8.586 7.879 6.465A1 1 0 006.465 7.88L8.586 10l-2.121 2.121a1 1 0 101.414 1.414L10 11.414l2.121 2.121a1 1 0 001.414-1.414L11.414 10l2.122-2.121z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                                Disabled
+                                                {% endif %}
+                                            </button>
+                                        </li>
+
+                                        {%endif%}
+                                        {%if current_user.is_authenticated and current_user.auditor_profile_id%}
+                                        <li>
+                                            <form action="{{url_for('audit.add_my_guidelines')}}" method="POST"
+                                                class="w-full">
+                                                <input name="guideline_id" value="{{item.id}}" hidden />
+                                                <button type="submit"
+                                                    class="w-full text-left block px-4 py-2 hover:bg-gray-100">Download</button>
+                                            </form>
+                                        </li>
+                                        {%endif%}
+                                    </ul>
+                                    {%if current_user.is_authenticated and current_user.role.name == "COMPLIFYRE"%}
+                                    <div class="py-2">
+                                        <a href="{{ url_for('main.delete_guideline', guideline_id=item.id) }}"
+                                            onclick="return confirm('Are you sure you want to delete this guideline?');"
+                                            class="block px-4 py-2 text-lg text-red-600 hover:bg-gray-100">Delete
+                                            Guideline</a>
+                                    </div>
+                                    {%endif%}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bottom-controls">
+            <div class="entries-box">
+                <select id="entriesSelect">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                </select>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+    </main>
+    <script src="assets/js/view.js"></script>
+    <script>
+        /* var requestOptions = {
+            method: 'GET',
+            redirect: 'follow'
+        };
+      
+        
+        fetch("{{url_for('retrive.get_all_files')}}", requestOptions) 
+            .then(response => response.json())
+            .then(result => {
+                const tableBody = document.querySelector('#guidelinesTable tbody');
+
+                if (!result['files'] || result['files'].length === 0) {
+                    const tableBody = document.querySelector('#guidelinesTable tbody');
+                    tableBody.innerHTML = '<tr><td colspan="11">No files found</td></tr>';
+                    return;
+                }
+
+                result['files'].forEach((file, index) => {
+                    const docDetails = file['data']['DocumentDetails'] || {};
+                    console.log(file['id'])
+                    const id = file['id'] || 'unknown'; // Add a fallback value for id
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                <td>${docDetails.DocumentName || 'Untitled Document'}</td>
+                <td>GID-${index + 1}</td>
+                <td>${docDetails.IssuingAuthority || 'Unknown Authority'}</td>
+                <td>${docDetails.ApplicableGeography || 'Global'}</td>
+                <td>${docDetails.ApplicableIndustries || 'General Industry'}</td>
+                <td>${docDetails.ApplicableOrganizations || 'General Organization'}</td>
+                <td>${docDetails.Mandatory === 'Yes' ? 'Yes' : 'No'}</td>
+                <td>${docDetails.CertificationAvailable === 'Yes' ? 'Yes' : 'No'}</td>
+                <td>${docDetails.IssuanceDate || 'Not Provided'}</td>
+                <td>${docDetails.ComplianceDeadline || 'Not Applicable'}</td>
+                <td>
+                    <div class="action-menu">
+                        <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
+                        <div class="dropdown-content2">
+                            <button class="px-8 py-4 mt-6 bg-orange-600 text-white hover:bg-orange-700 transition-all" style="padding:10px" onclick="handleClause('${id}')">View Clause</button>                        </div>
+                    </div>
+                </td>
+            `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(error => console.log('error', error));
+
+        document.addEventListener("click", function(event) {
+            const dropdowns = document.querySelectorAll(".dropdown-content2");
+            dropdowns.forEach(dropdown => {
+                if (!dropdown.contains(event.target) && !event.target.matches(".action-menu span")) {
+                    dropdown.style.display = "none";
+                }
+            });
+        });
+*/
+        function toggleDropdown2(element) {
+            const dropdown = element.nextElementSibling;
+            const isVisible = dropdown.style.display === "block";
+
+            // Hide all dropdowns
+            const dropdowns = document.querySelectorAll(".dropdown-content2");
+            dropdowns.forEach(d => d.style.display = "none");
+
+            // Toggle the clicked dropdown
+            if (!isVisible) {
+                dropdown.style.display = "block";
+            }
+        }
+
+    </script>
+
+    <script>
+        let prompts = [];
+
+        async function fetchPrompts() {
+            try {
+                const response = await fetch("{{url_for('prompt.get_all_prompt')}}");
+                const data = await response.json();
+                prompts = data.prompts.map(p => ({ id: p.id, text: p.prompt }));
+                renderPrompts();
+            } catch (error) {
+                console.error('Error fetching prompts:', error);
+            }
+        }
+        function renderPrompts() {
+            const tableBody = document.querySelector('#promptTable tbody');
+            tableBody.innerHTML = '';
+
+            prompts.forEach(prompt => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                <tr>
+                    <td class="p-4 border">${prompt.id}</td>
+                    <td class="p-4 border w-3/6">
+                        <span class="truncated-text block max-w-xs overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer text-blue-600" onclick="toggleText(this)">
+                            ${prompt.text.length > 20 ? prompt.text.substring(0, 20) + '...' : prompt.text}
+                        </span>
+                    </td>
+                    <td class="p-4 border flex gap-2 justify-center">
+                        <button onclick="updatePrompt(${prompt.id})" class="px-4 py-1 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition-all">Update</button>
+                        <button onclick="deletePrompt(${prompt.id})" class="px-4 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all">Delete</button>
+                    </td>
+                </tr>
+            `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function toggleText(element) {
+            if (element.innerText.endsWith('...')) {
+                const prompt = prompts.find(p => p.text.startsWith(element.innerText.slice(0, 20)));
+                element.innerText = prompt.text;
+            } else {
+                element.innerText = element.innerText.substring(0, 20) + '...';
+            }
+        }
+
+        fetchPrompts();
+
+        async function createNewPrompt(event) {
+            event.preventDefault();
+
+            const promptText = document.getElementById('promptableLink').value;
+            console.log(promptText)
+            const requestOptions = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: promptText }),
+                redirect: 'follow'
+            };
+
+            try {
+                const response = await fetch("{{url_for('prompt.create_prompt')}}", requestOptions);
+                const result = await response.json();
+                console.log(result);
+                if (response.status === 200) {
+                    fetchPrompts();
+                }
+
+            } catch (error) {
+                console.error('Error creating prompt:', error);
+            }
+        }
+
+
+        function updatePrompt(id) {
+            const newText = prompt('Enter updated prompt:');
+            if (newText) {
+                const myHeaders = new Headers();
+                myHeaders.append("Content-Type", "application/json");
+
+                const raw = JSON.stringify({ "prompt": newText });
+
+                const requestOptions = {
+                    method: 'PUT',
+                    headers: myHeaders,
+                    body: raw,
+                    redirect: 'follow'
+                };
+                const updatePromptBaseUrl = "{{ url_for('prompt.update_prompt', prompt_id=0).replace('0', '') }}";
+                fetch(`${updatePromptBaseUrl}${id}`, requestOptions)
+                    .then(response => response.text())
+                    .then(result => {
+                        console.log(result);
+                        const prompt = prompts.find(p => p.id === id);
+                        if (prompt) {
+                            prompt.text = newText;
+                            renderPrompts();
+                        }
+                    })
+                    .catch(error => console.log('Error updating prompt:', error));
+            }
+        }
+
+        function deletePrompt(id) {
+            const requestOptions = {
+                method: 'DELETE',
+                redirect: 'follow'
+            };
+            const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
+            fetch(`${updatePromptBaseUrl}${id}`, requestOptions)
+                .then(response => response.text())
+                .then(result => {
+                    console.log(result);
+                    const index = prompts.findIndex(p => p.id === id);
+                    if (index > -1) {
+                        prompts.splice(index, 1);
+                        renderPrompts();
+                    }
+                })
+                .catch(error => console.log('Error deleting prompt:', error));
+        }
+
+        renderPrompts();
+
+        function handleClause(id) {
+            fetch("{{ url_for('re.clause') }}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ id: id })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Network response was not ok");
+                    }
+                    return response.text(); // Expecting HTML content
+                })
+                .then(html => {
+                    // Redirect to the clause page using a GET request
+                    window.location.href = "{{ url_for('re.get_clause') }}";
+                })
+                .catch(error => {
+                    console.error("Error in clause request:", error);
+                });
+        }
+
+
+        // Modified regenerateClauses function to use progress tracking
+        function regenerateClausesWithProgress(guidelineId) {
+            const warningMessage = `🚨 REGENERATE CLAUSES WARNING 🚨
+
+This action will:
+• DELETE ALL existing clauses for this guideline
+• DELETE ALL compliance activities linked to those clauses
+• Generate completely new clauses from scratch
+
+This cannot be undone and all previous work will be lost!
+
+Are you absolutely sure you want to continue?`;
+
+            if (confirm(warningMessage)) {
+                openProgressModal();
+
+                // Show initial progress
+                updateProgress('STARTING', 0, 'Starting clause regeneration process...');
+
+                // Make the POST request to start regeneration
+                fetch(`/regenerate-clauses/${guidelineId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.status === 'success') {
+                            updateProgress('PROCESSING', 25, data.message);
+                            // Start monitoring the task progress
+                            monitorClauseExtraction(guidelineId);
+                        } else {
+                            throw new Error(data.message || 'Failed to start regeneration');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error starting clause regeneration:', error);
+                        updateProgress('ERROR', 100, `Failed to start regeneration: ${error.message}`);
+
+                        // Auto-close error modal after 5 seconds
+                        setTimeout(() => {
+                            closeProgressModal();
+                        }, 5000);
+                    });
+            }
+        }
+
+
+    </script>
+    <script>
+        function paginateTable(tableId, rowsPerPage) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const totalRows = rows.length;
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            const paginationContainer = document.getElementById("pagination");
+            paginationContainer.innerHTML = "";
+
+            function showPage(page) {
+                const start = (page - 1) * rowsPerPage;
+                const end = start + rowsPerPage;
+
+                rows.forEach((row, index) => {
+                    row.style.display = index >= start && index < end ? "" : "none";
+                });
+            }
+
+            for (let i = 1; i <= totalPages; i++) {
+                const button = document.createElement("button");
+                button.textContent = i;
+                button.classList.add("pagination-button");
+                button.addEventListener("click", () => {
+                    showPage(i);
+                });
+                paginationContainer.appendChild(button);
+            }
+
+            showPage(1);
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            paginateTable("guidelinesTable", 10);
+        });
+
+        document.getElementById("entriesSelect").addEventListener("change", () => {
+            const rowsPerPage = parseInt(document.getElementById("entriesSelect").value);
+            paginateTable("guidelinesTable", rowsPerPage);
+        });
+
+
+
+        // Guideline Progress modal functions
+        function openGuidelineProgressModal() {
+            document.getElementById('guidelineProgressModal').style.display = 'block';
+            resetGuidelineProgress();
+        }
+
+        function closeGuidelineProgressModal() {
+            document.getElementById('guidelineProgressModal').style.display = 'none';
+            resetGuidelineProgress();
+        }
+
+        function resetGuidelineProgress() {
+            const progressFill = document.getElementById('guideline-progress-fill');
+            const logArea = document.getElementById('guideline-log-area');
+            const resultsArea = document.getElementById('guideline-results-area');
+
+            progressFill.style.width = '0%';
+            progressFill.innerText = '0%';
+            progressFill.style.backgroundColor = '#007bff';
+            logArea.innerHTML = '';
+            resultsArea.innerHTML = '';
+            document.getElementById('guideline-progress-container').style.display = 'block';
+        }
+
+        // Modified uploadLink function to use progress tracking
+        async function uploadLink(event) {
+            event.preventDefault();
+
+            const fileInput = document.getElementById("uploadableLink");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Please select a PDF file.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file, file.name);
+
+            // Show progress modal instead of simple spinner
+            openGuidelineProgressModal();
+            updateGuidelineProgress('STARTING', 0, 'Starting guideline extraction process...');
+
+            try {
+                const response = await fetch("{{url_for('main.upload_file_and_extract_guidelines')}}", {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.status === 202) {
+                    const result = await response.json();
+                    console.log("Task scheduled with ID:", result.task_id);
+
+                    updateGuidelineProgress('PROCESSING', 10, 'Task queued successfully. Starting extraction...');
+
+                    // Start monitoring guideline extraction progress
+                    monitorGuidelineExtraction(result.task_id);
+
+                    // Don't close modal - let progress bar handle it
+                } else {
+                    const result = await response.json();
+                    console.log("API Response:", result);
+                    updateGuidelineProgress('ERROR', 100, `File processing failed: ${result.message || "Unknown error"}`);
+                }
+            } catch (error) {
+                console.log("Error:", error);
+                updateGuidelineProgress('ERROR', 100, `An unexpected error occurred: ${error.message}`);
+            }
+        }
+
+        // Function to monitor guideline extraction progress with retry logic
+        function monitorGuidelineExtraction(taskId) {
+            let eventSource = null;
+            let retryCount = 0;
+            const maxRetries = 10; // Increased retries for longer tasks
+            let isCompleted = false;
+
+            function connect() {
+                if (isCompleted) {
+                    console.log('Task already completed, not reconnecting');
+                    return;
+                }
+
+                console.log(`Connecting to guideline SSE for task ${taskId}, attempt ${retryCount + 1}`);
+
+                // Close existing connection if any
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+                eventSource = new EventSource(`/guideline-extraction-progress/${taskId}`);
+
+                eventSource.onopen = function () {
+                    console.log('Guideline SSE connection opened successfully');
+                    retryCount = 0; // Reset retry count on successful connection
+                    updateGuidelineProgress('PROCESSING', 0, 'Connected to progress updates...');
+                };
+
+                eventSource.onmessage = function (event) {
+                    try {
+                        console.log('Received guideline SSE message:', event.data);
+                        const data = JSON.parse(event.data);
+                        handleGuidelineProgressData(data);
+
+                        // If task is completed or failed, close the connection
+                        if (data.status === 'COMPLETED' || data.status === 'FAILED' || data.status === 'ERROR') {
+                            console.log(`Guideline extraction task ${taskId} finished with status: ${data.status}`);
+                            isCompleted = true;
+                            eventSource.close();
+
+                            // Auto-close modal after 3 seconds if successful
+                            if (data.status === 'COMPLETED') {
+                                setTimeout(() => {
+                                    closeGuidelineProgressModal();
+                                    // Refresh the page to show new guideline
+                                    window.location.reload();
+                                }, 3000);
+                            } else {
+                                // Keep error modal open for longer so user can read the message
+                                setTimeout(() => {
+                                    closeGuidelineProgressModal();
+                                }, 10000);
+                            }
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing guideline SSE data:', parseError, 'Raw data:', event.data);
+                    }
+                };
+
+                eventSource.onerror = function (event) {
+                    console.error('Guideline SSE connection error:', event);
+
+                    // Only retry if the connection was closed and task isn't completed
+                    if (eventSource.readyState === EventSource.CLOSED && !isCompleted) {
+                        eventSource.close();
+
+                        retryCount++;
+                        if (retryCount <= maxRetries) {
+                            const delay = Math.min(1000 * Math.pow(2, retryCount), 15000); // Exponential backoff, max 15s
+                            updateGuidelineProgress('PROCESSING', 0, `Connection lost. Retrying in ${delay / 1000}s... (${retryCount}/${maxRetries})`);
+                            console.log(`Retrying guideline connection in ${delay}ms`);
+                            setTimeout(() => connect(), delay);
+                        } else {
+                            updateGuidelineProgress('ERROR', 100, 'Failed to maintain connection to progress updates. The task may still be running in the background.');
+                            console.error('Max retries exceeded for guideline SSE connection');
+
+                            // Show a message that user can check task status manually
+                            setTimeout(() => {
+                                document.getElementById('guideline-results-area').innerHTML += `
+                            <div class="warning-message">
+                                ⚠️ Connection lost. The guideline extraction is still running in the background. 
+                                Please check the guidelines list after a few minutes.
+                            </div>
+                        `;
+                            }, 2000);
+                        }
+                    }
+                };
+            }
+
+            connect();
+
+            // Return the eventSource so it can be closed externally if needed
+            return eventSource;
+        }
+
+
+        // Handle guideline progress data from server
+        function handleGuidelineProgressData(data) {
+            const progress = data.progress || 0;
+            const status = data.status || 'PROCESSING';
+            const message = data.message || '';
+            const guidelineId = data.guideline_id || null;
+
+            updateGuidelineProgress(status, progress, message);
+
+            // Update results if we have guideline ID
+            if (guidelineId) {
+                document.getElementById('guideline-results-area').innerHTML = `
+            <div class="success-message">
+                ✅ Successfully created guideline with ID: ${guidelineId}
+            </div>
+        `;
+            }
+        }
+
+        // Update guideline progress bar and log
+        function updateGuidelineProgress(status, progress, message) {
+            const progressFill = document.getElementById('guideline-progress-fill');
+            const logArea = document.getElementById('guideline-log-area');
+
+            // Update progress bar
+            if (!isNaN(progress)) {
+                progressFill.style.width = progress + '%';
+                progressFill.innerText = progress + '%';
+
+                // Change color based on status
+                if (status === 'ERROR' || status === 'FAILED') {
+                    progressFill.style.backgroundColor = 'red';
+                } else if (status === 'COMPLETED') {
+                    progressFill.style.backgroundColor = '#28a745';
+                } else {
+                    progressFill.style.backgroundColor = '#007bff';
+                }
+            }
+
+            // Update log area
+            const logEntry = document.createElement('div');
+            logEntry.classList.add('status-message');
+
+            if (status === 'ERROR' || status === 'FAILED') {
+                logEntry.classList.add('error-message');
+            } else if (status === 'COMPLETED') {
+                logEntry.classList.add('success-message');
+            }
+
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logArea.appendChild(logEntry);
+
+            // Scroll log to bottom
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        function displayPDFs(pdfLinks) {
+            const tableBody = document.querySelector("#guidelinesTable tbody");
+
+            if (pdfLinks.length === 0) {
+                alert("No PDFs found on this page.");
+                return;
+            }
+
+
+            tableBody.innerHTML = "";
+
+            pdfLinks.forEach((pdf, index) => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+            <td>PDF ${index + 1}</td>
+            <td><a href="${pdf.url}" target="_blank">${pdf.url}</a></td>
+            <td><a href="${pdf.url}" download><button>Download</button></a></td>
+        `;
+
+                tableBody.appendChild(row);
+            });
+        }
+    </script>
+
+
+    <script>
+        function toggleMenu(itemId) {
+            // Find the specific menu to toggle
+            const menu = document.getElementById(`menu-${itemId}`);
+            if (menu) {
+                // Close all other open menus first
+                closeAllMenus(itemId);
+                menu.classList.toggle('hidden');
+            }
+        }
+
+        function closeAllMenus(exceptId = null) {
+            const menus = document.querySelectorAll('[id^="menu-"]');
+            menus.forEach(menu => {
+                const currentId = menu.id.split('-')[1];
+                if (currentId !== exceptId) {
+                    menu.classList.add('hidden');
+                }
+            });
+        }
+
+        // Close dropdowns when clicking outside
+        window.addEventListener('click', function (e) {
+            if (!e.target.closest('[onclick^="toggleMenu"]')) {
+                closeAllMenus();
+            }
+        });
+    </script>
+
+
+    <script>
+        function toggleEnabled(guidelineId, btnElem) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+
+            fetch(`/re/guideline/${guidelineId}/toggle_enabled`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
+                },
+                body: JSON.stringify({})
+            })
+                .then(resp => {
+                    if (!resp.ok) throw new Error("Failed to update: " + resp.statusText);
+                    return resp.json();
+                })
+                .then(data => {
+                    const isEnabled = data.enabled;
+                    showToast(data.message, isEnabled ? "success" : "warning");  // ✅ flash-like message
+
+                    // Reset styles
+                    btnElem.className = "w-full flex items-center justify-center gap-2 px-4 py-2 rounded-full font-medium transition-colors duration-200";
+
+                    if (isEnabled) {
+                        btnElem.classList.add("bg-green-100", "text-green-800", "hover:bg-green-200");
+                        btnElem.innerHTML = `
+                <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8.25 8.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 7.543-7.543a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+                Enabled
+            `;
+                    } else {
+                        btnElem.classList.add("bg-gray-200", "text-gray-700", "hover:bg-gray-300");
+                        btnElem.innerHTML = `
+                <svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.536-10.95a1 1 0 00-1.414-1.414L10 8.586 7.879 6.465A1 1 0 006.465 7.88L8.586 10l-2.121 2.121a1 1 0 101.414 1.414L10 11.414l2.121 2.121a1 1 0 001.414-1.414L11.414 10l2.122-2.121z" clip-rule="evenodd"/>
+                </svg>
+                Disabled
+            `;
+                    }
+                })
+                .catch(err => alert(err));
+        }
+
+    </script>
+
+    <!-- extracting clauses and progress bar -->
+    <script>
+        // Progress modal functions
+        function openProgressModal() {
+            document.getElementById('progressModal').style.display = 'block';
+            resetProgress();
+        }
+
+        function closeProgressModal() {
+            document.getElementById('progressModal').style.display = 'none';
+            resetProgress();
+        }
+
+        function resetProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            const logArea = document.getElementById('log-area');
+            const resultsArea = document.getElementById('results-area');
+
+            progressFill.style.width = '0%';
+            progressFill.innerText = '0%';
+            progressFill.style.backgroundColor = '#007bff';
+            logArea.innerHTML = '';
+            resultsArea.innerHTML = '';
+            document.getElementById('progress-container').style.display = 'block';
+        }
+
+        // Modified extract_clauses_route function to use progress tracking
+        function extractClausesWithProgress(guidelineId) {
+            openProgressModal();
+
+            // Show initial progress
+            updateProgress('STARTING', 0, 'Starting clause extraction process...');
+
+            // Make the initial request to start extraction
+            fetch(`/extract-clauses/${guidelineId}`, {
+                method: 'GET'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to start clause extraction');
+                    }
+                    return response.text();
+                })
+                .then(() => {
+                    // Start monitoring the task progress
+                    monitorClauseExtraction(guidelineId);
+                })
+                .catch(error => {
+                    updateProgress('ERROR', 100, `Failed to start extraction: ${error.message}`);
+                    console.error('Error starting clause extraction:', error);
+                });
+        }
+
+
+        // Function to monitor clause extraction progress
+        function monitorClauseExtraction(guidelineId) {
+            let retryCount = 0;
+            const maxRetries = 3;
+
+            function connect() {
+                const eventSource = new EventSource(`/clause-extraction-progress/${guidelineId}`);
+
+                eventSource.onopen = function () {
+                    console.log('SSE connection opened');
+                    retryCount = 0; // Reset retry count on successful connection
+                };
+
+                eventSource.onmessage = function (event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleProgressData(data);
+
+                        // If task is completed or failed, close the connection
+                        if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+                            eventSource.close();
+
+                            // Auto-close modal after 3 seconds if successful
+                            if (data.status === 'COMPLETED') {
+                                setTimeout(() => {
+                                    closeProgressModal();
+                                    // Refresh the page to show new clauses
+                                    window.location.reload();
+                                }, 3000);
+                            } else if (data.status === 'FAILED') {
+                                setTimeout(() => {
+                                    closeProgressModal();
+                                }, 5000);
+                            }
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing SSE data:', parseError);
+                    }
+                };
+
+                eventSource.onerror = function (event) {
+                    console.error('SSE error:', event);
+                    eventSource.close();
+
+                    retryCount++;
+                    if (retryCount <= maxRetries) {
+                        updateProgress('PROCESSING', 0, `Connection lost. Retrying... (${retryCount}/${maxRetries})`);
+                        setTimeout(() => connect(), 2000 * retryCount); // Exponential backoff
+                    } else {
+                        updateProgress('ERROR', 100, 'Connection error while monitoring progress. Please check the server.');
+                        setTimeout(() => closeProgressModal(), 5000);
+                    }
+                };
+            }
+
+            connect();
+        }
+
+
+        // Handle progress data from server
+        function handleProgressData(data) {
+            const progress = data.progress || 0;
+            const status = data.status || 'PROCESSING';
+            const message = data.message || '';
+            const clausesExtracted = data.clauses_extracted || 0;
+
+            updateProgress(status, progress, message);
+
+            // Update results if we have clause count
+            if (clausesExtracted > 0) {
+                document.getElementById('results-area').innerHTML = `
+            <div class="success-message">
+                ✅ Successfully extracted ${clausesExtracted} clauses
+            </div>
+        `;
+            }
+        }
+
+        // Update progress bar and log
+        function updateProgress(status, progress, message) {
+            const progressFill = document.getElementById('progress-fill');
+            const logArea = document.getElementById('log-area');
+
+            // Update progress bar
+            if (!isNaN(progress)) {
+                progressFill.style.width = progress + '%';
+                progressFill.innerText = progress + '%';
+
+                // Change color based on status
+                if (status === 'ERROR' || status === 'FAILED') {
+                    progressFill.style.backgroundColor = 'red';
+                } else if (status === 'COMPLETED') {
+                    progressFill.style.backgroundColor = '#28a745';
+                } else {
+                    progressFill.style.backgroundColor = '#007bff';
+                }
+            }
+
+            // Update log area
+            const logEntry = document.createElement('div');
+            logEntry.classList.add('status-message');
+
+            if (status === 'ERROR' || status === 'FAILED') {
+                logEntry.classList.add('error-message');
+            } else if (status === 'COMPLETED') {
+                logEntry.classList.add('success-message');
+            }
+
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logArea.appendChild(logEntry);
+
+            // Scroll log to bottom
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+    </script>
+
+   
+
+
+    {% endblock %}

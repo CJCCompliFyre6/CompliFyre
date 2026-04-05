@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Complifyre</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background-color: #000;
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      .container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+      }
+
+      .card {
+        background-color: #1c1c1c;
+        border-radius: 20px;
+        box-shadow: 0 10px 6px rgba(0, 0, 0, 0.2);
+        padding: 40px;
+        text-align: left;
+        width: 350px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .logo {
+        width: 150px;
+        height: auto;
+        display: block;
+        margin: 0 auto 10px;
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 10px 0;
+      }
+
+      .option {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        background-color: #f4f4f4;
+        color: #000;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: border-color 0.3s, background-color 0.3s;
+      }
+
+      .option input {
+        margin-right: 10px;
+        accent-color: #ff7e00;
+        width: 20px;
+        height: 20px;
+      }
+
+      .option label {
+        font-size: 16px;
+        flex-grow: 1;
+      }
+
+      .option:hover {
+        border-color: #ff7e00;
+        background-color: #ffedcc;
+      }
+
+      /* Continue Button */
+      .btn-primary {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(to right, #f76b1c, #ffa62b);
+        border: none;
+        border-radius: 25px;
+        color: #fff;
+        font-size: 20px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 10px rgba(255, 166, 43, 0.4);
+        margin-top: 10px;
+        text-decoration: none;
+        text-align: center;
+        display: inline-block;
+      }
+
+      .btn-primary:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 15px rgba(255, 166, 43, 0.6);
+      }
+
+      .d-grid {
+        display: grid;
+        place-items: center;
+        margin-top: 10px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="header">
+          <img
+            src="C:\Users\priya\OneDrive\Documents\complifyre\assets\img\logo_horizontal_new_transparent.png"
+            alt="Complifyre Logo"
+            class="logo"
+          />
+          <h1>Select Type and Login</h1>
+        </div>
+
+        <!-- Correct form with redirection to login page -->
+        <form id="loginForm" onsubmit="continueLogin(); return false;">
+          <div class="option">
+            <input type="radio" id="re" name="loginType" value="RE" required />
+            <label for="re">RE</label>
+          </div>
+
+          <div class="option">
+            <input
+              type="radio"
+              id="auditor"
+              name="loginType"
+              value="Auditor"
+              required
+            />
+            <label for="auditor">Auditor</label>
+          </div>
+
+          <div class="option">
+            <input
+              type="radio"
+              id="complifyre"
+              name="loginType"
+              value="Complifyre"
+              required
+            />
+            <label for="complifyre">Complifyre</label>
+          </div>
+
+          <div class="d-grid mt-4">
+            <button type="submit" class="btn-primary">Continue</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      function continueLogin() {
+        const selectedType = document.querySelector(
+          'input[name="loginType"]:checked'
+        );
+        if (selectedType) {
+          switch (selectedType.value) {
+            case "RE":
+              window.location.href = "{{url_for('re.login')}}";
+              break;
+            case "Auditor":
+              window.location.href = "{{url_for('re.login')}}";
+              break;
+            case "Complifyre":
+              window.location.href = "#";
+              break;
+            default:
+              alert("Invalid option selected");
+          }
+        } else {
+          alert("Please select a login type.");
+        }
+      }
+    </script>
+  </body>
+</html>

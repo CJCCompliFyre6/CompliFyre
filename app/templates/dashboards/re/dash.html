@@ -1,0 +1,144 @@
+{% extends "re_base.html" %}
+{% block content %} 
+    <link rel="stylesheet" href="assets/css/dash.css" />
+   
+    <main class="main">
+    
+
+      <section class="bank-info">
+        <h2><span>Anixo Bank</span></h2>
+        <p><strong>Org Category:</strong> </br>Bank, Scheduled Bank, Digital Payment Provider, Digital Platform, Distributor, Financial Advisor, Financial Institution, Fintech, Investors, Listed Companies, Listed Entities, Financial Services Provider</p>
+        <p><strong>Head Quarters:</strong> Mumbai</p>
+        <div class="info-tags">
+          <span class="tag blue">No of branches in India: 63</span>
+          <span class="tag yellow">No of branches worldwide: 98</span>
+          <span class="tag red">No of applicable guidelines: 83</span>
+          <span class="tag purple">No of Regulators: 4</span>
+        </div>
+        
+        <h2>Processes</h2>
+        <div class="process-flow">
+          <div class="process-item">
+            <img src="assets/img/real-estate.png" alt="Loan Icon">
+            Loan Processing
+        </div>
+            <i class="fas fa-angle-right arrow-icon"></i>
+    
+            <div class="process-item">
+              <img src="assets/img/credit.png" alt="Loan Icon">
+              Credit Risk Management
+          </div>          
+          <i class="fas fa-angle-right arrow-icon"></i>
+    
+             <div class="process-item">
+            <img src="assets/img/assessment.png" alt="Loan Icon">
+            Compliance Monitoring
+        </div>
+        <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/fraud.png" alt="Loan Icon">
+            Fraud Detection
+        </div>
+                  <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/treasury.png" alt="Loan Icon">
+            Treasury Operations
+        </div>
+                  <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/asset-management.png" alt="Loan Icon">
+            Asset Management
+        </div>
+                  <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/customer-service.png" alt="Loan Icon">
+            Customer Service
+        </div>
+                  <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/internal-control.png" alt="Loan Icon">
+            Internal Audit
+        </div>
+                  <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/operation.png" alt="Loan Icon">
+            Branch Operations
+        </div>
+                  <i class="fas fa-angle-right arrow-icon"></i>
+    
+    <div class="process-item">
+            <img src="assets/img/it-security.png" alt="Loan Icon">
+            IT Security
+        </div>
+    </section>
+
+    <section class="charts w-full px-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-3">
+          <div class="chart-container md:col-span-2">
+              <h3 class="text-center mb-4">Regulatory Submissions</h3>
+              <canvas id="regulatorChart"></canvas>
+          </div>
+          <div class="chart-container">
+              <h3 class="text-center mb-4">Regulatory Submissions 1</h3>
+              <canvas id="controlsChart"></canvas>
+          </div>
+          <div class="chart-container">
+              <h3 class="text-center mb-4">Regulatory Submissions</h3>
+              <canvas id="pieChart"></canvas>
+          </div>
+          <div class="chart-container md:col-span-2">
+              <h3 class="text-center mb-4">Compliance Status by Regulation Type</h3>
+              <canvas id="barChart"></canvas>
+          </div>
+      </div>
+  
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div class="chart-container">
+              <h3 class="text-center mb-4">Metrics Dashboard tracked by %ages</h3>
+              <canvas id="barChart2"></canvas>
+          </div>
+          <div class="chart-container">
+              <h3 class="text-center mb-4">Metrics Dashboard tracked by %ages</h3>
+              <canvas id="lineChart"></canvas>
+          </div>
+      </div>
+  </section>
+  
+  <style>
+  @media (max-width: 768px) {
+      .grid {
+          grid-template-columns: 1fr !important;
+      }
+  }
+  
+  .chart-container {
+      text-align: center; /* Center content inside chart container */
+      display: flex;
+      flex-direction: column; /* Stack elements vertically */
+      align-items: center;  /* Center-align the content horizontally */
+  }
+  
+  .chart-container h3 {
+      margin-bottom: 20px; /* Space between heading and canvas */
+  }
+  </style>
+  
+  
+
+     
+    </main>
+
+    <script src="assets/js/dash.js"></script>
+    <script>
+      function logout() {
+        // Redirect to the logout route to handle session termination
+        window.location.href = "{{ url_for('re.logout') }}";
+      }
+    </script>
+{%endblock%}

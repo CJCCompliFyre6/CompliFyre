@@ -1,0 +1,371 @@
+/* Global Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* tab switchinng */
+.tabs {
+    display: flex;
+    gap: 10px;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 10px;
+}
+.tab {
+    background: #eee;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: background 0.3s, color 0.3s;
+    border-radius: 5px 5px 0 0;
+    font-weight: bold;
+}
+.tab:hover {
+    background: #ddd;
+}
+.tab.active {
+    background: orange;
+    color: white;
+}
+
+.content {
+    display: none;
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
+.content.active {
+    display: block;
+}
+
+/* Style the search container */
+.search-container {
+    margin-bottom: 10px;
+  }
+  
+  .search-container input {
+    padding: 5px;
+    margin-right: 10px;
+  }
+  
+/* export button */
+.export-btn {
+    background: orange;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+.export-btn:hover {
+    background: darkorange;
+}
+
+
+/* table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+th {
+    background-color: #f2f2f2;
+}
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* applicable heading */
+.applicable {
+    padding: 15px;
+    border-radius: 8px;
+    margin: 0;
+}
+
+.applicable h3 {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.applicable p {
+    margin-top: 5px;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+/* Style the pagination buttons */
+.pagination {
+    display: flex;
+    justify-content: center;  /* This centers the pagination buttons */
+    margin-top: 20px;
+    position: relative;  /* Ensure it stays at the bottom */
+    bottom: 0;  /* Position it at the bottom of the container */
+  }
+  
+  .pagination button {
+    padding: 8px 12px;
+    margin: 0 3px;
+    border: none;
+    border-radius: 5px;
+    background-color: #ddd;
+    cursor: pointer;
+  }
+  
+  .pagination .active {
+    background-color: #ff7f50;
+    color: white;
+  }
+
+
+
+/* Header */
+header {
+    background-color: #222;
+    color: white;
+    padding: 15px;
+    text-align: left;
+  }
+  
+  
+  /* Flexbox container for the menu icon and title */
+  .menu-icon-container {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    background-color: black; 
+    color: white; 
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Styling for the menu icon */
+  .menu-icon {
+    font-size: 30px;
+    color: white;
+    cursor: pointer;
+    margin-right: 20px; 
+  }
+  
+  /* Styling for the dashboard title */
+  .dashboard-title h1 {
+    font-size: 32px;
+    font-weight: bold;
+    margin: 0; 
+    color: white; 
+  }
+  
+  .dashboard-title p {
+    font-size: 16px;
+    color: #ffa62b;
+    margin-top: 10px;
+    margin-left: 10px; 
+  }
+  .dashboard-title a {
+    text-decoration: none;
+    color: inherit; /* Optional: Keeps the link color the same as the surrounding text */
+  }
+  
+  
+  
+  /* Sidebar */
+  .sidebar {
+    position: fixed;
+    left: -250px;
+    top: 0;
+    width: 250px;
+    height: 100%;
+    background-color: black;
+    color: white;
+    transition: left 0.3s ease-in-out;
+    padding: 20px;
+    z-index: 1000;
+  }
+  
+  .sidebar.open {
+    left: 0;
+  }
+  
+  /* Sidebar Logo */
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 30px;
+  }
+  
+  .logo img {
+    width: 150px;
+    height: auto;
+  }
+  
+  /* Sidebar Menu */
+  .menu {
+    list-style-type: none;
+  }
+  
+  .menu li {
+    padding: 10px 0;
+  }
+  
+  .menu li a {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+  }
+  
+  .menu li a i {
+    font-size: 18px;
+  }
+  
+  .menu li a:hover {
+    background: linear-gradient(135deg, #f76b1c, #ffa62b);
+  }
+  
+  /* Sidebar Submenu */
+  .submenu .submenu-items {
+    display: none;
+    list-style-type: none;
+    padding-left: 20px;
+  }
+  
+  .submenu.active .submenu-items {
+    display: block;
+  }
+  
+  .submenu .submenu-items li {
+    padding: 5px 0;
+  }
+  
+  .submenu .submenu-items li a {
+    color: white;
+    text-decoration: none;
+    padding: 8px 0;
+    display: block;
+    transition: background-color 0.3s;
+  }
+  
+  .submenu .submenu-items li a:hover {
+    background-color: #575757;
+  }
+  
+  /* Sidebar Footer */
+  .footer {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    padding: 10px;
+  }
+  
+  .footer a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: white;
+    text-decoration: none;
+  }
+  
+  .footer a i {
+    font-size: 18px;
+  }
+  
+  .footer a:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 768px) {
+    .tabs {
+        flex-wrap: wrap; /* Wrap tabs on smaller screens */
+    }
+    .tab {
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+}
+@media (max-width: 768px) {
+  .sidebar {
+      width: 80%; /* Adjust width for smaller screens */
+      left: -80%; /* Ensure it’s hidden initially */
+  }
+}
+@media (max-width: 768px) {
+  .table-wrapper {
+      overflow-x: auto;
+  }
+  table {
+      width: 100%; /* Prevents overflow */
+  }
+}
+@media (max-width: 768px) {
+  header, .footer {
+      padding: 10px;
+      font-size: 14px;
+  }
+}
+@media (max-width: 768px) {
+  .pagination {
+      flex-wrap: wrap; /* Allow buttons to stack if needed */
+  }
+  .pagination button {
+      padding: 6px 10px;
+      font-size: 12px;
+  }
+}
+@media (max-width: 768px) {
+  .search-container input {
+      width: 100%; /* Make input take full width */
+      margin-bottom: 10px;
+  }
+}
+table {
+  overflow-x: auto;
+  display: block;
+}
+.sidebar {
+  left: -100%; /* Hide sidebar off-screen */
+}
+.sidebar.open {
+  left: 0;
+}
+@media (max-width: 768px) {
+  .sidebar {
+    left: -100%;
+  }
+  .sidebar.open {
+    left: 0;
+  }
+}
+

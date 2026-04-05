@@ -1,0 +1,62 @@
+category,subcategory
+Banks,Public Sector Banks (PSBs)
+Banks,Private Sector Banks
+Banks,Small Finance Banks (SFBs)
+Banks,Payments Banks
+Banks,Regional Rural Banks (RRBs)
+Banks,Local Area Banks
+Banks,Foreign Banks (operating branches/subsidiaries in India)
+Banks,Cooperative Banks
+Banks,Urban Cooperative Banks (UCBs)
+Banks,State & District Central Cooperative Banks
+Non-Banking Financial Companies (NBFCs),Investment and Credit Companies (NBFC-ICC)
+Non-Banking Financial Companies (NBFCs),Infrastructure Finance Companies (NBFC-IFC)
+Non-Banking Financial Companies (NBFCs),Infrastructure Debt Funds (NBFC-IDF)
+Non-Banking Financial Companies (NBFCs),Micro Finance Institutions (NBFC-MFI)
+Non-Banking Financial Companies (NBFCs),Mortgage Guarantee Companies (NBFC-MGC)
+Non-Banking Financial Companies (NBFCs),NBFC–Factors
+Non-Banking Financial Companies (NBFCs),Core Investment Companies (CICs)
+Non-Banking Financial Companies (NBFCs),Account Aggregators (NBFC-AA)
+Non-Banking Financial Companies (NBFCs),"Housing Finance Companies (HFCs – though now primarily NHB regulated, under RBI oversight)"
+Non-Banking Financial Companies (NBFCs),Peer-to-Peer Lending Platforms (NBFC-P2P)
+Non-Banking Financial Companies (NBFCs),NBFC–Without Public Funds (Investment advisory or captive finance arms)
+Payment & Settlement System Operators,"Prepaid Payment Instrument (PPI) Issuers (Wallets like Paytm, PhonePe)"
+Payment & Settlement System Operators,Payment Gateways & Payment Aggregators
+Payment & Settlement System Operators,White-Label ATM Operators
+Payment & Settlement System Operators,Cross-border Remittance Providers
+Capital Markets,"Stock Exchanges (NSE, BSE, MCX, etc.)"
+Capital Markets,"Depositories (NSDL, CDSL)"
+Capital Markets,Mutual Funds & Asset Management Companies (AMCs)
+Capital Markets,"Alternative Investment Funds (AIFs – CAT I, II, III)"
+Capital Markets,Portfolio Managers (PMS)
+Capital Markets,Collective Investment Schemes (CIS)
+Capital Markets,Brokers & Sub-Brokers (Trading Members)
+Capital Markets,Merchant Bankers
+Capital Markets,Credit Rating Agencies (CRAs)
+Capital Markets,Investment Advisers (Registered Investment Advisors – RIAs)
+Capital Markets,Research Analysts
+Capital Markets,Infrastructure Investment Trusts (InvITs)
+Capital Markets,Real Estate Investment Trusts (REITs)
+Capital Markets,Custodians of Securities
+Capital Markets,Clearing Corporations
+Insurance Sector,Life Insurance Companies
+Insurance Sector,General Insurance Companies
+Insurance Sector,Health Insurance Companies
+Insurance Sector,"Reinsurance Companies (e.g., GIC Re)"
+Insurance Sector,Insurance Brokers
+Insurance Sector,Corporate Agents
+Insurance Sector,Third Party Administrators (TPAs)
+Insurance Sector,Web Aggregators
+Insurance Sector,Insurance Marketing Firms
+Insurance Sector,"Credit Information Companies (CICs) – CIBIL, Experian, Equifax, CRIF HighMark (RBI regulated)"
+Insurance Sector,"FinTechs – Depending on activity, regulated by RBI (payments, lending), SEBI (wealth, investment), or IRDAI (insurtech)."
+Pension Sector,National Pension System (NPS) Trust
+Pension Sector,Pension Fund Managers (PFMs)
+Pension Sector,Central Recordkeeping Agencies (CRAs)
+Pension Sector,Points of Presence (PoPs)
+Pension Sector,Annuity Service Providers (ASPs)
+Other Important FS Ecosystem Player,Financial Market Infrastructures (FMIs) (regulated by RBI/SEBI jointly)
+Other Important FS Ecosystem Player,Clearing Corporations
+Other Important FS Ecosystem Player,Payment Systems
+Other Important FS Ecosystem Player,Central Counterparties
+Other Important FS Ecosystem Player,"Self-Regulatory Organizations (SROs) (like AMFI for mutual funds, ANMI for brokers, etc.)"

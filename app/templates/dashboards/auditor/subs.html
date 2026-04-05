@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Complifyre</title>
+  <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
+  <meta name="Author" content="Spruko Technologies Private Limited">
+  <meta name="keywords" content="dashboard template,dashboard html,bootstrap admin,dashboard admin,admin template,sales dashboard,crypto dashboard,projects dashboard,html template,html,html css,admin dashboard template,html css bootstrap,dashboard html css,pos system,bootstrap dashboard">
+    <style>
+ * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #FEF8F5;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tab-container {
+  display: flex;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-wrap: wrap;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  background-color: #fafafa;
+  border-right: 1px solid #eee;
+  transition: background 0.3s ease;
+  cursor: pointer;
+}
+
+.tab:last-child {
+  border-right: none;
+}
+
+.tab.active {
+  background: linear-gradient(to right, #ff9800, #ff5722);
+  color: #fff;
+  font-weight: 600;
+}
+
+.tab-content-container {
+  border: 1px solid #eee;
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 10px;
+  background: #fff;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 20px;
+}
+
+/* Ensure table behaves well inside scroll container */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px; /* Makes sure it scrolls on small screens */
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border: 1px solid #ddd;
+}
+
+/* Responsive styling for smaller devices */
+@media (max-width: 768px) {
+  .tab-container {
+    flex-direction: column;
+  }
+
+  .tab {
+    border-right: none;
+    border-bottom: 1px solid #eee;
+  }
+
+  .tab:last-child {
+    border-bottom: none;
+  }
+
+  .tab-content-container {
+    padding: 12px;
+  }
+
+  table {
+    min-width: 600px;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /* Header */
+  header {
+  background-color: #222;
+  color: white;
+  padding: 15px;
+  text-align: left;
+}
+
+
+/* Flexbox container for the menu icon and title */
+.menu-icon-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Styling for the menu icon */
+.menu-icon {
+  font-size: 30px;
+  color: black;
+  cursor: pointer;
+  margin-right: 20px;
+}
+
+/* Styling for the dashboard title */
+.dashboard-title {
+  flex-grow: 1;
+}
+
+.dashboard-title h1 {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+  color: black;
+}
+
+.dashboard-title p {
+  font-size: 16px;
+  color: #ffa62b;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.dashboard-title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* User Actions */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-left: auto;
+}
+
+.profile-icon, .logout-icon {
+  font-size: 24px;
+  cursor: pointer;
+  color: black;
+}
+
+.profile-icon:hover, .logout-icon:hover {
+  color: #ffa62b;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  left: -250px;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  background-color: black;
+  color: white;
+  transition: left 0.3s ease-in-out;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+/* Sidebar Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo img {
+  width: 150px;
+  height: auto;
+}
+
+/* Sidebar Menu */
+.menu {
+  list-style-type: none;
+}
+
+.menu li {
+  padding: 10px 0;
+}
+
+.menu li a {
+  color: white;
+  text-decoration: none;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.menu li a i {
+  font-size: 18px;
+}
+
+.menu li a:hover {
+  background: linear-gradient(135deg, #f76b1c, #ffa62b);
+}
+
+/* Sidebar Submenu */
+/* Submenu Scroll */
+.submenu .submenu-items {
+display: none;
+max-height: 250px; /* Adjust this value as needed */
+overflow-y: auto;
+list-style: none;
+padding-left: 20px;
+background-color: black;
+border: 1px solid black;
+border-radius: 5px;
+}
+
+.submenu .submenu-items.active {
+display: block;
+}
+
+/* Custom Scrollbar Style */
+.submenu .submenu-items::-webkit-scrollbar {
+width: 8px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb {
+background: #575757;
+border-radius: 4px;
+}
+
+.submenu .submenu-items::-webkit-scrollbar-thumb:hover {
+background: #444;
+}
+
+/* Phase Labels Styling */
+.submenu li.view-clients,
+.submenu li.audit-phase,
+.submenu li.risk-phase,
+.submenu li.field-phase,
+.submenu li.report-phase,
+.submenu li.up-phase {
+color: #514a4a;
+cursor: default;
+font-weight: bold;
+}
+
+
+/* Sidebar Footer */
+.footer {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  padding: 10px;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: white;
+  text-decoration: none;
+}
+
+.footer a i {
+  font-size: 18px;
+}
+  </style>
+
+  <link href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="menu-icon-container">
+    <div class="menu-icon" onclick="toggleSidebar()">
+      <i class="bx bx-menu"></i>
+    </div>
+    <div class="dashboard-title">
+      <a href="{{url_for('audit.dashboard')}}"><h1>Auditor Dashboard</h1></a>
+      <p>Dashboard</p>
+    </div>
+  <!-- Profile and Logout Icons aligned to the right -->
+  <div class="user-actions">
+    <!-- Profile Icon -->
+    <a href="#" class="profile-icon">
+        <i class="bx bx-user"></i>
+    </a>
+  
+    <!-- Logout Icon -->
+    <span class="logout-icon" onclick="logout()">
+        <i class="bx bx-log-out"></i>
+    </span>
+  </div>
+  </div>
+  
+  
+  <div id="sidebar" class="sidebar">
+    <div class="logo">
+      <img src="assets/img/logo_horizontal_new_transparent.png" alt="Complifyre Logo" />
+    </div>
+  
+    <ul class="menu">
+      <li><a href="{{url_for('audit.dashboard')}}"><i class="bx bx-home"></i> Dashboard</a></li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li><a href="{{url_for('audit.view')}}">View Details</a></li>
+          <li><a href="{{url_for('audit.add')}}">Add new guidelines</a></li>
+        </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-user-group"></i> Clients <i class="bx bx-chevron-down"></i>
+        </a>
+      <ul class="submenu-items">
+       <li class="view-clients">View Clients</li>
+       <li><a href="{{url_for('audit.memo')}}">Client Understanding Memo</a></li>
+       <li><a href="{{url_for('audit.new')}}">Add new Clients</a></li>
+      </ul>
+      </li>
+  
+      <li class="submenu">
+        <a href="#" onclick="toggleSubmenu(event)">
+          <i class="fa-solid fa-file-invoice"></i> My Audits <i class="bx bx-chevron-down"></i>
+        </a>
+        <ul class="submenu-items">
+          <li class="audit-phase">Audit / Assessment Phase</li>
+          <li><a href="{{url_for('audit.eng')}}">Audit Engagement Letter</a></li>
+  
+          <li class="risk-phase">Risk Assessment Phase</li>
+          <li><a href="{{url_for('audit.risk')}}">Risk Assessment Document</a></li>
+          <li><a href="{{url_for('audit.dam')}}">Audit Strategy Memo</a></li>
+          <li><a href="{{url_for('audit.plan')}}">Audit Plan</a></li>
+          <li><a href="{{url_for('audit.stat')}}">Materiality Statement</a></li>
+          <li><a href="{{url_for('audit.eva')}}">Internal Control Evaluation</a></li>
+          <li><a href="{{url_for('audit.scop')}}">Audit Scope Meno</a></li>
+          <li><a href="{{url_for('audit.prog')}}">Audit Program Document</a></li>
+          <li><a href="{{url_for('audit.approved')}}">Approved Audit Program</a></li>
+  
+          <li class="field-phase">FieldWork Phase (Execution)</li>
+          <li><a href="{{url_for('audit.mat')}}">Risk Control Matrics</a></li>
+          <li><a href="{{url_for('audit.ctl')}}">Control Testing Results</a></li>
+          <li><a href="{{url_for('audit.det')}}">Detailed Audit Testing Results</a></li>
+          <li><a href="{{url_for('audit.subs')}}">Substantive Testing Workpapers</a></li>
+          <li><a href="#">FieldWork Documentation</a></li>
+          <li><a href="{{url_for('audit.work')}}">Audit Workpapers</a></li>
+          <li><a href="{{url_for('audit.note')}}">FieldWork Notes</a></li>
+          <li><a href="{{url_for('audit.find')}}">Findings</a></li>
+  
+          <li class="report-phase">Reporting Phase</li>
+          <li><a href="{{url_for('audit.final')}}">Final Audit Report</a></li>
+          <li><a href="{{url_for('audit.resp')}}">Management Response</a></li>
+  
+          <li class="up-phase">Follow-Up Phase</li>
+          <li><a href="#">Action Tracker</a></li>
+        </ul>
+      </li>
+  
+    <main class="footer">
+      <a href="#"><i class="bx bx-bulb"></i> What's New</a>
+      <a href="#"><i class="bx bx-support"></i> Support Center</a>
+    </div>
+  </div>
+
+<!-- Main Content -->
+<main class="main" style="padding: 20px;">
+  <div class="breadcrumb" style="margin-bottom: 24px;">
+    <h1 style="margin-bottom: 8px;">Substantive Testing Workpapers</h1>
+    <a href="#" style="color: #007bff; text-decoration: none;">Dashboard</a> / Substantive Testing Workpapers
+  </div>
+
+  <div class="container">
+
+    <div class="tab-container">
+      <div class="tab active" onclick="setActiveTab(this, 'content1')">
+        Loan Classification and NPA Provisioning Controls (RBI IRAC Norms)
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content2')">
+        Data Protection and Cybersecurity Controls (RBI Cybersecurity
+        Guidelines)
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content3')">
+        Access Control and Authorization Mechanisms
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content4')">
+        Incident Response and Recovery Procedures
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content5')">
+        Third-Party Vendor Risk Management
+      </div>
+      <div class="tab" onclick="setActiveTab(this, 'content6')">
+        Financial Reporting and Reconciliations
+      </div>
+    </div>
+
+    <div id="content1" class="tab-content">
+    <h2 style="margin-top: 20px; margin-bottom: 10px;">Objective:</h2>
+    <p style="margin-bottom: 20px;">
+      Ensure that loan classifications and NPA provisioning align with RBI IRAC norms.
+    </p>
+
+    <h4 style="margin-top: 20px; margin-bottom: 10px;">Test Description:</h4>
+    <ol style="margin-bottom: 20px; padding-left: 20px;">
+      <li style="margin-bottom: 10px;">
+        <strong>Loan Sampling:</strong> Select a sample of loans and verify that they are classified in accordance with the IRAC norms (Standard, Sub-standard, Doubtful, Loss assets).
+      </li>
+      <li style="margin-bottom: 10px;">
+        <strong>Provisioning Calculation:</strong> Recalculate provisioning for sampled NPAs and compare against the bank’s reported provisions.
+      </li>
+      <li style="margin-bottom: 10px;">
+        <strong>Collateral Verification:</strong> Assess the accuracy and valuation of collateral and its impact on provisioning.
+      </li>
+      <li style="margin-bottom: 10px;">
+        <strong>Restructured Accounts:</strong> Test the classification and provisioning of restructured accounts.
+      </li>
+    </ol>
+
+    <h4 style="margin-top: 20px; margin-bottom: 10px;">Risks:</h4>
+    <ul style="margin-bottom: 20px; padding-left: 20px;">
+      <li style="margin-bottom: 10px;"><strong>Misclassification Risk:</strong> Loans might be incorrectly classified to avoid higher provisioning.</li>
+      <li style="margin-bottom: 10px;"><strong>Under-Provisioning:</strong> Bank might under-provision for NPAs, misstating the financial position.</li>
+      <li style="margin-bottom: 10px;"><strong>Collateral Overvaluation:</strong> Overestimating collateral value to reduce provisioning.</li>
+    </ul>
+
+    <h4 style="margin-top: 20px; margin-bottom: 10px;">Substantive Tests:</h4>
+    <div class="table-container">
+    <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+      <tr style="background-color: #ff9800; color: white;">
+        <th style="padding: 12px; text-align: left;">Test Type</th>
+        <th style="padding: 12px; text-align: left;">Control Question</th>
+        <th style="padding: 12px; text-align: left;">Evidence</th>
+        <th style="padding: 12px; text-align: left;">Expected Result</th>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 12px;">Loan Sampling</td>
+        <td style="padding: 12px;">Is the loan classified according to IRAC norms?</td>
+        <td style="padding: 12px;">Loan files, IRAC reports</td>
+        <td style="padding: 12px;">Loan classification aligns with IRAC norms</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 12px;">Provisioning</td>
+        <td style="padding: 12px;">Is provisioning calculated as per RBI guidelines?</td>
+        <td style="padding: 12px;">Provisioning worksheets, system calculations</td>
+        <td style="padding: 12px;">Accurate provisioning amounts</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 12px;">Collateral Review</td>
+        <td style="padding: 12px;">Is the collateral value overstated?</td>
+        <td style="padding: 12px;">Collateral valuation reports</td>
+        <td style="padding: 12px;">Collateral is fairly valued</td>
+      </tr>
+    </table>
+    </div>
+
+    <h4 style="margin-top: 20px; margin-bottom: 10px;">Control Failures:</h4>
+    <ul style="margin-bottom: 20px; padding-left: 20px;">
+      <li style="margin-bottom: 10px;">Loans classified as "Standard" when they should be "Sub-standard."</li>
+      <li style="margin-bottom: 10px;">Understated provisions, increasing risk to financial stability.</li>
+    </ul>
+  </div>
+    
+
+      <div id="content2" class="tab-content">
+        <h2 style="margin-top: 20px; margin-bottom: 10px;">Objective:</h2>
+        <p style="margin-bottom: 20px;">
+          Ensure compliance with RBI’s cybersecurity guidelines, focusing on data protection, system access, and breach response.
+        </p>
+      
+        <h4 style="margin-top: 20px; margin-bottom: 10px;">Test Description:</h4>
+        <ul style="margin-bottom: 20px; padding-left: 20px;">
+          <li style="margin-bottom: 10px;">
+            <strong>User Access Review:</strong> Examine user access rights to critical systems.
+          </li>
+          <li style="margin-bottom: 10px;">
+            <strong>Data Encryption Testing:</strong> Verify encryption of sensitive customer data.
+          </li>
+          <li style="margin-bottom: 10px;">
+            <strong>Incident Response Testing:</strong> Simulate a cybersecurity incident and review the bank's response procedures.
+          </li>
+          <li style="margin-bottom: 10px;">
+            <strong>Patch Management:</strong> Test whether all critical systems are up-to-date with security patches.
+          </li>
+        </ul>
+      
+        <h4 style="margin-top: 20px; margin-bottom: 10px;">Risks:</h4>
+        <ul style="margin-bottom: 20px; padding-left: 20px;">
+          <li style="margin-bottom: 10px;"><strong>Unauthorized Access:</strong> Inadequate access controls could result in data breaches.</li>
+          <li style="margin-bottom: 10px;"><strong>Data Breach:</strong> Failure to protect sensitive information from external attacks.</li>
+          <li style="margin-bottom: 10px;"><strong>Incident Response Failure:</strong> Delayed or inadequate responses to security incidents.</li>
+        </ul>
+      
+        <h4 style="margin-top: 20px; margin-bottom: 10px;">Substantive Tests:</h4>
+        <div class="table-container">
+        <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+          <tr style="background-color: #ff9800; color: white;">
+            <th style="padding: 12px; text-align: left;">Test Type</th>
+            <th style="padding: 12px; text-align: left;">Control Question</th>
+            <th style="padding: 12px; text-align: left;">Evidence</th>
+            <th style="padding: 12px; text-align: left;">Expected Result</th>
+          </tr>
+          <tr style="background-color: #f9f9f9;">
+            <td style="padding: 12px;">Access Review</td>
+            <td style="padding: 12px;">Are user roles and permissions aligned with job responsibilities?</td>
+            <td style="padding: 12px;">User access logs, role definitions</td>
+            <td style="padding: 12px;">Access rights match roles</td>
+          </tr>
+          <tr style="background-color: #f9f9f9;">
+            <td style="padding: 12px;">Encryption Testing</td>
+            <td style="padding: 12px;">Is sensitive customer data encrypted at rest and in transit?</td>
+            <td style="padding: 12px;">Data encryption policies, encryption keys</td>
+            <td style="padding: 12px;">Data is securely encrypted</td>
+          </tr>
+          <tr style="background-color: #f9f9f9;">
+            <td style="padding: 12px;">Incident Response</td>
+            <td style="padding: 12px;">Does the bank respond within the required time for incidents?</td>
+            <td style="padding: 12px;">Incident logs, simulation results</td>
+            <td style="padding: 12px;">Incident response is timely and effective</td>
+          </tr>
+        </table>
+        </div>
+      
+        <h4 style="margin-top: 20px; margin-bottom: 10px;">Control Failures:</h4>
+        <ul style="margin-bottom: 20px; padding-left: 20px;">
+          <li style="margin-bottom: 10px;">Non-compliance with data encryption policies, leading to unauthorized data access.</li>
+          <li style="margin-bottom: 10px;">Delayed incident response could escalate risks.</li>
+        </ul>
+      </div>
+
+        
+      <div id="content3" class="tab-content">
+  <h2 style="margin-top: 20px; margin-bottom: 10px;">Objective:</h2>
+  <p style="margin-bottom: 20px;">
+    Ensure access controls are adequately designed and implemented, and only authorized personnel have access to critical systems.
+  </p>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Test Description:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;"><strong>Access Logs Review:</strong> Test whether system access logs show any unauthorized access.</li>
+    <li style="margin-bottom: 10px;"><strong>Segregation of Duties Testing:</strong> Review if critical functions (e.g., payment approvals) are performed by independent staff.</li>
+    <li style="margin-bottom: 10px;"><strong>Role Review:</strong> Check for any roles that have unnecessary or excessive privileges.</li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Risks:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;"><strong>Unauthorized Access:</strong> Privileged users can manipulate data or execute fraudulent transactions.</li>
+    <li style="margin-bottom: 10px;"><strong>Lack of Segregation:</strong> Users having excessive privileges pose fraud risks.</li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Substantive Tests:</h4>
+  <div class="table-container">
+  <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr style="background-color: #ff9800; color: white;">
+      <th style="padding: 12px; text-align: left;">Test Type</th>
+      <th style="padding: 12px; text-align: left;">Control Question</th>
+      <th style="padding: 12px; text-align: left;">Evidence</th>
+      <th style="padding: 12px; text-align: left;">Expected Result</th>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Access Log Review</td>
+      <td style="padding: 12px;">Are there any instances of unauthorized access?</td>
+      <td style="padding: 12px;">System access logs</td>
+      <td style="padding: 12px;">No unauthorized access instances</td>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Segregation of Duties</td>
+      <td style="padding: 12px;">Are critical functions segregated to avoid conflict of interest?</td>
+      <td style="padding: 12px;">User role descriptions, system logs</td>
+      <td style="padding: 12px;">Proper segregation of duties</td>
+    </tr>
+  </table>
+  </div>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Control Failures:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">Users with excessive access privileges compromising internal controls.</li>
+    <li style="margin-bottom: 10px;">Lack of segregation of duties leading to fraud risks.</li>
+  </ul>
+</div>
+
+
+      <div id="content4" class="tab-content">
+        <h2 style="margin-top: 20px; margin-bottom: 10px;">Objective:</h2>
+  <p style="margin-bottom: 20px;">
+    Ensure that incident response and recovery procedures are in place and functional.
+  </p>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Test Description:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">
+      <strong>Incident Response Plan Review:</strong> Test the bank’s adherence to its incident response plan.
+    </li>
+    <li style="margin-bottom: 10px;">
+      <strong>Recovery Time Objective (RTO) Testing:</strong> Validate that critical systems meet their RTO in disaster recovery scenarios.
+    </li>
+    <li style="margin-bottom: 10px;">
+      <strong>Breach Response Simulation:</strong> Perform a breach response simulation and evaluate the recovery process.
+    </li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Risks:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;"><strong>Delayed Incident Recovery:</strong> Failure to restore critical systems quickly leads to operational downtime.</li>
+    <li style="margin-bottom: 10px;"><strong>Ineffective Response Plans:</strong> Unpreparedness in handling security incidents.</li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Substantive Tests:</h4>
+  <div class="table-container">
+  <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr style="background-color: #ff9800; color: white;">
+      <th style="padding: 12px; text-align: left;">Test Type</th>
+      <th style="padding: 12px; text-align: left;">Control Question</th>
+      <th style="padding: 12px; text-align: left;">Evidence</th>
+      <th style="padding: 12px; text-align: left;">Expected Result</th>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Incident Review</td>
+      <td style="padding: 12px;">Is the incident response plan adhered to?</td>
+      <td style="padding: 12px;">Incident logs, response timelines</td>
+      <td style="padding: 12px;">Incident plan followed</td>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">RTO Testing</td>
+      <td style="padding: 12px;">Did the system meet the required recovery time?</td>
+      <td style="padding: 12px;">Recovery logs, simulation results</td>
+      <td style="padding: 12px;">RTO met for all critical systems</td>
+    </tr>
+  </table>
+  </div>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Control Failures:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">Failure to meet RTO objectives, leaving systems vulnerable to downtime.</li>
+    <li style="margin-bottom: 10px;">Ineffective incident response, escalating breach impact.</li>
+  </ul>
+</div>
+
+
+      <div id="content5" class="tab-content">
+        <h2 style="margin-top: 20px; margin-bottom: 10px;">Objective:</h2>
+  <p style="margin-bottom: 20px;">
+    Ensure that third-party vendors comply with the bank’s cybersecurity and operational risk requirements.
+  </p>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Test Description:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">
+      <strong>Vendor Contract Review:</strong> Assess compliance with security clauses in vendor contracts.
+    </li>
+    <li style="margin-bottom: 10px;">
+      <strong>Third-Party Audit Review:</strong> Review audit reports from third-party vendors to ensure compliance with security controls.
+    </li>
+    <li style="margin-bottom: 10px;">
+      <strong>Vendor Risk Assessment:</strong> Evaluate whether the bank periodically assesses vendor risks.
+    </li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Risks:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;"><strong>Vendor Data Breach:</strong> Third-party vendors might not have adequate controls, leading to data breaches.</li>
+    <li style="margin-bottom: 10px;"><strong>Operational Risks:</strong> Vendors failing to meet SLAs can disrupt services.</li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Substantive Tests:</h4>
+  <div class="table-container">
+  <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr style="background-color: #ff9800; color: white;">
+      <th style="padding: 12px; text-align: left;">Test Type</th>
+      <th style="padding: 12px; text-align: left;">Control Question</th>
+      <th style="padding: 12px; text-align: left;">Evidence</th>
+      <th style="padding: 12px; text-align: left;">Expected Result</th>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Vendor Contract Review</td>
+      <td style="padding: 12px;">Do vendor contracts include necessary security clauses?</td>
+      <td style="padding: 12px;">Vendor contracts</td>
+      <td style="padding: 12px;">Contracts meet security standards</td>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Audit Review</td>
+      <td style="padding: 12px;">Are third-party vendors compliant with security controls?</td>
+      <td style="padding: 12px;">Vendor audit reports</td>
+      <td style="padding: 12px;">Vendors are compliant</td>
+    </tr>
+  </table>
+  </div>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Control Failures:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">Vendor contracts lacking required security clauses, leaving the bank exposed.</li>
+    <li style="margin-bottom: 10px;">Vendors failing to meet compliance requirements.</li>
+  </ul>
+</div>
+
+
+      <div id="content6" class="tab-content">
+        <h2 style="margin-top: 20px; margin-bottom: 10px;">Objective:</h2>
+  <p style="margin-bottom: 20px;">
+    Ensure accuracy of financial reporting through proper reconciliation procedures.
+  </p>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Test Description:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">
+      <strong>Bank Reconciliation Review:</strong> Test the reconciliation of bank accounts with financial statements.
+    </li>
+    <li style="margin-bottom: 10px;">
+      <strong>General Ledger Reconciliation:</strong> Ensure all ledger entries are backed by supporting documentation.
+    </li>
+    <li style="margin-bottom: 10px;">
+      <strong>Suspense Account Review:</strong> Examine suspense accounts for unresolved items.
+    </li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Risks:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;"><strong>Misstatements:</strong> Errors in reconciliations leading to misstated financial statements.</li>
+    <li style="margin-bottom: 10px;"><strong>Unreconciled Accounts:</strong> Suspense accounts with unresolved items that indicate poor financial management.</li>
+  </ul>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Substantive Tests:</h4>
+  <div class="table-container">
+  <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr style="background-color: #ff9800; color: white;">
+      <th style="padding: 12px; text-align: left;">Test Type</th>
+      <th style="padding: 12px; text-align: left;">Control Question</th>
+      <th style="padding: 12px; text-align: left;">Evidence</th>
+      <th style="padding: 12px; text-align: left;">Expected Result</th>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Bank Reconciliation</td>
+      <td style="padding: 12px;">Are all accounts reconciled to financial statements?</td>
+      <td style="padding: 12px;">Bank statements, GL reports</td>
+      <td style="padding: 12px;">Accounts are reconciled properly</td>
+    </tr>
+    <tr style="background-color: #f9f9f9;">
+      <td style="padding: 12px;">Ledger Reconciliation</td>
+      <td style="padding: 12px;">Are all GL entries supported by proper documentation?</td>
+      <td style="padding: 12px;">General Ledger entries, supporting documents</td>
+      <td style="padding: 12px;">All entries have valid support</td>
+    </tr>
+  </table>
+  </div>
+
+  <h4 style="margin-top: 20px; margin-bottom: 10px;">Control Failures:</h4>
+  <ul style="margin-bottom: 20px; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">Misstatements in reconciliations, affecting the accuracy of financial reporting.</li>
+    <li style="margin-bottom: 10px;">Suspense accounts holding unreconciled or unsupported transactions.</li>
+  </ul>
+</div>
+    </div>
+</main>
+    <script>
+      // Toggle Sidebar
+function toggleSidebar() {
+   document.getElementById("sidebar").classList.toggle("open");
+   const menuIcon = document.querySelector(".menu-icon i"); // Get the current icon
+
+   // Toggle the icon when the sidebar opens or closes
+   if (menuIcon.classList.contains("bx-menu")) {
+       menuIcon.classList.replace("bx-menu", "bx-x"); // Switch to close icon
+   } else {
+       menuIcon.classList.replace("bx-x", "bx-menu"); // Switch back to menu icon
+   }
+}
+
+// Function to close the sidebar when clicking outside
+function closeSidebarIfClickedOutside(event) {
+   const sidebar = document.getElementById("sidebar");
+   const menuIcon = document.querySelector(".menu-icon i");
+   
+   // Check if the click is outside the sidebar and not on the menu icon
+   if (!sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+       sidebar.classList.remove("open");
+       menuIcon.classList.replace("bx-x", "bx-menu"); // Revert the icon back to the menu
+   }
+}
+
+// Add the event listener to close sidebar if clicking outside
+document.addEventListener("click", closeSidebarIfClickedOutside);
+
+
+function toggleSubmenu(event) {
+ event.preventDefault(); // Prevents page reload
+
+ let parent = event.target.closest(".submenu"); // Find the clicked <li>
+ let submenu = parent.querySelector(".submenu-items"); // Find submenu in this <li>
+
+ // Close all other submenus before opening the clicked one
+ document.querySelectorAll(".submenu-items").forEach((item) => {
+   if (item !== submenu) {
+     item.classList.remove("open"); // Use class to control the display
+     item.style.display = "none"; // Remove inline style if necessary
+     item.parentElement.classList.remove("open");
+   }
+ });
+
+ // Toggle the clicked submenu
+ if (submenu.classList.contains("open")) {
+   submenu.classList.remove("open");
+   submenu.style.display = "none"; // Close
+   parent.classList.remove("open");
+ } else {
+   submenu.classList.add("open");
+   submenu.style.display = "block"; // Open
+   parent.classList.add("open");
+ }
+}
+
+
+function toggleSubmenu(event) {
+   event.preventDefault();
+   const submenu = event.target.nextElementSibling;
+   if (submenu) {
+     submenu.classList.toggle('active');
+   }
+ }
+
+      function setActiveTab(tabElement, contentId) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((tab) => tab.classList.remove("active"));
+        tabElement.classList.add("active");
+
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((content) => (content.style.display = "none"));
+        document.getElementById(contentId).style.display = "block";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("content1").style.display = "block";
+      });
+    </script>
+  </body>
+</html>
+

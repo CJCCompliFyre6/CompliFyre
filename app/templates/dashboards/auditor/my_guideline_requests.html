@@ -1,0 +1,727 @@
+<!-- app/templates/dashboards/auditor/my_guideline_requests.html -->
+{% extends "audit_base.html" %}
+{% block content %}
+
+<style>
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .status-pending { background-color: #fef3c7; color: #92400e; }
+    .status-submitted { background-color: #dbeafe; color: #1e40af; }
+    .status-processing { background-color: #f3e8ff; color: #6b21a8; }
+    .status-completed { background-color: #d1fae5; color: #065f46; }
+    .status-email_failed { background-color: #fee2e2; color: #991b1b; }
+    .status-rejected { background-color: #fca5a5; color: #7f1d1d; }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        animation: fadeIn 0.3s ease;
+    }
+
+    .modal-content {
+        background-color: white;
+        margin: 5% auto;
+        padding: 0;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        width: 90%;
+        max-width: 800px;
+        max-height: 85vh;
+        overflow-y: auto;
+        animation: slideIn 0.3s ease;
+        position: relative;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes slideIn {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+        padding: 24px 32px;
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        color: white;
+        border-radius: 16px 16px 0 0;
+        position: relative;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    .modal-body {
+        padding: 32px;
+    }
+
+    .close {
+        position: absolute;
+        right: 24px;
+        top: 24px;
+        color: white;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.2);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+
+    .close:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: rotate(90deg);
+    }
+
+    /* Details Card Styles */
+    .details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+        margin-bottom: 32px;
+    }
+
+    .details-card {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #e2e8f0;
+        transition: all 0.3s ease;
+    }
+
+    .details-card:hover {
+        border-color: #f97316;
+        box-shadow: 0 8px 24px rgba(249, 115, 22, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .details-card h3 {
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .details-card h3 svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .detail-item {
+        margin-bottom: 16px;
+    }
+
+    .detail-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .detail-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }
+
+    .detail-value {
+        font-size: 16px;
+        font-weight: 500;
+        color: #1e293b;
+        word-break: break-word;
+    }
+
+    .detail-value a {
+        color: #3b82f6;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+
+    .detail-value a:hover {
+        color: #1d4ed8;
+        text-decoration: underline;
+    }
+
+    /* Attachment Section */
+    .attachment-section {
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 24px;
+    }
+
+    .attachment-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .attachment-header svg {
+        color: #059669;
+        width: 24px;
+        height: 24px;
+    }
+
+    .attachment-header h4 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #065f46;
+    }
+
+    .attachment-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid #d1fae5;
+    }
+
+    .file-icon {
+        width: 40px;
+        height: 40px;
+        background: #d1fae5;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .file-icon svg {
+        width: 24px;
+        height: 24px;
+        color: #059669;
+    }
+
+    .file-details {
+        flex: 1;
+    }
+
+    .file-name {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+
+    .file-size {
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top: 4px solid #f97316;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Button Styles */
+    .btn-primary {
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        color: white;
+        padding: 10px 24px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
+    }
+
+    .btn-secondary {
+        background: #f1f5f9;
+        color: #475569;
+        padding: 10px 24px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 10px 24px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Empty State */
+    .no-data {
+        text-align: center;
+        padding: 40px 20px;
+        color: #64748b;
+    }
+
+    .no-data svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        color: #cbd5e1;
+    }
+
+    /* Timeline */
+    .timeline {
+        position: relative;
+        padding-left: 24px;
+        margin-top: 24px;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        bottom: 8px;
+        width: 2px;
+        background: #e2e8f0;
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 20px;
+    }
+
+    .timeline-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .timeline-dot {
+        position: absolute;
+        left: -24px;
+        top: 4px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #f97316;
+        border: 3px solid white;
+        box-shadow: 0 0 0 3px #fde68a;
+    }
+
+    .timeline-content {
+        background: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .timeline-date {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .timeline-text {
+        font-size: 14px;
+        color: #1e293b;
+    }
+</style>
+
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+    <div class="organization px-6 py-4">
+        <h1 class="text-2xl">My Guideline Requests</h1>
+        <p><a href="{{ url_for('audit.my_guidelines') }}">My Guidelines</a> / My Requests</p>
+    </div>
+    <div class="px-6 py-4">
+        <a href="{{ url_for('audit.request_guideline') }}">
+            <button class="px-6 py-3 bg-gradient-to-r from-[#ff7b00] to-[#ff4d00] text-white rounded-full hover:opacity-90 transition-all font-medium">
+                + New Request
+            </button>
+        </a>
+    </div>
+</main>
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6 mb-8">
+    {% if requests %}
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="py-4 px-6 text-left font-semibold text-gray-700">Guideline Name</th>
+                    <th class="py-4 px-6 text-left font-semibold text-gray-700">Regulator</th>
+                    <th class="py-4 px-6 text-left font-semibold text-gray-700">Submitted On</th>
+                    <th class="py-4 px-6 text-left font-semibold text-gray-700">Status</th>
+                    <th class="py-4 px-6 text-left font-semibold text-gray-700">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for request in requests %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="py-4 px-6 font-medium text-gray-900">{{ request.guideline_name }}</td>
+                    <td class="py-4 px-6 text-gray-700">{{ request.regulator_name }}</td>
+                    <td class="py-4 px-6 text-gray-700">{{ request.created_at.strftime('%d %b %Y') }}</td>
+                    <td class="py-4 px-6">
+                        <span class="status-badge status-{{ request.status }}">
+                            {{ request.status|title }}
+                        </span>
+                    </td>
+                    <td class="py-4 px-6">
+                        <button onclick="viewRequestDetails({{ request.id }})" 
+                                class="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                            View Details
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg class="mx-auto h-16 w-16 text-gray-400 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="text-xl font-medium text-gray-900 mb-2">No Guideline Requests Yet</h3>
+        <p class="text-gray-500 mb-6">You haven't submitted any guideline requests yet.</p>
+        <a href="{{ url_for('audit.request_guideline') }}">
+            <button class="px-6 py-3 bg-gradient-to-r from-[#ff7b00] to-[#ff4d00] text-white rounded-full hover:opacity-90 transition-all font-medium">
+                Submit Your First Request
+            </button>
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal for viewing request details -->
+<div id="requestModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Request Details</h2>
+            <span class="close" onclick="closeRequestModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div id="requestDetails">
+                <!-- Details will be loaded here via JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function viewRequestDetails(requestId) {
+        try {
+            // Show loading state
+            const detailsDiv = document.getElementById('requestDetails');
+            detailsDiv.innerHTML = `
+                <div class="text-center py-12">
+                    <div class="spinner"></div>
+                    <p class="mt-4 text-gray-600 font-medium">Loading request details...</p>
+                </div>
+            `;
+
+            // Show modal
+            const modal = document.getElementById('requestModal');
+            modal.style.display = "block";
+
+            // Fetch data
+            const response = await fetch(`/audit/api/guideline-requests/${requestId}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Check for API error
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Format dates
+            const formatDate = (dateStr) => {
+                if (!dateStr) return 'N/A';
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+
+            // Format status display
+            const formatStatus = (status) => {
+                if (!status) return 'Unknown';
+                return status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+            };
+
+            // Create HTML template
+            detailsDiv.innerHTML = `
+                <div class="details-grid">
+                    <!-- Request Details Card -->
+                    <div class="details-card">
+                        <h3>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Request Information
+                        </h3>
+                        <div class="detail-item">
+                            <span class="detail-label">Guideline Name</span>
+                            <span class="detail-value">${data.guideline_name || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Regulator / Authority</span>
+                            <span class="detail-value">${data.regulator_name || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Web Link</span>
+                            <span class="detail-value">
+                                ${data.web_link ? 
+                                    `<a href="${data.web_link}" target="_blank" rel="noopener noreferrer">
+                                        ${data.web_link}
+                                    </a>` : 
+                                    'Not provided'}
+                            </span>
+                        </div>
+                       
+                    </div>
+
+                    <!-- Status & Timeline Card -->
+                    <div class="details-card">
+                        <h3>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Status & Timeline
+                        </h3>
+                        <div class="detail-item">
+                            <span class="detail-label">Current Status</span>
+                            <span class="status-badge status-${data.status}" style="display: inline-block; margin-top: 4px;">
+                                ${formatStatus(data.status)}
+                            </span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Submitted On</span>
+                            <span class="detail-value">${formatDate(data.created_at)}</span>
+                        </div>
+                        ${data.updated_at ? `
+                        <div class="detail-item">
+                            <span class="detail-label">Last Updated</span>
+                            <span class="detail-value">${formatDate(data.updated_at)}</span>
+                        </div>` : ''}
+                        
+                        <!-- Timeline -->
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <div class="timeline-content">
+                                    <div class="timeline-date">${formatDate(data.created_at)}</div>
+                                    <div class="timeline-text">Request submitted</div>
+                                </div>
+                            </div>
+                            ${data.status === 'submitted' ? `
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <div class="timeline-content">
+                                    <div class="timeline-date">${formatDate(data.updated_at || data.created_at)}</div>
+                                    <div class="timeline-text">Request submitted to ComplifyRe team</div>
+                                </div>
+                            </div>` : ''}
+                        </div>
+                    </div>
+
+                    
+                </div>
+
+                <!-- Additional Notes -->
+                ${data.additional_notes ? `
+                <div class="details-card">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                        Additional Notes
+                    </h3>
+                    <div class="detail-value" style="background: #fef3c7; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                        ${data.additional_notes}
+                    </div>
+                </div>` : ''}
+
+                <!-- Admin Notes -->
+                ${data.admin_notes ? `
+                <div class="details-card" style="border-color: #fca5a5;">
+                    <h3 style="color: #dc2626;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        Admin Notes
+                    </h3>
+                    <div class="detail-value" style="background: #fee2e2; padding: 16px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                        ${data.admin_notes}
+                    </div>
+                </div>` : ''}
+
+                <!-- Attachment Section -->
+                ${data.attachment_filename ? `
+                <div class="attachment-section">
+                    <div class="attachment-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        <h4>Attached Document</h4>
+                    </div>
+                    <div class="attachment-info">
+                        <div class="file-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div class="file-details">
+                            <div class="file-name">${data.attachment_filename}</div>
+                            <div class="file-size">PDF Document</div>
+                        </div>
+                        
+                    </div>
+                </div>` : ''}
+
+                <!-- Action Buttons -->
+                <div class="mt-8 flex justify-end gap-3">
+                    <button onclick="closeRequestModal()" class="btn-secondary">
+                        Close
+                    </button>
+                    
+                </div>
+            `;
+
+        } catch (error) {
+            console.error('Error fetching request details:', error);
+            
+            // Show error state
+            const detailsDiv = document.getElementById('requestDetails');
+            detailsDiv.innerHTML = `
+                <div class="no-data">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Unable to Load Details</h3>
+                    <p class="text-gray-600 mb-4">There was an error loading the request details.</p>
+                    <p class="text-sm text-gray-500 mb-6">Error: ${error.message}</p>
+                    <div class="flex justify-center gap-3">
+                        <button onclick="closeRequestModal()" class="btn-secondary">
+                            Close
+                        </button>
+                        <button onclick="viewRequestDetails(${requestId})" class="btn-primary">
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Download attachment function
+    async function downloadAttachment(requestId) {
+        try {
+            const response = await fetch(`/audit/api/guideline-requests/${requestId}/download`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'guideline_attachment.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert('Error downloading attachment. Please try again.');
+            }
+        } catch (error) {
+            console.error('Download error:', error);
+            alert('Error downloading attachment. Please try again.');
+        }
+    }
+
+    function closeRequestModal() {
+        document.getElementById('requestModal').style.display = "none";
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('requestModal');
+        if (event.target === modal) {
+            closeRequestModal();
+        }
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            closeRequestModal();
+        }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,287 @@
+<!-- app/templates/dashboards/auditor/request_guideline.html -->
+{% extends "audit_base.html" %}
+{% block content %}
+
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .form-group {
+        margin-bottom: 24px;
+    }
+    
+    .form-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #374151;
+    }
+    
+    .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+    }
+    
+    .form-input:focus {
+        outline: none;
+        border-color: #f97316;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    }
+    
+    .file-input-container {
+        border: 2px dashed #d1d5db;
+        border-radius: 8px;
+        padding: 40px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .file-input-container:hover {
+        border-color: #f97316;
+        background-color: #fffbeb;
+    }
+    
+    .file-input {
+        display: none;
+    }
+    
+    .file-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+    }
+    
+    .file-icon {
+        font-size: 48px;
+        color: #9ca3af;
+    }
+    
+    .file-name {
+        color: #6b7280;
+        font-size: 14px;
+        margin-top: 8px;
+    }
+    
+    .validation-error {
+        color: #ef4444;
+        font-size: 14px;
+        margin-top: 4px;
+    }
+    
+    .submit-btn {
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        color: white;
+        padding: 14px 32px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
+    .submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.3);
+    }
+    
+    .submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .requirements-note {
+        background-color: #fef3c7;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .requirements-note ul {
+        margin: 8px 0 0 20px;
+    }
+</style>
+
+<main class="flex w-auto mx-8 my-4 bg-orange-100 z-1 rounded-xl justify-between items-center">
+    <div class="organization px-6 py-4">
+        <h1 class="text-2xl">Request New Guideline</h1>
+        <p><a href="{{ url_for('audit.my_guidelines') }}">My Guidelines</a> / Request New Guideline</p>
+    </div>
+</main>
+
+<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6 mb-8">
+    <div class="form-container">
+        <div class="requirements-note">
+            <p class="font-semibold text-gray-800 mb-2">📋 Requirements:</p>
+            <ul class="text-gray-700">
+                <li>Guideline Name and Regulator Name are <strong>required</strong></li>
+                <li>You must provide <strong>either</strong> a Web Link <strong>or</strong> attach a PDF copy</li>
+                <li>Your contact information will be automatically included in the request</li>
+            </ul>
+        </div>
+        
+        <form method="POST" enctype="multipart/form-data" id="guidelineRequestForm">
+            {{ form.hidden_tag() }}
+            
+            <div class="form-group">
+                <label class="form-label" for="guideline_name">Guideline Name *</label>
+                {{ form.guideline_name(class="form-input", placeholder="e.g., Basel III Guidelines for Banking Sector") }}
+                {% if form.guideline_name.errors %}
+                    {% for error in form.guideline_name.errors %}
+                        <p class="validation-error">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="regulator_name">Regulator Name *</label>
+                {{ form.regulator_name(class="form-input", placeholder="e.g., Reserve Bank of India (RBI)") }}
+                {% if form.regulator_name.errors %}
+                    {% for error in form.regulator_name.errors %}
+                        <p class="validation-error">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="web_link">Web Link</label>
+                {{ form.web_link(class="form-input", placeholder="https://www.example.com/guideline-document.pdf") }}
+                {% if form.web_link.errors %}
+                    {% for error in form.web_link.errors %}
+                        <p class="validation-error">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+                <p class="text-sm text-gray-500 mt-2">Provide the official link to the guideline document</p>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">OR Attach Guideline (PDF)</label>
+                <div class="file-input-container" onclick="document.getElementById('attachment').click()">
+                    <div class="file-label">
+                        <div class="file-icon">📄</div>
+                        <div>
+                            <span class="text-blue-600 font-medium">Click to upload</span>
+                            <p class="text-gray-500 text-sm">or drag and drop</p>
+                            <p class="text-gray-400 text-sm mt-2">PDF files only (Max: 10MB)</p>
+                        </div>
+                        {{ form.attachment(class="file-input", id="attachment", onchange="updateFileName()") }}
+                    </div>
+                    <div id="fileNameDisplay" class="file-name"></div>
+                </div>
+                {% if form.attachment.errors %}
+                    {% for error in form.attachment.errors %}
+                        <p class="validation-error">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <div class="flex items-center gap-4">
+                    {{ form.submit(class="submit-btn", id="submitBtn") }}
+                    <a href="{{ url_for('audit.my_guidelines') }}">
+                        <button type="button" class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                            Cancel
+                        </button>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function updateFileName() {
+        const fileInput = document.getElementById('attachment');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            fileNameDisplay.textContent = `Selected file: ${file.name} (${(file.size / (1024*1024)).toFixed(2)} MB)`;
+            fileNameDisplay.style.color = '#059669';
+        } else {
+            fileNameDisplay.textContent = '';
+        }
+    }
+    
+    // Form validation
+    document.getElementById('guidelineRequestForm').addEventListener('submit', function(e) {
+        const guidelineName = document.getElementById('guideline_name').value.trim();
+        const regulatorName = document.getElementById('regulator_name').value.trim();
+        const webLink = document.getElementById('web_link').value.trim();
+        const attachment = document.getElementById('attachment').files.length;
+        
+        if (!guidelineName || !regulatorName) {
+            e.preventDefault();
+            alert('Please fill in all required fields (Guideline Name and Regulator Name)');
+            return;
+        }
+        
+        if (!webLink && !attachment) {
+            e.preventDefault();
+            alert('Please provide either a Web Link or attach a PDF file');
+            return;
+        }
+        
+        // Disable submit button to prevent double submission
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').innerHTML = 'Submitting...';
+    });
+    
+    // Drag and drop functionality
+    const dropArea = document.querySelector('.file-input-container');
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight() {
+        dropArea.style.borderColor = '#f97316';
+        dropArea.style.backgroundColor = '#fffbeb';
+    }
+    
+    function unhighlight() {
+        dropArea.style.borderColor = '#d1d5db';
+        dropArea.style.backgroundColor = '';
+    }
+    
+    dropArea.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        const fileInput = document.getElementById('attachment');
+        fileInput.files = files;
+        updateFileName();
+    }
+</script>
+
+{% endblock %}
