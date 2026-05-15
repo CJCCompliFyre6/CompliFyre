@@ -1049,6 +1049,7 @@ def clause_extraction_progress(guideline_id):
     def generate():
         redis_conn = get_redis_connection()
         last_data = None
+        heartbeat_counter = 0
 
         while True:
             # Get current progress from Redis
@@ -1064,6 +1065,12 @@ def clause_extraction_progress(guideline_id):
                     # Stop if completed or failed
                     if data.get("status") in ["COMPLETED", "FAILED"]:
                         break
+            
+            # Heartbeat every 30 seconds to keep connection alive
+            heartbeat_counter += 1
+            if heartbeat_counter >= 30:
+                yield f": heartbeat\n\n"
+                heartbeat_counter = 0
 
             time.sleep(1)  # Check every second
 
