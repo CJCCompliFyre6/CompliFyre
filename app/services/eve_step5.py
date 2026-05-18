@@ -170,21 +170,32 @@ def _build_step5_prompt(
     evidence_id: int,
     evidence_content: str,
 ) -> str:
-    """Build EVE Step 5 prompt — matches Excel sheet exactly."""
+    """Build EVE Step 5 prompt — V3 with all 14 principles."""
 
     return f"""You are an Audit Evidence Execution Engine.
 
 TASK:
-Analyze the provided evidence and generate structured evaluation signals against relevant checklist items.
+Evaluate the provided evidence against the applicable atomic checklist items.
 
-You must extract facts, detect support and contradictions, and prepare outputs for aggregation.
+You must:
+* validate evidence against checklist assertions
+* determine checklist satisfaction status
+* generate traceable evidence mappings
+* maintain assurance state updates
+* identify contradictions, ambiguities, inadmissibility, and inquiry triggers
+* support D / IE / OE evaluation logic
+* support attribute, analytical, and population testing
+* identify exact exceptions during OE testing
+* produce deterministic evidence evaluation outputs
 
-DO NOT:
-* assign final compliance status
-* generate findings
-* conclude control effectiveness
+You must NOT:
+* generate audit findings
+* generate recommendations
+* generate severity ratings
+* generate audit conclusions
+* directly assess overall compliance
 
-Return ONLY valid JSON.
+Return ONLY valid JSON. No explanation. No markdown.
 
 ---
 
@@ -210,7 +221,27 @@ INPUT:
 
 ---
 
-SUB-STEP-1 — CLASSIFY EVIDENCE TYPE
+PRINCIPLE 1 — CHECKLIST-DRIVEN EVALUATION ONLY:
+Evaluate evidence ONLY against the atomic checklist items provided.
+Do NOT summarize documents freely, generate narrative interpretations, or evaluate outside checklist scope.
+
+PRINCIPLE 2 — ITEM-BY-ITEM VALIDATION:
+Evaluate each checklist item independently.
+Determine status: YES / NO / PARTIAL / NEEDS_REVIEW
+Maintain cumulative checklist state across all uploaded evidence.
+
+PRINCIPLE 3 — EVIDENCE TRACEABILITY IS MANDATORY:
+Every checklist evaluation must contain:
+* evidence source
+* evidence location (exact section/page/reference)
+* supporting extract (exact text from evidence)
+* confidence classification
+* admissibility status
+Results may NOT be assigned without supporting extract OR explicit inadmissibility rationale.
+
+---
+
+SUB-STEP-1 — CLASSIFY EVIDENCE TYPE:
 
 Classify evidence using predefined types:
 POLICY_DOCUMENT | PROCEDURE_DOCUMENT | SOP_DOCUMENT | SYSTEM_SCREENSHOT |
@@ -221,11 +252,9 @@ PROCESS_FLOW_DIAGRAM | NETWORK_DIAGRAM | ARCHITECTURE_DIAGRAM |
 THIRD_PARTY_DOCUMENT | CONTRACT | SLA_DOCUMENT | CERTIFICATE |
 AUDIT_REPORT | INTERVIEW_RESPONSE | EXCEPTION_RECORD | INCIDENT_RECORD
 
-Return: "evidence_type": ""
-
 ---
 
-SUB-STEP-2 — EXTRACT METADATA
+SUB-STEP-2 — EXTRACT METADATA:
 
 Extract if available:
 * entity_name
@@ -233,210 +262,316 @@ Extract if available:
 * approval_authority
 * approval_date
 * effective_date
+* document_version
 
 ---
 
-SUB-STEP-3 — ADMISSIBILITY CHECK
+SUB-STEP-3 — ADMISSIBILITY CHECK (PRINCIPLE 6):
 
-Evaluate:
-
-A. Ownership:
-* match with auditee → PASS
-* mismatch → FAIL
-* unclear → UNKNOWN
-
-B. Audit Period:
-* within period → PASS
-* outside → FAIL
-* unknown → UNKNOWN
-
-C. Approval:
-* if applicable → validate presence
-* else → NOT_REQUIRED
-
-D. Integrity:
-* structured and readable → PASS
-* partial → PARTIAL
-* poor → FAIL
-
-DETERMINE admissibility:
-* ADMISSIBLE / PARTIAL / INADMISSIBLE
+Evaluate admissibility using 5 states:
+* VALID: Evidence sufficiently supports assertion
+* NOT_PROVIDED: Required evidence absent
+* PROVIDED_INVALID: Uploaded but unacceptable (wrong entity, wrong period, corrupt)
+* PROVIDED_INSUFFICIENT: Partial support only — does not meet pass condition
+* CONTRADICTORY: Conflicts with requirement or other evidence
 
 Rules:
-* ownership FAIL → INADMISSIBLE
-* period FAIL → INADMISSIBLE
-* integrity FAIL → PARTIAL
-* UNKNOWN values → PARTIAL
+* Ownership FAIL → PROVIDED_INVALID
+* Period FAIL → PROVIDED_INVALID
+* Integrity FAIL → PROVIDED_INSUFFICIENT
+* UNKNOWN values → PROVIDED_INSUFFICIENT
+
+EXPLAINABLE INADMISSIBILITY IS MANDATORY:
+Where evidence is inadmissible, explicitly state:
+* which evidence failed
+* why it failed
+* what deficiency was identified
 
 ---
 
-SUB-STEP-4 — SET EVIDENCE META
+SUB-STEP-4 — SET EVIDENCE META:
 
-Assign:
-* strength:
-  STRONG → logs, configs, datasets, policies
-  MODERATE → reports, screenshots
-  WEAK → interviews
+Assign strength:
+* STRONG: logs, configs, datasets, policies, board documents
+* MODERATE: reports, screenshots, emails
+* WEAK: interviews, observations
 
-* role:
-  PRIMARY → direct evidence (policy, logs, config)
-  SUPPORTING → indirect evidence (interviews)
+Assign role:
+* PRIMARY: direct evidence (policy, logs, config, datasets)
+* SUPPORTING: indirect evidence (interviews, screenshots)
+* OBSERVATIONAL: walkthrough, process trace
+* ANALYTICAL: trend analysis, reconciliation, recomputation
 
 ---
 
-SUB-STEP-5 — FILTER RELEVANT CHECKLIST ITEMS
+SUB-STEP-5 — FILTER RELEVANT CHECKLIST ITEMS:
 
 Evaluate ONLY items where:
-evidence_type ∈ expected_evidence_types
+evidence_type is in expected_evidence_types for that checklist item.
 
 ---
 
-SUB-STEP-6 — EXTRACT CLAIMS AND CHECKPOINTS
+SUB-STEP-6 — EXTRACT CLAIMS AND CHECKPOINTS:
 
 For each relevant checklist item extract:
 * claims: structured statements from evidence
 * checkpoints: atomic facts aligned to requirement
 
 Classify claim_type:
-* DOCUMENTED
-* OBSERVED
-* ASSERTION
+* DOCUMENTED: explicitly written in evidence
+* OBSERVED: observed during walkthrough
+* ASSERTION: stated verbally/in interview
 
 ---
 
-SUB-STEP-7 — DETECT SIGNALS
+SUB-STEP-7 — DETECT SIGNALS AND CONTRADICTIONS (PRINCIPLE 7):
 
 For each checklist item determine:
 signal = SUPPORTS / CONTRADICTS / INSUFFICIENT
 
 RULES:
-SUPPORTS:
-* evidence aligns with requirement
-* satisfies pass_condition fully or partially
+SUPPORTS: evidence aligns with requirement, satisfies pass_condition fully or partially
+INSUFFICIENT: evidence exists but incomplete, does not fully meet pass_condition
+CONTRADICTS: evidence conflicts with requirement OR conflicts with another statement
 
-INSUFFICIENT:
-* evidence exists but incomplete
-* does not fully meet pass_condition
-
-CONTRADICTS:
-* evidence conflicts with requirement OR
-* evidence conflicts with another statement within the same evidence
-
-Examples:
-* required quarterly, evidence shows annual → CONTRADICTS
-* interview says yes, document shows no → CONTRADICTS
-* internal inconsistency → CONTRADICTS
+CRITICAL — CONTRADICTION HANDLING:
+* Detected contradictions must generate INQUIRY TRIGGERS
+* Contradictions must NOT automatically generate findings or failures
+* Contradiction lifecycle: identified → inquiry triggered → clarification → resolved or escalated
+* Only UNRESOLVED / MATERIAL contradictions may negatively impact assurance
 
 IMPORTANT:
+* Absence of evidence is NOT contradiction
 * CONTRADICTS must only be used for clear logical conflict
-* absence of evidence is NOT contradiction
 
 ---
 
-SUB-STEP-8 — APPLY TEST LOGIC
+SUB-STEP-8 — LOGICAL VALIDATION (PRINCIPLE 8):
 
-Use:
-* testing_method
-* testing_approach
-* evaluation_logic
+Validate logical integrity across evidence:
+* CHRONOLOGY: dates in logical sequence (approval before effective date)
+* AUDIT_PERIOD_ALIGNMENT: evidence falls within audit period
+* VERSION_ALIGNMENT: document versions consistent across evidence
+* CROSS_DOC_CONSISTENCY: same facts stated consistently across documents
+* APPROVAL_SEQUENCING: approval authority and sequence correct
+* DEPENDENCY_CONSISTENCY: dependent controls/processes consistent
+
+Logical failures must generate inquiry triggers.
+
+---
+
+SUB-STEP-9 — APPLY TEST LOGIC (PRINCIPLE 9, 10, 11):
+
+Use testing_method, testing_approach, evaluation_logic from checklist.
 
 STATUS RULES:
-* PASS → pass_condition fully satisfied
-* PARTIAL → partially satisfied or incomplete
-* FAIL → fail_condition met
+* YES: pass_condition fully satisfied with explicit evidence extract
+* PARTIAL: partially satisfied or incomplete — partial_condition met
+* NO: fail_condition met
+* NEEDS_REVIEW: evidence exists but requires auditor judgment
+
+DIMENSION-SPECIFIC RULES:
+* DESIGN items: test existence/documentation ONLY — do NOT assess execution
+* IMPLEMENTATION items: test operationalization/rollout — do NOT conclude sustained effectiveness
+* OPERATING items: test execution over audit period — use attribute/sample/population testing
+
+ATTRIBUTE TESTING (P9):
+For OE items with oe_testing.applicable = YES:
+* evaluate each required attribute independently
+* identify exact failed attributes
+* preserve instance-level traceability
+
+ANALYTICAL TESTING (P10):
+* evaluate trends, ratios, thresholds, exception rates
+* disclose calculation logic
+* identify exact analytical exceptions
+
+POPULATION/SAMPLE TESTING (P11):
+* evaluate each instance independently
+* preserve population completeness
+* identify exact failed instances — do NOT summarize failures generically
 
 SPECIAL RULES:
 1. INTERVIEW_RESPONSE:
    * strength = WEAK
-   * cannot independently PASS HIGH weight items
+   * cannot independently pass HIGH weight items
    * at best → PARTIAL
 
 2. PROCESS_TRACE:
    * must show full flow + execution
-   * only flow → PARTIAL
+   * flow only → PARTIAL
 
 3. SAMPLE TESTING:
-   * evaluate: sample_size, exceptions_found, exception_rate, audit_period coverage
+   * evaluate: sample_size, exceptions_found, exception_rate, audit_period_coverage
 
 ---
 
-SUB-STEP-9 — EVIDENCE REFERENCE
+SUB-STEP-10 — EVIDENCE REFERENCE AND CONFIDENCE:
 
-Provide precise reference:
-* section / clause / identifiable text
+Provide:
+* exact section/clause/page reference
+* supporting extract (verbatim text from evidence)
 
----
-
-SUB-STEP-10 — CONFIDENCE
-
-Assign:
-HIGH → strong, clear evidence
-MEDIUM → moderate clarity
-LOW → weak / indirect
+Confidence Classification (P11):
+* EXPLICIT: requirement directly and clearly stated → allows YES
+* IMPLIED: reasonably inferred from context → allows PARTIAL only
+* AMBIGUOUS: unclear or indirect → allows PARTIAL or NEEDS_REVIEW only
 
 ---
 
-OUTPUT FORMAT (return exactly this structure):
+SUB-STEP-11 — EVIDENCE INTEGRITY VALIDATION (PRINCIPLE 13):
 
-{{
+Validate:
+* evidence_traceability: can result be traced to exact evidence location?
+* location_validation: is evidence location identified?
+* inference_prevention: is unsupported inference avoided?
+* period_alignment: does evidence fall within audit period?
+* cross_doc_consistency: are facts consistent across documents?
+* version_alignment: are document versions current and consistent?
+
+Evidence integrity failures must reduce assurance confidence and generate inquiry triggers.
+
+---
+
+SUB-STEP-12 — ASSURANCE STATE UPDATE (PRINCIPLE 12):
+
+Update assurance state variables:
+* assurance_score_delta: positive/negative/neutral impact
+* coverage_delta: how much of checklist is now covered
+* evidence_quality_impact: HIGH/MEDIUM/LOW
+* inquiry_triggered: YES/NO
+* contradiction_detected: YES/NO
+
+---
+
+OUTPUT FORMAT (return ONLY this structure — no explanation, no markdown):
+
+{{{{
   "evidence_id": "{evidence_id}",
   "evidence_type": "",
   "admissibility": "",
   "admissibility_reason": "",
   "confidence": "",
-  "evidence_meta": {{
+  "evidence_meta": {{{{
     "strength": "",
     "role": "",
     "entity_name": "",
     "document_title": "",
+    "document_version": "",
     "approval_authority": "",
     "approval_date": "",
     "effective_date": ""
-  }},
+  }}}},
   "claims": [
-    {{
+    {{{{
       "checklist_id": "",
       "claim": "",
       "claim_type": "",
       "confidence": ""
-    }}
+    }}}}
   ],
   "checkpoints": [
-    {{
+    {{{{
       "checklist_id": "",
-      "checkpoint": ""
-    }}
+      "checkpoint": "",
+      "evidence_location": "",
+      "supporting_extract": ""
+    }}}}
   ],
   "item_signals": [
-    {{
+    {{{{
       "checklist_id": "",
       "signal": "",
       "basis": "",
       "confidence": ""
-    }}
+    }}}}
   ],
   "results": [
-    {{
+    {{{{
       "checklist_id": "",
       "status": "",
+      "confidence_classification": "",
       "evidence_reference": "",
-      "confidence": ""
-    }}
+      "supporting_extract": "",
+      "admissibility_status": "",
+      "admissibility_reason": "",
+      "assurance_impact": ""
+    }}}}
   ],
-  "sample_evaluation": {{
-    "applicable": "YES/NO",
+  "inquiry_triggers": [
+    {{{{
+      "checklist_id": "",
+      "trigger_type": "CONTRADICTION_DETECTED | AMBIGUOUS_EVIDENCE | INSUFFICIENT_EVIDENCE | PERIOD_MISMATCH | LOGICAL_FAILURE | APPROVAL_MISSING",
+      "severity": "MATERIAL | MINOR",
+      "evidence_a_claim": "",
+      "evidence_b_claim": "",
+      "inquiry_question": "",
+      "suggested_additional_evidence": ""
+    }}}}
+  ],
+  "logical_validations": [
+    {{{{
+      "validation_type": "CHRONOLOGY | AUDIT_PERIOD_ALIGNMENT | VERSION_ALIGNMENT | CROSS_DOC_CONSISTENCY | APPROVAL_SEQUENCING",
+      "checklist_id": "",
+      "result": "PASS | FAIL | UNKNOWN",
+      "detail": "",
+      "inquiry_triggered": "YES | NO"
+    }}}}
+  ],
+  "attribute_test_results": [
+    {{{{
+      "checklist_id": "",
+      "instance_id": "",
+      "attribute": "",
+      "result": "PASS | FAIL",
+      "reason": "",
+      "evidence_reference": ""
+    }}}}
+  ],
+  "exception_instances": [
+    {{{{
+      "instance_id": "",
+      "checklist_id": "",
+      "status": "FAIL",
+      "failed_attribute": "",
+      "exception_reason": "",
+      "evidence_reference": ""
+    }}}}
+  ],
+  "evidence_integrity": {{{{
+    "traceability": "PASS | FAIL | PARTIAL",
+    "location_validation": "PASS | FAIL | PARTIAL",
+    "period_alignment": "PASS | FAIL | UNKNOWN",
+    "cross_doc_consistency": "PASS | FAIL | UNKNOWN | NOT_APPLICABLE",
+    "version_alignment": "PASS | FAIL | UNKNOWN | NOT_APPLICABLE",
+    "overall_integrity": "HIGH | MEDIUM | LOW"
+  }}}},
+  "assurance_state_update": {{{{
+    "assurance_score_delta": 0.0,
+    "coverage_delta": 0.0,
+    "evidence_quality_impact": "HIGH | MEDIUM | LOW",
+    "inquiry_triggered": "YES | NO",
+    "contradiction_detected": "YES | NO",
+    "oe_reliability_impact": "POSITIVE | NEUTRAL | NEGATIVE"
+  }}}},
+  "sample_evaluation": {{{{
+    "applicable": "YES | NO",
     "sample_size": null,
+    "exceptions_found": null,
     "exception_rate": null,
-    "within_audit_period": "YES/NO"
-  }}
-}}
+    "within_audit_period": "YES | NO | PARTIAL"
+  }}}}
+}}}}
 
 STRICT CONSTRAINTS:
-* Do NOT generate findings
-* Do NOT conclude compliance
+* Do NOT generate findings, observations, or recommendations
+* Do NOT conclude compliance or control effectiveness
 * Do NOT evaluate non-relevant checklist items
 * Do NOT assume missing information
-* All outputs must be structured and explicit"""
+* All outputs must be structured and explicit
+* inquiry_triggers must NOT be empty when contradiction detected
+* supporting_extract must be verbatim text from evidence — NOT paraphrase
+* confidence_classification must follow: EXPLICIT → YES only, IMPLIED → PARTIAL only, AMBIGUOUS → PARTIAL or NEEDS_REVIEW only"""
 
 
 # ─────────────────────────────────────────────────────────────
@@ -665,6 +800,12 @@ def run_eve_step5_for_evidence(
                         f"for HIGH weight item {checklist_item_id}"
                     )
 
+            # New V3 fields from results_map
+            confidence_classification = result_data.get("confidence_classification", "IMPLIED")
+            supporting_extract = result_data.get("supporting_extract", "")
+            admissibility_status_v3 = result_data.get("admissibility_status", admissibility)
+            assurance_impact = result_data.get("assurance_impact", "NEUTRAL")
+
             result_record = EveEvidenceResult(
                 project_checklist_id=project_checklist_id,
                 evidence_artifact_id=project_evidence_artifact_id,
@@ -688,6 +829,110 @@ def run_eve_step5_for_evidence(
             )
             db.session.add(result_record)
             stored_count += 1
+
+        # ── 8. Process Inquiry Triggers ────────────────────────────────
+        inquiry_triggers = raw_output.get("inquiry_triggers", [])
+        inquiry_count = 0
+        for trigger in inquiry_triggers:
+            checklist_item_id = trigger.get("checklist_id", "")
+            inquiry_question = trigger.get("inquiry_question", "")
+            if not checklist_item_id or not inquiry_question:
+                continue
+
+            # Check if inquiry already exists for this checklist item
+            from app.models.eve_models import EveInquiry
+            existing_inquiry = (
+                db.session.query(EveInquiry)
+                .filter_by(
+                    project_checklist_id=project_checklist_id,
+                    checklist_item_id=checklist_item_id,
+                    status="PENDING_INQUIRY"
+                )
+                .first()
+            )
+            if existing_inquiry:
+                continue  # Already raised
+
+            severity = trigger.get("severity", "MINOR")
+            if severity not in ("MATERIAL", "MINOR"):
+                severity = "MINOR"
+
+            inquiry = EveInquiry(
+                project_checklist_id=project_checklist_id,
+                checklist_item_id=checklist_item_id,
+                contradiction_type=trigger.get("trigger_type", "CONTRADICTION_DETECTED"),
+                severity=severity,
+                evidence_a_id=project_evidence_artifact_id,
+                evidence_a_type=evidence_type,
+                evidence_a_claim=trigger.get("evidence_a_claim", ""),
+                evidence_b_claim=trigger.get("evidence_b_claim", ""),
+                inquiry_question=inquiry_question,
+                suggested_evidence=trigger.get("suggested_additional_evidence", ""),
+                status="PENDING_INQUIRY",
+            )
+            db.session.add(inquiry)
+            inquiry_count += 1
+
+        logger.info(f"[Module D] {inquiry_count} inquiry triggers saved for checklist_id={project_checklist_id}")
+
+        # ── 9. Update Assurance State ──────────────────────────────────
+        assurance_update = raw_output.get("assurance_state_update", {})
+        evidence_integrity = raw_output.get("evidence_integrity", {})
+
+        from app.models.eve_models import EveAssuranceState
+        assurance_state = (
+            db.session.query(EveAssuranceState)
+            .filter_by(project_checklist_id=project_checklist_id)
+            .first()
+        )
+
+        if not assurance_state:
+            assurance_state = EveAssuranceState(
+                project_checklist_id=project_checklist_id,
+                total_checklist_items=len(checklist_items),
+            )
+            db.session.add(assurance_state)
+
+        # Update counts
+        assurance_state.total_evidence_count = (assurance_state.total_evidence_count or 0) + 1
+        if admissibility in ("ADMISSIBLE", "VALID", "PROVIDED_INSUFFICIENT"):
+            assurance_state.admissible_evidence_count = (assurance_state.admissible_evidence_count or 0) + 1
+
+        # Update inquiry counts
+        assurance_state.inquiry_count = (assurance_state.inquiry_count or 0) + inquiry_count
+        if assurance_update.get("contradiction_detected") == "YES":
+            assurance_state.contradiction_count = (assurance_state.contradiction_count or 0) + 1
+
+        # Update scores based on assurance_update delta
+        score_delta = float(assurance_update.get("assurance_score_delta", 0.0))
+        coverage_delta = float(assurance_update.get("coverage_delta", 0.0))
+        assurance_state.assurance_score = min(1.0, max(0.0, (assurance_state.assurance_score or 0.0) + score_delta))
+        assurance_state.coverage_score = min(1.0, max(0.0, (assurance_state.coverage_score or 0.0) + coverage_delta))
+
+        # Evidence quality impact
+        eq_impact = assurance_update.get("evidence_quality_impact", "MEDIUM")
+        eq_map = {"HIGH": 0.1, "MEDIUM": 0.05, "LOW": 0.01}
+        assurance_state.evidence_quality_score = min(1.0, max(0.0,
+            (assurance_state.evidence_quality_score or 0.0) + eq_map.get(eq_impact, 0.05)
+        ))
+
+        # OE reliability impact
+        oe_impact = assurance_update.get("oe_reliability_impact", "NEUTRAL")
+        oe_map = {"POSITIVE": 0.1, "NEUTRAL": 0.0, "NEGATIVE": -0.1}
+        assurance_state.oe_reliability_score = min(1.0, max(0.0,
+            (assurance_state.oe_reliability_score or 0.0) + oe_map.get(oe_impact, 0.0)
+        ))
+
+        assurance_state.last_evidence_id = project_evidence_artifact_id
+        from datetime import datetime
+        assurance_state.last_updated_at = datetime.utcnow()
+
+        logger.info(
+            f"[Module D] Assurance state updated: "
+            f"assurance_score={assurance_state.assurance_score:.2f}, "
+            f"coverage_score={assurance_state.coverage_score:.2f}, "
+            f"inquiry_count={assurance_state.inquiry_count}"
+        )
 
         db.session.commit()
 
@@ -817,3 +1062,345 @@ def run_eve_step5_for_all_evidence(
         db.session.rollback()
         logger.error(f"[Module D Bulk] Error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────
+# MODULE E — Step 5B: Cross-Evidence Contradiction Detection
+# ─────────────────────────────────────────────────────────────
+
+def _build_step5b_prompt(
+    checklist_items: list,
+    evidence_results: list,
+) -> str:
+    """Build Step 5B prompt — cross-evidence contradiction detection."""
+
+    return f"""You are an Audit Cross-Evidence Contradiction Engine.
+
+TASK:
+Compare ALL evidence results for the same checklist items and detect contradictions ACROSS different evidence sources.
+
+This is NOT about within-document contradictions (already handled in Step 5A).
+This is about comparing what DIFFERENT evidence sources say about the SAME checklist item.
+
+Return ONLY valid JSON. No explanation. No markdown.
+
+---
+
+INPUT:
+
+* Checklist Items:
+  {json.dumps(checklist_items, indent=2)}
+
+* All Evidence Results (per evidence, per checklist item):
+  {json.dumps(evidence_results, indent=2)}
+
+---
+
+TASK:
+For each checklist item that has results from 2+ evidence sources:
+
+1. Compare signals across all evidence sources
+2. Detect logical contradictions between different evidence sources
+3. Generate inquiry triggers for material contradictions
+
+CONTRADICTION TYPES:
+* FREQUENCY_MISMATCH: Evidence A says quarterly, Evidence B says annual
+* EXISTENCE_CONFLICT: Evidence A says control exists, Evidence B shows it does not
+* PERIOD_MISMATCH: Evidence A is current, Evidence B is outdated/different period
+* APPROVAL_CONFLICT: Evidence A shows approved, Evidence B shows pending/rejected
+* SCOPE_CONFLICT: Different populations or scopes claimed
+* VERSION_CONFLICT: Different document versions referenced
+* AUTHORITY_CONFLICT: Different approval authorities mentioned
+
+RULES:
+* Only flag CLEAR logical contradictions — not minor differences in wording
+* Absence of evidence in one source is NOT a contradiction
+* If all sources SUPPORT → consistent = YES
+* If sources CONTRADICT each other → generate inquiry trigger
+* contradiction_action = INQUIRY always (never auto-FAIL)
+* Only MATERIAL contradictions require inquiry (MINOR ones just note)
+
+---
+
+OUTPUT FORMAT (return ONLY this structure):
+
+{{
+  "cross_evidence_analysis": [
+    {{
+      "checklist_id": "",
+      "evidence_count": 0,
+      "signals": [
+        {{
+          "evidence_id": 0,
+          "evidence_type": "",
+          "signal": "SUPPORTS | CONTRADICTS | INSUFFICIENT",
+          "claim": ""
+        }}
+      ],
+      "consistent": "YES | NO | PARTIAL",
+      "contradiction_detected": "YES | NO",
+      "contradiction_type": "",
+      "severity": "MATERIAL | MINOR",
+      "evidence_a": {{
+        "id": 0,
+        "type": "",
+        "claim": ""
+      }},
+      "evidence_b": {{
+        "id": 0,
+        "type": "",
+        "claim": ""
+      }},
+      "inquiry_question": "",
+      "suggested_additional_evidence": "",
+      "inquiry_trigger": "YES | NO"
+    }}
+  ],
+  "summary": {{
+    "total_items_analyzed": 0,
+    "contradictions_found": 0,
+    "material_contradictions": 0,
+    "consistent_items": 0,
+    "inquiry_triggers_generated": 0
+  }}
+}}
+
+STRICT CONSTRAINTS:
+* Only analyze items with 2+ evidence sources
+* Do NOT generate findings or conclusions
+* contradiction_action is always INQUIRY — never auto-FAIL
+* inquiry_question must be specific and actionable
+"""
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def run_eve_step5b_cross_evidence(
+    self,
+    project_checklist_id: int,
+):
+    """
+    Module E — EVE Step 5B: Cross-Evidence Contradiction Detection.
+
+    Runs AFTER all Step 5A evidence evaluations are complete.
+    Compares signals across ALL evidence sources for each checklist item.
+    Detects contradictions between different evidence sources.
+    Generates inquiry triggers for material contradictions.
+
+    Args:
+        project_checklist_id: ID from project_checklist table
+    """
+    logger.info(
+        f"[Module E] Starting Step 5B cross-evidence analysis "
+        f"for project_checklist_id={project_checklist_id}"
+    )
+
+    try:
+        # ── 1. Load checklist ──────────────────────────────────────────
+        checklist = db.session.query(ProjectChecklist).get(project_checklist_id)
+        if not checklist:
+            return {
+                "status": "error",
+                "message": f"ProjectChecklist {project_checklist_id} not found",
+            }
+
+        checklist_items = checklist.get_checklist_items()
+        if not checklist_items:
+            return {
+                "status": "error",
+                "message": "No checklist items found",
+            }
+
+        # ── 2. Load all evidence results for this checklist ────────────
+        all_results = (
+            db.session.query(EveEvidenceResult)
+            .filter_by(project_checklist_id=project_checklist_id)
+            .all()
+        )
+
+        if not all_results:
+            return {
+                "status": "skipped",
+                "message": "No evidence results found — run Step 5A first",
+                "project_checklist_id": project_checklist_id,
+            }
+
+        # ── 3. Group results by checklist_item_id ─────────────────────
+        # Only process items with 2+ evidence sources
+        from collections import defaultdict
+        items_by_checklist = defaultdict(list)
+
+        for result in all_results:
+            items_by_checklist[result.checklist_item_id].append({
+                "evidence_id": result.evidence_artifact_id,
+                "evidence_type": result.evidence_type,
+                "signal": result.signal,
+                "signal_basis": result.signal_basis,
+                "item_status": result.item_status,
+                "admissibility": result.admissibility,
+                "confidence": result.confidence,
+                "evidence_reference": result.evidence_reference,
+            })
+
+        # Filter items with 2+ evidence sources
+        multi_evidence_items = {
+            k: v for k, v in items_by_checklist.items() if len(v) >= 2
+        }
+
+        if not multi_evidence_items:
+            logger.info(
+                f"[Module E] No checklist items with 2+ evidence sources "
+                f"for project_checklist_id={project_checklist_id}"
+            )
+            return {
+                "status": "skipped",
+                "message": "No checklist items with multiple evidence sources",
+                "project_checklist_id": project_checklist_id,
+                "items_analyzed": 0,
+            }
+
+        logger.info(
+            f"[Module E] Analyzing {len(multi_evidence_items)} items "
+            f"with multiple evidence sources"
+        )
+
+        # ── 4. Build evidence results for prompt ───────────────────────
+        evidence_results_for_prompt = []
+        for checklist_id, results in multi_evidence_items.items():
+            evidence_results_for_prompt.append({
+                "checklist_id": checklist_id,
+                "evidence_count": len(results),
+                "results": results,
+            })
+
+        # ── 5. Call Step 5B LLM ────────────────────────────────────────
+        prompt = _build_step5b_prompt(
+            checklist_items=checklist_items,
+            evidence_results=evidence_results_for_prompt,
+        )
+
+        raw_output = _call_eve_step5(prompt)
+
+        if not raw_output:
+            return {
+                "status": "error",
+                "message": "LLM returned no output for Step 5B",
+                "project_checklist_id": project_checklist_id,
+            }
+
+        # ── 6. Process cross-evidence contradictions ───────────────────
+        from app.models.eve_models import EveInquiry, EveAssuranceState
+
+        analysis = raw_output.get("cross_evidence_analysis", [])
+        summary = raw_output.get("summary", {})
+
+        inquiry_count = 0
+        contradiction_count = 0
+
+        for item_analysis in analysis:
+            checklist_item_id = item_analysis.get("checklist_id", "")
+            contradiction_detected = item_analysis.get("contradiction_detected", "NO") == "YES"
+            inquiry_trigger = item_analysis.get("inquiry_trigger", "NO") == "YES"
+            severity = item_analysis.get("severity", "MINOR")
+            inquiry_question = item_analysis.get("inquiry_question", "")
+
+            if not checklist_item_id:
+                continue
+
+            if contradiction_detected:
+                contradiction_count += 1
+
+            if inquiry_trigger and inquiry_question and severity == "MATERIAL":
+                # Check if inquiry already exists
+                existing_inquiry = (
+                    db.session.query(EveInquiry)
+                    .filter_by(
+                        project_checklist_id=project_checklist_id,
+                        checklist_item_id=checklist_item_id,
+                        status="PENDING_INQUIRY",
+                    )
+                    .first()
+                )
+
+                if not existing_inquiry:
+                    evidence_a = item_analysis.get("evidence_a", {})
+                    evidence_b = item_analysis.get("evidence_b", {})
+
+                    inquiry = EveInquiry(
+                        project_checklist_id=project_checklist_id,
+                        checklist_item_id=checklist_item_id,
+                        contradiction_type=item_analysis.get(
+                            "contradiction_type", "CROSS_EVIDENCE_CONTRADICTION"
+                        ),
+                        severity=severity,
+                        evidence_a_id=evidence_a.get("id"),
+                        evidence_a_type=evidence_a.get("type", ""),
+                        evidence_a_claim=evidence_a.get("claim", ""),
+                        evidence_b_id=evidence_b.get("id"),
+                        evidence_b_type=evidence_b.get("type", ""),
+                        evidence_b_claim=evidence_b.get("claim", ""),
+                        inquiry_question=inquiry_question,
+                        suggested_evidence=item_analysis.get(
+                            "suggested_additional_evidence", ""
+                        ),
+                        status="PENDING_INQUIRY",
+                    )
+                    db.session.add(inquiry)
+                    inquiry_count += 1
+
+        # ── 7. Update assurance state ──────────────────────────────────
+        assurance_state = (
+            db.session.query(EveAssuranceState)
+            .filter_by(project_checklist_id=project_checklist_id)
+            .first()
+        )
+
+        if assurance_state:
+            assurance_state.contradiction_count = (
+                assurance_state.contradiction_count or 0
+            ) + contradiction_count
+            assurance_state.inquiry_count = (
+                assurance_state.inquiry_count or 0
+            ) + inquiry_count
+
+            # Cross-evidence contradictions reduce assurance score
+            if contradiction_count > 0:
+                assurance_state.assurance_score = max(
+                    0.0,
+                    (assurance_state.assurance_score or 0.0)
+                    - (0.05 * contradiction_count),
+                )
+
+            from datetime import datetime
+            assurance_state.last_updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        logger.info(
+            f"[Module E] Step 5B complete: "
+            f"items_analyzed={len(multi_evidence_items)}, "
+            f"contradictions={contradiction_count}, "
+            f"inquiries_raised={inquiry_count}"
+        )
+
+        return {
+            "status": "success",
+            "project_checklist_id": project_checklist_id,
+            "items_analyzed": len(multi_evidence_items),
+            "contradictions_found": contradiction_count,
+            "inquiry_triggers_raised": inquiry_count,
+            "summary": summary,
+        }
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"[Module E] DB error: {e}")
+        raise self.retry(exc=e, countdown=30)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[Module E] Unexpected error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "project_checklist_id": project_checklist_id,
+        }
+

@@ -605,3 +605,83 @@ class EveControlResult(db.Model):
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class EveInquiry(db.Model):
+    __tablename__ = "eve_inquiry"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    project_checklist_id = db.Column(db.BigInteger, nullable=False)
+    checklist_item_id = db.Column(db.String(20), nullable=False)
+
+    # Contradiction details
+    contradiction_type = db.Column(db.String(50))
+    severity = db.Column(db.String(20), default="MINOR")
+
+    # Evidence references
+    evidence_a_id = db.Column(db.Integer)
+    evidence_a_type = db.Column(db.String(50))
+    evidence_a_claim = db.Column(db.Text)
+    evidence_b_id = db.Column(db.Integer)
+    evidence_b_type = db.Column(db.String(50))
+    evidence_b_claim = db.Column(db.Text)
+
+    # Inquiry
+    inquiry_question = db.Column(db.Text, nullable=False)
+    suggested_evidence = db.Column(db.Text)
+
+    # Auditor response
+    auditor_response = db.Column(db.Text)
+
+    # Re-evaluation result
+    re_evaluation_status = db.Column(db.String(20))
+    re_evaluation_reason = db.Column(db.Text)
+    re_evaluation_pass_condition_met = db.Column(db.Boolean)
+
+    # Status lifecycle
+    # PENDING_INQUIRY / RESPONDED / RE_EVALUATING / RESOLVED / ESCALATED_TO_FINDING
+    status = db.Column(db.String(30), default="PENDING_INQUIRY")
+    resolution_note = db.Column(db.Text)
+    escalation_reason = db.Column(db.Text)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    responded_at = db.Column(db.DateTime)
+    re_evaluated_at = db.Column(db.DateTime)
+    resolved_at = db.Column(db.DateTime)
+    resolved_by = db.Column(db.BigInteger)
+
+
+class EveAssuranceState(db.Model):
+    __tablename__ = "eve_assurance_state"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    project_checklist_id = db.Column(db.BigInteger, nullable=False, unique=True)
+
+    # Scores
+    assurance_score = db.Column(db.Float, default=0.0)
+    coverage_score = db.Column(db.Float, default=0.0)
+    evidence_quality_score = db.Column(db.Float, default=0.0)
+    oe_reliability_score = db.Column(db.Float, default=0.0)
+
+    # Counts
+    total_checklist_items = db.Column(db.Integer, default=0)
+    evaluated_items = db.Column(db.Integer, default=0)
+    passed_items = db.Column(db.Integer, default=0)
+    failed_items = db.Column(db.Integer, default=0)
+    partial_items = db.Column(db.Integer, default=0)
+    needs_review_items = db.Column(db.Integer, default=0)
+
+    # Inquiry tracking
+    inquiry_count = db.Column(db.Integer, default=0)
+    contradiction_count = db.Column(db.Integer, default=0)
+    resolved_inquiry_count = db.Column(db.Integer, default=0)
+    escalated_inquiry_count = db.Column(db.Integer, default=0)
+
+    # Evidence tracking
+    total_evidence_count = db.Column(db.Integer, default=0)
+    admissible_evidence_count = db.Column(db.Integer, default=0)
+
+    # State
+    last_updated_at = db.Column(db.DateTime, default=db.func.now())
+    last_evidence_id = db.Column(db.Integer)

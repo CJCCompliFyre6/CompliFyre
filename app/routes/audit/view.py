@@ -5353,6 +5353,12 @@ def clause_test_steps(clause_id):
     # Add this line before render_template
     current_time = datetime.utcnow()
 
+    # Fetch project_checklist for EVE inquiry panel
+    from app.models.eve_models import ProjectChecklist
+    project_checklist = ProjectChecklist.query.filter_by(
+        project_clause_id=clause_id
+    ).first()
+
     return render_template(
         "dashboards/auditor/clause_test_steps.html",
         project=project,
@@ -5389,6 +5395,7 @@ def clause_test_steps(clause_id):
         severity_counts=severity_counts,
         highest_severity_score=highest_severity_score,
         current_time=current_time,
+        project_checklist_id=project_checklist.id if project_checklist else None,
     )
 
 
@@ -7459,3 +7466,371 @@ def get_project_details():
         evidence_needs_regeneration=evidence_needs_regeneration,
         now=datetime.now(),
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# EVE INQUIRY APIs — Phase 3
+# ═══════════════════════════════════════════════════════════
+
+@audit_bp.route("/eve/inquiry/<int:project_checklist_id>", methods=["GET"])
+@login_required
+def get_eve_inquiries(project_checklist_id):
+    """Fetch all inquiries for a project checklist."""
+    try:
+        from app.models.eve_models import EveInquiry
+
+        status_filter = request.args.get("status")
+        query = EveInquiry.query.filter_by(project_checklist_id=project_checklist_id)
+        if status_filter:
+            query = query.filter_by(status=status_filter)
+
+        inquiries = query.order_by(EveInquiry.created_at.desc()).all()
+
+        result = []
+        for inq in inquiries:
+            result.append({
+                "id": inq.id,
+                "checklist_item_id": inq.checklist_item_id,
+                "contradiction_type": inq.contradiction_type,
+                "severity": inq.severity,
+                "evidence_a_claim": inq.evidence_a_claim,
+                "evidence_b_claim": inq.evidence_b_claim,
+                "inquiry_question": inq.inquiry_question,
+                "suggested_evidence": inq.suggested_evidence,
+                "auditor_response": inq.auditor_response,
+                "re_evaluation_status": inq.re_evaluation_status,
+                "re_evaluation_reason": inq.re_evaluation_reason,
+                "re_evaluation_pass_condition_met": inq.re_evaluation_pass_condition_met,
+                "status": inq.status,
+                "resolution_note": inq.resolution_note,
+                "escalation_reason": inq.escalation_reason,
+                "created_at": inq.created_at.isoformat() if inq.created_at else None,
+                "responded_at": inq.responded_at.isoformat() if inq.responded_at else None,
+                "resolved_at": inq.resolved_at.isoformat() if inq.resolved_at else None,
+            })
+
+        pending = sum(1 for r in result if r["status"] == "PENDING_INQUIRY")
+        responded = sum(1 for r in result if r["status"] == "RESPONDED")
+        resolved = sum(1 for r in result if r["status"] == "RESOLVED")
+        escalated = sum(1 for r in result if r["status"] == "ESCALATED_TO_FINDING")
+
+        return jsonify({
+            "status": "success",
+            "project_checklist_id": project_checklist_id,
+            "total": len(result),
+            "counts": {
+                "pending": pending,
+                "responded": responded,
+                "resolved": resolved,
+                "escalated": escalated,
+            },
+            "inquiries": result,
+        })
+
+    except Exception as e:
+        logger.exception(f"Error fetching inquiries for checklist {project_checklist_id}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@audit_bp.route("/eve/inquiry/<int:inquiry_id>/respond", methods=["POST"])
+@login_required
+def respond_eve_inquiry(inquiry_id):
+    """Auditor responds to an inquiry."""
+    try:
+        from app.models.eve_models import EveInquiry
+        from datetime import datetime
+
+        inquiry = EveInquiry.query.get(inquiry_id)
+        if not inquiry:
+            return jsonify({"status": "error", "message": "Inquiry not found"}), 404
+
+        if inquiry.status not in ("PENDING_INQUIRY", "RESPONDED"):
+            return jsonify({"status": "error", "message": f"Cannot respond to inquiry with status: {inquiry.status}"}), 400
+
+        data = request.get_json() or {}
+        response_text = data.get("response", "").strip()
+        if not response_text:
+            return jsonify({"status": "error", "message": "Response text is required"}), 400
+
+        inquiry.auditor_response = response_text
+        inquiry.status = "RESPONDED"
+        inquiry.responded_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Response submitted successfully",
+            "inquiry_id": inquiry_id,
+            "new_status": inquiry.status,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error responding to inquiry {inquiry_id}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@audit_bp.route("/eve/inquiry/<int:inquiry_id>/re-evaluate", methods=["POST"])
+@login_required
+def re_evaluate_eve_inquiry(inquiry_id):
+    """Trigger re-evaluation after auditor response."""
+    try:
+        from app.models.eve_models import EveInquiry
+        from app.models.eve_models import ProjectChecklist
+        from datetime import datetime
+        import json as json_lib
+
+        inquiry = EveInquiry.query.get(inquiry_id)
+        if not inquiry:
+            return jsonify({"status": "error", "message": "Inquiry not found"}), 404
+
+        if inquiry.status != "RESPONDED":
+            return jsonify({"status": "error", "message": "Inquiry must be in RESPONDED status before re-evaluation"}), 400
+
+        inquiry.status = "RE_EVALUATING"
+        db.session.commit()
+
+        # Get checklist item details
+        project_checklist = ProjectChecklist.query.get(inquiry.project_checklist_id)
+        if not project_checklist:
+            inquiry.status = "RESPONDED"
+            db.session.commit()
+            return jsonify({"status": "error", "message": "Project checklist not found"}), 404
+
+        checklist_items = project_checklist.get_checklist_items()
+        target_item = next((item for item in checklist_items if item.get("id") == inquiry.checklist_item_id), None)
+
+        if not target_item:
+            inquiry.status = "RESPONDED"
+            db.session.commit()
+            return jsonify({"status": "error", "message": "Checklist item not found"}), 404
+
+        # Build re-evaluation prompt
+        re_eval_prompt = f"""You are an Audit Evidence Re-evaluation Engine.
+
+CONTEXT:
+A contradiction was detected and an inquiry was raised.
+The auditor has responded with clarification.
+
+INQUIRY DETAILS:
+- Checklist Item: {inquiry.checklist_item_id}
+- Contradiction Type: {inquiry.contradiction_type}
+- Original Issue: {inquiry.inquiry_question}
+- Evidence A Claim: {inquiry.evidence_a_claim}
+- Evidence B Claim: {inquiry.evidence_b_claim}
+
+AUDITOR CLARIFICATION:
+{inquiry.auditor_response}
+
+CHECKLIST ITEM REQUIREMENT:
+{json_lib.dumps(target_item, indent=2)}
+
+TASK:
+Re-evaluate whether the CHECKLIST REQUIREMENT is satisfied.
+
+CRITICAL RULES:
+1. The contradiction is now clarified — do NOT re-evaluate the contradiction
+2. Evaluate SOLELY whether the PASS CONDITION is satisfied
+3. Auditor clarification is CONTEXT — NOT independent evidence
+4. No supporting evidence satisfying pass_condition = NO
+5. Partial evidence = PARTIAL
+6. Pass condition fully met = YES
+
+Return ONLY valid JSON:
+{{
+  "checklist_item_id": "{inquiry.checklist_item_id}",
+  "re_evaluation_status": "YES | NO | PARTIAL | NEEDS_REVIEW",
+  "pass_condition_met": true,
+  "reasoning": "Explanation of why pass/fail",
+  "evidence_gaps": "What evidence is still missing",
+  "recommended_action": "RESOLVE_PASS | RESOLVE_PARTIAL | ESCALATE_TO_FINDING"
+}}"""
+
+        from app import client as openai_client
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an audit evidence re-evaluation engine. Return only valid JSON."},
+                {"role": "user", "content": re_eval_prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+
+        re_eval_result = json_lib.loads(response.choices[0].message.content)
+
+        inquiry.re_evaluation_status = re_eval_result.get("re_evaluation_status", "NEEDS_REVIEW")
+        inquiry.re_evaluation_reason = re_eval_result.get("reasoning", "")
+        inquiry.re_evaluation_pass_condition_met = re_eval_result.get("pass_condition_met", False)
+        inquiry.re_evaluated_at = datetime.utcnow()
+
+        recommended = re_eval_result.get("recommended_action", "ESCALATE_TO_FINDING")
+        if recommended in ("RESOLVE_PASS", "RESOLVE_PARTIAL"):
+            inquiry.status = "RESOLVED"
+            inquiry.resolution_note = f"Re-evaluated: {inquiry.re_evaluation_status} — {inquiry.re_evaluation_reason}"
+            inquiry.resolved_at = datetime.utcnow()
+            inquiry.resolved_by = current_user.id
+        else:
+            inquiry.status = "RESPONDED"
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "inquiry_id": inquiry_id,
+            "re_evaluation_status": inquiry.re_evaluation_status,
+            "pass_condition_met": inquiry.re_evaluation_pass_condition_met,
+            "reasoning": inquiry.re_evaluation_reason,
+            "recommended_action": recommended,
+            "new_inquiry_status": inquiry.status,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        try:
+            inquiry.status = "RESPONDED"
+            db.session.commit()
+        except Exception:
+            pass
+        logger.exception(f"Error re-evaluating inquiry {inquiry_id}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@audit_bp.route("/eve/inquiry/<int:inquiry_id>/resolve", methods=["POST"])
+@login_required
+def resolve_eve_inquiry(inquiry_id):
+    """Manually mark inquiry as resolved."""
+    try:
+        from app.models.eve_models import EveInquiry, EveAssuranceState
+        from datetime import datetime
+
+        inquiry = EveInquiry.query.get(inquiry_id)
+        if not inquiry:
+            return jsonify({"status": "error", "message": "Inquiry not found"}), 404
+
+        if inquiry.status == "ESCALATED_TO_FINDING":
+            return jsonify({"status": "error", "message": "Cannot resolve an escalated inquiry"}), 400
+
+        data = request.get_json() or {}
+        resolution_note = data.get("resolution_note", "").strip()
+
+        inquiry.status = "RESOLVED"
+        inquiry.resolution_note = resolution_note
+        inquiry.resolved_at = datetime.utcnow()
+        inquiry.resolved_by = current_user.id
+
+        assurance = EveAssuranceState.query.filter_by(
+            project_checklist_id=inquiry.project_checklist_id
+        ).first()
+        if assurance:
+            assurance.resolved_inquiry_count = (assurance.resolved_inquiry_count or 0) + 1
+            assurance.last_updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Inquiry resolved successfully",
+            "inquiry_id": inquiry_id,
+            "new_status": inquiry.status,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error resolving inquiry {inquiry_id}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@audit_bp.route("/eve/inquiry/<int:inquiry_id>/escalate", methods=["POST"])
+@login_required
+def escalate_eve_inquiry(inquiry_id):
+    """Escalate inquiry to finding."""
+    try:
+        from app.models.eve_models import EveInquiry, EveAssuranceState
+        from datetime import datetime
+
+        inquiry = EveInquiry.query.get(inquiry_id)
+        if not inquiry:
+            return jsonify({"status": "error", "message": "Inquiry not found"}), 404
+
+        if inquiry.status == "ESCALATED_TO_FINDING":
+            return jsonify({"status": "error", "message": "Inquiry already escalated"}), 400
+
+        data = request.get_json() or {}
+        escalation_reason = data.get("escalation_reason", "").strip()
+        if not escalation_reason:
+            return jsonify({"status": "error", "message": "Escalation reason is required"}), 400
+
+        inquiry.status = "ESCALATED_TO_FINDING"
+        inquiry.escalation_reason = escalation_reason
+        inquiry.resolved_at = datetime.utcnow()
+        inquiry.resolved_by = current_user.id
+
+        assurance = EveAssuranceState.query.filter_by(
+            project_checklist_id=inquiry.project_checklist_id
+        ).first()
+        if assurance:
+            assurance.escalated_inquiry_count = (assurance.escalated_inquiry_count or 0) + 1
+            assurance.assurance_score = max(0.0, (assurance.assurance_score or 0.0) - 0.1)
+            assurance.last_updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Inquiry escalated to finding",
+            "inquiry_id": inquiry_id,
+            "new_status": inquiry.status,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error escalating inquiry {inquiry_id}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@audit_bp.route("/eve/assurance/<int:project_checklist_id>", methods=["GET"])
+@login_required
+def get_eve_assurance_state(project_checklist_id):
+    """Fetch assurance state for a project checklist."""
+    try:
+        from app.models.eve_models import EveAssuranceState
+
+        state = EveAssuranceState.query.filter_by(
+            project_checklist_id=project_checklist_id
+        ).first()
+
+        if not state:
+            return jsonify({
+                "status": "success",
+                "project_checklist_id": project_checklist_id,
+                "assurance_state": None,
+                "message": "No assurance state found — run Step 5 first"
+            })
+
+        return jsonify({
+            "status": "success",
+            "project_checklist_id": project_checklist_id,
+            "assurance_state": {
+                "assurance_score": round(state.assurance_score or 0.0, 2),
+                "coverage_score": round(state.coverage_score or 0.0, 2),
+                "evidence_quality_score": round(state.evidence_quality_score or 0.0, 2),
+                "oe_reliability_score": round(state.oe_reliability_score or 0.0, 2),
+                "total_checklist_items": state.total_checklist_items,
+                "evaluated_items": state.evaluated_items,
+                "passed_items": state.passed_items,
+                "failed_items": state.failed_items,
+                "partial_items": state.partial_items,
+                "needs_review_items": state.needs_review_items,
+                "inquiry_count": state.inquiry_count,
+                "contradiction_count": state.contradiction_count,
+                "resolved_inquiry_count": state.resolved_inquiry_count,
+                "escalated_inquiry_count": state.escalated_inquiry_count,
+                "total_evidence_count": state.total_evidence_count,
+                "admissible_evidence_count": state.admissible_evidence_count,
+                "last_updated_at": state.last_updated_at.isoformat() if state.last_updated_at else None,
+            }
+        })
+
+    except Exception as e:
+        logger.exception(f"Error fetching assurance state for checklist {project_checklist_id}")
+        return jsonify({"status": "error", "message": str(e)}), 500

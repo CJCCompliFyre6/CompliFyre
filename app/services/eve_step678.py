@@ -104,6 +104,19 @@ INPUT:
 * Evidence Results:
   {json.dumps(evidence_results, indent=2)}
 
+* Escalated Inquiries (unresolved contradictions → must generate findings):
+  {{escalated_inquiries_json}}
+
+---
+
+IMPORTANT — ESCALATED INQUIRIES:
+Escalated inquiries represent contradictions or issues that the auditor could NOT resolve.
+These MUST contribute to findings generation regardless of signal status.
+For each escalated inquiry:
+* Create a finding with severity based on inquiry severity (MATERIAL → HIGH, MINOR → MEDIUM)
+* Finding must clearly state: the contradiction detected, the checklist item, and why it was escalated
+* Do NOT ignore escalated inquiries — they are confirmed audit issues
+
 ---
 
 SUB-STEP-1 — GROUP BY CHECKLIST ITEM
@@ -121,6 +134,7 @@ SUB-STEP-3 — RESOLVE SIGNALS TO FINAL STATUS
 3.1 CONTRADICTION RULE
 IF any STRONG evidence has CONTRADICTS → final_status = FAIL
 IF only WEAK evidence contradicts → ignore contradiction
+IF checklist item has ESCALATED inquiry → final_status = FAIL (override)
 
 3.2 SUPPORT RULE
 IF at least one STRONG or MODERATE evidence SUPPORTS AND no strong contradiction → proceed
@@ -157,9 +171,10 @@ FORMAT: "• [Checklist ID] – [Requirement]: Observed that [specific fact] in 
 Rules: Must reference actual evidence, include location, avoid vague wording.
 
 SUB-STEP-8 — GENERATE FINDINGS (STRICT LOGIC)
-Generate findings ONLY for:
+Generate findings FOR:
 * final_status = FAIL
 * final_status = PARTIAL (only if requirement_type = PRIMARY or weight = HIGH)
+* ALL escalated inquiries (regardless of final_status)
 
 8.1 FINDING CREATION RULES
 * One finding per UNIQUE issue
@@ -526,6 +541,41 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
         }
         evidence_results = _build_evidence_results_for_step6(checklist.id)
 
+        # ── Fetch escalated inquiries ──────────────────────────────────
+        from app.models.eve_models import EveInquiry
+        escalated_inquiries = (
+            db.session.query(EveInquiry)
+            .filter_by(
+                project_checklist_id=checklist.id,
+                status="ESCALATED_TO_FINDING"
+            )
+            .all()
+        )
+        escalated_inquiries_data = []
+        for inq in escalated_inquiries:
+            escalated_inquiries_data.append({
+                "inquiry_id": inq.id,
+                "checklist_item_id": inq.checklist_item_id,
+                "contradiction_type": inq.contradiction_type,
+                "severity": inq.severity,
+                "inquiry_question": inq.inquiry_question,
+                "evidence_a_claim": inq.evidence_a_claim,
+                "evidence_b_claim": inq.evidence_b_claim,
+                "escalation_reason": inq.escalation_reason,
+                "auditor_response": inq.auditor_response,
+            })
+        logger.info(
+            f"[Module E] {len(escalated_inquiries_data)} escalated inquiries "
+            f"found for checklist_id={checklist.id}"
+        )
+
+        # Build Step 6 prompt with escalated inquiries
+        step6_prompt = _build_step6_prompt(required_dimensions, checklist_items, evidence_results)
+        step6_prompt = step6_prompt.replace(
+            "{{escalated_inquiries_json}}",
+            json.dumps(escalated_inquiries_data, indent=2)
+        )
+
         # ── 6. Run Step 6 ──────────────────────────────────────────────
         logger.info(f"[Module E] Running Step 6 for pca_id={project_control_activity_id}")
         step6_output = _call_llm_json(
@@ -533,7 +583,7 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
                 "You are an Audit Aggregation and Evaluation Engine. "
                 "Return ONLY valid JSON. No markdown. No explanation."
             ),
-            user_msg=_build_step6_prompt(required_dimensions, checklist_items, evidence_results),
+            user_msg=step6_prompt,
         )
 
         if not step6_output:
