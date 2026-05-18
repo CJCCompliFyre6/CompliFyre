@@ -2680,11 +2680,19 @@ def regenerate_compliance_activities():
             for test_procedure in test_procedures:
                 db.session.delete(test_procedure)
 
-            # 3. Delete control_activities records
+            # 3. Delete control_activities records (delete test_steps first)
             control_activities = ControlActivity.query.filter_by(
                 compliance_activity_id=activity.id
             ).all()
             for control_activity in control_activities:
+                # Delete test_steps first (foreign key constraint)
+                from app.models.ai import TestSteps
+                test_steps = TestSteps.query.filter_by(
+                    control_id=control_activity.id
+                ).all()
+                for ts in test_steps:
+                    db.session.delete(ts)
+                db.session.flush()
                 db.session.delete(control_activity)
 
             # 4. Delete how_to_perform_activity records (using activity_id column)
