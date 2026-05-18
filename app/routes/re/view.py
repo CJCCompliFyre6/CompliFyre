@@ -2694,10 +2694,7 @@ def regenerate_compliance_activities():
             for how_to in how_to_perform:
                 db.session.delete(how_to)
 
-            # 5. Delete projects records (using activity column)
-            projects = Projects.query.filter_by(activity=activity.id).all()
-            for project in projects:
-                db.session.delete(project)
+            # 5. Skip projects deletion — projects should not be deleted on activity regeneration
 
             # Finally delete the compliance activity itself
             db.session.delete(activity)
