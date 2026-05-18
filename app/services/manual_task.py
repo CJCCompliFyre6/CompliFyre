@@ -2869,8 +2869,20 @@ def _extract_compliance_activities_direct(
 
         if compliance_data:
             import json
+            result = json.loads(compliance_data)
 
-            return json.loads(compliance_data)
+            # Hard limit — max 8 activities per clause
+            if isinstance(result, dict) and "compliance_activities" in result:
+                activities = result["compliance_activities"]
+                if len(activities) > 8:
+                    logger.warning(f"LLM returned {len(activities)} activities — trimming to 8")
+                    result["compliance_activities"] = activities[:8]
+
+                # Fix activity_id — ensure sequential 1,2,3... not 111,222,333
+                for idx, act in enumerate(result["compliance_activities"], start=1):
+                    act["activity_id"] = str(idx)
+
+            return result
 
     except Exception as e:
         logger.error("Direct compliance extraction failed: %s", str(e))

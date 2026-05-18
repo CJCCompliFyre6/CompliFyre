@@ -134,9 +134,11 @@ class PromptsText:
                 * Identify the core compliance obligation(s) and classify them by function (e.g., governance, operational processes, IT systems, reporting, monitoring, documentation, training).
 
             2.  **Generate Actionable Activities:**
-                * For each identified obligation, create a list of high-level activities (e.g., Policy & Governance, Operational Implementation, Monitoring & Reporting).
-                * Under each high-level activity, define specific, measurable **sub-activities**. These sub-activities must be clear, actionable, and auditable.
-                * Ensure the activities cover the entire compliance lifecycle: **Preparation**, **Implementation**, **Monitoring**, and **Evidence Maintenance**.
+                * Generate 3 to 6 HIGH QUALITY, non-overlapping, specific activities only.
+                * Prefer fewer precise activities over many vague ones.
+                * Combine related sub-tasks into one activity — do NOT split one obligation into multiple redundant activities.
+                * Each activity must be distinct, actionable, and independently auditable.
+                * Ensure activities cover: **Design**, **Implementation**, and **Operating Effectiveness** — but only where genuinely applicable.
             
             3.  **Assign Compliance Levels:**
                 * For each activity, assign the appropriate compliance level:
@@ -179,20 +181,21 @@ class PromptsText:
             }}
             ```
             
-            **Important:**
+            **STRICT RULES — MUST FOLLOW:**
+            * **MAXIMUM 8 ACTIVITIES:** Generate NO MORE than 8 compliance activities per clause. This is a hard limit. If the clause has fewer obligations, generate fewer activities. Quality over quantity.
             * **Be Specific:** All `<...>` placeholders must be replaced with precise and relevant information. Avoid generic terms.
             * **Department Mapping:** Select the most appropriate `department_id` and list all `relevant_departments` from the `department_list` provided. If no department is a perfect match, infer a standard financial institution department (e.g., 'Risk Management').
             * **Process Mapping:** Infer realistic `process_name` and `sub_process_name` that align with the clause's requirements and standard banking operations.
             * **Actionable Content:** The `activity_description` must be a direct instruction that an employee can follow.
             * **Single JSON Object:** Your final output must be a single, complete JSON object.
-            * **Activity ID:** Must be numerical values starting from 1 and incrementing by 1 for each subsequent activity (e.g., 1, 2, 3, 4, etc.).
             * **Compliance Level:** Assign the appropriate compliance level based on the activity type.
 
-            **Activity ID Rules:**
+            **Activity ID Rules — STRICTLY ENFORCED:**
             - Start with 1 for the first activity
-            - Increment by 1 for each subsequent activity (2, 3, 4, etc.)
-            - Use only numerical values (no letters or special characters)
-            - Ensure sequential ordering
+            - Increment by 1 for each subsequent activity (2, 3, 4, 5, 6, 7, 8)
+            - Use ONLY single digit or double digit numerical values (1, 2, 3... NOT 111, 222, 333)
+            - Maximum value is 8 — never exceed this
+            - Ensure sequential ordering with no gaps
         """
 
     def prompt_5(self, clause_text, activity):
