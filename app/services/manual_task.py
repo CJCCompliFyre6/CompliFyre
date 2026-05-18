@@ -1929,6 +1929,19 @@ def extract_clauses(self, guideline_id: int):
             f"✅ Clause extraction completed for guideline {guideline_id}. Saved {len(saved_clauses)} clauses in correct numerical order."
         )
 
+        # Auto-trigger activities generation for all saved clauses
+        try:
+            triggered_count = 0
+            for clause_id in saved_clauses:
+                extract_activities.apply_async(
+                    args=[clause_id],
+                    queue='extract_activities'
+                )
+                triggered_count += 1
+            logger.info(f"[AUTO] Triggered activities generation for {triggered_count} clauses")
+        except Exception as trigger_err:
+            logger.warning(f"[AUTO] Could not trigger activities: {trigger_err}")
+
         return {
             "status": "success",
             "guideline_id": guideline_id,

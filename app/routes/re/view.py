@@ -2358,13 +2358,29 @@ def clause():
             else:
                 consolidated_evidence = consolidated_rec.consolidate_evidence
 
+        # Calculate pending activities count
+        total_clauses = len(clauses)
+        clauses_with_activities = sum(
+            1 for clause in clauses
+            if clause.compliance_activities and len(clause.compliance_activities) > 0
+        )
+        pending_clauses = total_clauses - clauses_with_activities
+        total_activities = sum(
+            len(clause.compliance_activities) for clause in clauses
+            if clause.compliance_activities
+        )
+
         return render_template(
             "clause.html",
             clauses=clause_data,
             guideline_id=guideline_id,
             guideline=guideline,
             guideline_name=guideline_name,
-            consolidated_evidence=consolidated_evidence,  # This should now be a dict or None
+            consolidated_evidence=consolidated_evidence,
+            total_clauses=total_clauses,
+            clauses_with_activities=clauses_with_activities,
+            pending_clauses=pending_clauses,
+            total_activities=total_activities,
         )
     except Exception as err:
         current_app.logger.error(f"Unexpected error: {str(err)}")
@@ -6767,3 +6783,54 @@ def trigger_generate_missing_activities(guideline_id):
         """,
             500,
         )
+
+
+@re_bp.route("/retry-pending-activities", methods=["POST"])
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def retry_pending_activities():
+    """Retry activity generation for clauses without activities."""
+    try:
+        data = request.get_json()
+        guideline_id = data.get("guideline_id")
+        if not guideline_id:
+            return jsonify({"status": "error", "message": "guideline_id required"}), 400
+
+        # Find clauses without activities
+        clauses = Clauses.query.filter_by(guideline_id=guideline_id).all()
+        pending_clauses = [
+            c for c in clauses
+            if not c.compliance_activities or len(c.compliance_activities) == 0
+        ]
+
+        if not pending_clauses:
+            return jsonify({
+                "status": "success",
+                "message": "No pending clauses found",
+                "triggered_count": 0
+            })
+
+        # Trigger activities generation for each pending clause
+        from app.services.manual_task import extract_activities
+        triggered_count = 0
+        for clause in pending_clauses:
+            extract_activities.apply_async(
+                args=[clause.id],
+                queue='extract_activities'
+            )
+            triggered_count += 1
+
+        logger.info(
+            f"[RETRY] Triggered activities for {triggered_count} pending clauses "
+            f"in guideline_id={guideline_id}"
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": f"Triggered activity generation for {triggered_count} pending clauses",
+            "triggered_count": triggered_count,
+            "guideline_id": guideline_id,
+        })
+
+    except Exception as e:
+        logger.exception(f"Error retrying pending activities: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
