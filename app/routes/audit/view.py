@@ -5354,10 +5354,23 @@ def clause_test_steps(clause_id):
     current_time = datetime.utcnow()
 
     # Fetch project_checklist for EVE inquiry panel
-    from app.models.eve_models import ProjectChecklist
-    project_checklist = ProjectChecklist.query.filter_by(
-        project_clause_id=clause_id
-    ).first()
+    project_checklist = None
+    try:
+        from app.models.eve_models import ProjectChecklist
+        from app.models.ai import ProjectControlActivity
+        # Get first control activity for this clause
+        pca_ids = [pca.id for pca in project_compliance_activities]
+        if pca_ids:
+            pca_control = ProjectControlActivity.query.filter(
+                ProjectControlActivity.project_compliance_activity_id.in_(pca_ids)
+            ).first()
+            if pca_control:
+                project_checklist = ProjectChecklist.query.filter_by(
+                    project_control_activity_id=pca_control.id
+                ).first()
+    except Exception as pce:
+        logger.warning(f"Could not fetch project_checklist: {pce}")
+        project_checklist = None
 
     return render_template(
         "dashboards/auditor/clause_test_steps.html",
