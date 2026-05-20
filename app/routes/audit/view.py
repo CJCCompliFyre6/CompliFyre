@@ -1981,9 +1981,12 @@ def create_new_project():
 
     except Exception as e:
         db.session.rollback()
-        print(f"An error occurred while creating the project: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Project creation FULL ERROR: {str(e)}")
+        logger.error(f"TRACEBACK: {error_details}")
         flash(
-            f"An error occurred while creating the project. Please check the logs.",
+            f"Error: {str(e)}",
             "error",
         )
         return redirect(request.referrer or url_for("audit.dashboard"))
