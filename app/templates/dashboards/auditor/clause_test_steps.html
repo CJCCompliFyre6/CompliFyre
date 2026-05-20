@@ -2135,7 +2135,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="prose max-w-none">
                                     <h5 class="font-semibold text-blue-700 mb-2">Summary</h5>
                                     <p class="text-sm text-gray-700 leading-relaxed mb-4">{{
-                                        consolidated_observation_summary.consolidated_summary }}</p>
+                                        consolidated_observation_summary.consolidated_summary[:300] }}{% if consolidated_observation_summary.consolidated_summary|length > 300 %}... <button onclick="this.parentElement.innerHTML='{{ consolidated_observation_summary.consolidated_summary|replace("'", "\'") }}'" class="text-blue-600 text-xs underline">Show more</button>{% endif %}</p>
 
                                     <h5 class="font-semibold text-blue-700 mb-2">Key Observations</h5>
                                     <ul class="text-sm text-gray-700 list-disc list-inside mb-4">

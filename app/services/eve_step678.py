@@ -168,7 +168,12 @@ For each checklist item:
 SUB-STEP-7 — GENERATE OBSERVATIONS (MANDATORY)
 Generate EXACTLY ONE observation per checklist item.
 FORMAT: "• [Checklist ID] – [Requirement]: Observed that [specific fact] in [evidence type] (Reference: [section/page]). The requirement was [met/partially met/not met]. Status: COMPLIANT/PARTIAL/EXCEPTION"
-Rules: Must reference actual evidence, include location, avoid vague wording.
+Rules:
+* STRICT: Maximum 2 sentences per observation
+* Must reference actual evidence and location
+* Avoid vague wording
+* Do NOT write paragraphs — one concise sentence per observation
+* Do NOT repeat information from other observations
 
 SUB-STEP-8 — GENERATE FINDINGS (STRICT LOGIC)
 Generate findings FOR:
