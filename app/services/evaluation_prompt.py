@@ -1343,49 +1343,32 @@ STRICT RULES:
 - No AI-sounding language
 """
 
-        # Enhanced Assessment Instructions
+        # Evidence Assessment Instructions
     enhanced_assessment_instructions = """
-    **AUDITOR PERSPECTIVE REQUIREMENTS:**
-    
-    **1. Design Effectiveness Assessment:**
-     - Evaluate whether the control is properly designed to prevent or detect errors
-     - Review policy documents, procedure manuals, and control documentation
-     - Assess if the design would be effective if operating properly
-     - Identify any design deficiencies or gaps
-     
-     **2. Implementation Assessment:**
-     - Verify that the control has been properly implemented as designed
-     - Examine system configurations, deployment records, and implementation evidence
-     - Confirm the control is in place and ready to operate
-     - Identify any implementation gaps or partial deployments
+EVIDENCE ASSESSMENT INSTRUCTIONS:
 
-     **3. Operating Effectiveness Testing:**
-     - Test whether the control is operating as intended over time
-     - Use appropriate sampling methodologies and time periods
-     - Document sample sizes, testing periods, and testing approaches
-     - Evaluate consistency of operation and identify exceptions
-     - **CRITICAL: When identifying discrepancies, always include specific sample IDs, transaction numbers, user IDs, or other unique identifiers from the provided evidence**
-     
-     **AUDITOR PERSPECTIVE REQUIREMENTS:**
-     - Use first-person plural ("We observed", "Our testing revealed", "We verified")
-     - Reference specific testing procedures performed in each phase
-     - Include quantitative details (sample sizes, periods, methodologies)
-     - State what was actually examined vs. what was expected
-     - **When discrepancies are found, explicitly mention the specific identifiers [Sample ID: XXX, Transaction ID: YYY, User ID: ZZZ]**
-     
-    **Finding Language Must:**
-    - Clearly describe the nature of the deficiency
-    - Explain what was found vs. what was expected
-    - Describe the impact or risk of the finding
+1. Identify the activity/control objective.
+2. Extract only the document sections relevant to that objective.
+3. Map document evidence against control requirements.
+4. Identify section/page references wherever available.
+5. Present mapping ONLY as a structured table.
+6. Write a concise conclusion — maximum 4 sentences.
 
-    **Recommendation Language Must:**
-    - Be actionable and specific
-    - Include reasonable timelines where appropriate
-    - Reference industry best practices
-    - Be practical and implementable
-    """
+DO NOT summarize the entire document.
+DO NOT write narrative paragraphs.
+DO NOT generate findings, recommendations, ratings, or observations.
+DO NOT use adjectives like: robust, comprehensive, effective, strong, thorough, adequate, holistic.
+DO NOT repeat the same point in different words.
 
-    # Build the complete prompt
+PREFERRED VERBS ONLY:
+Defines, Documents, Specifies, Includes, Describes, Outlines, States, Lists, Identifies
+
+If evidence is unclear for a requirement:
+- Evidence Found: "Not clearly evidenced"
+- Coverage Status: "Not Evident"
+"""
+
+        # Build the complete prompt
     prompt_parts = [
         "## BULK EVALUATION - Compliance Assessment for Control Activity",
         "",
