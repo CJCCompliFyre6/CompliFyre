@@ -5357,11 +5357,10 @@ def clause_test_steps(clause_id):
     project_checklist = None
     try:
         from app.models.eve_models import ProjectChecklist
-        from app.models.ai import ProjectControlActivity
         # Get first control activity for this clause
         pca_ids = [pca.id for pca in project_compliance_activities]
         if pca_ids:
-            pca_control = ProjectControlActivity.query.filter(
+            pca_control = db.session.query(ProjectControlActivity).filter(
                 ProjectControlActivity.project_compliance_activity_id.in_(pca_ids)
             ).first()
             if pca_control:
