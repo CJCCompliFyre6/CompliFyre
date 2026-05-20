@@ -1904,9 +1904,6 @@ def create_new_project():
                             frequency=control_template.frequency,
                             sampling_guidance=control_template.sampling_guidance,
                             explain_test_procedure=control_template.explain_test_procedure,
-                    assessment_objective=control_template.assessment_objective,
-                    assessment_objective_rationale=control_template.assessment_objective_rationale,
-                    test_attributes=control_template.test_attributes,
                         )
 
                         if control_template.test_procedure:
