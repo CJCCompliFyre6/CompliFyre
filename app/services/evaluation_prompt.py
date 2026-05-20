@@ -1306,49 +1306,44 @@ def generate_bulk_evaluation_prompt(
                 "**📎 Test Procedure Files Attached:** Available for review\n\n"
             )
 
-    # Enhanced Auditor Language Section (same as individual)
+    # Concise Evidence Summary Format
     auditor_language_examples = """
-    **AUDITOR LANGUAGE REQUIREMENTS & EXAMPLES:**
-    
-    **CRITICAL: Write from the perspective of an audit professional conducting the examination.**
-    
-    **OBSERVATIONS (Use first-person plural and specific testing details):**
-    **DESIGN EFFECTIVENESS OBSERVATIONS:**
-    - "We reviewed the control design and determined the policy framework adequately addresses the risk it intends to mitigate."
-    - "Our analysis of the control design revealed that the procedure lacks sufficient segregation of duties to prevent errors."
-    - "We examined the control documentation and found the design appropriately incorporates industry best practices for..."
-    
-    **IMPLEMENTATION ASSESSMENT OBSERVATIONS:**
-    - "We verified implementation by examining system configurations and confirmed the control has been properly deployed across all relevant systems."
-    - "Our review of implementation evidence identified that the control was only partially deployed, missing from three critical business units."
-    - "We confirmed implementation through interviews with process owners and examination of deployment documentation."
-    
-    **OPERATING EFFECTIVENESS OBSERVATIONS:**
-    - "We selected a sample of 25 transactions and verified that all contained proper authorization signatures as required by the control procedure."
-    - "Our testing of 40 instances over a 6-month period demonstrated the control operated effectively in 95% of cases."
-    - "We performed walkthroughs and tested 30 samples, identifying 4 instances where the control failed to operate as designed [Sample IDs: TXN-001, TXN-015, TXN-022, TXN-028]."
-    - "We reviewed user access logs and found 3 instances of unauthorized access attempts [User IDs: USR-456, USR-789, USR-123]."
+STRICT OUTPUT FORMAT — FOLLOW EXACTLY. Return markdown only. No preamble. No explanations.
 
-    **FINDINGS EXAMPLES:**
-    - "We observed that user access reviews were not consistently documented, leading to potential unauthorized access risks."
-    - "Our testing revealed incomplete evidence of management approvals for system changes."
-    - "We identified gaps in the segregation of duties that could allow for unauthorized transactions."
-    - "The control procedure was not followed consistently across all business units."
-    
-    **RECOMMENDATIONS (Be specific and actionable):**
-    - "We recommend implementing a formal tracking mechanism for user access reviews to ensure all reviews are properly documented and approved by the quarter-end."
-    - "Management should strengthen password complexity requirements and implement multi-factor authentication to address the unauthorized access attempts noted in our testing."
-    - "We suggest establishing a monthly reconciliation process to be completed by the 5th business day of each month."
-    
-    **REQUIRED AUDITOR PHRASES:**
-    - Use "We observed", "Our testing revealed", "We verified", "Our examination demonstrated"
-    - Include specific sample sizes, periods covered, testing methodology
-    - Reference what was actually tested vs. what should exist
-    - Use professional skepticism language
-    - **CRITICAL: When discrepancies are found, mention specific sample IDs, transaction IDs, user IDs, or other unique identifiers from the data provided**
-    """
+### Document Reviewed
+[Document name and entity name]
 
-    # Enhanced Assessment Instructions
+### Objective
+[One sentence: what this control/activity is verifying]
+
+### Evidence Coverage
+
+| Requirement | Evidence Found | Document Reference | Coverage Status |
+|---|---|---|---|
+| [Control area] | [Specific finding] | [Section/Page] | Covered / Partial / Not Covered |
+
+(4-10 rows maximum. Only major control areas relevant to the activity objective.)
+
+### Conclusion
+[2-4 sentences maximum. State what was assessed and whether activity objective is addressed. Be specific and factual.]
+
+FORBIDDEN — Never use these phrases:
+overall, collectively, robustly, comprehensively, various sections, multiple sections,
+effectively aligns, substantively captures, demonstrates commitment, holistically,
+highlights the importance, underscores, in conclusion, it is evident
+
+STRICT RULES:
+- Maximum 700 words total
+- No long paragraphs anywhere
+- No repetition of the same point
+- No findings, recommendations, observations, ratings, or gap assessments
+- No hallucinated sections or invented references
+- Markdown table format only for Evidence Coverage
+- No narrative essays
+- No AI-sounding language
+"""
+
+        # Enhanced Assessment Instructions
     enhanced_assessment_instructions = """
     **AUDITOR PERSPECTIVE REQUIREMENTS:**
     
@@ -1436,9 +1431,12 @@ def generate_bulk_evaluation_prompt(
         [
             "<BulkAuditAssessmentPrompt>",
             "<SystemInstruction>",
-            "You are an expert auditor conducting bulk compliance evaluations for regulatory compliance. ",
-            "Your task is to meticulously evaluate this control activity against the consolidated evidence provided. ",
-            "This evaluation is part of a bulk assessment process, so maintain consistency with individual evaluation standards.",
+            "You are a compliance reviewer generating structured evidence assessments for enterprise audit software. ",
+            "Generate a concise auditor-friendly evidence summary mapping document content to control objectives. ",
+            "Output ONLY markdown. No preamble. No explanations. No narrative essays. ",
+            "Format: Document Reviewed → Objective → Evidence Coverage table (4-10 rows) → Conclusion (max 4 sentences). ",
+            "NEVER generate findings, recommendations, observations, ratings, or long paragraphs. ",
+            "NEVER use: overall, collectively, robustly, comprehensively, various sections, effectively aligns.",
             "</SystemInstruction>",
             "",
             "<InputSection>",
