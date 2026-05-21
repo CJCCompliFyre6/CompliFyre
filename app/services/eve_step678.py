@@ -74,22 +74,30 @@ def _call_llm_json(system_msg: str, user_msg: str, retries: int = 3, backoff: fl
 # ─────────────────────────────────────────────────────────────
 
 def _build_step6_prompt(required_dimensions: dict, checklist: list, evidence_results: list) -> str:
-    return f"""You are an Audit Aggregation and Evaluation Engine.
+    return f"""You are an Audit Assurance Consolidation Engine.
 
-TASK:
-Using structured outputs from STEP 5, you must:
-1. Determine final status for each checklist item
-2. Generate structured observations (one per checklist item)
-3. Generate findings (only for FAIL and material PARTIAL items)
-4. Assign severity using a deterministic severity engine
+TASK — STEP 6: ASSURANCE CONSOLIDATION AND CONTROL STATE SYNTHESIS
 
-Return ONLY valid JSON.
+Consolidate all checklist evaluation outputs from Step 5 into a deterministic and explainable control assurance state.
 
-DO NOT:
-* re-evaluate evidence content
+This step MUST:
+* consolidate evidence evaluation outcomes
+* determine final checklist support states
+* evaluate evidence sufficiency
+* consolidate assurance metrics
+* assess unresolved contradictions and inquiry outcomes
+* evaluate OE reliability
+* synthesize overall control support status
+* prepare structured inputs for findings generation in Step 7
+
+This step MUST NOT:
+* generate findings
 * generate recommendations
-* assume missing information
-* use vague or generic language
+* generate severity ratings
+* generate audit conclusions
+* create narrative audit observations
+
+Return ONLY valid JSON. No explanation. No markdown.
 
 ---
 
@@ -104,120 +112,164 @@ INPUT:
 * Evidence Results:
   {json.dumps(evidence_results, indent=2)}
 
-* Escalated Inquiries (unresolved contradictions → must generate findings):
+* Escalated Inquiries:
   {{escalated_inquiries_json}}
 
 ---
 
-IMPORTANT — ESCALATED INQUIRIES:
-Escalated inquiries represent contradictions or issues that the auditor could NOT resolve.
-These MUST contribute to findings generation regardless of signal status.
-For each escalated inquiry:
-* Create a finding with severity based on inquiry severity (MATERIAL → HIGH, MINOR → MEDIUM)
-* Finding must clearly state: the contradiction detected, the checklist item, and why it was escalated
-* Do NOT ignore escalated inquiries — they are confirmed audit issues
+PRINCIPLE 1 — CHECKLIST-CENTRIC CONSOLIDATION:
+Consume ONLY checklist validation results, evidence mappings, contradiction states, inquiry states, assurance updates, logical validation results, OE exception outputs.
+Direct document interpretation is prohibited.
+
+PRINCIPLE 2 — FINAL CHECKLIST STATE DETERMINATION:
+Each checklist item must be assigned a final consolidated state:
+* Supported: Assertion sufficiently validated
+* Partially Supported: Incomplete or implied support
+* Unsupported: Assertion not supported
+* Needs Further Inquiry: Unresolved ambiguity or contradiction
+
+PRINCIPLE 3 — MULTI-EVIDENCE CONSOLIDATION:
+Consolidate corroborative evidence. Reconcile overlapping evidence. Preserve evidence lineage.
+Disclose which evidence sources contributed to final support status.
+
+PRINCIPLE 4 — ASSURANCE STATE CONSOLIDATION:
+Maintain assurance metrics:
+* Assurance Score (0.0 to 1.0): Overall confidence level
+* Coverage Score (0.0 to 1.0): Checklist coverage completeness
+* Evidence Quality Score (0.0 to 1.0): Reliability of supporting evidence
+* Inquiry Count: Open clarification items
+* Contradiction Count: Outstanding inconsistencies
+* OE Reliability Score (0.0 to 1.0): Operational effectiveness consistency
+* Evidence Sufficiency Score (0.0 to 1.0): Adequacy of evidence provided
+
+PRINCIPLE 5 — ASSURANCE CALCULATION RULES:
+Assurance influenced by: checklist coverage, evidence quality, corroborative support, OE exception rates, unresolved inquiries, unresolved contradictions, inadmissible evidence, logical validation failures.
+Preserve explainability. Disclose assurance-impacting factors.
+
+PRINCIPLE 6 — EVIDENCE SUFFICIENCY:
+For each checklist item determine:
+* Sufficient: Adequate evidence available
+* Partially Sufficient: Limited or incomplete evidence
+* Insufficient: Evidence inadequate
+* Not Available: Evidence absent
+
+PRINCIPLE 7 — CONTRADICTION CONSOLIDATION:
+Classify contradictions as: Resolved / Pending Clarification / Unresolved / Material Unresolved
+Only unresolved/material contradictions may negatively impact assurance.
+
+PRINCIPLE 8 — INQUIRY STATE MANAGEMENT:
+Track: Open / Resolved / Partially Resolved / Unresolved
+Open and unresolved inquiries MUST reduce assurance confidence.
+
+PRINCIPLE 9 — OE RELIABILITY SYNTHESIS:
+Consolidate: population testing, attribute testing, analytical testing, sample testing, exception instances.
+Preserve exact failed instances, failed attributes, OE exception lineage.
+
+PRINCIPLE 10 — CONTROL SUPPORT STATUS:
+Determine final control activity support state:
+* Fully Supported: Adequate evidence, no material unresolved issues
+* Partially Supported: Some gaps, ambiguities, or limited deficiencies
+* Weakly Supported: Significant deficiencies or unresolved issues
+* Unsupported: Control not adequately evidenced
+
+PRINCIPLE 11 — EVIDENCE INTEGRITY:
+Consolidate: unsupported inference detection, traceability, audit period alignment, cross-document consistency, version alignment.
+
+PRINCIPLE 12 — NO FINDINGS OR OBSERVATIONS:
+Do NOT generate findings, observations, recommendations, risk statements, severity ratings, or audit conclusions.
+This step is ONLY assurance consolidation and control state synthesis.
 
 ---
 
-SUB-STEP-1 — GROUP BY CHECKLIST ITEM
-Group all admissible evidence by checklist_id.
-Ignore INADMISSIBLE evidence.
-
-SUB-STEP-2 — APPLY EVIDENCE WEIGHTING
+EVIDENCE WEIGHTING RULES:
 Priority: STRONG > MODERATE > WEAK, PRIMARY > SUPPORTING
-Rules:
-* WEAK evidence cannot independently PASS HIGH weight items
+* WEAK evidence cannot independently support HIGH weight items
 * SUPPORTING evidence cannot override PRIMARY
+* INADMISSIBLE evidence must be excluded
 
-SUB-STEP-3 — RESOLVE SIGNALS TO FINAL STATUS
+SIGNAL RESOLUTION:
+* IF STRONG CONTRADICTS + escalated inquiry → final_state = Unsupported
+* IF STRONG SUPPORTS + no contradiction → proceed to support
+* IF no admissible evidence → final_state = Unsupported
+* IF inquiry unresolved → final_state = Needs Further Inquiry
 
-3.1 CONTRADICTION RULE
-IF any STRONG evidence has CONTRADICTS → final_status = FAIL
-IF only WEAK evidence contradicts → ignore contradiction
-IF checklist item has ESCALATED inquiry → final_status = FAIL (override)
+SAMPLE TESTING:
+* IF within_audit_period = NO → validity LOW
+* IF exception_rate = 0 → HIGH validity → Supported
+* IF exception_rate > 0 AND ≤ 10% → Partially Supported
+* IF exception_rate > 10% → Unsupported
 
-3.2 SUPPORT RULE
-IF at least one STRONG or MODERATE evidence SUPPORTS AND no strong contradiction → proceed
+---
 
-3.3 NO EVIDENCE
-IF no admissible evidence → final_status = FAIL
+OUTPUT FORMAT (return ONLY this JSON structure):
 
-SUB-STEP-4 — SAMPLE-BASED LOGIC (IF APPLICABLE)
-IF testing_approach = SAMPLE:
-  IF within_audit_period = NO → final_status = FAIL
-  IF population_size is NULL → sample_validity = LOW
-  ELSE compute sampling_ratio = sample_size / population_size
-    IF population ≤ 10 AND ratio ≥ 50% → HIGH
-    IF population 10-100 AND ratio ≥ 20% → ACCEPTABLE
-    IF population > 100 AND ratio ≥ 10% → ACCEPTABLE
-    ELSE → LOW
-
-  IF critical exception present → FAIL
-  IF exception_rate = 0: HIGH validity → PASS, else → PARTIAL
-  IF exception_rate > 0 AND ≤ 10% → PARTIAL
-  IF exception_rate > 10% → FAIL
-
-SUB-STEP-5 — NON-SAMPLE ITEMS
-IF SUPPORTS present AND no contradiction → PASS
-IF only WEAK evidence OR incomplete → PARTIAL
-
-SUB-STEP-6 — FINAL CHECKLIST SUMMARY
-For each checklist item:
-{{"checklist_id": "", "requirement": "", "final_status": "PASS/PARTIAL/FAIL", "basis": "", "confidence": "HIGH/MEDIUM/LOW"}}
-
-SUB-STEP-7 — GENERATE OBSERVATIONS (MANDATORY)
-Generate EXACTLY ONE observation per checklist item.
-FORMAT: "• [Checklist ID] – [Requirement]: Observed that [specific fact] in [evidence type] (Reference: [section/page]). The requirement was [met/partially met/not met]. Status: COMPLIANT/PARTIAL/EXCEPTION"
-Rules:
-* STRICT: Maximum 2 sentences per observation
-* Must reference actual evidence and location
-* Avoid vague wording
-* Do NOT write paragraphs — one concise sentence per observation
-* Do NOT repeat information from other observations
-
-SUB-STEP-8 — GENERATE FINDINGS (STRICT LOGIC)
-Generate findings FOR:
-* final_status = FAIL
-* final_status = PARTIAL (only if requirement_type = PRIMARY or weight = HIGH)
-* ALL escalated inquiries (regardless of final_status)
-
-8.1 FINDING CREATION RULES
-* One finding per UNIQUE issue
-* If multiple checklist failures relate to same root issue → combine
-* Findings must be written like a professional auditor
-
-8.2 FINDING FORMAT (STRICT)
-"• [Issue Title]: It was noted that [clear description]. Specifically, [expected vs observed]. Evidence: [type and reference]. Impact: [risk]. (Severity: [computed severity])"
-
-SUB-STEP-9 — SEVERITY ENGINE
-Base severity from failure_impact:
-  CRITICAL → CRITICAL, MAJOR → HIGH, SIGNIFICANT → MEDIUM, MINOR → LOW
-
-Adjustments:
-  IF final_status = PARTIAL → downgrade one level
-  IF STRONG contradiction present → upgrade one level (max CRITICAL)
-  IF exception_rate > 10% → minimum severity = HIGH
-  IF only WEAK evidence → cap severity at MEDIUM
-
-OUTPUT FORMAT (return exactly this):
-{{
-  "checklist_summary": [
-    {{"checklist_id": "", "requirement": "", "final_status": "", "basis": "", "confidence": ""}}
+{{{{
+  "checklist_state_matrix": [
+    {{{{
+      "checklist_id": "",
+      "requirement": "",
+      "final_state": "Supported | Partially Supported | Unsupported | Needs Further Inquiry",
+      "supporting_evidence": ["evidence_id_1", "evidence_id_2"],
+      "confidence": "HIGH | MEDIUM | LOW",
+      "assurance_impact": "POSITIVE | NEUTRAL | NEGATIVE",
+      "sufficiency_status": "Sufficient | Partially Sufficient | Insufficient | Not Available",
+      "basis": ""
+    }}}}
   ],
-  "observations": [
-    {{"checklist_id": "", "observation_text": "", "status": ""}}
+  "assurance_state": {{{{
+    "assurance_score": 0.0,
+    "coverage_score": 0.0,
+    "evidence_quality_score": 0.0,
+    "oe_reliability_score": 0.0,
+    "evidence_sufficiency_score": 0.0,
+    "inquiry_count": 0,
+    "contradiction_count": 0,
+    "resolved_contradiction_count": 0,
+    "unresolved_contradiction_count": 0,
+    "assurance_impacting_factors": []
+  }}}},
+  "evidence_sufficiency_summary": [
+    {{{{
+      "checklist_id": "",
+      "sufficiency_status": "Sufficient | Partially Sufficient | Insufficient | Not Available",
+      "missing_evidence": "",
+      "residual_gaps": ""
+    }}}}
   ],
-  "findings": [
-    {{"finding_id": "", "checklist_id": "", "issue": "", "impact": "", "severity": "", "evidence_reference": ""}}
-  ]
-}}
+  "contradiction_inquiry_summary": [
+    {{{{
+      "item": "",
+      "type": "CONTRADICTION | INQUIRY",
+      "status": "Resolved | Pending Clarification | Unresolved | Material Unresolved",
+      "resolution_state": "",
+      "residual_risk": "HIGH | MEDIUM | LOW | NONE"
+    }}}}
+  ],
+  "oe_exception_summary": [
+    {{{{
+      "instance_id": "",
+      "checklist_id": "",
+      "failed_attribute": "",
+      "exception_severity": "CRITICAL | HIGH | MEDIUM | LOW",
+      "exception_status": "Open | Remediated | Accepted"
+    }}}}
+  ],
+  "control_support_status": {{{{
+    "final_status": "Fully Supported | Partially Supported | Weakly Supported | Unsupported",
+    "assurance_rationale": "",
+    "key_gaps": [],
+    "unresolved_items": []
+  }}}}
+}}}}
 
 STRICT CONSTRAINTS:
-* Do NOT generate recommendations
-* Do NOT ignore contradictions
-* Do NOT produce vague observations or findings
-* All outputs must be traceable to evidence
-* All logic must be deterministic"""
+* Return ONLY valid JSON
+* Do NOT generate findings, observations, or recommendations
+* Do NOT conclude compliance
+* All assurance scores must be between 0.0 and 1.0
+* final_state must use exact values: Supported / Partially Supported / Unsupported / Needs Further Inquiry
+* final_status must use exact values: Fully Supported / Partially Supported / Weakly Supported / Unsupported"""
+
 
 
 def _build_step7_prompt(findings: list) -> str:
@@ -594,24 +646,83 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
         if not step6_output:
             raise self.retry(exc=Exception("Step 6 LLM returned no output"), countdown=60)
 
-        checklist_summary = step6_output.get("checklist_summary", [])
-        observations = step6_output.get("observations", [])
-        findings = step6_output.get("findings", [])
+        # V3 Step 6 outputs
+        checklist_state_matrix = step6_output.get("checklist_state_matrix", [])
+        assurance_state = step6_output.get("assurance_state", {})
+        control_support_status = step6_output.get("control_support_status", {})
 
-        # Store Step 6 results
+        # Backward compatibility mapping V3 → V2
+        status_map = {
+            "Supported": "PASS",
+            "Partially Supported": "PARTIAL",
+            "Unsupported": "FAIL",
+            "Needs Further Inquiry": "PARTIAL",
+        }
+        checklist_summary = []
+        for item in checklist_state_matrix:
+            state = item.get("final_state", "Partially Supported")
+            checklist_summary.append({
+                "checklist_id": item.get("checklist_id", ""),
+                "requirement": item.get("requirement", ""),
+                "final_status": status_map.get(state, "PARTIAL"),
+                "final_state": state,
+                "basis": item.get("basis", ""),
+                "confidence": item.get("confidence", "MEDIUM"),
+                "sufficiency_status": item.get("sufficiency_status", ""),
+                "assurance_impact": item.get("assurance_impact", "NEUTRAL"),
+            })
+
+        # Store results
         control_result.checklist_summary_json = checklist_summary
-        control_result.observations_json = observations
-        control_result.findings_json = findings
+        control_result.observations_json = []
+        control_result.findings_json = []
         control_result.step6_completed = True
         control_result.updated_at = datetime.utcnow()
         control_result.sync_counts()
         control_result.sync_checklist_counts()
-        db.session.commit()
 
+        # Update EveAssuranceState
+        try:
+            from app.models.eve_models import EveAssuranceState
+            eve_assurance = db.session.query(EveAssuranceState).filter_by(
+                project_checklist_id=checklist.id
+            ).first()
+            if eve_assurance and assurance_state:
+                eve_assurance.assurance_score = float(assurance_state.get("assurance_score", 0.0))
+                eve_assurance.coverage_score = float(assurance_state.get("coverage_score", 0.0))
+                eve_assurance.evidence_quality_score = float(assurance_state.get("evidence_quality_score", 0.0))
+                eve_assurance.oe_reliability_score = float(assurance_state.get("oe_reliability_score", 0.0))
+                eve_assurance.inquiry_count = int(assurance_state.get("inquiry_count", 0))
+                eve_assurance.contradiction_count = int(assurance_state.get("contradiction_count", 0))
+                eve_assurance.last_updated_at = datetime.utcnow()
+        except Exception as ae:
+            logger.warning(f"[Module E] Could not update EveAssuranceState: {ae}")
+
+        db.session.commit()
         logger.info(
-            f"[Module E] Step 6 done: {len(checklist_summary)} items, "
-            f"{len(observations)} observations, {len(findings)} findings"
+            f"[Module E] Step 6 V3 done: {len(checklist_state_matrix)} items, "
+            f"control_support={control_support_status.get('final_status', 'Unknown')}"
         )
+
+        # Generate findings for Step 7
+        findings = []
+        if control_support_status.get("final_status") in ("Partially Supported", "Weakly Supported", "Unsupported"):
+            for gap in control_support_status.get("key_gaps", []):
+                findings.append({
+                    "finding_id": f"F-{len(findings)+1:03d}",
+                    "checklist_id": "",
+                    "issue": gap,
+                    "impact": "Control objective not fully supported",
+                    "severity": "HIGH" if control_support_status.get("final_status") == "Unsupported" else "MEDIUM",
+                })
+        for inq in escalated_inquiries_data:
+            findings.append({
+                "finding_id": f"F-INQ-{inq.get('inquiry_id', '')}",
+                "checklist_id": inq.get("checklist_item_id", ""),
+                "issue": inq.get("escalation_reason", inq.get("inquiry_question", "")),
+                "impact": "Unresolved contradiction identified during audit",
+                "severity": "HIGH" if inq.get("severity") == "MATERIAL" else "MEDIUM",
+            })
 
         # ── 7. Run Step 7 (recommendations) ───────────────────────────
         if findings:
