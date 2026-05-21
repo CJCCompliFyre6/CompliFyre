@@ -513,6 +513,13 @@ class EveControlResult(db.Model):
     checklist_fail_count = db.Column(db.Integer, nullable=True, default=0)
 
     # Tracks which EVE steps have been completed for this control
+    # V3 Step 6 — Assurance Consolidation
+    assurance_state_json = db.Column(db.JSON, nullable=True)
+    control_support_status = db.Column(db.String(50), nullable=True)
+    evidence_sufficiency_json = db.Column(db.JSON, nullable=True)
+    contradiction_summary_json = db.Column(db.JSON, nullable=True)
+    oe_exception_summary_json = db.Column(db.JSON, nullable=True)
+
     step6_completed = db.Column(db.Boolean, nullable=False, default=False)
     step7_completed = db.Column(db.Boolean, nullable=False, default=False)
     step8_completed = db.Column(db.Boolean, nullable=False, default=False)
