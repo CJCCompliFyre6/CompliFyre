@@ -515,6 +515,11 @@ class EveControlResult(db.Model):
     # Tracks which EVE steps have been completed for this control
     # V3 Step 6 — Assurance Consolidation
     assurance_state_json = db.Column(db.JSON, nullable=True)
+
+    # V3 Step 7 — Observations + Findings + Risks + Recommendations
+    risks_json = db.Column(db.JSON, nullable=True)
+    oe_exception_register_json = db.Column(db.JSON, nullable=True)
+    inquiry_register_json = db.Column(db.JSON, nullable=True)
     control_support_status = db.Column(db.String(50), nullable=True)
     evidence_sufficiency_json = db.Column(db.JSON, nullable=True)
     contradiction_summary_json = db.Column(db.JSON, nullable=True)

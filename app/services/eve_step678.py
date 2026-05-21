@@ -272,84 +272,258 @@ STRICT CONSTRAINTS:
 
 
 
-def _build_step7_prompt(findings: list) -> str:
-    return f"""You are an Audit Recommendation Engine.
+def _build_step7_prompt(
+    checklist_state_matrix: list,
+    assurance_state: dict,
+    evidence_sufficiency_summary: list,
+    contradiction_inquiry_summary: list,
+    oe_exception_summary: list,
+    control_support_status: dict,
+    checklist: list,
+    findings: list = None,
+) -> str:
+    """Build EVE Step 7 prompt — V3 with 13 principles."""
 
-TASK:
-Generate precise, actionable recommendations for each finding.
+    return f"""You are an Audit Observation, Finding, Risk, and Recommendation Engine.
 
-Return ONLY valid JSON.
+TASK — STEP 7: STRUCTURED AUDIT ISSUE GENERATION AND RISK ARTICULATION
 
-DO NOT:
-* re-evaluate evidence
-* change findings
-* combine findings
-* generate generic or vague recommendations
+Generate deterministic, evidence-backed, auditable audit observations, findings, risks, severity assessments, and recommendations based solely on the consolidated assurance outputs from Step 6.
+
+This step MUST:
+* identify unresolved control deficiencies
+* generate structured audit observations
+* generate findings from failed or weakly supported checklist items
+* evaluate impact and severity
+* identify operational and regulatory risks
+* generate targeted recommendations
+* consolidate OE exception impacts
+* maintain full traceability to checklist failures and evidence lineage
+
+This step MUST NOT:
+* directly interpret raw documents
+* generate findings from unsupported inference
+* generate conclusions without evidence lineage
+* bypass the structured checklist evaluation framework
+* generate final audit opinions or overall compliance conclusions
+
+Return ONLY valid JSON. No explanation. No markdown.
 
 ---
 
-INPUT:
-{json.dumps({{"findings": findings}}, indent=2)}
+INPUT FROM STEP 6:
+
+* Checklist State Matrix:
+  {json.dumps(checklist_state_matrix, indent=2)}
+
+* Assurance State:
+  {json.dumps(assurance_state, indent=2)}
+
+* Evidence Sufficiency Summary:
+  {json.dumps(evidence_sufficiency_summary, indent=2)}
+
+* Contradiction / Inquiry Summary:
+  {json.dumps(contradiction_inquiry_summary, indent=2)}
+
+* OE Exception Summary:
+  {json.dumps(oe_exception_summary, indent=2)}
+
+* Control Support Status:
+  {json.dumps(control_support_status, indent=2)}
+
+* Checklist Items:
+  {json.dumps(checklist, indent=2)}
 
 ---
 
-SUB-STEP-1 — ONE-TO-ONE MAPPING
-* Generate EXACTLY one recommendation per finding
-* Maintain same order as input
+PRINCIPLE 1 — FINDINGS MUST EMERGE ONLY FROM STRUCTURED FAILURES:
+Findings may ONLY be generated from:
+* Unsupported checklist items
+* Weakly Supported control states
+* Unresolved contradictions
+* Unresolved inquiries
+* Inadmissible evidence
+* Failed logical validations
+* Failed OE testing with exception instances
+* Insufficient evidence states
+* Evidence integrity failures
 
-SUB-STEP-2 — RECOMMENDATION STRUCTURE
-Each recommendation must include:
-1. Corrective Action
-2. Implementation Detail
-3. Control Objective Alignment
-4. Ownership Suggestion (role-based, not names)
+PRINCIPLE 2 — FULL TRACEABILITY IS MANDATORY:
+Every observation, finding, risk, and recommendation must retain traceability to:
+checklist IDs, failed assertions, evidence sources, OE exception instances, contradiction records, inquiry records, and assurance impacts.
 
-SUB-STEP-3 — RECOMMENDATION WRITING RULES
-* directly address the issue described in the finding
-* state WHAT must be done and HOW
-* avoid generic phrases like "improve", "ensure", "strengthen" without specifics
-* be implementable and measurable
+PRINCIPLE 3 — OBSERVATION STRUCTURE:
+Each observation must identify:
+* the control expectation
+* the issue identified
+* the supporting basis
+* the operational/regulatory implication
+Observations must be: factual, concise, evidence-backed, non-speculative.
 
-SUB-STEP-4 — TIMELINE DETERMINATION
-CRITICAL → IMMEDIATE, HIGH → SHORT_TERM, MEDIUM → MEDIUM_TERM, LOW → LONG_TERM
+PRINCIPLE 4 — FINDING GENERATION RULES:
+Findings must emerge from unresolved deficiencies and distinguish between:
+* Design deficiencies (D)
+* Implementation deficiencies (IE)
+* OE deficiencies (OE)
+* Evidence deficiencies (Evidence Integrity)
+* Inquiry-related uncertainties (Inquiry)
 
-SUB-STEP-5 — RECOMMENDATION FORMAT
-For each finding:
-{{"finding_id": "", "recommendation": "", "implementation_steps": ["", ""], "owner": "", "timeline": ""}}
+PRINCIPLE 5 — FINDING CONSOLIDATION AND DEDUPLICATION:
+Consolidate related checklist failures into unique findings.
+Group failures where they relate to: same control objective, same governance weakness, same OE breakdown.
+AVOID: repetitive findings, one-to-one checklist-to-finding duplication.
 
-SUB-STEP-6 — CONTENT GUIDELINES
-6.1 CORRECTIVE ACTION: Must directly fix the issue
-Example: "Obtain formal Board approval for the IT Governance Framework"
+PARTIAL CHECKLIST ITEMS:
+PARTIAL items must NOT automatically generate findings.
+Evaluate materiality, aggregation impact, assurance reduction before deciding.
 
-6.2 IMPLEMENTATION STEPS: 2-4 concrete steps:
-* define process, assign responsibility, implement control, document evidence
+GOOD EXAMPLE: "Board governance and approval controls for the Credit Policy were not fully evidenced. (High)"
+BAD EXAMPLE: Multiple separate findings for each individual board approval gap.
 
-6.3 OWNER (role-based):
-Board / Board Committee | Senior Management | IT Function | Risk / Compliance Function | Information Security Team
+PRINCIPLE 6 — SEVERITY ASSESSMENT:
+| Severity | Meaning |
+| Low | Minor isolated issue |
+| Medium | Moderate control weakness |
+| High | Significant deficiency impacting assurance |
+| Critical | Material regulatory/control failure |
 
-SUB-STEP-7 — CONSISTENCY RULES
-* Do NOT repeat wording across recommendations
-* Tailor each recommendation to the specific finding
-* Keep language formal, precise, and auditor-style
+Severity influenced by: assurance impact, regulatory significance, OE failure extent, population impact, evidence sufficiency, unresolved contradictions.
 
-OUTPUT:
-{{
-  "recommendations": [
-    {{
-      "finding_id": "",
-      "recommendation": "",
+PRINCIPLE 7 — ROOT CAUSE IDENTIFICATION:
+Where possible identify probable root causes:
+inadequate design, incomplete implementation, weak operational execution, insufficient monitoring, poor governance, missing evidence controls, documentation gaps.
+Root causes must remain evidence-supported, avoid speculative attribution.
+
+PRINCIPLE 8 — RISK GENERATION:
+Generate risks associated with unresolved deficiencies.
+Risk categories: Regulatory | Operational | Financial | Governance
+Risks must be: proportional, evidence-backed, logically connected to findings.
+
+PRINCIPLE 9 — RECOMMENDATION GENERATION:
+Recommendations must:
+* directly address identified deficiencies
+* remain implementable and proportionate to severity
+* align with regulatory intent
+* NOT introduce unrelated remediation
+* NOT exceed scope of finding
+
+PRINCIPLE 10 — OE EXCEPTION CONSOLIDATION:
+Where OE testing applies, findings must consider:
+* exact failed instances
+* frequency of exceptions
+* population-wide impact
+* exception severity and remediation status
+Preserve exact exception lineage. Avoid generalized OE conclusions.
+
+PRINCIPLE 11 — INQUIRY AND CONTRADICTION TREATMENT:
+Resolved contradictions/inquiries must NOT generate findings.
+Only unresolved, material, or assurance-impacting contradictions may contribute toward findings.
+Clearly distinguish unresolved ambiguity from confirmed control failure.
+
+PRINCIPLE 12 — EVIDENCE INTEGRITY FINDINGS:
+Evidence integrity failures may independently generate findings where:
+* evidence traceability is broken
+* audit period alignment fails
+* unsupported inference materially impacts evaluation
+* evidence inconsistency remains unresolved
+
+PRINCIPLE 13 — NO FINAL AUDIT CONCLUSIONS:
+This step must NOT generate:
+* final audit opinions
+* overall compliance conclusions
+* clause-level compliance status
+* executive summaries
+
+---
+
+OUTPUT FORMAT (return ONLY this JSON structure):
+
+{{{{
+  "observation_register": [
+    {{{{
+      "observation_id": "OBS-001",
+      "related_checklist_ids": [],
+      "observation_summary": "",
+      "supporting_basis": "",
+      "evidence_references": [],
+      "assurance_impact": "POSITIVE | NEUTRAL | NEGATIVE"
+    }}}}
+  ],
+  "findings_register": [
+    {{{{
+      "finding_id": "F-001",
+      "finding_summary": "",
+      "finding_type": "D | IE | OE | Evidence Integrity | Inquiry",
+      "related_checklist_ids": [],
+      "root_issue": "",
+      "evidence_basis": "",
+      "regulatory_impact": "",
+      "operational_impact": "",
+      "residual_risk": "",
+      "severity": "Low | Medium | High | Critical",
+      "assurance_impact": "",
+      "related_oe_exceptions": [],
+      "evidence_lineage": []
+    }}}}
+  ],
+  "risk_register": [
+    {{{{
+      "risk_id": "R-001",
+      "related_findings": [],
+      "risk_description": "",
+      "risk_category": "Regulatory | Operational | Financial | Governance",
+      "potential_impact": "",
+      "likelihood": "Low | Medium | High",
+      "residual_exposure": ""
+    }}}}
+  ],
+  "recommendation_register": [
+    {{{{
+      "recommendation_id": "REC-001",
+      "related_finding": "",
+      "recommendation_summary": "",
+      "target_control_area": "",
+      "recommended_action": "",
       "implementation_steps": [],
       "owner": "",
-      "timeline": ""
-    }}
+      "timeline": "IMMEDIATE | SHORT_TERM | MEDIUM_TERM | LONG_TERM",
+      "priority": "Low | Medium | High",
+      "expected_outcome": ""
+    }}}}
+  ],
+  "oe_exception_register": [
+    {{{{
+      "instance_id": "",
+      "checklist_id": "",
+      "failed_attribute": "",
+      "exception_description": "",
+      "population_impact": "",
+      "exception_severity": "Critical | High | Medium | Low",
+      "severity_contribution": ""
+    }}}}
+  ],
+  "inquiry_contradiction_register": [
+    {{{{
+      "item": "",
+      "type": "CONTRADICTION | INQUIRY",
+      "resolution_status": "Resolved | Pending | Unresolved | Material Unresolved",
+      "residual_impact": "",
+      "escalation_required": "YES | NO"
+    }}}}
   ]
-}}
+}}}}
 
 STRICT CONSTRAINTS:
-* One finding → one recommendation (mandatory)
-* No generic recommendations
-* No duplication across findings
-* Must be actionable and auditable"""
+* Return ONLY valid JSON
+* Do NOT generate final audit opinions or compliance conclusions
+* Findings must emerge from Step 6 structured outputs ONLY
+* Every finding must have traceable checklist_ids
+* Resolved contradictions/inquiries must NOT generate findings
+* PARTIAL items need materiality evaluation before generating findings
+* Severity must be explainable and evidence-backed
+* Recommendations must be one-to-one with findings
+* OE exceptions must preserve instance-level traceability"""
+
 
 
 def _build_step8_prompt(clause_id: int, clause_text: str, control_outputs: list) -> str:
@@ -724,45 +898,57 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
                 "severity": "HIGH" if inq.get("severity") == "MATERIAL" else "MEDIUM",
             })
 
-        # ── 7. Run Step 7 (recommendations) ───────────────────────────
-        if findings:
-            logger.info(f"[Module F] Running Step 7 for pca_id={project_control_activity_id}")
+        # ── 7. Run Step 7 V3 (Observations + Findings + Risks + Recommendations) ──
+        logger.info(f"[Module F] Running Step 7 V3 for pca_id={project_control_activity_id}")
+        step7_output = _call_llm_json(
+            system_msg=(
+                "You are an Audit Observation, Finding, Risk, and Recommendation Engine. "
+                "Return ONLY valid JSON. No markdown. No explanation."
+            ),
+            user_msg=_build_step7_prompt(
+                checklist_state_matrix=checklist_state_matrix,
+                assurance_state=assurance_state,
+                evidence_sufficiency_summary=step6_output.get("evidence_sufficiency_summary", []),
+                contradiction_inquiry_summary=step6_output.get("contradiction_inquiry_summary", []),
+                oe_exception_summary=step6_output.get("oe_exception_summary", []),
+                control_support_status=control_support_status,
+                checklist=checklist_items,
+                findings=findings,
+            ),
+        )
+        if not step7_output:
+            logger.warning(f"[Module F] Step 7 returned no output for pca_id={project_control_activity_id}")
+            observations = []
+            findings_v3 = findings
+            risks = []
+            recommendations = []
+            oe_exception_register = []
+            inquiry_contradiction_register = []
+        else:
+            observations = step7_output.get("observation_register", [])
+            findings_v3 = step7_output.get("findings_register", findings)
+            risks = step7_output.get("risk_register", [])
+            recommendations = step7_output.get("recommendation_register", [])
+            oe_exception_register = step7_output.get("oe_exception_register", [])
+            inquiry_contradiction_register = step7_output.get("inquiry_contradiction_register", [])
 
-            # Prepare findings input for Step 7
-            findings_for_step7 = [
-                {
-                    "finding_id": f.get("finding_id", ""),
-                    "checklist_id": f.get("checklist_id", ""),
-                    "issue": f.get("issue", ""),
-                    "impact": f.get("impact", ""),
-                    "severity": f.get("severity", "MEDIUM"),
-                }
-                for f in findings
-            ]
-
-            step7_output = _call_llm_json(
-                system_msg=(
-                    "You are an Audit Recommendation Engine. "
-                    "Return ONLY valid JSON. No markdown. No explanation."
-                ),
-                user_msg=_build_step7_prompt(findings_for_step7),
-            )
-
-            if not step7_output:
-                logger.warning(
-                    f"[Module F] Step 7 LLM returned no output for pca_id={project_control_activity_id} "
-                    f"— recommendations will be empty"
-                )
-                recommendations = []
-            else:
-                recommendations = step7_output.get("recommendations", [])
-
-            control_result.recommendations_json = recommendations
-            control_result.step7_completed = True
-            control_result.updated_at = datetime.utcnow()
-            db.session.commit()
-
-            logger.info(f"[Module F] Step 7 done: {len(recommendations)} recommendations")
+        # Store Step 7 V3 results
+        control_result.observations_json = observations
+        control_result.findings_json = findings_v3
+        control_result.recommendations_json = recommendations
+        if hasattr(control_result, 'risks_json'):
+            control_result.risks_json = risks
+        if hasattr(control_result, 'oe_exception_register_json'):
+            control_result.oe_exception_register_json = oe_exception_register
+        if hasattr(control_result, 'inquiry_register_json'):
+            control_result.inquiry_register_json = inquiry_contradiction_register
+        control_result.step7_completed = True
+        control_result.updated_at = datetime.utcnow()
+        db.session.commit()
+        logger.info(
+            f"[Module F] Step 7 V3 done: {len(observations)} obs, "
+            f"{len(findings_v3)} findings, {len(risks)} risks, {len(recommendations)} recs"
+        )
         else:
             # No findings — no recommendations needed
             control_result.recommendations_json = []
