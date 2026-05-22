@@ -4541,176 +4541,85 @@ def evaluate_all_projects():
 @audit_bp.route("/reevaluate_activity", methods=["POST"])
 def reevaluate_activity():
     """
-    This endpoint re-evaluates a particular project-specific control activity
-    using auditor input and an AI service. Now captures ALL evaluation fields.
+    EVE v3 Pipeline — Evaluate a single project control activity.
+    Triggers Steps 5 → 6 → 7 for the activity.
     """
     try:
         project_control_activity_id = request.form.get("activity_code")
-        user_prompt = request.form.get("user_input")
+        user_prompt = request.form.get("user_input", "")
 
         if not project_control_activity_id:
-            flash("Activity ID is required for reevaluation.", "error")
+            flash("Activity ID is required for evaluation.", "error")
             return redirect(request.referrer)
 
-        # Query the project-specific table
         project_control_activity = ProjectControlActivity.query.get(
-            project_control_activity_id
+            int(project_control_activity_id)
         )
         if not project_control_activity:
-            flash(
-                f"No project activity found with ID: {project_control_activity_id}",
-                "error",
-            )
+            flash(f"No activity found with ID: {project_control_activity_id}", "error")
             return redirect(request.referrer)
 
-        # Get the full project context chain
-        project_context = get_project_context_for_activity(project_control_activity)
-
-        # Log that we're including additional information in reevaluation
-        has_additional_info = False
-        has_file_attachments = False
-
-        if project_control_activity.project_test_procedure:
-            test_proc = project_control_activity.project_test_procedure
-            has_additional_info = bool(
-                getattr(test_proc, "additional_walkthrough", None)
-                or getattr(test_proc, "additional_sampling", None)
-            )
-            has_file_attachments = bool(
-                test_proc.test_procedure_files
-                and len(test_proc.test_procedure_files) > 0
-            )
-
-        current_app.logger.info(
-            f"Reevaluating activity {project_control_activity_id} - "
-            f"Additional info: {has_additional_info}, Files: {has_file_attachments}"
-            f"Clause: {project_context.get('clause_no')}, "
-            f"Additional info: {has_additional_info}, Files: {has_file_attachments}"
+        # Get upload base path
+        upload_base_path = current_app.config.get(
+            "UPLOAD_FOLDER",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../uploads")
         )
 
-        try:
-            main_prompt = generate_compliance_prompt(
-                project_control_activity=project_control_activity,
-                user_prompt=user_prompt,
-                project_context=project_context,  # Pass project context
-            )
+        # Get project checklist for this control activity
+        from app.models.eve_models import ProjectChecklist
+        checklist = ProjectChecklist.query.filter_by(
+            project_control_activity_id=project_control_activity.id
+        ).first()
 
-            # ADD THIS
-            current_app.logger.debug("=" * 80)
-            current_app.logger.debug("ABOUT TO CALL AI - Checking system prompt...")
-            current_app.logger.debug("=" * 80)
-        except Exception as e:
-            flash(f"Error generating compliance prompt: {str(e)}", "error")
-            return redirect(request.referrer)
-
-        try:
-            res = generate_chat_output(main_prompt)
-            if not res:
-                flash("Failed to generate compliance evaluation output.", "error")
-                return redirect(request.referrer)
-        except Exception as e:
-            flash(f"Error generating compliance evaluation: {str(e)}", "error")
-            return redirect(request.referrer)
-
-        try:
-            output = json.loads(res) if isinstance(res, str) else res
-            if not isinstance(output, dict):
-                raise ValueError("Invalid output format received")
-        except (json.JSONDecodeError, ValueError) as e:
-            flash(f"Error parsing evaluation results: {str(e)}", "error")
-            return redirect(request.referrer)
-
-        try:
-            # **UPDATED SECTION: Capture ALL fields from the JSON response**
-
-            # Check for all expected keys
-            expected_keys = [
-                "evidence_admissibility_decision",
-                "evidence_quality_rating",
-                "reason_for_inadmissibility",
-                "required_effectiveness_dimensions_design",
-                "required_effectiveness_dimensions_implementation",
-                "required_effectiveness_dimensions_operating_effectiveness",
-                "detailed_control_testing_results",
-                "overall_compliance_status",
-                "observations",
-                "findings",
-                "recommendations",
-                "severity_classification_for_each_finding",
-                "overall_severity_classification",
-            ]
-
-            missing_keys = [key for key in expected_keys if key not in output]
-
-            if missing_keys:
-                current_app.logger.warning(
-                    f'Incomplete evaluation results. Missing: {", ".join(missing_keys)}'
-                )
-                flash(
-                    f'Incomplete evaluation results. Missing: {", ".join(missing_keys)}',
-                    "warning",
-                )
-
-            # Update the project-specific record with ALL captured fields
-
-            # Basic fields (existing)
-            project_control_activity.auditor_observation = output.get(
-                "observations", ""
-            )
-            project_control_activity.recommendations = output.get("recommendations", "")
-            project_control_activity.findings = output.get("findings", "")
-            project_control_activity.compliant_status = output.get(
-                "overall_compliance_status", "Unknown"
-            )
-
-            # **NEW FIELDS TO ADD TO DATABASE**
-            # You'll need to add these columns to your ProjectControlActivity model first
-            project_control_activity.evidence_admissibility_decision = output.get(
-                "evidence_admissibility_decision", ""
-            )
-            project_control_activity.evidence_quality_rating = output.get(
-                "evidence_quality_rating", ""
-            )
-            project_control_activity.reason_for_inadmissibility = output.get(
-                "reason_for_inadmissibility", "N/A"
-            )
-            project_control_activity.required_effectiveness_design = output.get(
-                "required_effectiveness_dimensions_design", ""
-            )
-            project_control_activity.required_effectiveness_implementation = output.get(
-                "required_effectiveness_dimensions_implementation", ""
-            )
-            project_control_activity.required_effectiveness_operating = output.get(
-                "required_effectiveness_dimensions_operating_effectiveness", ""
-            )
-            project_control_activity.detailed_control_testing_results = output.get(
-                "detailed_control_testing_results", ""
-            )
-            project_control_activity.severity_classification_per_finding = output.get(
-                "severity_classification_for_each_finding", "N/A"
-            )
-            project_control_activity.overall_severity_classification = output.get(
-                "overall_severity_classification", ""
-            )
-
-            db.session.commit()
+        if not checklist:
             flash(
-                f"Activity {project_control_activity.activity_name} has been successfully reevaluated with complete details.",
-                "success",
+                "No EVE checklist found for this activity. "
+                "Please ensure checklist generation is complete.",
+                "error"
             )
-
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error updating activity data: {str(e)}")
-            flash(f"Error updating activity data: {str(e)}", "error")
             return redirect(request.referrer)
 
-    except Exception as e:
-        current_app.logger.error(f"Unexpected error during reevaluation: {str(e)}")
-        flash(f"An unexpected error occurred during reevaluation: {str(e)}", "error")
+        # Get evidence artifacts
+        evidence_artifacts = project_control_activity.submitted_evidences or []
+
+        # Trigger EVE Step 5 for each evidence
+        from app.services.eve_step5 import run_eve_step5_for_all_evidence
+        from app.services.eve_step678 import run_eve_step6_and_7
+
+        step5_tasks = 0
+        if evidence_artifacts:
+            for evidence in evidence_artifacts:
+                run_eve_step5_for_all_evidence.apply_async(
+                    args=[checklist.id, upload_base_path],
+                    queue='eve_evaluate'
+                )
+                step5_tasks += 1
+
+        # Trigger Step 6 + 7 with delay to allow Step 5 to complete
+        countdown = max(30, step5_tasks * 10)
+        run_eve_step6_and_7.apply_async(
+            args=[project_control_activity.id, current_user.id],
+            queue='eve_evaluate',
+            countdown=countdown
+        )
+
+        current_app.logger.info(
+            f"[EVE v3] Triggered evaluation for activity_id={project_control_activity_id}, "
+            f"evidence={step5_tasks}, countdown={countdown}s"
+        )
+
+        flash(
+            f"EVE v3 evaluation started! "
+            f"{step5_tasks} evidence file(s) being processed. "
+            f"Results will appear in ~{countdown} seconds.",
+            "success"
+        )
         return redirect(request.referrer)
 
-    return redirect(request.referrer)
+    except Exception as e:
+        current_app.logger.exception(f"Error in EVE v3 reevaluate_activity: {str(e)}")
+        flash(f"Error starting evaluation: {str(e)}", "error")
+        return redirect(request.referrer)
 
 
 @audit_bp.route("/delete-evidence", methods=["POST"])
