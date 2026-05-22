@@ -4240,7 +4240,17 @@ def test_evidence_artifacts(activity_id):
                     severity_order = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
                     max_sev = 0
                     for f in eve_findings:
-                        sev = f.get("severity", "Low")
+                        sev = f.get("severity", "")
+                        if not sev:
+                            issue_text = f.get("issue", "")
+                            if "CRITICAL" in issue_text.upper():
+                                sev = "Critical"
+                            elif "HIGH" in issue_text.upper():
+                                sev = "High"
+                            elif "MEDIUM" in issue_text.upper():
+                                sev = "Medium"
+                            else:
+                                sev = "Low"
                         if severity_order.get(sev, 0) > max_sev:
                             max_sev = severity_order.get(sev, 0)
                             eve_overall_severity = sev

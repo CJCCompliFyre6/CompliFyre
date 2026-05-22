@@ -1503,7 +1503,7 @@
           {% else %}bg-blue-50 border-b border-blue-200{% endif %}">
           <div class="flex items-center space-x-3">
             <span class="text-xs font-mono font-bold text-gray-500">{{ finding.finding_id or loop.index }}</span>
-            <span class="text-sm font-bold text-gray-800">{{ finding.finding_summary }}</span>
+            <span class="text-sm font-bold text-gray-800">{{ finding.finding_summary or finding.issue or "No summary" }}</span>
           </div>
           <div class="flex items-center space-x-2">
             {% if finding.finding_type %}
