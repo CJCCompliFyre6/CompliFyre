@@ -1905,6 +1905,26 @@ def create_new_project():
                             sampling_guidance=control_template.sampling_guidance,
                             explain_test_procedure=control_template.explain_test_procedure,
                         )
+                        project_activity.project_control_activities.append(project_control)
+                        db.session.flush()
+
+                        # Auto-copy EVE checklist from master to project
+                        try:
+                            from app.models.eve_models import ProjectChecklist
+                            from app.models.ai import ControlChecklist
+                            master_checklist = ControlChecklist.query.filter_by(
+                                control_activity_id=control_template.id
+                            ).first()
+                            if master_checklist:
+                                project_checklist = ProjectChecklist(
+                                    project_control_activity_id=project_control.id,
+                                    checklist_json=master_checklist.checklist_json,
+                                    required_dimensions_json=master_checklist.required_dimensions_json,
+                                    status='pending'
+                                )
+                                db.session.add(project_checklist)
+                        except Exception as ce:
+                            logger.warning(f"Could not copy checklist: {ce}")
 
                         if control_template.test_procedure:
                             tp_template = control_template.test_procedure
