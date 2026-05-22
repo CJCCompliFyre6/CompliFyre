@@ -949,14 +949,6 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             f"[Module F] Step 7 V3 done: {len(observations)} obs, "
             f"{len(findings_v3)} findings, {len(risks)} risks, {len(recommendations)} recs"
         )
-        else:
-            # No findings — no recommendations needed
-            control_result.recommendations_json = []
-            control_result.step7_completed = True
-            control_result.updated_at = datetime.utcnow()
-            db.session.commit()
-            logger.info(f"[Module F] No findings — Step 7 skipped cleanly")
-
         # ── 8. Determine final_status and final_severity ───────────────
         final_status, final_severity = _compute_control_status(findings)
         control_result.final_status = final_status
