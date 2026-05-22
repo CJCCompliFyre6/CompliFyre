@@ -4221,12 +4221,48 @@ def test_evidence_artifacts(activity_id):
             "consolidated_test_summary": consolidated_test_data,
         }
 
+        # Fetch EVE Step 7 V3 results
+        eve_findings = []
+        eve_observations = []
+        eve_risks = []
+        eve_oe_exceptions = []
+        eve_overall_severity = None
+        try:
+            from app.models.eve_models import EveControlResult
+            eve_result = EveControlResult.query.filter_by(
+                project_control_activity_id=activity_id
+            ).first()
+            if eve_result:
+                findings_data = eve_result.findings_json or []
+                if isinstance(findings_data, list):
+                    eve_findings = findings_data
+                    # Calculate overall severity from findings
+                    severity_order = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
+                    max_sev = 0
+                    for f in eve_findings:
+                        sev = f.get("severity", "Low")
+                        if severity_order.get(sev, 0) > max_sev:
+                            max_sev = severity_order.get(sev, 0)
+                            eve_overall_severity = sev
+                eve_observations = eve_result.observations_json or []
+                if hasattr(eve_result, 'risks_json'):
+                    eve_risks = eve_result.risks_json or []
+                if hasattr(eve_result, 'oe_exception_register_json'):
+                    eve_oe_exceptions = eve_result.oe_exception_register_json or []
+        except Exception as eve_err:
+            current_app.logger.warning(f"Could not fetch EVE results: {eve_err}")
+
         return render_template(
             "test_artifacts.html",
             how_to_perform_activities=[{"data": activity_data}],
             consolidated_test_summary=consolidated_test_data,
             project=project,
             clause_id=clause_id,
+            eve_findings=eve_findings,
+            eve_observations=eve_observations,
+            eve_risks=eve_risks,
+            eve_oe_exceptions=eve_oe_exceptions,
+            eve_overall_severity=eve_overall_severity,
         )
 
     except Exception as e:

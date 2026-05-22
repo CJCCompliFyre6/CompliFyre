@@ -1690,6 +1690,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </svg>
             <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 whitespace-nowrap z-20">
                 <p>Admissibility: {{ control.evidence_admissibility_decision or 'Not Evaluated' }}</p>
+                {% if control.reason_for_inadmissibility and control.reason_for_inadmissibility != 'N/A' %}
+                <p class="text-xs text-red-600 mt-1">⚠️ Reason: {{ control.reason_for_inadmissibility }}</p>
+                {% endif %}
                 <p>Quality: {{ control.evidence_quality_rating or 'Not Rated' }}</p>
             </div>
         </div>
