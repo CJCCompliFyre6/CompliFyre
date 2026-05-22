@@ -4360,6 +4360,125 @@ def delete_test_procedure_content():
 
 
 
+
+
+# ═══════════════════════════════════════════════════════════
+# EVE v3 EVALUATE ROUTE — Replaces old evaluate_clause_activities
+# ═══════════════════════════════════════════════════════════
+
+@re_bp.route("/eve_evaluate_clause", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def eve_evaluate_clause():
+    """
+    EVE v3 Pipeline — Evaluate all applicable activities for a clause.
+    Runs Steps 5 → 6 → 7 for each control activity.
+    Replaces old evaluate_clause_activities route.
+    """
+    try:
+        clause_id = request.form.get("clause_id", type=int)
+        project_id = request.form.get("project_id", type=int)
+
+        if not clause_id or not project_id:
+            return jsonify({"success": False, "error": "Clause ID and Project ID required"}), 400
+
+        clause = ProjectClause.query.get_or_404(clause_id)
+        project = Projects.query.get_or_404(project_id)
+
+        # Get all applicable control activities for this clause
+        compliance_activities = ProjectComplianceActivity.query.filter_by(
+            project_clause_id=clause_id,
+            applicability=True
+        ).all()
+
+        applicable_controls = []
+        for pca in compliance_activities:
+            controls = ProjectControlActivity.query.filter_by(
+                project_compliance_activity_id=pca.id
+            ).all()
+            applicable_controls.extend(controls)
+
+        if not applicable_controls:
+            return jsonify({
+                "success": False,
+                "error": "No applicable activities found for this clause"
+            }), 404
+
+        logger.info(
+            f"[EVE v3] Starting evaluation for clause_id={clause_id}, "
+            f"{len(applicable_controls)} control activities"
+        )
+
+        # Get upload base path
+        upload_base_path = current_app.config.get(
+            "UPLOAD_FOLDER",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../uploads")
+        )
+
+        # Trigger EVE Steps 5 → 6 → 7 for each control activity
+        from app.services.eve_step678 import run_eve_step6_and_7
+        from app.services.eve_step5 import run_eve_step5_for_all_evidence
+        from app.models.eve_models import ProjectChecklist
+
+        dispatched = []
+        skipped = []
+
+        for control in applicable_controls:
+            # Find the project_checklist for this control activity
+            checklist = ProjectChecklist.query.filter_by(
+                project_control_activity_id=control.id
+            ).first()
+
+            if not checklist:
+                skipped.append({
+                    "control_id": control.id,
+                    "reason": "No checklist found — run Step 4 first"
+                })
+                continue
+
+            # Get evidence for this control activity
+            evidence_artifacts = control.submitted_evidences or []
+
+            if evidence_artifacts:
+                # Step 5 — Evaluate each evidence
+                for evidence in evidence_artifacts:
+                    run_eve_step5_for_all_evidence.apply_async(
+                        args=[checklist.id, upload_base_path],
+                        queue='eve_evaluate'
+                    )
+
+            # Step 6 + 7 — Run after Step 5
+            run_eve_step6_and_7.apply_async(
+                args=[control.id, current_user.id],
+                queue='eve_evaluate',
+                countdown=30  # 30 second delay to allow Step 5 to complete
+            )
+
+            dispatched.append({
+                "control_id": control.id,
+                "checklist_id": checklist.id,
+                "has_evidence": len(evidence_artifacts) > 0
+            })
+
+        logger.info(
+            f"[EVE v3] Dispatched {len(dispatched)} tasks, skipped {len(skipped)}"
+        )
+
+        return jsonify({
+            "success": True,
+            "message": f"EVE v3 evaluation started for {len(dispatched)} activities",
+            "dispatched": len(dispatched),
+            "skipped": len(skipped),
+            "skipped_details": skipped,
+            "clause_id": clause_id,
+            "project_id": project_id,
+        })
+
+    except Exception as e:
+        logger.exception(f"Error in eve_evaluate_clause: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @re_bp.route("/evaluate_clause_activities", methods=["POST"])
 @login_required
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
