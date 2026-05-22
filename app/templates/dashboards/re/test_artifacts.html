@@ -1369,31 +1369,41 @@
 
 <div class="p-6 bg-gray-50 mb-4 rounded-lg shadow-md">
 
-  <!-- SECTION 1: Evidence Admissibility -->
+  <!-- SECTION 1: Evidence Admissibility — EVE v3 -->
   <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-blue-500">
     <h3 class="text-xl font-bold text-gray-900 mb-3">1. Evidence Admissibility</h3>
     <div class="grid grid-cols-2 gap-4">
       <div>
         <p class="text-sm text-gray-600 mb-1">Admissibility Decision:</p>
-        <span
-          class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.evidence_admissibility_decision == 'Yes' else 'bg-red-200 text-red-800' }}">
-          {{ item.data.evidence_admissibility_decision or 'Not Evaluated' }}
+        {% set adm = eve_admissibility or item.data.evidence_admissibility_decision %}
+        <span class="px-3 py-1 rounded-full text-sm font-semibold
+          {% if adm in ('ADMISSIBLE', 'Yes') %}bg-green-200 text-green-800
+          {% elif adm == 'PARTIAL' %}bg-yellow-200 text-yellow-800
+          {% elif adm in ('INADMISSIBLE', 'No') %}bg-red-200 text-red-800
+          {% else %}bg-gray-200 text-gray-600{% endif %}">
+          {{ adm or 'Not Evaluated' }}
         </span>
+        {% if eve_admissibility %}<span class="text-xs text-blue-600 ml-2">(EVE v3)</span>{% endif %}
       </div>
       <div>
         <p class="text-sm text-gray-600 mb-1">Evidence Quality:</p>
-        <span class="px-3 py-1 rounded-full text-sm font-semibold 
-          {% if item.data.evidence_quality_rating == 'STRONG' %}bg-green-200 text-green-800
-          {% elif item.data.evidence_quality_rating == 'ADEQUATE' %}bg-blue-200 text-blue-800
-          {% elif item.data.evidence_quality_rating == 'WEAK' %}bg-yellow-200 text-yellow-800
-          {% elif item.data.evidence_quality_rating == 'INADMISSIBLE' %}bg-red-200 text-red-800
-          {% else %}bg-gray-200 text-gray-800{% endif %}">
+        {% set eq = eve_assurance.get('evidence_quality_score', None) if eve_assurance else None %}
+        {% if eq is not none %}
+        <span class="px-3 py-1 rounded-full text-sm font-semibold
+          {% if eq >= 0.7 %}bg-green-200 text-green-800
+          {% elif eq >= 0.4 %}bg-yellow-200 text-yellow-800
+          {% else %}bg-red-200 text-red-800{% endif %}">
+          {% if eq >= 0.7 %}HIGH{% elif eq >= 0.4 %}MEDIUM{% else %}LOW{% endif %}
+          ({{ (eq * 100)|round|int }}%)
+        </span>
+        {% else %}
+        <span class="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-800">
           {{ item.data.evidence_quality_rating or 'Not Rated' }}
         </span>
+        {% endif %}
       </div>
     </div>
-
-    {% if item.data.reason_for_inadmissibility and item.data.reason_for_inadmissibility != 'N/A' %}
+    {% if item.data.reason_for_inadmissibility and item.data.reason_for_inadmissibility != 'N/A' and not eve_admissibility %}
     <div class="mt-3 p-3 bg-red-50 rounded border border-red-200">
       <p class="text-sm font-semibold text-red-800 mb-1">Reason for Inadmissibility:</p>
       <p class="text-sm text-gray-700">{{ item.data.reason_for_inadmissibility }}</p>
@@ -1401,31 +1411,30 @@
     {% endif %}
   </div>
 
-  <!-- SECTION 2: Required Effectiveness Dimensions -->
+  <!-- SECTION 2: Required Effectiveness Dimensions — EVE v3 -->
   <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-purple-500">
     <h3 class="text-xl font-bold text-gray-900 mb-3">2. Required Effectiveness Dimensions</h3>
-    <div class="grid grid-cols-3 gap-4">
+    {% if eve_dimension_design is not none %}<span class="text-xs text-blue-600">(From EVE v3 Checklist)</span>{% endif %}
+    <div class="grid grid-cols-3 gap-4 mt-2">
       <div class="text-center">
         <p class="text-sm text-gray-600 mb-2">Design Effectiveness</p>
-        <span
-          class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.required_effectiveness_design == 'yes' else 'bg-gray-200 text-gray-600' }}">
-          {{ item.data.required_effectiveness_design|upper if item.data.required_effectiveness_design else 'N/A' }}
+        {% set dd = eve_dimension_design if eve_dimension_design is not none else (item.data.required_effectiveness_design == 'yes') %}
+        <span class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if dd else 'bg-gray-200 text-gray-600' }}">
+          {{ 'YES' if dd else 'NO' }}
         </span>
       </div>
       <div class="text-center">
         <p class="text-sm text-gray-600 mb-2">Implementation Effectiveness</p>
-        <span
-          class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.required_effectiveness_implementation == 'yes' else 'bg-gray-200 text-gray-600' }}">
-          {{ item.data.required_effectiveness_implementation|upper if item.data.required_effectiveness_implementation
-          else 'N/A' }}
+        {% set di = eve_dimension_impl if eve_dimension_impl is not none else (item.data.required_effectiveness_implementation == 'yes') %}
+        <span class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if di else 'bg-gray-200 text-gray-600' }}">
+          {{ 'YES' if di else 'NO' }}
         </span>
       </div>
       <div class="text-center">
         <p class="text-sm text-gray-600 mb-2">Operating Effectiveness</p>
-        <span
-          class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if item.data.required_effectiveness_operating == 'yes' else 'bg-gray-200 text-gray-600' }}">
-          {{ item.data.required_effectiveness_operating|upper if item.data.required_effectiveness_operating else 'N/A'
-          }}
+        {% set doo = eve_dimension_oper if eve_dimension_oper is not none else (item.data.required_effectiveness_operating == 'yes') %}
+        <span class="px-4 py-2 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if doo else 'bg-gray-200 text-gray-600' }}">
+          {{ 'YES' if doo else 'NO' }}
         </span>
       </div>
     </div>
@@ -1448,10 +1457,15 @@
         <h3 class="text-xl font-bold text-gray-900 mb-2">4. Clause Compliance Conclusion</h3>
         <p class="text-gray-700">
           <strong class="text-lg text-gray-900">Status:</strong>
-          <span
-            class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-red-200 text-red-800' if item.data.compliant_status == 'Non-Compliant' else 'bg-yellow-200 text-yellow-800' if item.data.compliant_status == 'Partially Compliant' else 'bg-green-200 text-green-800' }}">
-            {{ item.data.compliant_status or 'Not Evaluated' }}
+          {% set cs = eve_control_support or item.data.compliant_status %}
+          <span class="px-3 py-1 rounded-full text-sm font-semibold
+            {% if cs in ('Fully Supported', 'Compliant') %}bg-green-200 text-green-800
+            {% elif cs in ('Partially Supported', 'Partially Compliant') %}bg-yellow-200 text-yellow-800
+            {% elif cs in ('Weakly Supported', 'Unsupported', 'Non-Compliant') %}bg-red-200 text-red-800
+            {% else %}bg-gray-200 text-gray-600{% endif %}">
+            {{ cs or 'Not Evaluated' }}
           </span>
+          {% if eve_control_support %}<span class="text-xs text-blue-600 ml-2">(EVE v3)</span>{% endif %}
         </p>
       </div>
 
