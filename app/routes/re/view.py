@@ -4249,8 +4249,41 @@ def test_evidence_artifacts(activity_id):
                     eve_risks = eve_result.risks_json or []
                 if hasattr(eve_result, 'oe_exception_register_json'):
                     eve_oe_exceptions = eve_result.oe_exception_register_json or []
+
+                # Step 6 outputs
+                eve_checklist_summary = eve_result.checklist_summary_json or []
+                eve_control_support = eve_result.control_support_status or None
+                eve_assurance = eve_result.assurance_state_json or {}
+
+                # Admissibility from checklist summary
+                if eve_checklist_summary:
+                    supported = sum(1 for i in eve_checklist_summary if i.get('final_status') == 'PASS')
+                    total = len(eve_checklist_summary)
+                    if supported == total:
+                        eve_admissibility = 'ADMISSIBLE'
+                    elif supported > 0:
+                        eve_admissibility = 'PARTIAL'
+                    else:
+                        eve_admissibility = 'INADMISSIBLE'
+                else:
+                    eve_admissibility = None
+
+                # Dimensions from ProjectChecklist
+                from app.models.eve_models import ProjectChecklist as PC2
+                pc2 = PC2.query.filter_by(project_control_activity_id=activity_id).first()
+                eve_dimension_design = pc2.dimension_design if pc2 else None
+                eve_dimension_impl = pc2.dimension_implementation if pc2 else None
+                eve_dimension_oper = pc2.dimension_operating if pc2 else None
+
         except Exception as eve_err:
             current_app.logger.warning(f"Could not fetch EVE results: {eve_err}")
+            eve_checklist_summary = []
+            eve_control_support = None
+            eve_assurance = {}
+            eve_admissibility = None
+            eve_dimension_design = None
+            eve_dimension_impl = None
+            eve_dimension_oper = None
 
         return render_template(
             "test_artifacts.html",
@@ -4263,6 +4296,13 @@ def test_evidence_artifacts(activity_id):
             eve_risks=eve_risks,
             eve_oe_exceptions=eve_oe_exceptions,
             eve_overall_severity=eve_overall_severity,
+            eve_checklist_summary=eve_checklist_summary,
+            eve_control_support=eve_control_support,
+            eve_assurance=eve_assurance,
+            eve_admissibility=eve_admissibility,
+            eve_dimension_design=eve_dimension_design,
+            eve_dimension_impl=eve_dimension_impl,
+            eve_dimension_oper=eve_dimension_oper,
         )
 
     except Exception as e:
