@@ -1919,7 +1919,12 @@ def create_new_project():
                                 project_checklist = ProjectChecklist(
                                     project_control_activity_id=project_control.id,
                                     checklist_json=master_checklist.checklist_json,
-                                    required_dimensions_json=master_checklist.required_dimensions_json,
+                                    dimension_design=master_checklist.dimension_design,
+                                    dimension_implementation=master_checklist.dimension_implementation,
+                                    dimension_operating=master_checklist.dimension_operating,
+                                    admissibility_rules_json=master_checklist.admissibility_rules_json,
+                                    sampling_rules_json=master_checklist.sampling_rules_json,
+                                    scoring_rules_json=master_checklist.scoring_rules_json,
                                     status='pending'
                                 )
                                 db.session.add(project_checklist)
