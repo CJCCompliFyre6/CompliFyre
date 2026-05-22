@@ -2468,6 +2468,23 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                     act_dict = _as_dict(act) if not isinstance(act, dict) else act
                     _generate_test_procedure_for_activity(comp_id_val, clause_text, act_dict)
 
+                    # Auto-trigger EVE checklist generation after test procedure
+                    try:
+                        from app.services.eve_tasks import generate_control_checklist
+                        from app.models.ai import ControlActivity
+                        with session_scope() as s:
+                            ctrl = s.query(ControlActivity).filter_by(
+                                compliance_activity_id=comp_id_val
+                            ).first()
+                            if ctrl:
+                                generate_control_checklist.apply_async(
+                                    args=[ctrl.id],
+                                    queue='eve_checklist'
+                                )
+                                logger.info(f"[EVE] Auto-triggered checklist for control_id={ctrl.id}")
+                    except Exception as eve_err:
+                        logger.warning(f"[EVE] Could not auto-trigger checklist: {eve_err}")
+
                 results["activities"].append({clause_id_val: saved_activities})
                 processed_clauses += (
                     1  # Increment processed count after successful processing
