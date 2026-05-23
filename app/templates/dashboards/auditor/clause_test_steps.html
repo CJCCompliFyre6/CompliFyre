@@ -4806,7 +4806,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const editModeToggle = document.getElementById('edit-mode-toggle');
         const refetchButtons = document.querySelectorAll('.refetch-button');
 
-        editModeToggle.addEventListener('click', () => {
+        if (editModeToggle) editModeToggle.addEventListener('click', () => {
             let isEditing = editModeToggle.textContent === 'Cancel';
             if (isEditing) {
                 editModeToggle.textContent = 'Edit';
