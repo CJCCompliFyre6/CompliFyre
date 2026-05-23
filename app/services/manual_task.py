@@ -2472,16 +2472,16 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                     try:
                         from app.services.eve_tasks import generate_control_checklist
                         from app.models.ai import ControlActivity
-                        with session_scope() as s:
-                            ctrl = s.query(ControlActivity).filter_by(
-                                compliance_activity_id=comp_id_val
-                            ).first()
-                            if ctrl:
-                                generate_control_checklist.apply_async(
-                                    args=[ctrl.id],
-                                    queue='eve_checklist'
-                                )
-                                logger.info(f"[EVE] Auto-triggered checklist for control_id={ctrl.id}")
+                        from app import db as _db
+                        ctrl = _db.session.query(ControlActivity).filter_by(
+                            compliance_activity_id=comp_id_val
+                        ).first()
+                        if ctrl:
+                            generate_control_checklist.apply_async(
+                                args=[ctrl.id],
+                                queue='eve_checklist'
+                            )
+                            logger.info(f"[EVE] Auto-triggered checklist for control_id={ctrl.id}")
                     except Exception as eve_err:
                         logger.warning(f"[EVE] Could not auto-trigger checklist: {eve_err}")
 
