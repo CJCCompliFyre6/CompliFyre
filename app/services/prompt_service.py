@@ -400,31 +400,31 @@ def prompt_get_evidence_answer(id, item_description, clause_description, content
 
 
 def prompt_get_evidence_answer_activity(id, item_description, activity, content):
-    prompt = f"""
-            You are an expert in regulatory compliance, IT governance, and financial institution risk management. 
-            You will be provided a content and a json object with evidence id, item description, activity description and answer with empty string. Your task is to extract findings for a item description from the content
-            and return a json object with answer.
+    prompt = f"""Evidence Document Content:
+{content}
 
-            <input>
-            **CONTENT** : {content}
+Activity Being Assessed: {activity}
 
-            **input_json** : {{
-            'id' : {id},
-            'item_description' : '{item_description}',
-            'activity_description : '{activity}',
-            'answer' : ''
+Checklist Item: {item_description}
 
-            }}
+Assess this evidence against the checklist item. Return markdown only using this exact structure:
 
-            return the output in below format
-            ```json
-            {{
-            'id' : {id},
-            'item_description' : '{item_description}'
-            'answer' : '<Findings about the evidence provided as content>
-            }}
-            ```
-            """
+### Document Reviewed
+[Document name]
+
+### Objective
+[One sentence: what this checklist item is verifying]
+
+### Evidence Coverage
+
+| Requirement | Evidence Found | Document Reference | Coverage Status |
+|---|---|---|---|
+| [Requirement area] | [Specific finding] | [Section/Page] | Covered / Partial / Not Evident |
+
+### Conclusion
+[2-3 sentences maximum. Factual only.]
+
+Rules: Max 400 words. No narrative. No recommendations. No hallucinated references."""
     return prompt
 
 
