@@ -96,16 +96,16 @@ def _get_evidence_content(artifact: ProjectEvidenceArtifact, upload_base: str) -
     """
     parts = []
 
-    # Text evidence
-    if artifact.evidence_text and artifact.evidence_text.strip():
-        parts.append(f"[Evidence Text]\n{artifact.evidence_text.strip()}")
-
-    # Uploaded files
+    # Uploaded files — primary source
     files = artifact.evidence_files.all() if artifact.evidence_files else []
     for ef in files:
         file_path = os.path.join(upload_base, ef.stored_filename) if ef.stored_filename else ef.file_path
         text = _extract_text_from_file(file_path, ef.content_type)
         parts.append(f"[File: {ef.file_name}]\n{text}")
+
+    # Use evidence_text ONLY if no files uploaded (manual text or interview response)
+    if not parts and artifact.evidence_text and artifact.evidence_text.strip():
+        parts.append(f"[Evidence Text]\n{artifact.evidence_text.strip()}")
 
     if not parts:
         return "[No evidence content available]"
