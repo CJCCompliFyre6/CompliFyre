@@ -734,10 +734,12 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
         # Get evidence list from linked EvidenceArtifacts
         evidence_list_text = ""
         if control.evidences:
-            evidence_items = [
-                f"- {e.category or ''}: {e.item or ''}"
-                for e in control.evidences
-            ]
+            evidence_items = []
+            for i, e in enumerate(control.evidences, 1):
+                item_text = f"{i}. [{e.category or 'General'}] {e.item or ''}"
+                if hasattr(e, 'description') and e.description:
+                    item_text += f"\n   Description: {e.description}"
+                evidence_items.append(item_text)
             evidence_list_text = "\n".join(evidence_items)
 
         logger.info(
