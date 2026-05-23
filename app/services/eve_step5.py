@@ -306,8 +306,14 @@ Assign role:
 
 SUB-STEP-5 — FILTER RELEVANT CHECKLIST ITEMS:
 
-Evaluate ONLY items where:
-evidence_type is in expected_evidence_types for that checklist item.
+Evaluate ALL checklist items against this evidence.
+Do NOT skip items based on strict evidence_type matching.
+Use semantic relevance: if evidence content can support or refute a checklist assertion, evaluate it.
+Examples:
+* BOARD_DOCUMENT can satisfy items expecting "policy documents", "approval records", "governance documents"
+* MEETING_MINUTES can satisfy items expecting "approval records", "board documents", "governance evidence"
+* POLICY_DOCUMENT can satisfy items expecting "control frameworks", "governance documents"
+Only skip if evidence is completely unrelated to the checklist item's requirement.
 
 ---
 
