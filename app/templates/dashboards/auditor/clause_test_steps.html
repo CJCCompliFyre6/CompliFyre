@@ -1210,13 +1210,10 @@ Pass Condition Met: ${passed ? 'Yes ✅' : 'No ❌'}
 
 Reason: ${reEvalData.reasoning}`;
             if (action === 'ESCALATE_TO_FINDING') {
-                msg += '
-
-⚠️ The requirement is NOT satisfied. You may escalate to a finding.';
+                msg += '\n⚠️ The requirement is NOT satisfied. You may escalate to a finding.';
             }
             alert(msg);
         }
-
         // Reload inquiries
         await loadInquiries();
 
