@@ -4227,6 +4227,13 @@ def test_evidence_artifacts(activity_id):
         eve_risks = []
         eve_oe_exceptions = []
         eve_overall_severity = None
+        eve_checklist_summary = []
+        eve_control_support = None
+        eve_assurance = {}
+        eve_admissibility = None
+        eve_dimension_design = None
+        eve_dimension_impl = None
+        eve_dimension_oper = None
         try:
             from app.models.eve_models import EveControlResult
             eve_result = EveControlResult.query.filter_by(

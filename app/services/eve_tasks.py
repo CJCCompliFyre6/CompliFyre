@@ -374,13 +374,13 @@ Return ONLY valid JSON. No explanation. No markdown.
 ---
 
 INPUT:
-* Regulation Type: {{regulation_type}}
-* Domain: {{domain}}
-* Auditor Profile: {{auditor_profile}}
-* Clause: {{clause_text}}
-* Control Activity: {{control_activity}}
-* Test Procedure: {{test_procedure}}
-* Evidence List: {{evidence_list}}
+* Regulation Type: {regulation_type}
+* Domain: {domain}
+* Auditor Profile: {auditor_profile}
+* Clause: {clause_text}
+* Control Activity: {control_activity}
+* Test Procedure: {test_procedure}
+* Evidence List: {evidence_list}
 
 ---
 
@@ -681,8 +681,13 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
                 "control_activity_id": control_activity_id,
             }
 
-        clause = compliance_activity.clause if hasattr(compliance_activity, "clause") else None
+        clause = None
         guideline_id = None
+        if hasattr(compliance_activity, 'clause_id') and compliance_activity.clause_id:
+            from app.models.ai import Clauses
+            clause = db.session.query(Clauses).get(compliance_activity.clause_id)
+        elif hasattr(compliance_activity, 'clause') and compliance_activity.clause:
+            clause = compliance_activity.clause
         if clause:
             guideline_id = clause.guideline_id
 
