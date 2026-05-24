@@ -621,6 +621,7 @@ STRICT CONSTRAINTS:
 * Use consistent ENUM values only"""
 
 
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def generate_control_checklist(self, control_activity_id: int, generated_by: int = None):
     """
     Module B — EVE Steps 3+4: Generate atomic checklist for a control activity.
