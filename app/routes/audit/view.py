@@ -4614,6 +4614,13 @@ def reevaluate_activity():
                 "error"
             )
             return redirect(request.referrer)
+        if not checklist.checklist_json or len(checklist.checklist_json) == 0:
+            flash(
+                "EVE checklist is still being generated. "
+                "Please wait a moment and try again.",
+                "warning"
+            )
+            return redirect(request.referrer)
 
         # Get evidence artifacts
         evidence_artifacts = project_control_activity.submitted_evidences or []
@@ -4629,8 +4636,16 @@ def reevaluate_activity():
                 queue='eve_evaluate'
             )
 
-        # Trigger Step 6 + 7 with delay to allow Step 5 to complete
-        countdown = max(30, step5_tasks * 10)
+        # Trigger Step 5B (cross-evidence contradiction detection) after Step 5A
+        from app.services.eve_step5 import run_eve_step5b_cross_evidence
+        countdown_5a = max(30, step5_tasks * 10)
+        run_eve_step5b_cross_evidence.apply_async(
+            args=[checklist.id],
+            queue='eve_evaluate',
+            countdown=countdown_5a
+        )
+        # Trigger Step 6 + 7 after Step 5B
+        countdown = countdown_5a + 30
         run_eve_step6_and_7.apply_async(
             args=[project_control_activity.id, current_user.id],
             queue='eve_evaluate',
