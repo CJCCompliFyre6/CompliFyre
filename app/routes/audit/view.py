@@ -1767,6 +1767,8 @@ def update_project(project_id):
                             clause_no=clause_template.clause_no,
                             clause_text=clause_template.clause_text,
                         )
+                        db.session.add(project_clause)
+                        db.session.flush()
 
                         for activity_template in clause_template.compliance_activities:
                             project_activity = ProjectComplianceActivity(
@@ -1777,6 +1779,8 @@ def update_project(project_id):
                                 frequency=activity_template.frequency,
                                 evidence_required=activity_template.evidence_required,
                             )
+                            db.session.add(project_activity)
+                            db.session.flush()
 
                             # Add control activities, test procedures, etc. as needed
                             project_clause.project_compliance_activities.append(
@@ -1881,6 +1885,8 @@ def create_new_project():
                     clause_no=clause_template.clause_no,
                     clause_text=clause_template.clause_text,
                 )
+                db.session.add(project_clause)
+                db.session.flush()
 
                 for activity_template in clause_template.compliance_activities:
                     project_activity = ProjectComplianceActivity(
@@ -1891,6 +1897,8 @@ def create_new_project():
                         frequency=activity_template.frequency,
                         evidence_required=activity_template.evidence_required,
                     )
+                    db.session.add(project_activity)
+                    db.session.flush()
 
                     for control_template in activity_template.control_activities:
                         project_control = ProjectControlActivity(
