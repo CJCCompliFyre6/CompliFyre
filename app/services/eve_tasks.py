@@ -803,6 +803,34 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
         db.session.commit()
 
         checklist_items_count = len(validated.checklist)
+        # Auto-copy to all ProjectChecklists that reference this control
+        try:
+            from app.models.project_instance_models import ProjectControlActivity
+            pcas = db.session.query(ProjectControlActivity).filter_by(
+                original_control_id=control_activity_id
+            ).all()
+            for pca in pcas:
+                existing_pc = db.session.query(ProjectChecklist).filter_by(
+                    project_control_activity_id=pca.id
+                ).first()
+                if not existing_pc:
+                    new_pc = ProjectChecklist(
+                        project_control_activity_id=pca.id,
+                        source_checklist_id=checklist_record.id,
+                        checklist_json=checklist_record.checklist_json,
+                        dimension_design=checklist_record.dimension_design,
+                        dimension_implementation=checklist_record.dimension_implementation,
+                        dimension_operating=checklist_record.dimension_operating,
+                        admissibility_rules_json=checklist_record.admissibility_rules_json,
+                        sampling_rules_json=checklist_record.sampling_rules_json,
+                        scoring_rules_json=checklist_record.scoring_rules_json,
+                        status="ready"
+                    )
+                    db.session.add(new_pc)
+            db.session.commit()
+            logger.info(f"[Module B] ProjectChecklists copied for {len(pcas)} project activities")
+        except Exception as copy_err:
+            logger.warning(f"[Module B] Could not copy to ProjectChecklists: {copy_err}")
         logger.info(
             f"[Module B] Checklist saved for control_activity_id={control_activity_id}: "
             f"{checklist_items_count} items, "
