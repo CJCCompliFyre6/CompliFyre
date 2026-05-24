@@ -4622,14 +4622,12 @@ def reevaluate_activity():
         from app.services.eve_step5 import run_eve_step5_for_all_evidence
         from app.services.eve_step678 import run_eve_step6_and_7
 
-        step5_tasks = 0
+        step5_tasks = len(evidence_artifacts)
         if evidence_artifacts:
-            for evidence in evidence_artifacts:
-                run_eve_step5_for_all_evidence.apply_async(
-                    args=[checklist.id, upload_base_path],
-                    queue='eve_evaluate'
-                )
-                step5_tasks += 1
+            run_eve_step5_for_all_evidence.apply_async(
+                args=[checklist.id, upload_base_path],
+                queue='eve_evaluate'
+            )
 
         # Trigger Step 6 + 7 with delay to allow Step 5 to complete
         countdown = max(30, step5_tasks * 10)
