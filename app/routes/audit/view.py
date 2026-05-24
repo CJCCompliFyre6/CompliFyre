@@ -1759,6 +1759,8 @@ def update_project(project_id):
                         original_guideline_id=guideline_template.id,
                         guideline_data=guideline_template.guideline_data,
                     )
+                    db.session.add(project_guideline)
+                    db.session.flush()
 
                     # Build the complete structure
                     for clause_template in guideline_template.clauses:
