@@ -1906,6 +1906,7 @@ def create_new_project():
                             explain_test_procedure=control_template.explain_test_procedure,
                         )
                         project_activity.project_control_activities.append(project_control)
+                        db.session.add(project_control)
                         db.session.flush()
 
                         # Auto-copy EVE checklist from master to project
