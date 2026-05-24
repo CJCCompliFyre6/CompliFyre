@@ -1910,8 +1910,7 @@ def create_new_project():
 
                         # Auto-copy EVE checklist from master to project
                         try:
-                            from app.models.eve_models import ProjectChecklist
-                            from app.models.ai import ControlChecklist
+                            from app.models.eve_models import ProjectChecklist, ControlChecklist
                             master_checklist = ControlChecklist.query.filter_by(
                                 control_activity_id=control_template.id
                             ).first()
