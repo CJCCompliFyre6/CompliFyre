@@ -1955,6 +1955,15 @@ def create_new_project():
                                     status='pending'
                                 )
                                 db.session.add(project_checklist)
+                                # Auto-trigger checklist generation
+                                try:
+                                    from app.services.eve_tasks import generate_control_checklist
+                                    generate_control_checklist.apply_async(
+                                        args=[control_template.id],
+                                        queue="eve_checklist"
+                                    )
+                                except Exception as tge:
+                                    logger.warning(f"Could not trigger checklist generation: {tge}")
                         except Exception as ce:
                             logger.warning(f"Could not copy checklist: {ce}")
 
