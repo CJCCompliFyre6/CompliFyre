@@ -813,7 +813,18 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
                 existing_pc = db.session.query(ProjectChecklist).filter_by(
                     project_control_activity_id=pca.id
                 ).first()
-                if not existing_pc:
+                if existing_pc:
+                    # Update placeholder with real checklist data
+                    existing_pc.source_checklist_id = checklist_record.id
+                    existing_pc.checklist_json = checklist_record.checklist_json
+                    existing_pc.dimension_design = checklist_record.dimension_design
+                    existing_pc.dimension_implementation = checklist_record.dimension_implementation
+                    existing_pc.dimension_operating = checklist_record.dimension_operating
+                    existing_pc.admissibility_rules_json = checklist_record.admissibility_rules_json
+                    existing_pc.sampling_rules_json = checklist_record.sampling_rules_json
+                    existing_pc.scoring_rules_json = checklist_record.scoring_rules_json
+                    existing_pc.status = "ready"
+                else:
                     new_pc = ProjectChecklist(
                         project_control_activity_id=pca.id,
                         source_checklist_id=checklist_record.id,
