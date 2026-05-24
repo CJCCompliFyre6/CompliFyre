@@ -1601,13 +1601,40 @@
   <!-- SECTION 7: Recommendations -->
   <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-green-500">
     <h3 class="text-xl font-bold text-gray-900 mb-3">7. Recommendations</h3>
-    <div id="compliance_display_recommendations_{{ item_loop_idx }}" class="prose max-w-none text-gray-700">
-      {% if item.data.recommendations %}
-      {{ item.data.recommendations | markdown | safe }}
-      {% else %}
-      <p class="text-gray-500 italic">No recommendations recorded</p>
-      {% endif %}
+    {% if eve_recommendations and eve_recommendations|length > 0 %}
+    <div class="space-y-3">
+      {% for rec in eve_recommendations %}
+      <div class="border border-green-200 rounded-lg p-3 bg-green-50">
+        <div class="flex items-center space-x-2 mb-1">
+          <span class="text-xs font-mono font-bold text-gray-500">{{ rec.recommendation_id or loop.index }}</span>
+          <span class="text-sm font-bold text-gray-800">{{ rec.recommendation_summary or rec.recommendation or "" }}</span>
+        </div>
+        {% if rec.implementation_steps %}
+        <div class="mt-1">
+          <p class="text-xs font-semibold text-gray-500 uppercase">Implementation Steps</p>
+          <ul class="list-disc list-inside text-sm text-gray-700 mt-0.5">
+            {% for step in rec.implementation_steps %}
+            <li>{{ step }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% if rec.timeline %}
+        <p class="text-xs text-gray-500 mt-1">Timeline: {{ rec.timeline }}</p>
+        {% endif %}
+        {% if rec.finding_id %}
+        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded mt-1 inline-block">Related: {{ rec.finding_id }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
+    {% elif item.data.recommendations %}
+    <div class="prose max-w-none text-gray-700">
+      {{ item.data.recommendations | markdown | safe }}
+    </div>
+    {% else %}
+    <p class="text-gray-500 italic">No recommendations recorded</p>
+    {% endif %}
   </div>
 
   <!-- SECTION 8: Overall Severity Rating -->

@@ -4234,6 +4234,7 @@ def test_evidence_artifacts(activity_id):
         eve_dimension_design = None
         eve_dimension_impl = None
         eve_dimension_oper = None
+        eve_recommendations = []
         try:
             from app.models.eve_models import EveControlResult
             eve_result = EveControlResult.query.filter_by(
@@ -4266,6 +4267,8 @@ def test_evidence_artifacts(activity_id):
                     eve_risks = eve_result.risks_json or []
                 if hasattr(eve_result, 'oe_exception_register_json'):
                     eve_oe_exceptions = eve_result.oe_exception_register_json or []
+                if hasattr(eve_result, 'recommendations_json'):
+                    eve_recommendations = eve_result.recommendations_json or []
 
                 # Step 6 outputs
                 eve_checklist_summary = eve_result.checklist_summary_json or []
@@ -4320,6 +4323,7 @@ def test_evidence_artifacts(activity_id):
             eve_dimension_design=eve_dimension_design,
             eve_dimension_impl=eve_dimension_impl,
             eve_dimension_oper=eve_dimension_oper,
+            eve_recommendations=eve_recommendations,
         )
 
     except Exception as e:
