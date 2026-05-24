@@ -646,29 +646,37 @@ def run_eve_step5_for_evidence(
         audit_period_end = "Unknown"
 
         if pca:
-            # Navigate up: pca → project_compliance_activity → project_clause → project
+            # Navigate: pca → project_compliance_activity → project_clause → project_guideline → project
             try:
-                pca_obj = pca
-                pcomp = getattr(pca_obj, "project_compliance_activity", None)
+                pcomp = getattr(pca, "project_compliance_activity", None)
                 pclause = getattr(pcomp, "project_clause", None) if pcomp else None
-                project = getattr(pclause, "project", None) if pclause else None
-
+                pguideline_id = getattr(pclause, "project_guideline_id", None) if pclause else None
+                project = None
+                if pguideline_id:
+                    from app.models.project_instance_models import ProjectGuideline, Projects
+                    pguideline = db.session.query(ProjectGuideline).get(pguideline_id)
+                    if pguideline:
+                        project = getattr(pguideline, "project", None)
                 if project:
-                    auditee_name = (
-                        getattr(project, "organization_name", None)
-                        or getattr(project, "name", None)
-                        or "Unknown"
-                    )
+                    from app.models.organization import Organizations as Organization
+                    client_id = getattr(project, "client", None)
+                    if client_id:
+                        try:
+                            org = db.session.query(Organization).get(int(client_id))
+                            auditee_name = getattr(org, "name", None) or getattr(org, "organization_name", None) or "Unknown"
+                        except:
+                            auditee_name = getattr(project, "project_name", None) or "Unknown"
                     audit_period_start = str(
-                        getattr(project, "audit_period_start", None)
-                        or getattr(project, "start_date", None)
+                        getattr(project, "assesment_start_date", None)
+                        or getattr(project, "assessment_start_date", None)
                         or "Unknown"
                     )
                     audit_period_end = str(
-                        getattr(project, "audit_period_end", None)
-                        or getattr(project, "end_date", None)
+                        getattr(project, "assesment_end_date", None)
+                        or getattr(project, "assessment_end_date", None)
                         or "Unknown"
                     )
+                    logger.info(f"[Module D] Context: auditee={auditee_name}, period={audit_period_start} to {audit_period_end}")
             except Exception as e:
                 logger.warning(f"[Module D] Could not extract project context: {e}")
 
