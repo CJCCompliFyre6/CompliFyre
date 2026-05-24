@@ -1924,6 +1924,18 @@ def create_new_project():
                                     admissibility_rules_json=master_checklist.admissibility_rules_json,
                                     sampling_rules_json=master_checklist.sampling_rules_json,
                                     scoring_rules_json=master_checklist.scoring_rules_json,
+                                    status='ready'
+                                )
+                                db.session.add(project_checklist)
+                            else:
+                                # Master checklist not yet generated — create placeholder
+                                # Will be updated when generate_control_checklist completes
+                                project_checklist = ProjectChecklist(
+                                    project_control_activity_id=project_control.id,
+                                    checklist_json=[],
+                                    dimension_design=False,
+                                    dimension_implementation=False,
+                                    dimension_operating=False,
                                     status='pending'
                                 )
                                 db.session.add(project_checklist)
