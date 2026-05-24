@@ -1940,7 +1940,7 @@ def create_new_project():
                                     admissibility_rules_json=master_checklist.admissibility_rules_json,
                                     sampling_rules_json=master_checklist.sampling_rules_json,
                                     scoring_rules_json=master_checklist.scoring_rules_json,
-                                    status='ready'
+                                    status='pending'
                                 )
                                 db.session.add(project_checklist)
                             else:

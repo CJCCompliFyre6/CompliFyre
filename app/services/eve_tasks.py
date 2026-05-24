@@ -835,7 +835,7 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
                         admissibility_rules_json=checklist_record.admissibility_rules_json,
                         sampling_rules_json=checklist_record.sampling_rules_json,
                         scoring_rules_json=checklist_record.scoring_rules_json,
-                        status="ready"
+                        status="completed"
                     )
                     db.session.add(new_pc)
             db.session.commit()
