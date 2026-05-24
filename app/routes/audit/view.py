@@ -1880,6 +1880,9 @@ def create_new_project():
                 original_guideline_id=guideline_template.id,
                 guideline_data=guideline_template.guideline_data,
             )
+            new_project.project_guidelines.append(project_guideline)
+            db.session.add(project_guideline)
+            db.session.flush()
 
             for clause_template in guideline_template.clauses:
                 project_clause = ProjectClause(
@@ -1887,6 +1890,7 @@ def create_new_project():
                     clause_no=clause_template.clause_no,
                     clause_text=clause_template.clause_text,
                 )
+                project_guideline.project_clauses.append(project_clause)
                 db.session.add(project_clause)
                 db.session.flush()
 
@@ -1899,6 +1903,7 @@ def create_new_project():
                         frequency=activity_template.frequency,
                         evidence_required=activity_template.evidence_required,
                     )
+                    project_clause.project_compliance_activities.append(project_activity)
                     db.session.add(project_activity)
                     db.session.flush()
 
