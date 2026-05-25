@@ -368,7 +368,10 @@ SUB-STEP-8 — LOGICAL VALIDATION (PRINCIPLE 8):
 
 Validate logical integrity across evidence:
 * CHRONOLOGY: dates in logical sequence (approval before effective date)
-* AUDIT_PERIOD_ALIGNMENT: evidence falls within audit period
+* AUDIT_PERIOD_ALIGNMENT rules by dimension:
+  - DESIGN items: policy/document must be EFFECTIVE DURING audit period. Approved BEFORE audit period start is VALID. Do NOT fail evidence simply because approval date precedes audit period.
+  - IMPLEMENTATION items: rollout must have occurred before or during audit period
+  - OPERATING items: execution evidence must fall WITHIN the audit period
 * VERSION_ALIGNMENT: document versions consistent across evidence
 * CROSS_DOC_CONSISTENCY: same facts stated consistently across documents
 * APPROVAL_SEQUENCING: approval authority and sequence correct
