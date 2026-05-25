@@ -4280,7 +4280,7 @@ def test_evidence_artifacts(activity_id):
 
                 # Admissibility from evidence results
                 from app.models.eve_models import EveEvidenceResult
-                checklist_obj = PC2.query.filter_by(project_control_activity_id=activity_id).first()
+                checklist_obj = PC2.query.filter_by(project_control_activity_id=int(activity_id)).first()
                 if checklist_obj:
                     ev_results = EveEvidenceResult.query.filter_by(
                         project_checklist_id=checklist_obj.id
@@ -4299,7 +4299,7 @@ def test_evidence_artifacts(activity_id):
 
                 # Dimensions from ProjectChecklist
                 from app.models.eve_models import ProjectChecklist as PC2
-                pc2 = PC2.query.filter_by(project_control_activity_id=activity_id).first()
+                pc2 = PC2.query.filter_by(project_control_activity_id=int(activity_id)).first()
                 eve_dimension_design = pc2.dimension_design if pc2 else None
                 eve_dimension_impl = pc2.dimension_implementation if pc2 else None
                 eve_dimension_oper = pc2.dimension_operating if pc2 else None
