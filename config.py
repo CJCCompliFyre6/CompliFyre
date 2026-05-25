@@ -18,7 +18,7 @@ class Config:
         'max_overflow': 20,
         'pool_timeout': 30,
         "pool_pre_ping": True, 
-        "pool_recycle": 300,  
+        "pool_recycle": 280,  
     }
 
     # --- OpenAI Configuration ---
