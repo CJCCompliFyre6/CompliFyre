@@ -1000,3 +1000,40 @@ def copy_checklist_to_project(self, project_control_activity_id: int):
         db.session.rollback()
         logger.error(f"[Copy Checklist] Unexpected error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+@shared_task(bind=True)
+def fix_pending_checklists(self):
+    """Periodic task: fix any pending ProjectChecklists that were not auto-updated."""
+    from app.models.eve_models import ControlChecklist, ProjectChecklist
+    from app.models.project_instance_models import ProjectControlActivity
+    try:
+        pending = ProjectChecklist.query.filter_by(status='pending').all()
+        fixed = 0
+        triggered = 0
+        for pc in pending:
+            if not pc.checklist_json:
+                pca = ProjectControlActivity.query.get(pc.project_control_activity_id)
+                if pca:
+                    cc = ControlChecklist.query.filter_by(control_activity_id=pca.original_control_id).first()
+                    if cc and cc.checklist_json:
+                        pc.checklist_json = cc.checklist_json
+                        pc.dimension_design = cc.dimension_design
+                        pc.dimension_implementation = cc.dimension_implementation
+                        pc.dimension_operating = cc.dimension_operating
+                        pc.source_checklist_id = cc.id
+                        pc.status = 'completed'
+                        fixed += 1
+                    else:
+                        generate_control_checklist.apply_async(
+                            args=[pca.original_control_id],
+                            queue='eve_checklist'
+                        )
+                        triggered += 1
+        db.session.commit()
+        logger.info(f"[Periodic] fix_pending_checklists: fixed={fixed}, triggered={triggered}")
+        return {"fixed": fixed, "triggered": triggered}
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[Periodic] fix_pending_checklists error: {e}")
+        return {"error": str(e)}

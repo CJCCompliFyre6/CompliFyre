@@ -59,6 +59,12 @@ def celery_init_app(app: Flask) -> Celery:
         "task_acks_late": True,
         "worker_prefetch_multiplier": 1,
         "result_extended": True,  # Enable extended result features
+        "beat_schedule": {
+            "fix-pending-checklists-every-5-min": {
+                "task": "app.services.eve_tasks.fix_pending_checklists",
+                "schedule": 300.0,
+            },
+        },
     })
 
 
