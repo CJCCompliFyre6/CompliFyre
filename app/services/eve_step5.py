@@ -977,38 +977,7 @@ def run_eve_step5_for_evidence(
             f"admissibility={admissibility}, evidence_type={evidence_type}"
         )
 
-        # Check if all evidence evaluated — trigger Step 5B + Step 6+7
-        try:
-            pca_id = checklist.project_control_activity_id
-            total_evidence = db.session.query(ProjectEvidenceArtifact).filter_by(
-                project_control_activity_id=pca_id
-            ).count()
-            evaluated_evidence = db.session.query(EveEvidenceResult.evidence_artifact_id).filter_by(
-                project_checklist_id=project_checklist_id
-            ).distinct().count()
-            logger.info(f"[Module D] Evidence progress: {evaluated_evidence}/{total_evidence}")
-            if evaluated_evidence >= total_evidence:
-                # Only trigger once — use atomic update to prevent duplicate triggers
-                updated = db.session.query(ProjectChecklist).filter(
-                    ProjectChecklist.id == project_checklist_id,
-                    ProjectChecklist.status == "in_progress"
-                ).update({"status": "completed"})
-                db.session.commit()
-                if updated > 0:
-                    logger.info(f"[Module D] All evidence evaluated — triggering Step 5B + Step 6+7")
-                    run_eve_step5b_cross_evidence.apply_async(
-                        args=[project_checklist_id],
-                        queue="eve_evaluate",
-                        countdown=5
-                    )
-                    from app.services.eve_step678 import run_eve_step6_and_7
-                    run_eve_step6_and_7.apply_async(
-                        args=[pca_id, None],
-                        queue="eve_evaluate",
-                        countdown=45
-                    )
-        except Exception as chain_err:
-            logger.warning(f"[Module D] Could not trigger Step 5B/6+7 chain: {chain_err}")
+
 
         return {
             "status": "success",

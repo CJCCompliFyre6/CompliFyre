@@ -4665,8 +4665,21 @@ def reevaluate_activity():
                 queue='eve_evaluate'
             )
 
-        # Step 5B and Step 6+7 are now auto-triggered from within run_eve_step5_for_evidence
-        # when all evidence has been evaluated
+        # Trigger Step 5B after Step 5A
+        from app.services.eve_step5 import run_eve_step5b_cross_evidence
+        countdown_5a = max(90, step5_tasks * 75)
+        run_eve_step5b_cross_evidence.apply_async(
+            args=[checklist.id],
+            queue='eve_evaluate',
+            countdown=countdown_5a
+        )
+        # Trigger Step 6+7 after Step 5B
+        countdown = countdown_5a + 60
+        run_eve_step6_and_7.apply_async(
+            args=[project_control_activity.id, current_user.id],
+            queue='eve_evaluate',
+            countdown=countdown
+        )
 
         current_app.logger.info(
             f"[EVE v3] Triggered evaluation for activity_id={project_control_activity_id}, "
