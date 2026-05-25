@@ -699,6 +699,10 @@ def run_eve_step5_for_evidence(
                 os.path.dirname(os.path.abspath(__file__)),
                 "../../uploads"
             )
+        # Check if evidences subfolder exists and use it
+        evidences_path = os.path.join(upload_base_path, "evidences")
+        if os.path.isdir(evidences_path):
+            upload_base_path = evidences_path
 
         evidence_content = _get_evidence_content(artifact, upload_base_path)
 

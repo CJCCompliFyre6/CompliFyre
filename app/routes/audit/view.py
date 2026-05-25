@@ -4625,6 +4625,10 @@ def reevaluate_activity():
             "UPLOAD_FOLDER",
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../uploads")
         )
+        # Use evidences subfolder if it exists
+        evidences_path = os.path.join(upload_base_path, "evidences")
+        if os.path.isdir(evidences_path):
+            upload_base_path = evidences_path
 
         # Get project checklist for this control activity
         from app.models.eve_models import ProjectChecklist
