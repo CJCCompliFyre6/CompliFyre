@@ -988,11 +988,13 @@ def run_eve_step5_for_evidence(
             ).distinct().count()
             logger.info(f"[Module D] Evidence progress: {evaluated_evidence}/{total_evidence}")
             if evaluated_evidence >= total_evidence:
-                # Only trigger if not already triggered (check checklist status)
-                checklist_fresh = db.session.query(ProjectChecklist).get(project_checklist_id)
-                if checklist_fresh and checklist_fresh.status == "in_progress":
-                    checklist_fresh.status = "completed"
-                    db.session.commit()
+                # Only trigger once — use atomic update to prevent duplicate triggers
+                updated = db.session.query(ProjectChecklist).filter(
+                    ProjectChecklist.id == project_checklist_id,
+                    ProjectChecklist.status == "in_progress"
+                ).update({"status": "completed"})
+                db.session.commit()
+                if updated > 0:
                     logger.info(f"[Module D] All evidence evaluated — triggering Step 5B + Step 6+7")
                     run_eve_step5b_cross_evidence.apply_async(
                         args=[project_checklist_id],
