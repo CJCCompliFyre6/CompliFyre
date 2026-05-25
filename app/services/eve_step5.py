@@ -955,7 +955,6 @@ def run_eve_step5_for_evidence(
         ))
 
         assurance_state.last_evidence_id = project_evidence_artifact_id
-        from datetime import datetime
         assurance_state.last_updated_at = datetime.utcnow()
 
         logger.info(
