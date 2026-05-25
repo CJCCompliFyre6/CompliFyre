@@ -977,6 +977,7 @@ def run_eve_step5_for_evidence(
 
         # Check if all evidence evaluated — trigger Step 5B + Step 6+7
         try:
+            pca_id = checklist.project_control_activity_id
             total_evidence = db.session.query(ProjectEvidenceArtifact).filter_by(
                 project_control_activity_id=pca_id
             ).count()
