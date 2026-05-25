@@ -823,7 +823,7 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
                     existing_pc.admissibility_rules_json = checklist_record.admissibility_rules_json
                     existing_pc.sampling_rules_json = checklist_record.sampling_rules_json
                     existing_pc.scoring_rules_json = checklist_record.scoring_rules_json
-                    existing_pc.status = "ready"
+                    existing_pc.status = "completed"
                 else:
                     new_pc = ProjectChecklist(
                         project_control_activity_id=pca.id,
