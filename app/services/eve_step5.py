@@ -96,12 +96,24 @@ def _get_evidence_content(artifact: ProjectEvidenceArtifact, upload_base: str) -
     """
     parts = []
 
-    # Uploaded files — primary source
-    files = artifact.evidence_files.all() if artifact.evidence_files else []
-    for ef in files:
-        file_path = os.path.join(upload_base, ef.stored_filename) if ef.stored_filename else ef.file_path
-        text = _extract_text_from_file(file_path, ef.content_type)
-        parts.append(f"[File: {ef.file_name}]\n{text}")
+    # Primary: evidence_file_path column (new system)
+    if artifact.evidence_file_path and artifact.evidence_file_path.strip():
+        file_path = os.path.join(upload_base, artifact.evidence_file_path.strip())
+        content_type = None
+        if artifact.evidence_file_path.endswith('.pdf'):
+            content_type = 'application/pdf'
+        elif artifact.evidence_file_path.endswith('.docx'):
+            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        text = _extract_text_from_file(file_path, content_type)
+        parts.append(f"[File: {artifact.evidence_file_path}]\n{text}")
+
+    # Secondary: evidence_files relationship (old system)
+    if not parts:
+        files = artifact.evidence_files.all() if artifact.evidence_files else []
+        for ef in files:
+            file_path = os.path.join(upload_base, ef.stored_filename) if ef.stored_filename else ef.file_path
+            text = _extract_text_from_file(file_path, ef.content_type)
+            parts.append(f"[File: {ef.file_name}]\n{text}")
 
     # Use evidence_text ONLY if no files uploaded (manual text or interview response)
     if not parts and artifact.evidence_text and artifact.evidence_text.strip():
