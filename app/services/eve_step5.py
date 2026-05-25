@@ -732,6 +732,8 @@ def run_eve_step5_for_evidence(
             evidence_content=evidence_content,
         )
 
+        # Release DB connection before long OpenAI API call
+        db.session.remove()
         raw_output = _call_eve_step5(prompt)
 
         if not raw_output:
@@ -1337,6 +1339,8 @@ def run_eve_step5b_cross_evidence(
             evidence_results=evidence_results_for_prompt,
         )
 
+        # Release DB connection before long OpenAI API call
+        db.session.remove()
         raw_output = _call_eve_step5(prompt)
 
         if not raw_output:
