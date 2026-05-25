@@ -4676,7 +4676,7 @@ def reevaluate_activity():
         flash(
             f"EVE v3 evaluation started! "
             f"{step5_tasks} evidence file(s) being processed. "
-            f"Results will appear in ~2} seconds.",
+            f"Results will appear in ~2 minutes.",
             "success"
         )
         return redirect(request.referrer)
