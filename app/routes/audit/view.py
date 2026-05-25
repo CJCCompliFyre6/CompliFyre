@@ -4670,13 +4670,13 @@ def reevaluate_activity():
 
         current_app.logger.info(
             f"[EVE v3] Triggered evaluation for activity_id={project_control_activity_id}, "
-            f"evidence={step5_tasks}, countdown={countdown}s"
+            f"evidence={step5_tasks}"
         )
 
         flash(
             f"EVE v3 evaluation started! "
             f"{step5_tasks} evidence file(s) being processed. "
-            f"Results will appear in ~{countdown} seconds.",
+            f"Results will appear in ~2} seconds.",
             "success"
         )
         return redirect(request.referrer)
