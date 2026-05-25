@@ -4249,9 +4249,11 @@ def test_evidence_artifacts(activity_id):
                     severity_order = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
                     max_sev = 0
                     for f in eve_findings:
-                        sev = f.get("severity", "")
-                        if not sev:
-                            issue_text = f.get("issue", "")
+                        sev = f.get("severity", "") or ""
+                        # Normalize severity to title case
+                        sev = sev.strip().title()
+                        if sev not in severity_order:
+                            issue_text = f.get("issue", "") or f.get("finding_summary", "")
                             if "CRITICAL" in issue_text.upper():
                                 sev = "Critical"
                             elif "HIGH" in issue_text.upper():
@@ -4276,16 +4278,22 @@ def test_evidence_artifacts(activity_id):
                 eve_control_support = eve_result.control_support_status or None
                 eve_assurance = eve_result.assurance_state_json or {}
 
-                # Admissibility from checklist summary
-                if eve_checklist_summary:
-                    supported = sum(1 for i in eve_checklist_summary if i.get('final_status') == 'PASS')
-                    total = len(eve_checklist_summary)
-                    if supported == total:
+                # Admissibility from evidence results
+                from app.models.eve_models import EveEvidenceResult
+                checklist_obj = PC2.query.filter_by(project_control_activity_id=activity_id).first()
+                if checklist_obj:
+                    ev_results = EveEvidenceResult.query.filter_by(
+                        project_checklist_id=checklist_obj.id
+                    ).all()
+                    admissibility_values = list(set(r.admissibility for r in ev_results if r.admissibility))
+                    if any(a in ['VALID'] for a in admissibility_values):
                         eve_admissibility = 'ADMISSIBLE'
-                    elif supported > 0:
+                    elif any(a in ['PARTIAL', 'PROVIDED_INSUFFICIENT'] for a in admissibility_values):
                         eve_admissibility = 'PARTIAL'
-                    else:
+                    elif admissibility_values:
                         eve_admissibility = 'INADMISSIBLE'
+                    else:
+                        eve_admissibility = None
                 else:
                     eve_admissibility = None
 

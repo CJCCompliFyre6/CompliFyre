@@ -1497,9 +1497,9 @@
       <div class="border border-gray-200 rounded-lg overflow-hidden">
         <!-- Finding Header -->
         <div class="flex items-center justify-between px-4 py-3
-          {% if finding.severity == 'Critical' %}bg-red-50 border-b border-red-200
-          {% elif finding.severity == 'High' %}bg-orange-50 border-b border-orange-200
-          {% elif finding.severity == 'Medium' %}bg-yellow-50 border-b border-yellow-200
+          {% if finding.severity|upper == 'CRITICAL' %}bg-red-50 border-b border-red-200
+          {% elif finding.severity|upper == 'HIGH' %}bg-orange-50 border-b border-orange-200
+          {% elif finding.severity|upper == 'MEDIUM' %}bg-yellow-50 border-b border-yellow-200
           {% else %}bg-blue-50 border-b border-blue-200{% endif %}">
           <div class="flex items-center space-x-3">
             <span class="text-xs font-mono font-bold text-gray-500">{{ finding.finding_id or loop.index }}</span>
@@ -1510,9 +1510,9 @@
             <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{{ finding.finding_type }}</span>
             {% endif %}
             <span class="text-xs font-bold px-2 py-1 rounded-full
-              {% if finding.severity == 'Critical' %}bg-red-600 text-white
-              {% elif finding.severity == 'High' %}bg-orange-500 text-white
-              {% elif finding.severity == 'Medium' %}bg-yellow-500 text-gray-900
+              {% if finding.severity|upper == 'CRITICAL' %}bg-red-600 text-white
+              {% elif finding.severity|upper == 'HIGH' %}bg-orange-500 text-white
+              {% elif finding.severity|upper == 'MEDIUM' %}bg-yellow-500 text-gray-900
               {% else %}bg-blue-400 text-white{% endif %}">
               {{ finding.severity }}
             </span>
@@ -1661,9 +1661,9 @@
       Severity distribution:
       {% set ns = namespace(critical=0, high=0, medium=0, low=0) %}
       {% for f in eve_findings %}
-        {% if f.severity == 'Critical' %}{% set ns.critical = ns.critical + 1 %}
-        {% elif f.severity == 'High' %}{% set ns.high = ns.high + 1 %}
-        {% elif f.severity == 'Medium' %}{% set ns.medium = ns.medium + 1 %}
+        {% if f.severity|upper == 'CRITICAL' %}{% set ns.critical = ns.critical + 1 %}
+        {% elif f.severity|upper == 'HIGH' %}{% set ns.high = ns.high + 1 %}
+        {% elif f.severity|upper == 'MEDIUM' %}{% set ns.medium = ns.medium + 1 %}
         {% else %}{% set ns.low = ns.low + 1 %}{% endif %}
       {% endfor %}
       {% if ns.critical > 0 %}<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded mr-1">{{ ns.critical }} Critical</span>{% endif %}
