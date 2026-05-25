@@ -653,7 +653,8 @@ def run_eve_step5_for_evidence(
                 pguideline_id = getattr(pclause, "project_guideline_id", None) if pclause else None
                 project = None
                 if pguideline_id:
-                    from app.models.project_instance_models import ProjectGuideline, Projects
+                    from app.models.project_instance_models import ProjectGuideline
+                    from app.models.auditOrganization import Projects
                     pguideline = db.session.query(ProjectGuideline).get(pguideline_id)
                     if pguideline:
                         project = getattr(pguideline, "project", None)
