@@ -975,17 +975,6 @@ def run_eve_step5_for_evidence(
             f"admissibility={admissibility}, evidence_type={evidence_type}"
         )
 
-        return {
-            "status": "success",
-            "project_evidence_artifact_id": project_evidence_artifact_id,
-            "project_checklist_id": project_checklist_id,
-            "admissibility": admissibility,
-            "evidence_type": evidence_type,
-            "strength": strength,
-            "items_evaluated": stored_count,
-            "items_skipped": skipped_count,
-        }
-
         # Check if all evidence evaluated — trigger Step 5B + Step 6+7
         try:
             total_evidence = db.session.query(ProjectEvidenceArtifact).filter_by(
@@ -1010,6 +999,17 @@ def run_eve_step5_for_evidence(
                 )
         except Exception as chain_err:
             logger.warning(f"[Module D] Could not trigger Step 5B/6+7 chain: {chain_err}")
+
+        return {
+            "status": "success",
+            "project_evidence_artifact_id": project_evidence_artifact_id,
+            "project_checklist_id": project_checklist_id,
+            "admissibility": admissibility,
+            "evidence_type": evidence_type,
+            "strength": strength,
+            "items_evaluated": stored_count,
+            "items_skipped": skipped_count,
+        }
 
     except self.MaxRetriesExceededError:
         logger.error(
