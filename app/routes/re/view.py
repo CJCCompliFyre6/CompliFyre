@@ -4279,7 +4279,7 @@ def test_evidence_artifacts(activity_id):
                 eve_assurance = eve_result.assurance_state_json or {}
 
                 # Admissibility from evidence results
-                from app.models.eve_models import EveEvidenceResult
+                from app.models.eve_models import EveEvidenceResult, ProjectChecklist as PC2
                 checklist_obj = PC2.query.filter_by(project_control_activity_id=int(activity_id)).first()
                 if checklist_obj:
                     ev_results = EveEvidenceResult.query.filter_by(
