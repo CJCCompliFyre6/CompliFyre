@@ -4168,6 +4168,7 @@ def test_evidence_artifacts(activity_id):
 
         # All data is now sourced from the 'project_control' instance object
         activity_data = {
+            "id": project_control.id,
             "activity_id": project_control.id,
             "activity_code": project_control.activity_code,
             "activity_name": display_activity_name,
