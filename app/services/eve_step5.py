@@ -988,18 +988,23 @@ def run_eve_step5_for_evidence(
             ).distinct().count()
             logger.info(f"[Module D] Evidence progress: {evaluated_evidence}/{total_evidence}")
             if evaluated_evidence >= total_evidence:
-                logger.info(f"[Module D] All evidence evaluated — triggering Step 5B + Step 6+7")
-                run_eve_step5b_cross_evidence.apply_async(
-                    args=[project_checklist_id],
-                    queue="eve_evaluate",
-                    countdown=5
-                )
-                from app.services.eve_step678 import run_eve_step6_and_7
-                run_eve_step6_and_7.apply_async(
-                    args=[pca_id, 1],
-                    queue="eve_evaluate",
-                    countdown=45
-                )
+                # Only trigger if not already triggered (check checklist status)
+                checklist_fresh = db.session.query(ProjectChecklist).get(project_checklist_id)
+                if checklist_fresh and checklist_fresh.status == "in_progress":
+                    checklist_fresh.status = "completed"
+                    db.session.commit()
+                    logger.info(f"[Module D] All evidence evaluated — triggering Step 5B + Step 6+7")
+                    run_eve_step5b_cross_evidence.apply_async(
+                        args=[project_checklist_id],
+                        queue="eve_evaluate",
+                        countdown=5
+                    )
+                    from app.services.eve_step678 import run_eve_step6_and_7
+                    run_eve_step6_and_7.apply_async(
+                        args=[pca_id, 1],
+                        queue="eve_evaluate",
+                        countdown=45
+                    )
         except Exception as chain_err:
             logger.warning(f"[Module D] Could not trigger Step 5B/6+7 chain: {chain_err}")
 
