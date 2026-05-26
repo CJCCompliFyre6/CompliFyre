@@ -3443,4 +3443,26 @@ EXCEPTION DETAILS
 }
 </script>
 
+<script>
+(function() {
+    const activityId = {{ item.data.id | default(0) }};
+    if (!activityId) return;
+    const hasFindings = {{ (eve_findings and eve_findings|length > 0)|tojson }};
+    if (!hasFindings) {
+        let pollInterval = setInterval(function() {
+            fetch(`/audit/eve_status/${activityId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        window.location.reload();
+                    }
+                })
+                .catch(() => clearInterval(pollInterval));
+        }, 10000);
+        setTimeout(() => clearInterval(pollInterval), 15 * 60 * 1000);
+    }
+})();
+</script>
+
 {% endblock %}
