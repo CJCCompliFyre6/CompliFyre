@@ -4952,8 +4952,12 @@ def clause_test_steps(clause_id):
                 "activity_name": display_activity_name,
                 "activity_code": control_activity.activity_code,
                 "activity_description": control_activity.activity_description,
-                "compliant_status": control_activity.compliant_status
-                or "To be Assessed",
+                "compliant_status": (
+                    __import__("app.models.eve_models", fromlist=["EveControlResult"]).EveControlResult.query
+                    .filter_by(project_control_activity_id=control_activity.id)
+                    .with_entities(__import__("app.models.eve_models", fromlist=["EveControlResult"]).EveControlResult.final_status)
+                    .scalar() or control_activity.compliant_status or "To be Assessed"
+                ),
                 "auditor_observation": control_activity.auditor_observation,
                 "findings": control_activity.findings,
                 "recommendations": control_activity.recommendations,
@@ -4967,10 +4971,7 @@ def clause_test_steps(clause_id):
                 "evidence_admissibility_decision": control_activity.evidence_admissibility_decision,
                 "evidence_quality_rating": control_activity.evidence_quality_rating,
                 # Add a calculated field for easy use in template
-                "evidence_received": (
-                    control_activity.evidence_admissibility_decision == "Yes" and 
-                    control_activity.evidence_quality_rating == "STRONG"
-                )
+                "evidence_received": len(control_activity.submitted_evidences) > 0
             }
             all_control_activities.append(activity_data)
 
