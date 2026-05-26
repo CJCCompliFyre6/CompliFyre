@@ -1031,8 +1031,24 @@ def fix_pending_checklists(self):
                         )
                         triggered += 1
         db.session.commit()
-        logger.info(f"[Periodic] fix_pending_checklists: fixed={fixed}, triggered={triggered}")
-        return {"fixed": fixed, "triggered": triggered}
+        # Also fix incomplete EveControlResults (step7_completed=False but findings exist)
+        from app.models.eve_models import EveControlResult, EveEvidenceResult
+        incomplete = EveControlResult.query.filter_by(step7_completed=False).all()
+        step7_triggered = 0
+        for cr in incomplete:
+            # Check if evidence has been evaluated
+            ev_count = EveEvidenceResult.query.filter_by(
+                project_checklist_id=cr.project_checklist_id
+            ).count()
+            if ev_count > 0:
+                from app.services.eve_step678 import run_eve_step6_and_7
+                run_eve_step6_and_7.apply_async(
+                    args=[cr.project_control_activity_id, None],
+                    queue="eve_evaluate"
+                )
+                step7_triggered += 1
+        logger.info(f"[Periodic] fix_pending_checklists: fixed={fixed}, triggered={triggered}, step7_triggered={step7_triggered}")
+        return {"fixed": fixed, "triggered": triggered, "step7_triggered": step7_triggered}
     except Exception as e:
         db.session.rollback()
         logger.error(f"[Periodic] fix_pending_checklists error: {e}")
