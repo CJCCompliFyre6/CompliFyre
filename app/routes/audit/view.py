@@ -5152,21 +5152,20 @@ def clause_test_steps(clause_id):
     
     # IMPORTANT: Loop through applicable_control_activities, not all_control_activities
     for activity in applicable_control_activities:
-        # Get the overall_severity_classification from the activity
-        # Check multiple possible field names
-        activity_severity = activity.get('overall_severity_classification')
+        # Get severity from EVE v3 EveControlResult
+        from app.models.eve_models import EveControlResult
+        eve_result = EveControlResult.query.filter_by(
+            project_control_activity_id=activity.get('id')
+        ).first()
+        activity_severity = None
+        if eve_result and eve_result.final_severity:
+            activity_severity = eve_result.final_severity.title()
         
-        # If not found, try alternative field names
+        # Fallback to old field
+        if not activity_severity or activity_severity == 'Not Classified':
+            activity_severity = activity.get('overall_severity_classification')
         if not activity_severity or activity_severity == 'Not Classified':
             activity_severity = activity.get('overall_severity')
-        
-        # If still not found, try to get from the original object if it exists
-        if not activity_severity or activity_severity == 'Not Classified':
-            # Try to get the actual database object
-            
-            control_activity = ProjectControlActivity.query.get(activity.get('id'))
-            if control_activity:
-                activity_severity = control_activity.overall_severity_classification
         
         # Default to 'No findings noted' if nothing found and activity is compliant
         if not activity_severity or activity_severity == 'Not Classified':
