@@ -3445,8 +3445,9 @@ EXCEPTION DETAILS
 
 <script>
 (function() {
-    const activityId = {{ item.data.id | default(0) }};
-    if (!activityId) return;
+    const pathParts = window.location.pathname.split('/');
+    const activityId = pathParts[pathParts.length - 1];
+    if (!activityId || isNaN(activityId)) return;
     const hasFindings = {{ (eve_findings and eve_findings|length > 0)|tojson }};
     if (!hasFindings) {
         let pollInterval = setInterval(function() {
