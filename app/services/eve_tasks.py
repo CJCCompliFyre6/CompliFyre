@@ -1057,11 +1057,15 @@ def fix_pending_checklists(self):
         incomplete = EveControlResult.query.filter_by(step7_completed=False).all()
         step7_triggered = 0
         for cr in incomplete:
-            # Check if evidence has been evaluated
-            ev_count = EveEvidenceResult.query.filter_by(
-                project_checklist_id=cr.project_checklist_id
+            # Check if ALL evidence has been evaluated
+            from app.models.project_instance_models import ProjectEvidenceArtifact
+            total_evidence = ProjectEvidenceArtifact.query.filter_by(
+                project_control_activity_id=cr.project_control_activity_id
             ).count()
-            if ev_count > 0:
+            evaluated_evidence = db.session.query(EveEvidenceResult.evidence_artifact_id).filter_by(
+                project_checklist_id=cr.project_checklist_id
+            ).distinct().count()
+            if total_evidence > 0 and evaluated_evidence >= total_evidence:
                 from app.services.eve_step678 import run_eve_step6_and_7
                 run_eve_step6_and_7.apply_async(
                     args=[cr.project_control_activity_id, None],
