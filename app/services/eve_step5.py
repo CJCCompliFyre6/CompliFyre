@@ -837,6 +837,9 @@ def run_eve_step5_for_evidence(
                 signal = "INSUFFICIENT"
             if item_status not in ("PASS", "PARTIAL", "FAIL"):
                 item_status = "PARTIAL"
+            # Normalize admissibility values
+            admissibility_map = {"VALID": "ADMISSIBLE", "PROVIDED_INVALID": "INADMISSIBLE", "NOT_PROVIDED": "INADMISSIBLE", "PROVIDED_INSUFFICIENT": "PARTIAL", "CONTRADICTORY": "PARTIAL"}
+            admissibility = admissibility_map.get(admissibility, admissibility)
             if admissibility not in ("ADMISSIBLE", "PARTIAL", "INADMISSIBLE"):
                 admissibility = "PARTIAL"
             if strength not in ("STRONG", "MODERATE", "WEAK"):
