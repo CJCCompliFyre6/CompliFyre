@@ -618,6 +618,9 @@ STRICT CONSTRAINTS:
 * Every LOGICAL_INTEGRITY item MUST have logical_integrity_check defined
 * inquiry_conditions must not be empty when inquiry_trigger = YES
 * partial_condition must not be empty or vague
+* CRITICAL — ILLUSTRATIVE vs MANDATORY: When a regulatory clause contains phrases like "such as", "including", "for example", "e.g.", "inter alia" — treat those examples as ILLUSTRATIVE ONLY, not mandatory requirements. Generate checklist items that test whether the institution has documented ITS OWN products/processes — NOT whether specific named examples exist.
+* CRITICAL — INSTITUTION-SPECIFIC SCOPE: Checklist items must NEVER mandate specific product names, service types, or process names that appear as examples in a clause. Test for COVERAGE and COMPLETENESS of the institution's actual scope — not for presence of illustrative examples.
+* CRITICAL — REGULATORY INTENT: Always derive checklist items from the INTENT of the regulatory requirement. Ask "What is this regulation trying to achieve?" — not "What specific words appear in the clause?"
 * Use consistent ENUM values only"""
 
 

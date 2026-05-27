@@ -181,9 +181,12 @@ def _build_step5_prompt(
     checklist: list,
     evidence_id: int,
     evidence_content: str,
+    org_context: dict = None,
 ) -> str:
     """Build EVE Step 5 prompt — V3 with all 14 principles."""
 
+    org_industry = (org_context or {}).get("industry_type", "Not specified")
+    org_type = (org_context or {}).get("organization_type", "Not specified")
     return f"""You are an Audit Evidence Execution Engine.
 
 TASK:
@@ -214,10 +217,18 @@ Return ONLY valid JSON. No explanation. No markdown.
 INPUT:
 
 * Auditee Name: {auditee_name}
+* Organization Industry Type: {org_industry}
+* Organization Type: {org_type}
 
 * Audit Period:
   Start Date: {audit_period_start}
   End Date: {audit_period_end}
+
+ORGANIZATION CONTEXT RULES (CRITICAL):
+1. ILLUSTRATIVE vs MANDATORY: If a regulatory clause or checklist item contains phrases like "such as", "including", "for example", "e.g.", "inter alia" — those examples are ILLUSTRATIVE ONLY. Do NOT raise a finding for absence of illustrative examples.
+2. INSTITUTION-SPECIFIC SCOPE: Evaluate evidence against the institution's ACTUAL declared scope (industry type, organization type). If organization type is "Commercial Bank", do not expect products/processes typical of NBFCs or microfinance institutions.
+3. MISSING ORGANIZATION CONTEXT: If organization context is not available AND it is needed to evaluate a specific checklist item, raise an INQUIRY trigger — do NOT automatically fail the item.
+4. ABSENCE IS NOT FAILURE: Absence of a product, service, or process that the institution does not offer is NOT a finding. Only raise findings for mandatory regulatory requirements that are clearly not met.
 
 * Required Dimensions:
   {json.dumps(required_dimensions, indent=2)}
@@ -659,6 +670,8 @@ def run_eve_step5_for_evidence(
         auditee_name = "Unknown"
         audit_period_start = "Unknown"
         audit_period_end = "Unknown"
+        org_industry = "Not specified"
+        org_type = "Not specified"
 
         if pca:
             # Navigate: pca → project_compliance_activity → project_clause → project_guideline → project
@@ -680,6 +693,8 @@ def run_eve_step5_for_evidence(
                         try:
                             org = db.session.query(Organization).get(int(client_id))
                             auditee_name = getattr(org, "name", None) or getattr(org, "organization_name", None) or "Unknown"
+                            org_industry = str(getattr(org, "industry_type", None) or "Not specified")
+                            org_type = str(getattr(org, "organization_type", None) or "Not specified")
                         except:
                             auditee_name = getattr(project, "project_name", None) or "Unknown"
                     audit_period_start = str(
@@ -730,6 +745,7 @@ def run_eve_step5_for_evidence(
             checklist=checklist_items,
             evidence_id=project_evidence_artifact_id,
             evidence_content=evidence_content,
+            org_context={"industry_type": org_industry, "organization_type": org_type},
         )
 
         # Release DB connection before long OpenAI API call
