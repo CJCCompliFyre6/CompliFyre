@@ -1477,15 +1477,7 @@
     </div>
   </div>
 
-  <!-- SECTION 5: Observations -->
-  {% if item.data.observation %}
-  <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-cyan-500">
-    <h3 class="text-xl font-bold text-gray-900 mb-3">5. Observations</h3>
-    <div id="compliance_display_observations_{{ item_loop_idx }}" class="prose max-w-none text-gray-700">
-      {{ item.data.observation | markdown | safe }}
-    </div>
-  </div>
-  {% endif %}
+  <!-- SECTION 5: Observations — temporarily hidden -->
 
   <!-- SECTION 6: Findings — V3 EVE Output -->
   <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-red-500">

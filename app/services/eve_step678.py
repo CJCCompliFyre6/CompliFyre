@@ -300,6 +300,22 @@ This step MUST:
 * consolidate OE exception impacts
 * maintain full traceability to checklist failures and evidence lineage
 
+CRITICAL RULES FOR FINDINGS:
+* Findings must be SPECIFIC not GENERIC — state exactly what was found to be missing, incorrect, or insufficient
+* DO NOT say "documentation is incomplete" — say exactly WHAT documentation is missing or what specific element is absent
+* DO NOT say "roles are unclear" — say exactly WHICH roles are undefined and in WHICH document
+* Every finding must reference the specific checklist item(s) that failed and the specific evidence gap
+* Findings must be written from the perspective of an experienced auditor who has read the evidence
+
+CRITICAL RULES FOR RECOMMENDATIONS:
+* Recommendations must be SPECIFIC and ACTIONABLE — not generic
+* DO NOT say "identify gaps" — specify exactly what gaps were found
+* DO NOT say "update records" — specify exactly which records need updating and what needs to be added
+* DO NOT say "clarify roles" — specify exactly which roles are unclear and what clarity is needed
+* Every implementation step must be a concrete action derived from the actual evidence gap
+* The recommendation must directly address the specific deficiency noted in the related finding
+* Base every recommendation on the exact evidence gaps found in the checklist state matrix
+
 This step MUST NOT:
 * directly interpret raw documents
 * generate findings from unsupported inference
