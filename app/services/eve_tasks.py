@@ -398,6 +398,24 @@ RULES:
 3. OTHERWISE: Select maximum 2 intents based on clear signals
 4. CONFLICT PRIORITY: OUTCOME > EXECUTION > CONFIGURATION > GOVERNANCE
 
+CRITICAL DIMENSION CLASSIFICATION RULES:
+* EXECUTION intent ONLY when clause EXPLICITLY requires:
+  - Ongoing operations over a time period (daily/monthly/quarterly/annual)
+  - Regular/periodic activities with defined frequency
+  - Transaction-level controls or population-based testing
+  - Monitoring of ongoing operations
+* NEVER classify as EXECUTION for:
+  - One-time documentation activities (drafting, developing, establishing)
+  - Framework development or policy creation
+  - Governance structure establishment
+  - Board approval activities
+  - One-time training or rollout activities
+* IMPLEMENTATION intent ONLY when clause requires:
+  - Active rollout or deployment of a system/process
+  - Training and awareness programs
+  - System configuration or activation
+* NEVER set OPERATING=YES for one-time or documentation-only controls
+
 DIMENSION MAPPING (FIXED):
 * GOVERNANCE: DESIGN=YES, IMPLEMENTATION=NO, OPERATING=NO
 * CONFIGURATION: DESIGN=NO, IMPLEMENTATION=YES, OPERATING=YES
