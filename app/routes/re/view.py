@@ -4113,12 +4113,28 @@ def test_evidence_artifacts(activity_id):
         }
 
         evidence_data = {}
+        # Fetch Step 5 results for each evidence artifact
+        from app.models.eve_models import EveEvidenceResult as EER2
         for p_evidence in project_control.submitted_evidences:
+            # Get latest Step 5 result for this artifact
+            step5_result = EER2.query.filter_by(
+                evidence_artifact_id=p_evidence.id
+            ).order_by(EER2.id.desc()).first()
+            step5_display = None
+            if step5_result and step5_result.raw_output_json:
+                raw = step5_result.raw_output_json
+                step5_display = {
+                    "admissibility": step5_result.admissibility,
+                    "admissibility_reason": raw.get("admissibility_reason", ""),
+                    "admissibility_tests": raw.get("admissibility_tests", []),
+                    "checklist_evaluation": raw.get("checklist_evaluation", []),
+                }
             evidence_entry = {
                 "id": p_evidence.id,
                 "item": p_evidence.item,
                 "evidence_ans": p_evidence.evidence_text,
                 "files": p_evidence.evidence_file_path,
+                "step5": step5_display,
             }
             evidence_data.setdefault(p_evidence.category, []).append(evidence_entry)
 
