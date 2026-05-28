@@ -4275,7 +4275,7 @@ def test_evidence_artifacts(activity_id):
 
                 # Step 6 outputs
                 eve_checklist_summary = eve_result.checklist_summary_json or []
-                eve_control_support = eve_result.control_support_status or None
+                eve_control_support = eve_result.control_support_status or eve_result.final_status or None
                 eve_assurance = eve_result.assurance_state_json or {}
 
                 # Admissibility from evidence results
