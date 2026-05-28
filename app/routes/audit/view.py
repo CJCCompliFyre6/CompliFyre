@@ -4682,13 +4682,8 @@ def reevaluate_activity():
             queue='eve_evaluate',
             countdown=countdown_5a
         )
-        # Trigger Step 6+7 after Step 5B
-        countdown = countdown_5a + 60
-        run_eve_step6_and_7.apply_async(
-            args=[project_control_activity.id, current_user.id],
-            queue='eve_evaluate',
-            countdown=countdown
-        )
+        # Step 6+7 triggered automatically by fix_pending_checklists periodic task
+        # after all evidence evaluated (step7_completed=False)
 
         current_app.logger.info(
             f"[EVE v3] Triggered evaluation for activity_id={project_control_activity_id}, "
