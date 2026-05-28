@@ -5335,8 +5335,6 @@ def evidences():
                 # EVE v3: No upload-time AI processing needed
                 # Step 5 reads file content directly during evaluation
                 # Manual text entry is handled separately above
-                else:
-                    )
 
                 flash(f"File uploaded successfully!", "success")
                 db.session.commit()
