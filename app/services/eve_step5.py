@@ -1095,8 +1095,9 @@ def run_eve_step5_for_evidence(
                 .first()
             )
             if existing:
-                skipped_count += 1
-                continue
+                # Update existing record instead of skipping
+                db.session.delete(existing)
+                db.session.flush()
 
             signal_data = signals_map.get(checklist_item_id, {})
             result_data = results_map.get(checklist_item_id, {})
@@ -1110,6 +1111,9 @@ def run_eve_step5_for_evidence(
             # Validate ENUMs
             if signal not in ("SUPPORTS", "CONTRADICTS", "INSUFFICIENT"):
                 signal = "INSUFFICIENT"
+            # Normalize YES/NO to PASS/FAIL
+            status_normalize = {"YES": "PASS", "NO": "FAIL", "NEEDS_REVIEW": "PARTIAL"}
+            item_status = status_normalize.get(item_status, item_status)
             if item_status not in ("PASS", "PARTIAL", "FAIL"):
                 item_status = "PARTIAL"
             # Normalize admissibility values
