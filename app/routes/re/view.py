@@ -4285,15 +4285,15 @@ def test_evidence_artifacts(activity_id):
                     ev_results = EveEvidenceResult.query.filter_by(
                         project_checklist_id=checklist_obj.id
                     ).all()
-                    admissibility_values = list(set(r.admissibility for r in ev_results if r.admissibility))
-                    if any(a in ['VALID'] for a in admissibility_values):
+                    admissibility_values = [r.admissibility for r in ev_results if r.admissibility]
+                    if not admissibility_values:
+                        eve_admissibility = None
+                    elif all(a == 'ADMISSIBLE' for a in admissibility_values):
                         eve_admissibility = 'ADMISSIBLE'
-                    elif any(a in ['PARTIAL', 'PROVIDED_INSUFFICIENT'] for a in admissibility_values):
-                        eve_admissibility = 'PARTIAL'
-                    elif admissibility_values:
+                    elif any(a == 'INADMISSIBLE' for a in admissibility_values):
                         eve_admissibility = 'INADMISSIBLE'
                     else:
-                        eve_admissibility = None
+                        eve_admissibility = 'PARTIAL' 
                 else:
                     eve_admissibility = None
 
