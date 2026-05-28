@@ -1021,17 +1021,45 @@ def run_eve_step5_for_evidence(
         exception_rate = sample_eval.get("exception_rate")
         within_audit_period = str(sample_eval.get("within_audit_period", "NO")).upper() == "YES"
 
-        # Build lookup maps for signals and results
+        # Build lookup maps — support both new checklist_evaluation and legacy item_signals/results
+        checklist_eval_map = {
+            e["checklist_id"]: e
+            for e in raw_output.get("checklist_evaluation", [])
+            if e.get("checklist_id")
+        }
         signals_map = {
             s["checklist_id"]: s
             for s in raw_output.get("item_signals", [])
             if s.get("checklist_id")
         }
+        # Merge checklist_evaluation into signals_map if not already present
+        for cid, ev in checklist_eval_map.items():
+            if cid not in signals_map:
+                signals_map[cid] = {
+                    "checklist_id": cid,
+                    "signal": ev.get("signal", "INSUFFICIENT"),
+                    "basis": ev.get("basis", ""),
+                    "confidence": "EXPLICIT" if ev.get("found") == "FOUND" else "IMPLIED"
+                }
         results_map = {
             r["checklist_id"]: r
             for r in raw_output.get("results", [])
             if r.get("checklist_id")
         }
+        # Merge checklist_evaluation into results_map if not already present
+        for cid, ev in checklist_eval_map.items():
+            if cid not in results_map:
+                status_map = {"FOUND": "YES", "PARTIAL": "PARTIAL", "NOT_FOUND": "NO"}
+                results_map[cid] = {
+                    "checklist_id": cid,
+                    "status": status_map.get(ev.get("found", "NOT_FOUND"), "NO"),
+                    "confidence_classification": "EXPLICIT" if ev.get("found") == "FOUND" else "IMPLIED",
+                    "evidence_reference": ev.get("location", ""),
+                    "supporting_extract": ev.get("extract", ""),
+                    "admissibility_status": admissibility,
+                    "admissibility_reason": admissibility_reason,
+                    "assurance_impact": "POSITIVE" if ev.get("found") == "FOUND" else "NEUTRAL"
+                }
 
         # Identify which checklist items were evaluated
         evaluated_item_ids = set(signals_map.keys()) | set(results_map.keys())
