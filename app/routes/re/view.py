@@ -5310,37 +5310,9 @@ def evidences():
                     ".wav",
                 )
 
-                if not str(full_physical_file_path).endswith(
-                    file_extensions_to_exclude
-                ):
-                    try:
-                        prompt = get_evidence_prompt(
-                            project_evidence_id, evidence_item, clause_description
-                        )
-                        print(prompt)
-
-                        res = extract_structured_info_3(
-                            prompt,
-                            ComplianceEvidence,
-                            str(full_physical_file_path),
-                            vector_store_id=None,
-                        )
-                        print("response", res)
-
-                        if res and hasattr(res, "answer") and res.answer:
-                            artifact.evidence_text = res.answer
-                            flash(
-                                "Evidence updated with AI-generated content!", "success"
-                            )
-                        else:
-                            flash(
-                                "File saved but AI could not generate content.",
-                                "warning",
-                            )
-
-                    except Exception as ai_e:
-                        print(f"AI processing error: {ai_e}")
-                        flash("File saved but AI processing failed.", "warning")
+                # EVE v3: No upload-time AI processing needed
+                # Step 5 reads file content directly during evaluation
+                # Manual text entry is handled separately above
                 else:
                     flash(
                         f"File saved. AI processing not supported for {os.path.splitext(filename)[1]} files.",
