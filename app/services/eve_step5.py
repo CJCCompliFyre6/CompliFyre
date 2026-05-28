@@ -1095,8 +1095,14 @@ def run_eve_step5_for_evidence(
                 .first()
             )
             if existing:
-                # Update existing record instead of skipping
-                db.session.delete(existing)
+                # Delete ALL existing records for this artifact+checklist_item combination
+                all_existing = db.session.query(EveEvidenceResult).filter_by(
+                    project_checklist_id=project_checklist_id,
+                    evidence_artifact_id=project_evidence_artifact_id,
+                    checklist_item_id=checklist_item_id,
+                ).all()
+                for rec in all_existing:
+                    db.session.delete(rec)
                 db.session.flush()
 
             signal_data = signals_map.get(checklist_item_id, {})
