@@ -457,7 +457,7 @@ Validate:
 * evidence_traceability: can result be traced to exact evidence location?
 * location_validation: is evidence location identified?
 * inference_prevention: is unsupported inference avoided?
-* period_alignment: does evidence fall within audit period?
+* period_alignment: does evidence date align with audit period? Apply dimension-aware rules: DESIGN items — evidence effective during audit period is PASS, approved/created before audit period start is also PASS; IMPLEMENTATION items — rollout completed before or during audit period is PASS; OPERATING items — execution must fall WITHIN audit period. Do NOT fail DESIGN or IMPLEMENTATION evidence solely because its date precedes the audit period start.
 * cross_doc_consistency: are facts consistent across documents?
 * version_alignment: are document versions current and consistent?
 
