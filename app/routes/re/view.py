@@ -4275,6 +4275,11 @@ def test_evidence_artifacts(activity_id):
 
                 # Step 6 outputs
                 eve_checklist_summary = eve_result.checklist_summary_json or []
+                # Fetch checklist items for description lookup in findings
+                from app.models.eve_models import ProjectChecklist as PC3
+                pc3 = PC3.query.filter_by(project_control_activity_id=int(activity_id)).first()
+                eve_checklist_items = pc3.get_checklist_items() if pc3 else []
+                eve_checklist_map = {str(item.get("id", "")): item.get("assertion", "") or item.get("description", "") or item.get("requirement", "") for item in eve_checklist_items}
                 eve_control_support = eve_result.control_support_status or eve_result.final_status or None
                 eve_assurance = eve_result.assurance_state_json or {}
 
@@ -4333,6 +4338,7 @@ def test_evidence_artifacts(activity_id):
             eve_dimension_impl=eve_dimension_impl,
             eve_dimension_oper=eve_dimension_oper,
             eve_recommendations=eve_recommendations,
+            eve_checklist_map=eve_checklist_map if "eve_checklist_map" in dir() else {},
         )
 
     except Exception as e:
