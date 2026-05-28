@@ -750,7 +750,15 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
         if not checklist_items:
             return {"status": "error", "message": "ProjectChecklist has no items"}
 
-        # ── 3. Check if Step 5 results exist ──────────────────────────
+        # ── 3. Check if already completed — prevent duplicate runs ───
+        existing_result = db.session.query(EveControlResult).filter_by(
+            project_control_activity_id=project_control_activity_id
+        ).first()
+        if existing_result and existing_result.step7_completed:
+            logger.info(f"[Module E+F] Step 6+7 already completed for pca_id={project_control_activity_id} — skipping duplicate run")
+            return {"status": "skipped", "message": "Already completed", "project_control_activity_id": project_control_activity_id}
+
+        # ── 4. Check if Step 5 results exist ──────────────────────────
         evidence_count = (
             db.session.query(EveEvidenceResult)
             .filter_by(project_checklist_id=checklist.id)
