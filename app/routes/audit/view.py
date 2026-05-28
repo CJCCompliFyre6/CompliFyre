@@ -4651,6 +4651,15 @@ def reevaluate_activity():
             )
             return redirect(request.referrer)
 
+        # Reset EveControlResult step7_completed so periodic task can re-trigger Step 6+7
+        from app.models.eve_models import EveControlResult
+        existing_result = EveControlResult.query.filter_by(
+            project_control_activity_id=project_control_activity_id
+        ).first()
+        if existing_result:
+            existing_result.step7_completed = False
+            db.session.commit()
+
         # Get evidence artifacts
         evidence_artifacts = project_control_activity.submitted_evidences or []
 
