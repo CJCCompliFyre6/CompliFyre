@@ -5320,9 +5320,6 @@ def evidences():
                 # Step 5 reads file content directly during evaluation
                 # Manual text entry is handled separately above
                 else:
-                    flash(
-                        f"File saved. AI processing not supported for {os.path.splitext(filename)[1]} files.",
-                        "info",
                     )
 
                 flash(f"File uploaded successfully!", "success")
