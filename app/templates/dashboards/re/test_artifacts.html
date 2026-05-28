@@ -500,7 +500,7 @@
                           </svg>
                         </button>
                       </form>
-                      {% if value.evidence_ans or value.files %}
+                      {% if value.evidence_ans or value.files or value.step5 %}
                       <button
                         onclick="toggleEditForm('evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}')"
                         class="edit-btn">
@@ -509,7 +509,7 @@
                       {% endif %}
                     </div>
                   </div>
-                  {% if value.evidence_ans or value.files %}
+                  {% if value.evidence_ans or value.files or value.step5 %}
                   <div id="evidence_display_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">
                     {% if value.evidence_ans %}
                     <p class="mb-2">
