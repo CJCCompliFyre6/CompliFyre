@@ -4651,13 +4651,17 @@ def reevaluate_activity():
             )
             return redirect(request.referrer)
 
-        # Reset EveControlResult step7_completed so periodic task can re-trigger Step 6+7
-        from app.models.eve_models import EveControlResult
+        # Reset EveControlResult and delete ALL old EveEvidenceResult records
+        from app.models.eve_models import EveControlResult, EveEvidenceResult, ProjectChecklist as PC_DEL
         existing_result = EveControlResult.query.filter_by(
             project_control_activity_id=project_control_activity_id
         ).first()
         if existing_result:
             existing_result.step7_completed = False
+            db.session.commit()
+        pc_del = PC_DEL.query.filter_by(project_control_activity_id=project_control_activity_id).first()
+        if pc_del:
+            EveEvidenceResult.query.filter_by(project_checklist_id=pc_del.id).delete()
             db.session.commit()
 
         # Get evidence artifacts
