@@ -262,6 +262,7 @@ Is this document relevant to the checklist items being tested?
 
 OVERALL ADMISSIBILITY DECISION:
 - ADMISSIBLE: all 4 tests PASS
+- ADMISSIBLE: PERIOD_ALIGNMENT FAILS but document is a DESIGN dimension evidence (policy, board minutes, approval records) that was approved/created BEFORE the audit period — this is VALID for DESIGN evidence
 - PARTIAL: 1 test FAILS (except ORGANIZATION_MATCH or DOCUMENT_AUTHENTICITY) but document still provides relevant information
 - INADMISSIBLE: ORGANIZATION_MATCH FAILS or DOCUMENT_AUTHENTICITY FAILS or 2+ tests FAIL
 - admissibility_reason: if PARTIAL or INADMISSIBLE — explain specifically what failed and why in plain English. If ADMISSIBLE — empty string.
