@@ -521,6 +521,21 @@ MANDATORY for REVIEW / ACCESS / MONITORING controls:
 
 ---
 
+STEP 4.2.1 — ENUMERATED REQUIREMENTS (CRITICAL)
+
+If the regulatory clause explicitly enumerates specific areas, products, or activities (e.g., numbered list, bulleted list), you MUST:
+* Generate a SEPARATE checklist item for EACH enumerated area/product/activity
+* Each item must verify whether the policy/document covers that specific area
+* Use pass_condition: "Policy explicitly covers [specific area]"
+* Use fail_condition: "Policy does not address [specific area]"
+* Do NOT consolidate multiple enumerated areas into a single checklist item
+* Mark illustrative examples (introduced by "such as", "inter alia", "including") as IMPLIED confidence
+* Mark explicitly numbered/listed items as EXPLICIT confidence
+
+EXAMPLE: If clause says "(1) Digital Lending (2) Gold Loans (3) Housing Finance" — generate CHK_001 for Digital Lending, CHK_002 for Gold Loans, CHK_003 for Housing Finance as separate items.
+
+---
+
 STEP 4.3 — GENERATE ATOMIC CHECKLIST
 
 For each checklist item output EXACTLY this JSON structure:
