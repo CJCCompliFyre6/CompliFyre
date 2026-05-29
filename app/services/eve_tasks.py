@@ -1075,7 +1075,7 @@ def fix_pending_checklists(self):
         # Also trigger Step 6+7 for activities where all evidence evaluated but EveControlResult doesn't exist yet
         from app.models.eve_models import ProjectChecklist as PC4
         from app.models.project_instance_models import ProjectEvidenceArtifact as PEA2
-        all_checklists = PC4.query.filter_by(status='completed').all()
+        all_checklists = PC4.query.filter(PC4.status.in_(['completed', 'in_progress'])).all()
         for pc in all_checklists:
             existing_cr = EveControlResult.query.filter_by(
                 project_control_activity_id=pc.project_control_activity_id
