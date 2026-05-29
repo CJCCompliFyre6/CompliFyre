@@ -1072,6 +1072,30 @@ def fix_pending_checklists(self):
                     queue="eve_evaluate"
                 )
                 step7_triggered += 1
+        # Also trigger Step 6+7 for activities where all evidence evaluated but EveControlResult doesn't exist yet
+        from app.models.eve_models import ProjectChecklist as PC4
+        all_checklists = PC4.query.filter_by(status='completed').all()
+        for pc in all_checklists:
+            existing_cr = EveControlResult.query.filter_by(
+                project_control_activity_id=pc.project_control_activity_id
+            ).first()
+            if existing_cr:
+                continue
+            total_evidence = ProjectEvidenceArtifact.query.filter_by(
+                project_control_activity_id=pc.project_control_activity_id
+            ).count()
+            if total_evidence == 0:
+                continue
+            evaluated_evidence = db.session.query(EveEvidenceResult.evidence_artifact_id).filter_by(
+                project_checklist_id=pc.id
+            ).distinct().count()
+            if evaluated_evidence >= total_evidence:
+                from app.services.eve_step678 import run_eve_step6_and_7
+                run_eve_step6_and_7.apply_async(
+                    args=[pc.project_control_activity_id, None],
+                    queue="eve_evaluate"
+                )
+                step7_triggered += 1
         logger.info(f"[Periodic] fix_pending_checklists: fixed={fixed}, triggered={triggered}, step7_triggered={step7_triggered}")
         return {"fixed": fixed, "triggered": triggered, "step7_triggered": step7_triggered}
     except Exception as e:
