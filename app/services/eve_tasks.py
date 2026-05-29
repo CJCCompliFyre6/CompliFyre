@@ -1080,7 +1080,7 @@ def fix_pending_checklists(self):
             evaluated_evidence = db.session.query(EveEvidenceResult.evidence_artifact_id).filter_by(
                 project_checklist_id=cr.project_checklist_id
             ).distinct().count()
-            if total_evidence > 0 and evaluated_evidence >= total_evidence:
+            if total_evidence > 0 and evaluated_evidence > 0 and evaluated_evidence >= total_evidence:
                 from app.services.eve_step678 import run_eve_step6_and_7
                 run_eve_step6_and_7.apply_async(
                     args=[cr.project_control_activity_id, None],
