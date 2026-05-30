@@ -34,8 +34,463 @@ from app.models.eve_models import (
 logger = get_task_logger(__name__)
 
 # ─────────────────────────────────────────────────────────────
+# Constants — EVE V3
+# ─────────────────────────────────────────────────────────────
+
+VALID_EVIDENCE_TYPES = {
+    "POLICY_DOCUMENT", "PROCEDURE_MANUAL", "BOARD_MINUTES",
+    "AUDIT_REPORT", "SYSTEM_SCREENSHOT", "ACCESS_LOG",
+    "TRANSACTION_DATA", "INTERVIEW_RESPONSE", "EMAIL_COMMUNICATION",
+    "TRAINING_RECORD", "CONTRACTUAL_AGREEMENT", "REGULATORY_FILING",
+    "FINANCIAL_STATEMENT", "RISK_ASSESSMENT", "COMPLIANCE_REPORT",
+    "CONFIGURATION_FILE", "CERTIFICATE", "ORGANIZATIONAL_CHART",
+    "JOB_DESCRIPTION", "SAMPLE_DATA", "EXCEPTION_REPORT",
+    "RECONCILIATION_REPORT", "WALKTHROUGH_DOCUMENTATION",
+    "PROCESS_FLOW_DIAGRAM", "NETWORK_DIAGRAM", "ARCHITECTURE_DIAGRAM",
+    "OTHER",
+}
+
+# Maps 27 evidence types → strength level
+EVIDENCE_STRENGTH_MAP = {
+    # PRIMARY — direct, standalone proof
+    "POLICY_DOCUMENT":         "PRIMARY",
+    "PROCEDURE_MANUAL":        "PRIMARY",
+    "BOARD_MINUTES":           "PRIMARY",
+    "REGULATORY_FILING":       "PRIMARY",
+    "CONFIGURATION_FILE":      "PRIMARY",
+    "FINANCIAL_STATEMENT":     "PRIMARY",
+    "TRANSACTION_DATA":        "PRIMARY",
+    "SAMPLE_DATA":             "PRIMARY",
+    "EXCEPTION_REPORT":        "PRIMARY",
+    "RECONCILIATION_REPORT":   "PRIMARY",
+    "CERTIFICATE":             "PRIMARY",
+    # SUPPORTING — indirect, corroborating
+    "AUDIT_REPORT":            "SUPPORTING",
+    "COMPLIANCE_REPORT":       "SUPPORTING",
+    "RISK_ASSESSMENT":         "SUPPORTING",
+    "EMAIL_COMMUNICATION":     "SUPPORTING",
+    "CONTRACTUAL_AGREEMENT":   "SUPPORTING",
+    "ORGANIZATIONAL_CHART":    "SUPPORTING",
+    "JOB_DESCRIPTION":         "SUPPORTING",
+    "TRAINING_RECORD":         "SUPPORTING",
+    "SYSTEM_SCREENSHOT":       "SUPPORTING",
+    "ACCESS_LOG":              "SUPPORTING",
+    "INTERVIEW_RESPONSE":      "SUPPORTING",
+    "PROCESS_FLOW_DIAGRAM":    "SUPPORTING",
+    "NETWORK_DIAGRAM":         "SUPPORTING",
+    "ARCHITECTURE_DIAGRAM":    "SUPPORTING",
+    # OBSERVATIONAL — weakest, needs corroboration
+    "WALKTHROUGH_DOCUMENTATION": "OBSERVATIONAL",
+    "OTHER":                   "SUPPORTING",
+}
+
+# Maps 27 evidence types → evidence role
+EVIDENCE_ROLE_MAP = {
+    "POLICY_DOCUMENT":         "DESIGN_EVIDENCE",
+    "PROCEDURE_MANUAL":        "DESIGN_EVIDENCE",
+    "BOARD_MINUTES":           "DESIGN_EVIDENCE",
+    "REGULATORY_FILING":       "DESIGN_EVIDENCE",
+    "COMPLIANCE_REPORT":       "DESIGN_EVIDENCE",
+    "RISK_ASSESSMENT":         "DESIGN_EVIDENCE",
+    "CERTIFICATE":             "DESIGN_EVIDENCE",
+    "ORGANIZATIONAL_CHART":    "DESIGN_EVIDENCE",
+    "JOB_DESCRIPTION":         "DESIGN_EVIDENCE",
+    "CONTRACTUAL_AGREEMENT":   "DESIGN_EVIDENCE",
+    "PROCESS_FLOW_DIAGRAM":    "DESIGN_EVIDENCE",
+    "TRAINING_RECORD":         "IMPLEMENTATION_EVIDENCE",
+    "EMAIL_COMMUNICATION":     "IMPLEMENTATION_EVIDENCE",
+    "CONFIGURATION_FILE":      "IMPLEMENTATION_EVIDENCE",
+    "NETWORK_DIAGRAM":         "IMPLEMENTATION_EVIDENCE",
+    "ARCHITECTURE_DIAGRAM":    "IMPLEMENTATION_EVIDENCE",
+    "TRANSACTION_DATA":        "OPERATING_EVIDENCE",
+    "SAMPLE_DATA":             "OPERATING_EVIDENCE",
+    "EXCEPTION_REPORT":        "OPERATING_EVIDENCE",
+    "RECONCILIATION_REPORT":   "OPERATING_EVIDENCE",
+    "ACCESS_LOG":              "OPERATING_EVIDENCE",
+    "SYSTEM_SCREENSHOT":       "OPERATING_EVIDENCE",
+    "FINANCIAL_STATEMENT":     "OPERATING_EVIDENCE",
+    "AUDIT_REPORT":            "OPERATING_EVIDENCE",
+    "INTERVIEW_RESPONSE":      "SUPPORTING",
+    "WALKTHROUGH_DOCUMENTATION": "OBSERVATIONAL",
+    "OTHER":                   "DESIGN_EVIDENCE",
+}
+
+# File parsing limits by extension (chars)
+# DOCX/PDF: heading-based extraction — heading + full content under it
+# Excel/CSV: full data, no row sampling
+FILE_PARSING_LIMITS = {
+    ".xlsx": 200000,
+    ".xls":  200000,
+    ".csv":  150000,
+    ".docx": 80000,
+    ".doc":  80000,
+    ".pdf":  80000,
+    ".txt":  100000,
+    ".png":  None,   # pending PD-1, PD-3
+    ".jpg":  None,
+    ".jpeg": None,
+    ".webp": None,
+}
+
+# Security — blocked file types (never process)
+BLOCKED_EXTENSIONS = {
+    ".exe", ".bat", ".cmd", ".sh", ".ps1", ".vbs",
+    ".py", ".rb", ".php", ".jar", ".class", ".com", ".dll",
+    ".xlsm",  # Excel with macros
+    ".docm",  # Word with macros
+    ".pptm",  # PowerPoint with macros
+    ".xltm",  # Excel macro template
+}
+
+# Allowed file types for evidence upload
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".docx", ".doc", ".xlsx", ".xls",
+    ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp",
+    ".csv", ".txt",
+}
+
+# Explicit exclusion phrases for contradiction detection (SS7 Type 2)
+EXCLUSION_PHRASES = [
+    "does not apply to", "not applicable to",
+    "excluded from", "out of scope",
+    "not covered under", "explicitly excludes",
+    "does not cover", "shall not apply",
+    "is excluded", "are excluded",
+]
+
+# Review frequency string → days mapping (for period alignment check)
+REVIEW_FREQ_DAYS = {
+    "annual": 365, "annually": 365,
+    "bi-annual": 730, "bi-annually": 730,
+    "half-yearly": 180, "half yearly": 180,
+    "quarterly": 90,
+    "monthly": 30,
+}
+
+# ─────────────────────────────────────────────────────────────
+# EVE V3 — New functions (Batch 1: Security + Authenticity)
+# ─────────────────────────────────────────────────────────────
+
+def check_file_security(file_path: str) -> dict:
+    """
+    Security check — block executable and macro-enabled files.
+    Runs before any content extraction.
+    Returns: {result: 'PASS'|'FAIL', reason: str}
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in BLOCKED_EXTENSIONS:
+        return {
+            "result": "FAIL",
+            "reason": (
+                f"File type {ext} not allowed — "
+                "executable or macro-enabled files blocked for security"
+            ),
+        }
+    if ext and ext not in ALLOWED_EXTENSIONS:
+        return {
+            "result": "FAIL",
+            "reason": (
+                f"File type {ext} not supported. "
+                "Allowed: pdf, docx, xlsx, csv, png, jpg, txt"
+            ),
+        }
+    return {"result": "PASS", "reason": "File type allowed"}
+
+
+def check_document_authenticity(
+    file_path: str,
+    content: str,
+    file_ext: str,
+) -> dict:
+    """
+    TEST 3 — Document authenticity check.
+    Runs BEFORE LLM call. If FAIL → skip LLM, return INADMISSIBLE.
+
+    Security check always runs first.
+    Excel: empty check only — row count NOT checked (context dependent).
+    Images: UNKNOWN pending PD-1/PD-3 resolution.
+
+    Returns: {result: 'PASS'|'FAIL'|'UNKNOWN', reason: str}
+    """
+    # Security first
+    sec = check_file_security(file_path)
+    if sec["result"] == "FAIL":
+        return sec
+
+    ext = file_ext.lower()
+
+    if ext in (".pdf", ".docx", ".doc", ".txt"):
+        if not content or len(content.strip()) < 50:
+            return {
+                "result": "FAIL",
+                "reason": "Document appears empty or too short to evaluate",
+            }
+        if len(content.split()) < 20:
+            return {
+                "result": "FAIL",
+                "reason": "Document has very few words — may be corrupted or scanned without OCR",
+            }
+        return {"result": "PASS", "reason": "Document appears complete and readable"}
+
+    if ext in (".xlsx", ".xls", ".csv"):
+        if not content or len(content.strip()) < 10:
+            return {
+                "result": "FAIL",
+                "reason": "Spreadsheet appears empty — no extractable data found",
+            }
+        return {
+            "result": "PASS",
+            "reason": "Spreadsheet has content — LLM will evaluate",
+        }
+
+    if ext in (".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"):
+        return {
+            "result": "UNKNOWN",
+            "reason": "Image file — image evidence support pending (PD-1, PD-3)",
+        }
+
+    return {
+        "result": "UNKNOWN",
+        "reason": f"File type {ext} authenticity check not implemented",
+    }
+
+
+# ─────────────────────────────────────────────────────────────
 # File text extraction helpers
 # ─────────────────────────────────────────────────────────────
+
+# File text extraction helpers
+# ─────────────────────────────────────────────────────────────
+
+def check_oe_data_completeness(
+    content: str,
+    checklist_items: list,
+) -> dict:
+    """
+    Part of TEST 3 — OE data completeness check for Excel/CSV evidence.
+    Checks if required columns for OE testing are present in the data.
+    Required fields come from checklist item oe_testing definitions.
+    Runs BEFORE LLM call for OPERATING_EVIDENCE files.
+
+    Returns:
+      {complete: True} if all fields present
+      {complete: False, missing: [...], action: 'PARTIAL'|'INADMISSIBLE', reason: str}
+    """
+    required_fields = []
+    for item in checklist_items:
+        oe = item.get("oe_testing") or {}
+        if str(oe.get("applicable", "NO")).upper() == "YES":
+            for field_key in ("instance_identifier", "attribute_being_tested"):
+                val = oe.get(field_key, "")
+                if val and val not in required_fields:
+                    required_fields.append(val)
+
+    if not required_fields:
+        return {"complete": True, "missing": []}
+
+    content_lower = content.lower()
+    missing = [f for f in required_fields if f.lower() not in content_lower]
+
+    if not missing:
+        return {"complete": True, "missing": []}
+
+    action = "INADMISSIBLE" if len(missing) == len(required_fields) else "PARTIAL"
+    return {
+        "complete": False,
+        "missing": missing,
+        "action": action,
+        "reason": (
+            f"OE testing incomplete — required columns missing: "
+            f"{', '.join(missing)}"
+        ),
+    }
+
+
+def _extract_relevant_sections(
+    file_path: str,
+    checklist_items: list,
+    limit: int = 80000,
+) -> str:
+    """
+    Extract heading + ALL content under each heading from DOCX/PDF.
+    Scores sections by keyword relevance to checklist items.
+    Top relevant sections sent to LLM within char limit.
+    Falls back to full text if no headings found.
+
+    Note: heading extraction = heading text + ALL content under that heading.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+
+    # Build keywords from checklist
+    keywords = []
+    for item in checklist_items:
+        req = (item.get("requirement") or "") + " " + (item.get("assertion") or "")
+        keywords.extend(w.lower() for w in req.split() if len(w) > 4)
+    keywords = list(set(keywords))
+
+    try:
+        if ext in (".docx", ".doc"):
+            doc = DocxDocument(file_path)
+            sections = []
+            current_heading = None
+            current_content = []
+
+            for para in doc.paragraphs:
+                if para.style.name.startswith("Heading"):
+                    if current_heading is not None:
+                        sections.append({
+                            "heading": current_heading,
+                            "content": "\n".join(current_content),
+                        })
+                    current_heading = para.text.strip()
+                    current_content = []
+                else:
+                    if para.text.strip():
+                        current_content.append(para.text.strip())
+
+            if current_heading is not None:
+                sections.append({
+                    "heading": current_heading,
+                    "content": "\n".join(current_content),
+                })
+
+            if not sections:
+                # No headings — return full text up to limit
+                full_text = "\n".join(
+                    p.text for p in doc.paragraphs if p.text.strip()
+                )
+                return full_text[:limit]
+
+            # Score sections by keyword relevance
+            def score_section(s):
+                text = (s["heading"] + " " + s["content"]).lower()
+                return sum(1 for kw in keywords if kw in text)
+
+            scored = sorted(sections, key=score_section, reverse=True)
+            result_parts = []
+            total_chars = 0
+
+            for section in scored:
+                section_text = f"## {section['heading']}\n{section['content']}"
+                if total_chars + len(section_text) <= limit:
+                    result_parts.append(section_text)
+                    total_chars += len(section_text)
+                else:
+                    break
+
+            return "\n\n---\n\n".join(result_parts) if result_parts else \
+                "\n".join(p.text for p in doc.paragraphs if p.text.strip())[:limit]
+
+        elif ext == ".pdf":
+            import fitz
+            doc = fitz.open(file_path)
+            full_text = ""
+            for page in doc:
+                full_text += page.get_text()
+            doc.close()
+            return full_text[:limit]
+
+    except Exception as e:
+        logger.error(f"[Module D] Section extraction error for {file_path}: {e}")
+
+    # Fallback — use existing extraction
+    return _extract_text_from_file(file_path)[:limit]
+
+
+def extract_excel_content(
+    file_path: str,
+    checklist_items: list,
+) -> str:
+    """
+    Extract full Excel content — all tabs, relevant columns prioritized.
+    NO row sampling — complete data required for OE testing.
+    Depends: PD-2 (Excel accepted), PD-6 (all tabs readable).
+
+    Extracts:
+      - All sheets (wb.sheetnames — not just active sheet)
+      - Relevant columns first (keyword match on headers)
+      - All rows (no limit)
+      - Truncation warning if exceeds FILE_PARSING_LIMITS
+    """
+    try:
+        import openpyxl
+    except ImportError:
+        logger.error("[Module D] openpyxl not installed — cannot extract Excel")
+        return "[Excel extraction error: openpyxl not installed]"
+
+    # Build keywords from checklist OE fields + requirements
+    keywords = []
+    for item in checklist_items:
+        oe = item.get("oe_testing") or {}
+        if str(oe.get("applicable", "NO")).upper() == "YES":
+            for field_key in ("instance_identifier", "attribute_being_tested", "population_scope"):
+                val = oe.get(field_key, "")
+                if val:
+                    keywords.extend(val.lower().split())
+        keywords.extend(
+            w for w in (item.get("requirement") or "").lower().split()
+            if len(w) > 4
+        )
+    keywords = list(set(keywords))
+
+    try:
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        result_parts = []
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = list(ws.iter_rows(values_only=True))
+            if not rows or not rows[0]:
+                continue
+
+            headers = [
+                str(h).strip() if h is not None else f"Col_{i}"
+                for i, h in enumerate(rows[0])
+            ]
+
+            # Relevant columns: keyword match on headers, else all
+            relevant_col_idx = [
+                i for i, h in enumerate(headers)
+                if any(kw in h.lower() for kw in keywords)
+            ]
+            if not relevant_col_idx:
+                relevant_col_idx = list(range(len(headers)))
+
+            rel_headers = [headers[i] for i in relevant_col_idx]
+            sheet_text = (
+                f"=== Sheet: {sheet_name} ===\n"
+                + " | ".join(rel_headers) + "\n"
+                + "-" * 80 + "\n"
+            )
+
+            # ALL rows — no sampling
+            for row in rows[1:]:
+                if not any(row):
+                    continue
+                values = [
+                    str(row[i]) if row[i] is not None else ""
+                    for i in relevant_col_idx
+                ]
+                sheet_text += " | ".join(values) + "\n"
+
+            result_parts.append(sheet_text)
+
+        wb.close()
+        full_text = "\n\n".join(result_parts)
+        limit = FILE_PARSING_LIMITS.get(".xlsx", 200000)
+
+        if len(full_text) > limit:
+            return (
+                full_text[:limit] +
+                f"\n\n[TRUNCATED: {len(full_text)} chars total, "
+                f"limit {limit}. Large file — some rows may be missing.]"
+            )
+        return full_text
+
+    except Exception as e:
+        logger.error(f"[Module D] Excel extraction error for {file_path}: {e}")
+        return f"[Excel extraction error: {e}]"
+
 
 def _extract_text_from_file(file_path: str, content_type: str = None) -> str:
     """
@@ -126,6 +581,309 @@ def _get_evidence_content(artifact: ProjectEvidenceArtifact, upload_base: str) -
 
 
 # ─────────────────────────────────────────────────────────────
+# EVE V3 — New functions (Batch 2: Admissibility Tests)
+# ─────────────────────────────────────────────────────────────
+
+def _clean_org_name(name: str) -> str:
+    """Remove legal suffixes and normalize for fuzzy matching."""
+    import re
+    suffixes = [
+        "limited", "ltd", "private", "pvt", "public",
+        "corporation", "corp", "incorporated", "inc",
+        "llp", "llc", "company", "co", "bank", "india",
+        "holdings", "group", "international", "global",
+    ]
+    name = name.lower().strip()
+    name = re.sub(r"[^a-z0-9\s]", " ", name)
+    for s in suffixes:
+        name = re.sub(rf"\b{s}\b", " ", name)
+    return re.sub(r"\s+", " ", name).strip()
+
+
+def _fuzzy_match_score(a: str, b: str) -> float:
+    """Return similarity ratio between two strings (0.0 to 1.0)."""
+    from difflib import SequenceMatcher
+    return SequenceMatcher(
+        None, _clean_org_name(a), _clean_org_name(b)
+    ).ratio()
+
+
+def check_org_match(
+    doc_name: str,
+    auditee_name: str,
+    project_checklist_id: int = None,
+    artifact_id: int = None,
+) -> dict:
+    """
+    TEST 1 — Organization match check (code-level, overrides LLM).
+    3-layer approach:
+      Layer 1: Fuzzy match (80% threshold)
+      Layer 2: Known aliases (app/config/org_aliases.py)
+      Layer 3: Auditor confirmation (stored in raw_output_json)
+    UNKNOWN → frontend shows confirmation prompt to auditor.
+
+    Returns: {result: 'PASS'|'FAIL'|'UNKNOWN', reason: str}
+    """
+    if not doc_name or not doc_name.strip():
+        return {
+            "result": "UNKNOWN",
+            "reason": "Entity name not found in document",
+        }
+
+    # Layer 1: Fuzzy match
+    score = _fuzzy_match_score(doc_name, auditee_name)
+    if score >= 0.80:
+        return {
+            "result": "PASS",
+            "reason": f"Organization name match confident ({int(score * 100)}%)",
+        }
+
+    # Layer 2: Known aliases
+    try:
+        from app.config.org_aliases import ORG_ALIASES
+        doc_clean = _clean_org_name(doc_name)
+        auditee_clean = _clean_org_name(auditee_name)
+        for canonical, aliases in ORG_ALIASES.items():
+            doc_match = canonical in doc_clean or any(a in doc_clean for a in aliases)
+            auditee_match = canonical in auditee_clean or any(
+                a in auditee_clean for a in aliases
+            )
+            if doc_match and auditee_match:
+                return {
+                    "result": "PASS",
+                    "reason": f"Organization matched via known alias ({canonical})",
+                }
+    except ImportError:
+        logger.warning("[Module D] org_aliases.py not found — skipping alias check")
+
+    # Layer 3: Auditor confirmation from previous run
+    if artifact_id:
+        try:
+            prev = (
+                db.session.query(EveEvidenceResult)
+                .filter_by(evidence_artifact_id=artifact_id)
+                .order_by(EveEvidenceResult.id.desc())
+                .first()
+            )
+            if prev and prev.raw_output_json:
+                if prev.raw_output_json.get("auditor_org_confirmed") is True:
+                    return {
+                        "result": "PASS",
+                        "reason": "Auditor previously confirmed same organization",
+                    }
+        except Exception as e:
+            logger.warning(f"[Module D] Could not check auditor org confirmation: {e}")
+
+    # UNKNOWN — needs auditor confirmation
+    if score >= 0.50:
+        return {
+            "result": "UNKNOWN",
+            "reason": (
+                f'"{doc_name}" is similar to "{auditee_name}" '
+                f"({int(score * 100)}%) but not confident — auditor confirmation needed"
+            ),
+        }
+
+    return {
+        "result": "FAIL",
+        "reason": f'"{doc_name}" does not match auditee "{auditee_name}"',
+    }
+
+
+def check_period_alignment(
+    required_dimensions: dict,
+    approval_date: str,
+    effective_date: str,
+    review_frequency: str,
+    audit_period_start: str,
+    audit_period_end: str,
+) -> dict:
+    """
+    TEST 2 — Period alignment check (code-level, overrides LLM).
+    Dimension-aware:
+      DESIGN: approved before audit start = PASS. Fails only if review cycle exceeded.
+      OE: document date must fall within audit period.
+
+    Returns: {result: 'PASS'|'FAIL'|'UNKNOWN', reason: str}
+    """
+    def parse_dt(s):
+        if not s or s in ("Unknown", ""):
+            return None
+        for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%Y-%m-%d", "%B %d, %Y", "%d %B %Y"):
+            try:
+                return datetime.strptime(s.strip(), fmt)
+            except ValueError:
+                continue
+        return None
+
+    audit_start = parse_dt(audit_period_start)
+    audit_end = parse_dt(audit_period_end)
+    approval_dt = parse_dt(approval_date)
+    effective_dt = parse_dt(effective_date)
+
+    is_design = required_dimensions.get("design") in (True, "YES", "yes")
+    is_oe = required_dimensions.get("operating") in (True, "YES", "yes")
+
+    # DESIGN dimension check
+    if is_design and not is_oe:
+        if not approval_dt and not effective_dt:
+            return {
+                "result": "UNKNOWN",
+                "reason": "Approval date and effective date not found in document",
+            }
+        ref_dt = approval_dt or effective_dt
+        if audit_start and ref_dt > audit_start:
+            return {
+                "result": "FAIL",
+                "reason": (
+                    f"Policy approved {ref_dt.strftime('%d-%b-%Y')} — "
+                    f"after audit period start {audit_start.strftime('%d-%b-%Y')}"
+                ),
+            }
+        # Check review cycle
+        freq_key = (review_frequency or "").lower().strip()
+        max_days = REVIEW_FREQ_DAYS.get(freq_key, 365)
+        if audit_start and ref_dt:
+            days_since = (audit_start - ref_dt).days
+            if days_since > max_days:
+                return {
+                    "result": "FAIL",
+                    "reason": (
+                        f"Policy is {days_since} days old — "
+                        f"exceeds {max_days}-day review cycle "
+                        f"({freq_key or 'annual default'})"
+                    ),
+                }
+        return {
+            "result": "PASS",
+            "reason": (
+                f"Policy dated {ref_dt.strftime('%d-%b-%Y')} — "
+                "within review cycle for audit period"
+            ),
+        }
+
+    # OPERATING dimension check
+    if is_oe:
+        ref_dt = effective_dt or approval_dt
+        if not ref_dt:
+            return {
+                "result": "UNKNOWN",
+                "reason": "Document date not found — cannot verify period alignment",
+            }
+        if audit_start and audit_end and audit_start <= ref_dt <= audit_end:
+            return {
+                "result": "PASS",
+                "reason": (
+                    f"Document dated {ref_dt.strftime('%d-%b-%Y')} — "
+                    "within audit period"
+                ),
+            }
+        return {
+            "result": "FAIL",
+            "reason": (
+                f"Document dated {ref_dt.strftime('%d-%b-%Y')} — "
+                f"outside audit period {audit_period_start} to {audit_period_end}"
+            ),
+        }
+
+    return {"result": "PASS", "reason": "Period alignment not applicable for this dimension"}
+
+
+def check_relevance(
+    content: str,
+    checklist_items: list,
+    evidence_type: str,
+) -> dict:
+    """
+    TEST 4 — Relevance check (code-level, overrides LLM).
+    Passes if:
+      - evidence_type matches expected_evidence_types in any checklist item, OR
+      - keyword match rate >= 25% across checklist requirements
+
+    Returns: {result: 'PASS'|'FAIL', reason: str}
+    """
+    # Option C: evidence type match
+    type_match = False
+    for item in checklist_items:
+        expected = item.get("expected_evidence_types", [])
+        if evidence_type in expected:
+            type_match = True
+            break
+
+    # Option B: keyword match
+    keywords = set()
+    for item in checklist_items:
+        req = (
+            (item.get("requirement", "") or "") + " " +
+            (item.get("assertion", "") or "")
+        ).lower()
+        keywords.update(w for w in req.split() if len(w) > 4)
+
+    content_lower = content.lower()
+    if keywords:
+        matched = sum(1 for kw in keywords if kw in content_lower)
+        match_rate = matched / len(keywords)
+    else:
+        match_rate = 0.0
+
+    keyword_match = match_rate >= 0.25
+
+    if type_match or keyword_match:
+        return {
+            "result": "PASS",
+            "reason": (
+                f"Type match: {type_match} | "
+                f"Keyword match: {int(match_rate * 100)}%"
+            ),
+        }
+
+    return {
+        "result": "FAIL",
+        "reason": (
+            f"Evidence type {evidence_type} not expected for these checklist items | "
+            f"Only {int(match_rate * 100)}% keyword overlap"
+        ),
+    }
+
+
+def recalculate_admissibility(tests: list) -> str:
+    """
+    Recalculate admissibility after code overrides TEST 1-4 results.
+    Contradictions do NOT affect admissibility.
+
+    Hard fails (→ INADMISSIBLE):
+      ORGANIZATION_MATCH = FAIL
+      DOCUMENT_AUTHENTICITY = FAIL
+      RELEVANCE_TO_ACTIVITY = FAIL
+
+    Soft fail (→ PARTIAL):
+      PERIOD_ALIGNMENT = FAIL (document still usable for DESIGN items)
+
+    Returns: 'ADMISSIBLE' | 'PARTIAL' | 'INADMISSIBLE'
+    """
+    results = {t.get("test", ""): t.get("result", "UNKNOWN") for t in tests}
+
+    if results.get("ORGANIZATION_MATCH") == "FAIL":
+        return "INADMISSIBLE"
+    if results.get("DOCUMENT_AUTHENTICITY") == "FAIL":
+        return "INADMISSIBLE"
+    if results.get("RELEVANCE_TO_ACTIVITY") == "FAIL":
+        return "INADMISSIBLE"
+
+    fails = [t for t in tests if t.get("result") == "FAIL"]
+    if len(fails) >= 2:
+        return "INADMISSIBLE"
+    if fails:
+        return "PARTIAL"
+
+    unknowns = [t for t in tests if t.get("result") == "UNKNOWN"]
+    if unknowns:
+        return "PARTIAL"
+
+    return "ADMISSIBLE"
+
+
+# ─────────────────────────────────────────────────────────────
 # LLM call — temperature=0 for determinism
 # ─────────────────────────────────────────────────────────────
 
@@ -167,6 +925,115 @@ def _call_eve_step5(prompt: str, retries: int = 3, backoff: float = 2.0) -> dict
 
     logger.error("All EVE Step 5 retries exhausted")
     return None
+
+
+# ─────────────────────────────────────────────────────────────
+# EVE V3 — New functions (Batch 3: Evidence Processing)
+# ─────────────────────────────────────────────────────────────
+
+def enforce_evidence_strength(
+    raw_output: dict,
+    checklist_items: list,
+) -> dict:
+    """
+    Downgrade checklist result statuses based on evidence strength (SS4).
+    Runs after LLM output received, before storing results.
+
+    OBSERVATIONAL: all YES/FOUND → PARTIAL
+    SUPPORTING: HIGH weight YES/FOUND → PARTIAL
+    Also sets evidence_meta.evidence_strength and evidence_meta.evidence_role
+    from constants (overrides LLM values).
+    """
+    evidence_type = raw_output.get("evidence_type", "OTHER")
+    strength = EVIDENCE_STRENGTH_MAP.get(evidence_type, "SUPPORTING")
+    role = EVIDENCE_ROLE_MAP.get(evidence_type, "DESIGN_EVIDENCE")
+
+    raw_output.setdefault("evidence_meta", {})
+    raw_output["evidence_meta"]["evidence_strength"] = strength
+    raw_output["evidence_meta"]["evidence_role"] = role
+
+    # Build weight lookup
+    weight_map = {
+        item.get("id", ""): item.get("weight", "MEDIUM")
+        for item in checklist_items
+    }
+
+    if strength == "OBSERVATIONAL":
+        for result in raw_output.get("results", []):
+            if result.get("status") in ("YES", "FOUND", "PASS"):
+                result["status"] = "PARTIAL"
+                result["confidence_classification"] = "IMPLIED"
+                result["notes"] = (
+                    "Auto-downgraded: WALKTHROUGH_DOCUMENTATION is observational "
+                    "— cannot standalone confirm. Corroboration required."
+                )
+        for entry in raw_output.get("checklist_evaluation", []):
+            if entry.get("found") == "FOUND":
+                entry["found"] = "PARTIAL"
+                entry["gap"] = (
+                    (entry.get("gap") or "") +
+                    " [Observational evidence — corroboration needed]"
+                ).strip()
+
+    elif strength == "SUPPORTING":
+        for result in raw_output.get("results", []):
+            cid = result.get("checklist_id", "")
+            weight = weight_map.get(cid, "MEDIUM")
+            if result.get("status") in ("YES", "FOUND", "PASS") and weight == "HIGH":
+                result["status"] = "PARTIAL"
+                result["confidence_classification"] = "IMPLIED"
+                result["notes"] = (
+                    f"Auto-downgraded: {evidence_type} is supporting evidence "
+                    f"— cannot standalone confirm HIGH weight item. "
+                    f"Primary evidence needed."
+                )
+        for entry in raw_output.get("checklist_evaluation", []):
+            cid = entry.get("checklist_id", "")
+            weight = weight_map.get(cid, "MEDIUM")
+            if entry.get("found") == "FOUND" and weight == "HIGH":
+                entry["found"] = "PARTIAL"
+                entry["gap"] = (
+                    (entry.get("gap") or "") +
+                    f" [{evidence_type} is supporting — primary evidence needed for HIGH weight item]"
+                ).strip()
+
+    return raw_output
+
+
+def filter_applicable_items(
+    checklist_items: list,
+    evidence_role: str,
+) -> tuple:
+    """
+    Filter checklist items by evidence role vs item dimension (SS5).
+    Returns (applicable_items, not_applicable_items).
+
+    Short term: reduces LLM token usage → faster, less hallucination.
+    Long term (LT-1): full checklist eval — each file read once so affordable.
+
+    role_dimension_map:
+      DESIGN_EVIDENCE         → DESIGN items only
+      IMPLEMENTATION_EVIDENCE → DESIGN + IMPLEMENTATION items
+      OPERATING_EVIDENCE      → OPERATING items only
+      SUPPORTING/OBSERVATIONAL → all dimensions
+    """
+    role_dimension_map = {
+        "DESIGN_EVIDENCE":         ["DESIGN"],
+        "IMPLEMENTATION_EVIDENCE": ["IMPLEMENTATION", "DESIGN"],
+        "OPERATING_EVIDENCE":      ["OPERATING"],
+        "SUPPORTING":              ["DESIGN", "IMPLEMENTATION", "OPERATING"],
+        "OBSERVATIONAL":           ["DESIGN", "IMPLEMENTATION", "OPERATING"],
+    }
+    allowed_dims = role_dimension_map.get(
+        evidence_role, ["DESIGN", "IMPLEMENTATION", "OPERATING"]
+    )
+
+    applicable, not_applicable = [], []
+    for item in checklist_items:
+        item_dim = item.get("effectiveness_type", "DESIGN")
+        (applicable if item_dim in allowed_dims else not_applicable).append(item)
+
+    return applicable, not_applicable
 
 
 # ─────────────────────────────────────────────────────────────
@@ -870,12 +1737,25 @@ def run_eve_step5_for_evidence(
         # ── 7. Parse and store results ─────────────────────────────────
         admissibility = raw_output.get("admissibility", "PARTIAL")
         admissibility_reason = raw_output.get("admissibility_reason", "")
-        evidence_type = raw_output.get("evidence_type", "")
         overall_confidence = raw_output.get("confidence", "MEDIUM")
 
+        # POST-1: Normalize evidence_type to VALID_EVIDENCE_TYPES (SS1)
+        evidence_type = raw_output.get("evidence_type", "OTHER").upper().strip()
+        if evidence_type not in VALID_EVIDENCE_TYPES:
+            logger.info(
+                f"[Module D] evidence_type '{evidence_type}' not in VALID_EVIDENCE_TYPES "
+                f"— normalizing to OTHER"
+            )
+            evidence_type = "OTHER"
+
         evidence_meta = raw_output.get("evidence_meta", {})
-        strength = evidence_meta.get("strength", "MODERATE")
-        role = evidence_meta.get("role", "SUPPORTING")
+        # POST-2: Normalize strength from evidence_meta or EVIDENCE_STRENGTH_MAP
+        strength = evidence_meta.get("strength", "")
+        strength_normalize = {"STRONG": "PRIMARY", "MODERATE": "SUPPORTING", "WEAK": "SUPPORTING"}
+        strength = strength_normalize.get(strength, strength)
+        if strength not in ("PRIMARY", "SUPPORTING", "OBSERVATIONAL"):
+            strength = EVIDENCE_STRENGTH_MAP.get(evidence_type, "SUPPORTING")
+        role = evidence_meta.get("role", EVIDENCE_ROLE_MAP.get(evidence_type, "DESIGN_EVIDENCE"))
 
         sample_eval = raw_output.get("sample_evaluation", {})
         sample_applicable = str(sample_eval.get("applicable", "NO")).upper() == "YES"
@@ -989,8 +1869,16 @@ def run_eve_step5_for_evidence(
             admissibility = admissibility_map.get(admissibility, admissibility)
             if admissibility not in ("ADMISSIBLE", "PARTIAL", "INADMISSIBLE"):
                 admissibility = "PARTIAL"
-            if strength not in ("STRONG", "MODERATE", "WEAK"):
-                strength = "MODERATE"
+            # Normalize strength — V3: PRIMARY/SUPPORTING/OBSERVATIONAL
+            # Old values (STRONG/MODERATE/WEAK) mapped for backward compat
+            strength_normalize = {
+                "STRONG": "PRIMARY",
+                "MODERATE": "SUPPORTING",
+                "WEAK": "SUPPORTING",
+            }
+            strength = strength_normalize.get(strength, strength)
+            if strength not in ("PRIMARY", "SUPPORTING", "OBSERVATIONAL"):
+                strength = EVIDENCE_STRENGTH_MAP.get(evidence_type, "SUPPORTING")
 
             # Apply special rule — INTERVIEW_RESPONSE cannot PASS HIGH weight items
             if evidence_type == "INTERVIEW_RESPONSE" and item_status == "PASS":
@@ -1178,6 +2066,325 @@ def run_eve_step5_for_evidence(
             "message": str(e),
             "project_evidence_artifact_id": project_evidence_artifact_id,
         }
+
+
+# ─────────────────────────────────────────────────────────────
+# EVE V3 — New functions (Batch 4: Post-processing)
+# ─────────────────────────────────────────────────────────────
+
+def enforce_traceability(raw_output: dict) -> dict:
+    """
+    P3 — Traceability enforcement.
+    Rule: Results may NOT be FOUND/YES without a supporting extract.
+    If FOUND but extract empty → downgrade to PARTIAL.
+    """
+    eval_map = {
+        e.get("checklist_id", ""): e
+        for e in raw_output.get("checklist_evaluation", [])
+    }
+
+    for result in raw_output.get("results", []):
+        cid = result.get("checklist_id", "")
+        eval_entry = eval_map.get(cid, {})
+        extract = (eval_entry.get("extract") or "").strip()
+
+        if result.get("status") in ("YES", "FOUND", "PASS") and not extract:
+            result["status"] = "PARTIAL"
+            result["confidence_classification"] = "AMBIGUOUS"
+            if cid in eval_map:
+                eval_map[cid]["found"] = "PARTIAL"
+                eval_map[cid]["gap"] = (
+                    (eval_map[cid].get("gap") or "") +
+                    " [Downgraded — no verbatim extract to support FOUND status]"
+                ).strip()
+
+    return raw_output
+
+
+def cross_validate_claims(raw_output: dict) -> dict:
+    """
+    SS6 — Cross-validate found/signal/confidence fields (Option C).
+    3 consistency rules — no claim_type field needed.
+
+    Rule 1: CONTRADICTS + FOUND → NOT_FOUND
+    Rule 2: EXPLICIT confidence + NOT_FOUND → AMBIGUOUS
+    Rule 3: SUPPORTS signal + NOT_FOUND → INSUFFICIENT
+    """
+    for entry in raw_output.get("checklist_evaluation", []):
+        found = entry.get("found", "")
+        signal = entry.get("signal", "")
+        confidence = entry.get("confidence", "")
+
+        # Rule 1
+        if signal == "CONTRADICTS" and found == "FOUND":
+            entry["found"] = "NOT_FOUND"
+            entry["gap"] = (
+                (entry.get("gap") or "") +
+                " [Corrected: CONTRADICTS signal cannot coexist with FOUND]"
+            ).strip()
+
+        # Rule 2
+        if confidence == "EXPLICIT" and found == "NOT_FOUND":
+            entry["confidence"] = "AMBIGUOUS"
+
+        # Rule 3
+        if signal == "SUPPORTS" and found == "NOT_FOUND":
+            entry["signal"] = "INSUFFICIENT"
+
+    # Align results array with checklist_evaluation
+    eval_map = {
+        e.get("checklist_id", ""): e
+        for e in raw_output.get("checklist_evaluation", [])
+    }
+    for result in raw_output.get("results", []):
+        cid = result.get("checklist_id", "")
+        found = eval_map.get(cid, {}).get("found", "")
+        if found == "NOT_FOUND" and result.get("status") in ("YES", "FOUND", "PASS"):
+            result["status"] = "NO"
+            result["notes"] = (
+                (result.get("notes") or "") +
+                " [Corrected: aligned with NOT_FOUND evaluation]"
+            )
+        if found == "FOUND" and result.get("status") in ("NO", "FAIL"):
+            result["status"] = "YES"
+            result["notes"] = (
+                (result.get("notes") or "") +
+                " [Corrected: aligned with FOUND evaluation]"
+            )
+
+    return raw_output
+
+
+def enforce_checklist_coverage(
+    raw_output: dict,
+    checklist_items: list,
+    admissibility: str,
+    admissibility_reason: str,
+) -> dict:
+    """
+    P1 Option C — Guarantee all checklist items appear in output.
+    Missing items added as NOT_FOUND/INSUFFICIENT.
+    Extra items not in checklist are removed.
+    """
+    expected_ids = {item.get("id", "") for item in checklist_items if item.get("id")}
+
+    # checklist_evaluation
+    returned_eval = raw_output.get("checklist_evaluation", [])
+    returned_eval_ids = {e.get("checklist_id", "") for e in returned_eval}
+    for mid in expected_ids - returned_eval_ids:
+        returned_eval.append({
+            "checklist_id": mid,
+            "found": "NOT_FOUND",
+            "location": "",
+            "extract": "",
+            "gap": "Not evaluated by LLM — added by system",
+            "signal": "INSUFFICIENT",
+            "basis": "Item not returned in LLM output",
+            "confidence": "AMBIGUOUS",
+        })
+    raw_output["checklist_evaluation"] = [
+        e for e in returned_eval if e.get("checklist_id", "") in expected_ids
+    ]
+
+    # item_signals
+    returned_signals = raw_output.get("item_signals", [])
+    returned_signal_ids = {s.get("checklist_id", "") for s in returned_signals}
+    for mid in expected_ids - returned_signal_ids:
+        returned_signals.append({
+            "checklist_id": mid,
+            "signal": "INSUFFICIENT",
+            "basis": "Item not evaluated by LLM — added by system",
+            "confidence": "AMBIGUOUS",
+        })
+    raw_output["item_signals"] = [
+        s for s in returned_signals if s.get("checklist_id", "") in expected_ids
+    ]
+
+    # results
+    returned_results = raw_output.get("results", [])
+    returned_result_ids = {r.get("checklist_id", "") for r in returned_results}
+    for mid in expected_ids - returned_result_ids:
+        returned_results.append({
+            "checklist_id": mid,
+            "status": "NO",
+            "confidence_classification": "AMBIGUOUS",
+            "evidence_reference": "",
+            "supporting_extract": "",
+            "admissibility_status": admissibility,
+            "admissibility_reason": admissibility_reason,
+        })
+    raw_output["results"] = [
+        r for r in returned_results if r.get("checklist_id", "") in expected_ids
+    ]
+
+    return raw_output
+
+
+def normalize_status_values(raw_output: dict) -> dict:
+    """
+    P2 — Normalize LLM status values to standard set.
+    NEEDS_REVIEW kept separate — different frontend treatment from PARTIAL.
+    """
+    found_map = {
+        "YES": "FOUND", "FOUND": "FOUND",
+        "PARTIAL": "PARTIAL", "NEEDS_REVIEW": "NEEDS_REVIEW",
+        "NO": "NOT_FOUND", "NOT_FOUND": "NOT_FOUND",
+        "NOT_APPLICABLE": "NOT_APPLICABLE",
+        "FAIL": "NOT_FOUND", "PASS": "FOUND",
+    }
+    for entry in raw_output.get("checklist_evaluation", []):
+        entry["found"] = found_map.get(entry.get("found", "NOT_FOUND"), "NOT_FOUND")
+
+    status_map = {
+        "YES": "YES", "FOUND": "YES", "PASS": "YES",
+        "PARTIAL": "PARTIAL", "NEEDS_REVIEW": "NEEDS_REVIEW",
+        "NO": "NO", "NOT_FOUND": "NO", "FAIL": "NO",
+        "NOT_APPLICABLE": "NOT_APPLICABLE",
+    }
+    for result in raw_output.get("results", []):
+        result["status"] = status_map.get(result.get("status", "NO"), "NO")
+
+    return raw_output
+
+
+# ─────────────────────────────────────────────────────────────
+# EVE V3 — New functions (Batch 5: Contradiction Detection)
+# ─────────────────────────────────────────────────────────────
+
+def detect_explicit_exclusions(
+    content: str,
+    checklist_items: list,
+) -> dict:
+    """
+    SS7 Type 2 — Detect explicit exclusion language (code-level, deterministic).
+    Runs BEFORE LLM call. Scans document for exclusion phrases near checklist keywords.
+    Returns: {checklist_id: {exclusion_found, context, phrase}}
+    """
+    content_lower = content.lower()
+    exclusions = {}
+
+    for item in checklist_items:
+        keywords = [
+            w for w in (item.get("requirement") or "").lower().split()
+            if len(w) > 4
+        ]
+        for phrase in EXCLUSION_PHRASES:
+            idx = content_lower.find(phrase)
+            while idx != -1:
+                context = content_lower[max(0, idx - 50): idx + 150]
+                if any(kw in context for kw in keywords):
+                    item_id = item.get("id", "")
+                    if item_id:
+                        exclusions[item_id] = {
+                            "exclusion_found": True,
+                            "context": content[max(0, idx - 50): idx + 150],
+                            "phrase": phrase,
+                        }
+                idx = content_lower.find(phrase, idx + 1)
+
+    return exclusions
+
+
+def validate_contradiction_signals(raw_output: dict) -> dict:
+    """
+    SS7 Type 1 — Validate LLM-detected internal contradictions.
+    If LLM marks CONTRADICTS but provides no basis → downgrade to INSUFFICIENT/PARTIAL.
+    Explicit exclusions (Type 2, code-validated) are skipped.
+    """
+    for entry in raw_output.get("checklist_evaluation", []):
+        if entry.get("signal") == "CONTRADICTS":
+            # Skip Type 2 — already code-validated
+            if entry.get("contradiction_type") == "EXPLICIT_EXCLUSION":
+                continue
+            basis = (entry.get("basis") or "").strip()
+            if not basis or len(basis) < 30:
+                entry["signal"] = "INSUFFICIENT"
+                entry["found"] = "PARTIAL"
+                entry["gap"] = (
+                    (entry.get("gap") or "") +
+                    " [CONTRADICTS downgraded — no basis provided by LLM]"
+                ).strip()
+            else:
+                # Valid internal contradiction
+                entry["found"] = "PARTIAL"
+                entry["contradiction_type"] = "INTERNAL"
+
+    return raw_output
+
+
+def check_date_contradictions(
+    evidence_meta: dict,
+    audit_period_start: str,
+) -> dict:
+    """
+    SS7 Type 3 — Check for suspicious date sequences in metadata (code-level).
+    Does NOT affect admissibility — stored in evidence_meta.date_contradictions only.
+    Frontend shows orange NEEDS_REVIEW — auditor decides.
+    Returns: {contradictions_found: bool, issues: list}
+    """
+    def parse_dt(s):
+        if not s or s in ("Unknown", ""):
+            return None
+        for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%Y-%m-%d", "%B %d, %Y"):
+            try:
+                return datetime.strptime(s.strip(), fmt)
+            except ValueError:
+                continue
+        return None
+
+    issues = []
+    approval_dt = parse_dt(evidence_meta.get("approval_date", ""))
+    effective_dt = parse_dt(evidence_meta.get("effective_date", ""))
+
+    # Check: effective date before approval date (logically impossible)
+    if approval_dt and effective_dt and effective_dt < approval_dt:
+        issues.append({
+            "type": "DATE_CONTRADICTION",
+            "issue": (
+                f"Effective date {effective_dt.strftime('%d-%b-%Y')} is before "
+                f"approval date {approval_dt.strftime('%d-%b-%Y')} — "
+                f"document cannot be effective before it was approved"
+            ),
+            "severity": "MEDIUM",
+            "contradiction_type": "DATE_INCONSISTENCY",
+        })
+
+    return {
+        "contradictions_found": len(issues) > 0,
+        "issues": issues,
+    }
+
+
+def check_version_alignment(
+    evidence_meta: dict,
+    file_path: str,
+) -> dict:
+    """
+    SS8 — Check if version in filename matches version in document body.
+    Does NOT affect admissibility — stored in evidence_meta.version_alignment.
+    NEEDS_REVIEW if mismatch — auditor decides.
+    """
+    import re
+
+    filename = os.path.basename(file_path).lower()
+    filename_ver = re.search(r"v(\d+[\.\d]*)", filename)
+    doc_ver_str = (evidence_meta.get("document_version") or "").lower()
+    doc_ver = re.search(r"v?(\d+[\.\d]*)", doc_ver_str)
+
+    if filename_ver and doc_ver:
+        fv = filename_ver.group(1)
+        dv = doc_ver.group(1)
+        if fv != dv:
+            return {
+                "result": "MISMATCH",
+                "issue": (
+                    f"Filename indicates Version {fv} but document "
+                    f"body states Version {dv} — please verify"
+                ),
+                "action": "NEEDS_REVIEW",
+            }
+
+    return {"result": "PASS", "issue": ""}
 
 
 # ─────────────────────────────────────────────────────────────
