@@ -38,7 +38,7 @@ logger = get_task_logger(__name__)
 # ─────────────────────────────────────────────────────────────
 
 VALID_EVIDENCE_TYPES = {
-    "POLICY_DOCUMENT", "PROCEDURE_MANUAL", "BOARD_MINUTES",
+    "POLICY_DOCUMENT", "PROCEDURE_MANUAL", "BOARD_MINUTES", "MEETING_MINUTES",
     "AUDIT_REPORT", "SYSTEM_SCREENSHOT", "ACCESS_LOG",
     "TRANSACTION_DATA", "INTERVIEW_RESPONSE", "EMAIL_COMMUNICATION",
     "TRAINING_RECORD", "CONTRACTUAL_AGREEMENT", "REGULATORY_FILING",
@@ -56,6 +56,7 @@ EVIDENCE_STRENGTH_MAP = {
     "POLICY_DOCUMENT":         "PRIMARY",
     "PROCEDURE_MANUAL":        "PRIMARY",
     "BOARD_MINUTES":           "PRIMARY",
+    "MEETING_MINUTES":         "PRIMARY",   # Board/committee minutes — direct proof of approval/discussion
     "REGULATORY_FILING":       "PRIMARY",
     "CONFIGURATION_FILE":      "PRIMARY",
     "FINANCIAL_STATEMENT":     "PRIMARY",
@@ -89,6 +90,7 @@ EVIDENCE_ROLE_MAP = {
     "POLICY_DOCUMENT":         "DESIGN_EVIDENCE",
     "PROCEDURE_MANUAL":        "DESIGN_EVIDENCE",
     "BOARD_MINUTES":           "DESIGN_EVIDENCE",
+    "MEETING_MINUTES":         "DESIGN_EVIDENCE",  # Governance decisions, approvals, committee reviews
     "REGULATORY_FILING":       "DESIGN_EVIDENCE",
     "COMPLIANCE_REPORT":       "DESIGN_EVIDENCE",
     "RISK_ASSESSMENT":         "DESIGN_EVIDENCE",
@@ -165,6 +167,29 @@ REVIEW_FREQ_DAYS = {
     "half-yearly": 180, "half yearly": 180,
     "quarterly": 90,
     "monthly": 30,
+}
+
+# Maps old/alternative evidence type names → canonical VALID_EVIDENCE_TYPES
+# Used in POST-1 normalization to handle LLM returning old type names
+EVIDENCE_TYPE_ALIASES = {
+    "MEETING_MINUTES":        "BOARD_MINUTES",
+    "BOARD_DOCUMENT":         "BOARD_MINUTES",
+    "PROCEDURE_DOCUMENT":     "PROCEDURE_MANUAL",
+    "SOP_DOCUMENT":           "PROCEDURE_MANUAL",
+    "SYSTEM_CONFIGURATION":   "CONFIGURATION_FILE",
+    "TRANSACTION_DATASET":    "TRANSACTION_DATA",
+    "SAMPLED_RECORDS":        "SAMPLE_DATA",
+    "EXCEPTION_RECORD":       "EXCEPTION_REPORT",
+    "INCIDENT_RECORD":        "EXCEPTION_REPORT",
+    "CONTRACT":               "CONTRACTUAL_AGREEMENT",
+    "SLA_DOCUMENT":           "CONTRACTUAL_AGREEMENT",
+    "THIRD_PARTY_DOCUMENT":   "CONTRACTUAL_AGREEMENT",
+    "APPROVAL_EMAIL":         "EMAIL_COMMUNICATION",
+    "DASHBOARD_EXPORT":       "SYSTEM_SCREENSHOT",
+    "SYSTEM_LOG":             "ACCESS_LOG",
+    "APPLICATION_LOG":        "ACCESS_LOG",
+    "SECURITY_LOG":           "ACCESS_LOG",
+    "REPORT":                 "AUDIT_REPORT",
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -1170,11 +1195,19 @@ REGULATORY_FILING | FINANCIAL_STATEMENT | RISK_ASSESSMENT |
 COMPLIANCE_REPORT | CONFIGURATION_FILE | CERTIFICATE |
 ORGANIZATIONAL_CHART | JOB_DESCRIPTION | SAMPLE_DATA |
 EXCEPTION_REPORT | RECONCILIATION_REPORT | WALKTHROUGH_DOCUMENTATION |
-PROCESS_FLOW_DIAGRAM | NETWORK_DIAGRAM | ARCHITECTURE_DIAGRAM | OTHER
+PROCESS_FLOW_DIAGRAM | NETWORK_DIAGRAM | ARCHITECTURE_DIAGRAM |
+MEETING_MINUTES | OTHER
 
 Notes:
 * PROCEDURE_MANUAL covers: procedures, SOPs, operating manuals
-* BOARD_MINUTES covers: meeting minutes, board documents, committee minutes
+* BOARD_MINUTES covers: formal board meeting minutes with resolutions
+* MEETING_MINUTES covers: all committee meeting minutes (credit committee, risk committee,
+  audit committee, ALCO, management committee etc.). For MEETING_MINUTES evaluate:
+  - Approving authority: is this the right body to approve this matter?
+  - What was approved/discussed: is it relevant to the checklist requirement?
+  - Quorum: were required members present?
+  - Date: does approval fall within or before audit period?
+  - Resolution: was a formal resolution passed or just discussed?
 * ACCESS_LOG covers: system logs, application logs, security logs, audit trails
 * CONTRACTUAL_AGREEMENT covers: contracts, SLAs, outsourcing agreements, third-party documents
 * EXCEPTION_REPORT covers: exception reports, incident records, policy breaches
@@ -1834,6 +1867,13 @@ def run_eve_step5_for_evidence(
 
         # POST-1: Normalize evidence_type to VALID_EVIDENCE_TYPES (SS1)
         evidence_type = raw_output.get("evidence_type", "OTHER").upper().strip()
+        # Check aliases first (e.g. MEETING_MINUTES → BOARD_MINUTES)
+        if evidence_type in EVIDENCE_TYPE_ALIASES:
+            mapped = EVIDENCE_TYPE_ALIASES[evidence_type]
+            logger.info(
+                f"[Module D] evidence_type '{evidence_type}' aliased to '{mapped}'"
+            )
+            evidence_type = mapped
         if evidence_type not in VALID_EVIDENCE_TYPES:
             logger.info(
                 f"[Module D] evidence_type '{evidence_type}' not in VALID_EVIDENCE_TYPES "
