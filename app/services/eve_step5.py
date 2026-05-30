@@ -2136,6 +2136,16 @@ def run_eve_step5_for_evidence(
             admissibility_status_v3 = result_data.get("admissibility_status", admissibility)
             assurance_impact = result_data.get("assurance_impact", "NEUTRAL")
 
+            # Map new strength values → old DB values (DB constraint: STRONG/MODERATE/WEAK)
+            # Internal logic uses PRIMARY/SUPPORTING/OBSERVATIONAL
+            # raw_output_json stores new values for display
+            db_strength_map = {
+                "PRIMARY":      "STRONG",
+                "SUPPORTING":   "MODERATE",
+                "OBSERVATIONAL": "WEAK",
+            }
+            db_strength = db_strength_map.get(strength, strength)
+
             result_record = EveEvidenceResult(
                 project_checklist_id=project_checklist_id,
                 evidence_artifact_id=project_evidence_artifact_id,
@@ -2143,7 +2153,7 @@ def run_eve_step5_for_evidence(
                 admissibility=admissibility,
                 admissibility_reason=admissibility_reason,
                 evidence_type=evidence_type,
-                evidence_strength=strength,
+                evidence_strength=db_strength,
                 evidence_role=role,
                 signal=signal,
                 signal_basis=signal_basis,
