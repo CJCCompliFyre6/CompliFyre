@@ -4122,13 +4122,47 @@ def test_evidence_artifacts(activity_id):
             ).order_by(EER2.id.desc()).first()
             step5_display = None
             if step5_result and step5_result.raw_output_json:
-                raw = step5_result.raw_output_json
-                step5_display = {
-                    "admissibility": step5_result.admissibility,
-                    "admissibility_reason": raw.get("admissibility_reason", ""),
-                    "admissibility_tests": raw.get("admissibility_tests", []),
-                    "checklist_evaluation": raw.get("checklist_evaluation", []),
-                }
+                try:
+                    raw = step5_result.raw_output_json
+                    # Ensure raw is a dict (safety for old records)
+                    if not isinstance(raw, dict):
+                        raw = {}
+                    # Ensure evidence_meta is always a dict (never None)
+                    evidence_meta = raw.get("evidence_meta") or {}
+                    if not isinstance(evidence_meta, dict):
+                        evidence_meta = {}
+                    step5_display = {
+                        "admissibility": step5_result.admissibility,
+                        "admissibility_reason": raw.get("admissibility_reason", ""),
+                        "admissibility_tests": raw.get("admissibility_tests") or [],
+                        "checklist_evaluation": raw.get("checklist_evaluation") or [],
+                        # V3 new fields
+                        "evidence_type": raw.get("evidence_type", ""),
+                        "evidence_meta": {
+                            "strength":           evidence_meta.get("evidence_strength") or evidence_meta.get("strength", ""),
+                            "role":               evidence_meta.get("evidence_role") or evidence_meta.get("role", ""),
+                            "entity_name":        evidence_meta.get("entity_name", ""),
+                            "document_title":     evidence_meta.get("document_title", ""),
+                            "document_version":   evidence_meta.get("document_version", ""),
+                            "approval_date":      evidence_meta.get("approval_date", ""),
+                            "effective_date":     evidence_meta.get("effective_date", ""),
+                            "review_frequency":   evidence_meta.get("review_frequency", ""),
+                            "version_alignment":  evidence_meta.get("version_alignment") or {},
+                            "date_contradictions": evidence_meta.get("date_contradictions") or [],
+                        },
+                        "oe_testing_results": raw.get("oe_testing_results") or {},
+                        # Org match UNKNOWN → needs auditor confirmation
+                        "org_confirmation_needed": any(
+                            t.get("test") == "ORGANIZATION_MATCH" and t.get("result") == "UNKNOWN"
+                            for t in (raw.get("admissibility_tests") or [])
+                        ),
+                    }
+                except Exception as step5_err:
+                    current_app.logger.warning(
+                        f"[EVE v3] Could not build step5_display for "
+                        f"artifact_id={p_evidence.id}: {step5_err}"
+                    )
+                    step5_display = None
             evidence_entry = {
                 "id": p_evidence.id,
                 "item": p_evidence.item,
