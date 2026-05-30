@@ -1687,7 +1687,7 @@ def run_eve_step5_for_evidence(
             except Exception as e:
                 logger.warning(f"[Module D] Could not extract project context: {e}")
 
-        # ── 4. Extract evidence content from files ─────────────────────
+        # ── 4. Extract evidence content — file-type aware ────────────
         if not upload_base_path:
             upload_base_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
@@ -1698,12 +1698,67 @@ def run_eve_step5_for_evidence(
         if os.path.isdir(evidences_path):
             upload_base_path = evidences_path
 
-        evidence_content = _get_evidence_content(artifact, upload_base_path)
+        # Get file path for new functions
+        file_path = ""
+        file_ext = ""
+        if artifact.evidence_file_path and artifact.evidence_file_path.strip():
+            file_path = os.path.join(
+                upload_base_path, artifact.evidence_file_path.strip()
+            )
+            file_ext = os.path.splitext(file_path)[1].lower()
+
+        # PRE-1: Security + authenticity check BEFORE content extraction
+        if file_path and os.path.exists(file_path):
+            # Quick security check on extension first
+            sec_check = check_file_security(file_path)
+            if sec_check["result"] == "FAIL":
+                logger.warning(
+                    f"[Module D] Security FAIL for artifact_id="
+                    f"{project_evidence_artifact_id}: {sec_check['reason']}"
+                )
+                return {
+                    "status": "inadmissible",
+                    "message": sec_check["reason"],
+                    "project_evidence_artifact_id": project_evidence_artifact_id,
+                    "admissibility": "INADMISSIBLE",
+                    "evidence_type": "OTHER",
+                    "items_evaluated": 0,
+                }
+
+        # Extract content — file-type aware limits
+        if file_path and os.path.exists(file_path) and file_ext in (".xlsx", ".xls"):
+            # Excel: full data extraction, no row sampling (OE testing needs all rows)
+            evidence_content = extract_excel_content(file_path, checklist_items)
+        elif file_path and os.path.exists(file_path) and file_ext in (".docx", ".doc", ".pdf"):
+            # DOCX/PDF: heading-based section extraction
+            limit = FILE_PARSING_LIMITS.get(file_ext, 80000)
+            evidence_content = _extract_relevant_sections(
+                file_path, checklist_items, limit=limit
+            )
+        else:
+            # Fallback: existing extraction logic
+            evidence_content = _get_evidence_content(artifact, upload_base_path)
 
         logger.info(
             f"[Module D] Evidence content extracted: "
             f"{len(evidence_content)} chars for artifact_id={project_evidence_artifact_id}"
         )
+
+        # PRE-2: Document authenticity check
+        auth_result = check_document_authenticity(file_path, evidence_content, file_ext)
+        if auth_result["result"] == "FAIL":
+            logger.warning(
+                f"[Module D] Authenticity FAIL for artifact_id="
+                f"{project_evidence_artifact_id}: {auth_result['reason']}"
+            )
+            return {
+                "status": "inadmissible",
+                "message": auth_result["reason"],
+                "project_evidence_artifact_id": project_evidence_artifact_id,
+                "admissibility": "INADMISSIBLE",
+                "evidence_type": "OTHER",
+                "items_evaluated": 0,
+            }
 
         # ── 5. Build required_dimensions from checklist ────────────────
         required_dimensions = {
@@ -1712,16 +1767,57 @@ def run_eve_step5_for_evidence(
             "operating": "YES" if checklist.dimension_operating else "NO",
         }
 
+        # PRE-3: OE data completeness check for Excel/CSV
+        if file_ext in (".xlsx", ".xls", ".csv"):
+            oe_completeness = check_oe_data_completeness(evidence_content, checklist_items)
+            if not oe_completeness["complete"]:
+                logger.info(
+                    f"[Module D] OE data incomplete for artifact_id="
+                    f"{project_evidence_artifact_id}: {oe_completeness['reason']}"
+                )
+                if oe_completeness.get("action") == "INADMISSIBLE":
+                    return {
+                        "status": "inadmissible",
+                        "message": oe_completeness["reason"],
+                        "project_evidence_artifact_id": project_evidence_artifact_id,
+                        "admissibility": "INADMISSIBLE",
+                        "evidence_type": "OTHER",
+                        "items_evaluated": 0,
+                        "missing_columns": oe_completeness.get("missing", []),
+                    }
+                # PARTIAL — continue with evaluation but note missing columns
+
+        # PRE-4: Filter checklist items by dimension (SS5)
+        # Determine evidence role from map (before LLM — use file type heuristic)
+        # Will be overridden by LLM output in POST-3
+        pre_role = EVIDENCE_ROLE_MAP.get("OTHER", "DESIGN_EVIDENCE")
+        applicable_items, not_applicable_items = filter_applicable_items(
+            checklist_items, pre_role
+        )
+        # If filtering removes everything, use all items
+        if not applicable_items:
+            applicable_items = checklist_items
+            not_applicable_items = []
+
+        # PRE-5: Detect explicit exclusions in content (SS7 Type 2)
+        exclusions = detect_explicit_exclusions(evidence_content, applicable_items)
+        if exclusions:
+            logger.info(
+                f"[Module D] Detected {len(exclusions)} explicit exclusion(s) "
+                f"in artifact_id={project_evidence_artifact_id}: {list(exclusions.keys())}"
+            )
+
         # ── 6. Call EVE Step 5 LLM ────────────────────────────────────
         prompt = _build_step5_prompt(
             auditee_name=auditee_name,
             audit_period_start=audit_period_start,
             audit_period_end=audit_period_end,
             required_dimensions=required_dimensions,
-            checklist=checklist_items,
+            checklist=applicable_items,
             evidence_id=project_evidence_artifact_id,
             evidence_content=evidence_content,
             org_context={"industry_type": org_industry, "organization_type": org_type},
+            checklist_ids=[item.get("id", "") for item in applicable_items if item.get("id")],
         )
 
         # Release DB connection before long OpenAI API call
@@ -1734,10 +1830,7 @@ def run_eve_step5_for_evidence(
                 countdown=60,
             )
 
-        # ── 7. Parse and store results ─────────────────────────────────
-        admissibility = raw_output.get("admissibility", "PARTIAL")
-        admissibility_reason = raw_output.get("admissibility_reason", "")
-        overall_confidence = raw_output.get("confidence", "MEDIUM")
+        # ── 7. Post-processing pipeline (order matters) ────────────────
 
         # POST-1: Normalize evidence_type to VALID_EVIDENCE_TYPES (SS1)
         evidence_type = raw_output.get("evidence_type", "OTHER").upper().strip()
@@ -1747,6 +1840,7 @@ def run_eve_step5_for_evidence(
                 f"— normalizing to OTHER"
             )
             evidence_type = "OTHER"
+        raw_output["evidence_type"] = evidence_type
 
         evidence_meta = raw_output.get("evidence_meta", {})
         # POST-2: Normalize strength from evidence_meta or EVIDENCE_STRENGTH_MAP
@@ -1756,6 +1850,152 @@ def run_eve_step5_for_evidence(
         if strength not in ("PRIMARY", "SUPPORTING", "OBSERVATIONAL"):
             strength = EVIDENCE_STRENGTH_MAP.get(evidence_type, "SUPPORTING")
         role = evidence_meta.get("role", EVIDENCE_ROLE_MAP.get(evidence_type, "DESIGN_EVIDENCE"))
+
+        # POST-3: Enforce evidence strength rules (SS4)
+        raw_output = enforce_evidence_strength(raw_output, checklist_items)
+        # Update strength + role from what enforce_evidence_strength set
+        strength = raw_output["evidence_meta"].get("evidence_strength", strength)
+        role = raw_output["evidence_meta"].get("evidence_role", role)
+
+        # POST-4: Add NOT_APPLICABLE entries for dimension-filtered items (SS5)
+        for item in not_applicable_items:
+            raw_output.setdefault("checklist_evaluation", []).append({
+                "checklist_id": item.get("id", ""),
+                "found": "NOT_APPLICABLE",
+                "location": "", "extract": "",
+                "gap": (
+                    f"Not applicable — evidence role ({role}) does not cover "
+                    f"{item.get('effectiveness_type', 'DESIGN')} dimension"
+                ),
+                "signal": "INSUFFICIENT",
+                "basis": "Filtered by system — dimension mismatch",
+                "confidence": "EXPLICIT",
+            })
+            raw_output.setdefault("item_signals", []).append({
+                "checklist_id": item.get("id", ""),
+                "signal": "INSUFFICIENT",
+                "basis": "Not applicable — evidence role does not cover this dimension",
+                "confidence": "EXPLICIT",
+            })
+            raw_output.setdefault("results", []).append({
+                "checklist_id": item.get("id", ""),
+                "status": "NOT_APPLICABLE",
+                "confidence_classification": "EXPLICIT",
+                "evidence_reference": "", "supporting_extract": "",
+                "admissibility_status": "ADMISSIBLE",
+                "admissibility_reason": "",
+            })
+
+        # POST-5: Override explicit exclusion signals (SS7 Type 2)
+        for cid, excl in exclusions.items():
+            for entry in raw_output.get("checklist_evaluation", []):
+                if entry.get("checklist_id") == cid:
+                    entry["found"] = "NOT_FOUND"
+                    entry["signal"] = "CONTRADICTS"
+                    entry["basis"] = "Document explicitly excludes this requirement"
+                    entry["extract"] = excl.get("context", "")
+                    entry["gap"] = "Explicitly excluded from document scope"
+                    entry["contradiction_type"] = "EXPLICIT_EXCLUSION"
+
+        # POST-6: Date contradiction check (SS7 Type 3)
+        date_check = check_date_contradictions(evidence_meta, audit_period_start)
+        if date_check["contradictions_found"]:
+            raw_output.setdefault("evidence_meta", {})["date_contradictions"] = (
+                date_check["issues"]
+            )
+            logger.info(
+                f"[Module D] Date contradictions found for artifact_id="
+                f"{project_evidence_artifact_id}: {len(date_check['issues'])} issue(s)"
+            )
+
+        # POST-7: Version alignment check (SS8)
+        if file_path:
+            version_check = check_version_alignment(evidence_meta, file_path)
+            raw_output.setdefault("evidence_meta", {})["version_alignment"] = version_check
+
+        # POST-8: Override admissibility tests TEST 1-4 with code results
+        entity_name = evidence_meta.get("entity_name", "")
+        approval_date = evidence_meta.get("approval_date", "")
+        effective_date = evidence_meta.get("effective_date", "")
+        review_frequency = evidence_meta.get("review_frequency", "")
+
+        org_result = check_org_match(
+            entity_name, auditee_name,
+            project_checklist_id, project_evidence_artifact_id
+        )
+        period_result = check_period_alignment(
+            required_dimensions, approval_date, effective_date,
+            review_frequency, audit_period_start, audit_period_end
+        )
+        rel_result = check_relevance(evidence_content, checklist_items, evidence_type)
+
+        # Build admissibility_tests list — override LLM values with code results
+        code_tests = {
+            "ORGANIZATION_MATCH": org_result,
+            "PERIOD_ALIGNMENT": period_result,
+            "DOCUMENT_AUTHENTICITY": auth_result,
+            "RELEVANCE_TO_ACTIVITY": rel_result,
+        }
+        existing_tests = {
+            t.get("test", ""): t
+            for t in raw_output.get("admissibility_tests", [])
+        }
+        final_tests = []
+        for test_name, code_result in code_tests.items():
+            final_tests.append({
+                "test": test_name,
+                "result": code_result["result"],
+                "reason": code_result["reason"],
+            })
+        raw_output["admissibility_tests"] = final_tests
+
+        # POST-9: Recalculate admissibility from code test results
+        admissibility = recalculate_admissibility(final_tests)
+        admissibility_reason = "; ".join(
+            t["reason"] for t in final_tests if t["result"] == "FAIL"
+        ) or raw_output.get("admissibility_reason", "")
+        raw_output["admissibility"] = admissibility
+        raw_output["admissibility_reason"] = admissibility_reason
+
+        logger.info(
+            f"[Module D] Admissibility: {admissibility} "
+            f"(org={org_result['result']}, period={period_result['result']}, "
+            f"auth={auth_result['result']}, rel={rel_result['result']}) "
+            f"for artifact_id={project_evidence_artifact_id}"
+        )
+
+        # POST-10: INADMISSIBLE cascade — mark all applicable items NOT_FOUND
+        if admissibility == "INADMISSIBLE":
+            for entry in raw_output.get("checklist_evaluation", []):
+                if entry.get("found") != "NOT_APPLICABLE":
+                    entry["found"] = "NOT_FOUND"
+                    entry["extract"] = ""
+                    entry["location"] = ""
+                    entry["gap"] = f"Evidence inadmissible: {admissibility_reason}"
+            for result in raw_output.get("results", []):
+                if result.get("status") != "NOT_APPLICABLE":
+                    result["status"] = "NO"
+                    result["supporting_extract"] = ""
+
+        # POST-11: Validate contradiction signals — LLM Type 1 (SS7)
+        raw_output = validate_contradiction_signals(raw_output)
+
+        # POST-12: Traceability enforcement — FOUND→PARTIAL if no extract (P3)
+        raw_output = enforce_traceability(raw_output)
+
+        # POST-13: Cross-validate claims — found/signal/confidence (SS6)
+        raw_output = cross_validate_claims(raw_output)
+
+        # POST-14: Checklist coverage — missing items added, extra removed (P1)
+        raw_output = enforce_checklist_coverage(
+            raw_output, checklist_items, admissibility, admissibility_reason
+        )
+
+        # POST-15: Normalize status values (P2)
+        raw_output = normalize_status_values(raw_output)
+
+        # ── Parse final values for DB storage ─────────────────────────
+        overall_confidence = raw_output.get("confidence", "MEDIUM")
 
         sample_eval = raw_output.get("sample_evaluation", {})
         sample_applicable = str(sample_eval.get("applicable", "NO")).upper() == "YES"
