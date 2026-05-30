@@ -5181,9 +5181,30 @@ ALLOWED_EXTENSIONS = {
     "wav",
 }
 
+# Explicitly blocked extensions — security risk (executables, macros)
+BLOCKED_UPLOAD_EXTENSIONS = {
+    "exe", "bat", "cmd", "sh", "ps1", "vbs",
+    "py", "rb", "php", "jar", "class", "com", "dll",
+    "xlsm",   # Excel with macros
+    "docm",   # Word with macros
+    "pptm",   # PowerPoint with macros
+    "xltm",   # Excel macro template
+}
+
 
 def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    """
+    Check if uploaded file type is allowed.
+    Explicitly blocks dangerous extensions (executables, macro-enabled files).
+    Returns True only if extension is in ALLOWED_EXTENSIONS and not in BLOCKED_UPLOAD_EXTENSIONS.
+    """
+    if "." not in filename:
+        return False
+    ext = filename.rsplit(".", 1)[1].lower()
+    # Explicitly block dangerous extensions first
+    if ext in BLOCKED_UPLOAD_EXTENSIONS:
+        return False
+    return ext in ALLOWED_EXTENSIONS
 
 
 @re_bp.route("/uploads/evidences/<path:filename>")
