@@ -4570,13 +4570,13 @@ def eve_evaluate_clause():
                 for evidence in evidence_artifacts:
                     run_eve_step5_for_all_evidence.apply_async(
                         args=[checklist.id, upload_base_path],
-                        queue='eve_evaluate'
+                        queue='eve_evaluate_staging'
                     )
 
             # Step 6 + 7 — Run after Step 5
             run_eve_step6_and_7.apply_async(
                 args=[control.id, current_user.id],
-                queue='eve_evaluate',
+                queue='eve_evaluate_staging',
                 countdown=30  # 30 second delay to allow Step 5 to complete
             )
 

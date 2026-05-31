@@ -4675,7 +4675,7 @@ def reevaluate_activity():
         if evidence_artifacts:
             run_eve_step5_for_all_evidence.apply_async(
                 args=[checklist.id, upload_base_path],
-                queue='eve_evaluate'
+                queue='eve_evaluate_staging'
             )
 
         # Trigger Step 5B after Step 5A
@@ -4683,7 +4683,7 @@ def reevaluate_activity():
         countdown_5a = max(90, step5_tasks * 75)
         run_eve_step5b_cross_evidence.apply_async(
             args=[checklist.id],
-            queue='eve_evaluate',
+            queue='eve_evaluate_staging',
             countdown=countdown_5a
         )
         # Step 6+7 triggered automatically by fix_pending_checklists periodic task
