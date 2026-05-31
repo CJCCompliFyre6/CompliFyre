@@ -476,7 +476,7 @@ OUTPUT FORMAT (return ONLY this JSON structure):
       "regulatory_impact": "",
       "operational_impact": "",
       "residual_risk": "",
-      "severity": "Low | Medium | High | Critical",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "assurance_impact": "",
       "related_oe_exceptions": [],
       "evidence_lineage": []
@@ -661,6 +661,8 @@ def _build_evidence_results_for_step6(checklist_id: int) -> list:
     """
     Fetch all EveEvidenceResult rows for a project_checklist
     and format them as Step 6 input.
+    FIX A: Also pass checklist_evaluation data from raw_output_json
+    so Step 6 LLM has verbatim extracts, locations, gaps — not just PASS/FAIL.
     """
     results = (
         db.session.query(EveEvidenceResult)
@@ -673,17 +675,41 @@ def _build_evidence_results_for_step6(checklist_id: int) -> list:
     for r in results:
         eid = r.evidence_artifact_id
         if eid not in evidence_map:
+            # Extract checklist_evaluation from raw_output_json
+            checklist_eval_map = {}
+            if r.raw_output_json and isinstance(r.raw_output_json, dict):
+                for ce in r.raw_output_json.get("checklist_evaluation", []):
+                    cid = ce.get("checklist_id", "")
+                    if cid:
+                        checklist_eval_map[cid] = ce
+                # Also pull admissibility_tests for Step 6 context
+                admissibility_tests = r.raw_output_json.get("admissibility_tests", [])
+                oe_testing = r.raw_output_json.get("oe_testing_results", {})
+                evidence_meta_raw = r.raw_output_json.get("evidence_meta", {})
+            else:
+                admissibility_tests = []
+                oe_testing = {}
+                evidence_meta_raw = {}
+
             evidence_map[eid] = {
                 "evidence_id": eid,
                 "evidence_type": r.evidence_type or "",
                 "admissibility": r.admissibility,
+                "admissibility_reason": r.admissibility_reason or "",
                 "confidence": r.confidence or "MEDIUM",
                 "evidence_meta": {
                     "strength": r.evidence_strength or "MODERATE",
                     "role": r.evidence_role or "SUPPORTING",
+                    "entity_name": evidence_meta_raw.get("entity_name", ""),
+                    "document_title": evidence_meta_raw.get("document_title", ""),
+                    "approval_date": evidence_meta_raw.get("approval_date", ""),
+                    "effective_date": evidence_meta_raw.get("effective_date", ""),
+                    "review_frequency": evidence_meta_raw.get("review_frequency", ""),
                 },
+                "admissibility_tests": admissibility_tests,
                 "item_signals": [],
                 "results": [],
+                "oe_testing_results": oe_testing,
                 "sample_evaluation": {
                     "applicable": "YES" if r.sample_applicable else "NO",
                     "sample_size": r.sample_size,
@@ -691,22 +717,35 @@ def _build_evidence_results_for_step6(checklist_id: int) -> list:
                     "exception_rate": float(r.exception_rate) if r.exception_rate else None,
                     "within_audit_period": "YES" if r.sample_within_audit_period else "NO",
                 },
+                "_checklist_eval_map": checklist_eval_map,  # internal use below
             }
+
+        # Get checklist_evaluation entry for this row
+        ce = evidence_map[eid]["_checklist_eval_map"].get(r.checklist_item_id, {})
 
         evidence_map[eid]["item_signals"].append({
             "checklist_id": r.checklist_item_id,
             "signal": r.signal,
-            "basis": r.signal_basis or "",
+            "basis": r.signal_basis or ce.get("basis", ""),
             "confidence": r.confidence or "MEDIUM",
         })
         evidence_map[eid]["results"].append({
             "checklist_id": r.checklist_item_id,
             "status": r.item_status,
-            "evidence_reference": r.evidence_reference or "",
+            "found": ce.get("found", ""),
+            "evidence_reference": r.evidence_reference or ce.get("location", ""),
+            "extract": ce.get("extract", ""),      # verbatim extract from document
+            "gap": ce.get("gap", ""),              # specific gap identified
             "confidence": r.confidence or "MEDIUM",
+            "confidence_classification": ce.get("confidence", ""),
         })
 
-    return list(evidence_map.values())
+    # Remove internal helper key before returning
+    output = []
+    for ev in evidence_map.values():
+        ev.pop("_checklist_eval_map", None)
+        output.append(ev)
+    return output
 
 
 # ─────────────────────────────────────────────────────────────
@@ -974,7 +1013,10 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             f"{len(findings_v3)} findings, {len(risks)} risks, {len(recommendations)} recs"
         )
         # ── 8. Determine final_status and final_severity ───────────────
-        final_status, final_severity = _compute_control_status(findings)
+        # FIX B: Use findings_v3 (Step 7 LLM output) not pre-seeded findings
+        # Pre-seeded findings come from Step 6 key_gaps — Step 7 may have
+        # removed, merged, or changed them. Use Step 7 output for accuracy.
+        final_status, final_severity = _compute_control_status(findings_v3)
         control_result.final_status = final_status
         control_result.final_severity = final_severity
         control_result.updated_at = datetime.utcnow()
@@ -1012,11 +1054,28 @@ def _compute_control_status(findings: list) -> tuple[str, str | None]:
     """
     Deterministic rule — compute final_status and final_severity from findings.
     Matches EVE v2 Step 6 Sub-step 9 severity rules.
+    Handles both standard (CRITICAL/HIGH/MEDIUM/LOW) and
+    legacy/LLM values (SIGNIFICANT/MAJOR/MINOR).
     """
     if not findings:
         return "COMPLIANT", None
 
-    severities = [f.get("severity", "LOW") for f in findings]
+    # Normalize LLM severity values → standard values
+    sev_normalize = {
+        "CRITICAL":    "CRITICAL",
+        "MAJOR":       "HIGH",        # LLM sometimes returns MAJOR
+        "HIGH":        "HIGH",
+        "SIGNIFICANT": "MEDIUM",      # LLM sometimes returns SIGNIFICANT
+        "MEDIUM":      "MEDIUM",
+        "MODERATE":    "MEDIUM",
+        "MINOR":       "LOW",
+        "LOW":         "LOW",
+    }
+
+    severities = [
+        sev_normalize.get(f.get("severity", "LOW").upper(), "LOW")
+        for f in findings
+    ]
     severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
     max_sev = max(severities, key=lambda s: severity_order.get(s, 0))
 
