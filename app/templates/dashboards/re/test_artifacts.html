@@ -1316,6 +1316,13 @@
         <div id="sampling_view_{{ item_loop_idx }}" class="p-6">
           <div class="prose max-w-none">
             <div class="content-container bg-gray-50 rounded-lg p-6 border-l-4 border-purple-500">
+              <!-- OE=YES banner — sampling required -->
+              {% set activity_oe = item.data.required_effectiveness_operating %}
+              {% if activity_oe == 'yes' or activity_oe == True %}
+              <div class="mb-4 p-3 bg-purple-100 border border-purple-300 rounded-lg flex items-center gap-2">
+                <span class="text-purple-700 font-semibold text-sm">⚠ Operating Effectiveness testing required — sampling must be performed for this activity.</span>
+              </div>
+              {% endif %}
               <!-- Combined Instructions and Additional Information -->
               {% if item.data.test_procedure.sampling or item.data.test_procedure.additional_sampling %}
               <div class="space-y-4">
@@ -1355,7 +1362,11 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
+                {% if activity_oe == 'yes' or activity_oe == True %}
+                <p class="mt-2 text-purple-600 font-medium">Sampling required — no content added yet. Click "Edit Content" to add sampling instructions.</p>
+                {% else %}
                 <p class="mt-2">No sampling content available. Click "Edit Content" to add information.</p>
+                {% endif %}
               </div>
               {% endif %}
             </div>

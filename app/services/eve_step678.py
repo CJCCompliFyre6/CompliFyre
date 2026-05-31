@@ -476,7 +476,7 @@ OUTPUT FORMAT (return ONLY this JSON structure):
       "regulatory_impact": "",
       "operational_impact": "",
       "residual_risk": "",
-      "severity": "Low | Medium | High | Critical",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "assurance_impact": "",
       "related_oe_exceptions": [],
       "evidence_lineage": []
@@ -1012,11 +1012,28 @@ def _compute_control_status(findings: list) -> tuple[str, str | None]:
     """
     Deterministic rule — compute final_status and final_severity from findings.
     Matches EVE v2 Step 6 Sub-step 9 severity rules.
+    Handles both standard (CRITICAL/HIGH/MEDIUM/LOW) and
+    legacy/LLM values (SIGNIFICANT/MAJOR/MINOR).
     """
     if not findings:
         return "COMPLIANT", None
 
-    severities = [f.get("severity", "LOW") for f in findings]
+    # Normalize LLM severity values → standard values
+    sev_normalize = {
+        "CRITICAL":    "CRITICAL",
+        "MAJOR":       "HIGH",        # LLM sometimes returns MAJOR
+        "HIGH":        "HIGH",
+        "SIGNIFICANT": "MEDIUM",      # LLM sometimes returns SIGNIFICANT
+        "MEDIUM":      "MEDIUM",
+        "MODERATE":    "MEDIUM",
+        "MINOR":       "LOW",
+        "LOW":         "LOW",
+    }
+
+    severities = [
+        sev_normalize.get(f.get("severity", "LOW").upper(), "LOW")
+        for f in findings
+    ]
     severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
     max_sev = max(severities, key=lambda s: severity_order.get(s, 0))
 
