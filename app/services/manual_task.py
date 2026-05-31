@@ -2266,14 +2266,15 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                 continue
 
             # Check if clause already has compliance activities AND test procedures
+            # FIX: Use TestProcedures model (not ControlActivity) to check test existence
             existing_activities = ComplianceActivities.query.filter_by(
                 clause_id=clause_id_val
             ).all()
             if existing_activities:
-                from app.models.ai import ControlActivity as ControlActivities
+                from app.models.ai import TestProcedures
                 all_have_tests = all(
-                    ControlActivities.query.filter_by(
-                        compliance_activity_id=act.id
+                    TestProcedures.query.filter_by(
+                        activity_id=act.id
                     ).first() is not None
                     for act in existing_activities
                 )
@@ -2296,8 +2297,8 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                     # Only generate missing test procedures - skip activity generation
                     from app.services.manual_task import extract_test_procedures
                     for act in existing_activities:
-                        has_test = ControlActivities.query.filter_by(
-                            compliance_activity_id=act.id
+                        has_test = TestProcedures.query.filter_by(
+                            activity_id=act.id
                         ).first()
                         if not has_test:
                             extract_test_procedures.delay(act.id)
@@ -2660,14 +2661,15 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                 continue
 
             # Check if clause already has compliance activities AND test procedures
+            # FIX: Use TestProcedures model (not ControlActivity) to check test existence
             existing_activities = ComplianceActivities.query.filter_by(
                 clause_id=clause_id_val
             ).all()
             if existing_activities:
-                from app.models.ai import ControlActivity as ControlActivities
+                from app.models.ai import TestProcedures
                 all_have_tests = all(
-                    ControlActivities.query.filter_by(
-                        compliance_activity_id=act.id
+                    TestProcedures.query.filter_by(
+                        activity_id=act.id
                     ).first() is not None
                     for act in existing_activities
                 )
@@ -2688,10 +2690,9 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                         clause_id_val,
                     )
                     # Only generate missing test procedures - skip activity generation
-                    from app.models.ai import ControlActivity as ControlActivities2
                     for act in existing_activities:
-                        has_test = ControlActivities2.query.filter_by(
-                            compliance_activity_id=act.id
+                        has_test = TestProcedures.query.filter_by(
+                            activity_id=act.id
                         ).first()
                         if not has_test:
                             extract_test_procedures.delay(act.id)
