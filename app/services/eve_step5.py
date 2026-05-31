@@ -728,17 +728,33 @@ def check_period_alignment(
     Dimension-aware:
       DESIGN: approved before audit start = PASS. Fails only if review cycle exceeded.
       OE: document date must fall within audit period.
+    DESIGN check runs independently of OE — both can apply.
 
     Returns: {result: 'PASS'|'FAIL'|'UNKNOWN', reason: str}
     """
     def parse_dt(s):
         if not s or s in ("Unknown", ""):
             return None
-        for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%Y-%m-%d", "%B %d, %Y", "%d %B %Y"):
+        for fmt in (
+            "%d-%b-%Y",       # 20-Dec-2025
+            "%d %b %Y",       # 20 Dec 2025  ← was missing
+            "%d/%m/%Y",       # 20/12/2025
+            "%Y-%m-%d",       # 2025-12-20
+            "%B %d, %Y",      # December 20, 2025
+            "%d %B %Y",       # 20 December 2025
+            "%d %B, %Y",      # 20 December, 2025
+            "%B, %Y",         # December, 2025 (month only — use day 1)
+            "%B %Y",          # December 2025 (month only — use day 1)
+        ):
             try:
                 return datetime.strptime(s.strip(), fmt)
             except ValueError:
                 continue
+        # Try stripping ordinal suffixes: "20th" → "20"
+        import re
+        cleaned = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", s.strip())
+        if cleaned != s.strip():
+            return parse_dt(cleaned)
         return None
 
     audit_start = parse_dt(audit_period_start)
@@ -749,43 +765,49 @@ def check_period_alignment(
     is_design = required_dimensions.get("design") in (True, "YES", "yes")
     is_oe = required_dimensions.get("operating") in (True, "YES", "yes")
 
-    # DESIGN dimension check
-    if is_design and not is_oe:
+    # DESIGN dimension check — runs independently of OE
+    # DESIGN: policy approved before audit period = PASS
+    # Do NOT fail just because doc predates audit period start
+    if is_design:
         if not approval_dt and not effective_dt:
-            return {
-                "result": "UNKNOWN",
-                "reason": "Approval date and effective date not found in document",
-            }
-        ref_dt = approval_dt or effective_dt
-        if audit_start and ref_dt > audit_start:
-            return {
-                "result": "FAIL",
-                "reason": (
-                    f"Policy approved {ref_dt.strftime('%d-%b-%Y')} — "
-                    f"after audit period start {audit_start.strftime('%d-%b-%Y')}"
-                ),
-            }
-        # Check review cycle
-        freq_key = (review_frequency or "").lower().strip()
-        max_days = REVIEW_FREQ_DAYS.get(freq_key, 365)
-        if audit_start and ref_dt:
-            days_since = (audit_start - ref_dt).days
-            if days_since > max_days:
+            if not is_oe:
+                # Pure DESIGN — no date = UNKNOWN
+                return {
+                    "result": "UNKNOWN",
+                    "reason": "Approval date and effective date not found in document",
+                }
+            # DESIGN+OE — fall through to OE check
+        else:
+            ref_dt = approval_dt or effective_dt
+            if audit_start and ref_dt > audit_start:
                 return {
                     "result": "FAIL",
                     "reason": (
-                        f"Policy is {days_since} days old — "
-                        f"exceeds {max_days}-day review cycle "
-                        f"({freq_key or 'annual default'})"
+                        f"Policy approved {ref_dt.strftime('%d-%b-%Y')} — "
+                        f"after audit period start {audit_start.strftime('%d-%b-%Y')}"
                     ),
                 }
-        return {
-            "result": "PASS",
-            "reason": (
-                f"Policy dated {ref_dt.strftime('%d-%b-%Y')} — "
-                "within review cycle for audit period"
-            ),
-        }
+            # Check review cycle
+            freq_key = (review_frequency or "").lower().strip()
+            max_days = REVIEW_FREQ_DAYS.get(freq_key, 365)
+            if audit_start and ref_dt:
+                days_since = (audit_start - ref_dt).days
+                if days_since > max_days:
+                    return {
+                        "result": "FAIL",
+                        "reason": (
+                            f"Policy is {days_since} days old — "
+                            f"exceeds {max_days}-day review cycle "
+                            f"({freq_key or 'annual default'})"
+                        ),
+                    }
+            return {
+                "result": "PASS",
+                "reason": (
+                    f"Policy dated {ref_dt.strftime('%d-%b-%Y')} — "
+                    "within review cycle for audit period"
+                ),
+            }
 
     # OPERATING dimension check
     if is_oe:
@@ -2730,7 +2752,7 @@ def run_eve_step5_for_all_evidence(
             task = run_eve_step5_for_evidence.apply_async(
                 args=[artifact.id, project_checklist_id],
                 kwargs={"upload_base_path": upload_base_path},
-                queue="eve_evaluate",
+                queue='eve_evaluate_staging',
             )
             dispatched.append({
                 "evidence_artifact_id": artifact.id,
