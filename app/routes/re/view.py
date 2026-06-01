@@ -160,10 +160,61 @@ def guidelines():
         # Log guideline count
         current_app.logger.info(f"Retrieved {len(guidelines)} guidelines")
 
+        # Calculate extraction progress per guideline
+        from sqlalchemy import text as sql_text
+        guideline_progress = {}
+        for g in guidelines:
+            try:
+                # Total clauses
+                total = db.session.execute(sql_text(
+                    "SELECT COUNT(*) FROM clauses WHERE guideline_id = :gid"
+                ), {"gid": g.id}).scalar() or 0
+
+                if total == 0:
+                    guideline_progress[g.id] = {"status": "no_clauses", "pct": 0, "complete": 0, "total": 0}
+                    continue
+
+                # Complete clauses = activities + control_activity + test_steps + checklist all exist
+                complete = db.session.execute(sql_text("""
+                    SELECT COUNT(DISTINCT c.id)
+                    FROM clauses c
+                    WHERE c.guideline_id = :gid
+                    AND EXISTS (
+                        SELECT 1 FROM compliance_activities ca
+                        WHERE ca.clause_id = c.id
+                        AND NOT EXISTS (
+                            SELECT 1 FROM compliance_activities ca2
+                            LEFT JOIN control_activities cta ON cta.compliance_activity_id = ca2.id
+                            LEFT JOIN test_steps ts ON ts.control_id = cta.id
+                            LEFT JOIN control_checklist cc ON cc.control_activity_id = cta.id
+                            WHERE ca2.clause_id = c.id
+                            AND (cta.id IS NULL OR ts.id IS NULL OR cc.id IS NULL)
+                        )
+                    )
+                """), {"gid": g.id}).scalar() or 0
+
+                pct = int((complete / total) * 100) if total > 0 else 0
+
+                if complete == 0:
+                    status = "not_started"
+                elif complete == total:
+                    status = "complete"
+                else:
+                    status = "in_progress"
+
+                guideline_progress[g.id] = {
+                    "status": status,
+                    "pct": pct,
+                    "complete": complete,
+                    "total": total,
+                }
+            except Exception as pe:
+                guideline_progress[g.id] = {"status": "unknown", "pct": 0, "complete": 0, "total": 0}
+
         # Convert guidelines to list of dictionaries for detailed logging
         for i, guideline in enumerate(guidelines):
             current_app.logger.info(f"Guideline {i+1}: {guideline.__dict__}")
-        return render_template("view.html", guidelines=guidelines)
+        return render_template("view.html", guidelines=guidelines, guideline_progress=guideline_progress)
     except PDFServiceError as pdf_err:
         current_app.logger.error(f"PDF Service Error: {str(pdf_err)}")
         return jsonify({"error": "Error with PDF service"}), 500

@@ -433,6 +433,7 @@
                         <th class="p-3 text-lg font-semibold tracking-wide text-left">Certification</th>
                         <th class="p-3 text-lg font-semibold tracking-wide text-left">Date of Issue</th>
                         <th class="p-3 text-lg font-semibold tracking-wide text-left">Effective Date</th>
+                        <th class="p-3 text-lg font-semibold tracking-wide text-left">Extraction Progress</th>
                         <th class="p-3 text-lg font-semibold tracking-wide text-center">Action</th>
                     </tr>
                 </thead>
@@ -470,6 +471,49 @@
                             {{item.guideline_data.DocumentDetails.IssuanceDate}}</td>
                         <td class="p-3 text-lg text-gray-700">
                             {{item.guideline_data.DocumentDetails.ComplianceDeadline}}
+                        </td>
+                        <!-- Extraction Progress -->
+                        <td class="p-3">
+                            {% set prog = guideline_progress.get(item.id, {}) %}
+                            {% set status = prog.get('status', 'unknown') %}
+                            {% set pct = prog.get('pct', 0) %}
+                            {% set complete = prog.get('complete', 0) %}
+                            {% set total = prog.get('total', 0) %}
+
+                            {% if status == 'complete' %}
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                    ✓ 100% Complete
+                                </span>
+                                <span class="text-xs text-gray-400">{{ complete }}/{{ total }} clauses</span>
+                            </div>
+
+                            {% elif status == 'in_progress' %}
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                                        ⏳ WIP — {{ pct }}% done
+                                    </span>
+                                    <span class="text-xs text-gray-400 ml-2">{{ complete }}/{{ total }}</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                    <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+                                </div>
+                            </div>
+
+                            {% elif status == 'not_started' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                                ○ Not Started
+                            </span>
+
+                            {% elif status == 'no_clauses' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">
+                                — No Clauses
+                            </span>
+
+                            {% else %}
+                            <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
                         </td>
                         <td class="p-3 text-lg text-gray-700 whitespace-nowrap">
                             <div class="relative flex justify-center items-center">

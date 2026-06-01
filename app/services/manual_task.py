@@ -2195,7 +2195,123 @@ def extract_test_procedures(self, activity_id: int):
         raise
 
 
-@shared_task(bind=True)
+def get_clause_completion_status(clause_id: int) -> str:
+    """
+    Check if a clause has been fully extracted — activities + test procedures + checklists.
+    Returns:
+      'EMPTY'      — no activities at all
+      'INCOMPLETE' — some data exists but not fully complete
+      'COMPLETE'   — all activities have test procedures + checklists
+    """
+    from app.models.ai import ControlActivity, TestSteps
+    from app.models.eve_models import ControlChecklist
+
+    activities = ComplianceActivities.query.filter_by(clause_id=clause_id).all()
+    if not activities:
+        return "EMPTY"
+
+    for act in activities:
+        ctrl = ControlActivity.query.filter_by(
+            compliance_activity_id=act.id
+        ).first()
+        if not ctrl:
+            return "INCOMPLETE"
+
+        if not ctrl.test_procedure:
+            return "INCOMPLETE"
+
+        checklist = ControlChecklist.query.filter_by(
+            control_activity_id=ctrl.id
+        ).first()
+        if not checklist:
+            return "INCOMPLETE"
+
+    return "COMPLETE"
+
+
+def _delete_clause_data(clause_id: int):
+    """
+    Delete ALL data for a clause in correct cascade order.
+    Called when clause is INCOMPLETE — clean slate before regeneration.
+    """
+    from app.models.ai import ControlActivity
+    from sqlalchemy import text as sql_text
+
+    try:
+        # Get all control_activity ids for this clause
+        ctrl_ids = [
+            row[0] for row in db.session.execute(sql_text("""
+                SELECT cta.id FROM control_activities cta
+                JOIN compliance_activities ca ON ca.id = cta.compliance_activity_id
+                WHERE ca.clause_id = :cid
+            """), {"cid": clause_id}).fetchall()
+        ]
+
+        # Get test_step ids
+        ts_ids = [
+            row[0] for row in db.session.execute(sql_text("""
+                SELECT ts.id FROM test_steps ts
+                WHERE ts.control_id = ANY(:ctrl_ids)
+            """), {"ctrl_ids": ctrl_ids}).fetchall()
+        ] if ctrl_ids else []
+
+        if ts_ids:
+            db.session.execute(sql_text(
+                "DELETE FROM interview_questions WHERE interview_id IN "
+                "(SELECT id FROM interviews WHERE test_procedure_id = ANY(:ts_ids))"
+            ), {"ts_ids": ts_ids})
+            db.session.execute(sql_text(
+                "DELETE FROM interview_roles WHERE interview_id IN "
+                "(SELECT id FROM interviews WHERE test_procedure_id = ANY(:ts_ids))"
+            ), {"ts_ids": ts_ids})
+            db.session.execute(sql_text(
+                "DELETE FROM interviews WHERE test_procedure_id = ANY(:ts_ids)"
+            ), {"ts_ids": ts_ids})
+            db.session.execute(sql_text(
+                "DELETE FROM document_reviews WHERE test_procedure_id = ANY(:ts_ids)"
+            ), {"ts_ids": ts_ids})
+
+        if ctrl_ids:
+            db.session.execute(sql_text(
+                "DELETE FROM control_evidences WHERE control_id = ANY(:ctrl_ids)"
+            ), {"ctrl_ids": ctrl_ids})
+            db.session.execute(sql_text(
+                "DELETE FROM test_steps WHERE control_id = ANY(:ctrl_ids)"
+            ), {"ctrl_ids": ctrl_ids})
+            # Delete EVE checklists + project checklists
+            db.session.execute(sql_text(
+                "DELETE FROM control_checklist WHERE control_activity_id = ANY(:ctrl_ids)"
+            ), {"ctrl_ids": ctrl_ids})
+            db.session.execute(sql_text(
+                "DELETE FROM control_activities WHERE id = ANY(:ctrl_ids)"
+            ), {"ctrl_ids": ctrl_ids})
+
+        # Delete test procedures
+        act_ids = [
+            row[0] for row in db.session.execute(sql_text(
+                "SELECT id FROM compliance_activities WHERE clause_id = :cid"
+            ), {"cid": clause_id}).fetchall()
+        ]
+        if act_ids:
+            db.session.execute(sql_text(
+                "DELETE FROM test_procedures WHERE activity_id = ANY(:act_ids)"
+            ), {"act_ids": act_ids})
+
+        # Finally delete compliance activities
+        db.session.execute(sql_text(
+            "DELETE FROM compliance_activities WHERE clause_id = :cid"
+        ), {"cid": clause_id})
+
+        db.session.commit()
+        logger.info(f"Deleted all data for clause_id={clause_id}")
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to delete clause data for clause_id={clause_id}: {e}")
+        raise
+
+
+@shared_task(bind=True, max_retries=0, time_limit=7200, soft_time_limit=6900)
 def extract_all_activities_and_tests(self, guideline_id: int):
     """
     Batch extraction of clauses, compliance activities, and test procedures
@@ -2265,50 +2381,40 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                 processed_clauses += 1  # Increment processed count even for skipped
                 continue
 
-            # Check if clause already has compliance activities AND test procedures
-            # FIX: Use TestProcedures model (not ControlActivity) to check test existence
-            existing_activities = ComplianceActivities.query.filter_by(
-                clause_id=clause_id_val
-            ).all()
-            if existing_activities:
-                from app.models.ai import TestProcedures
-                all_have_tests = all(
-                    TestProcedures.query.filter_by(
-                        activity_id=act.id
-                    ).first() is not None
-                    for act in existing_activities
+            # Completeness check — COMPLETE=skip, INCOMPLETE=delete+regen, EMPTY=generate
+            completion = get_clause_completion_status(clause_id_val)
+            if completion == "COMPLETE":
+                logger.info(
+                    "Skipping clause %s (id=%s) — fully complete",
+                    clause_number, clause_id_val,
                 )
-                if all_have_tests:
-                    logger.info(
-                        "Skipping clause %s (id=%s) - already has compliance activities and test procedures",
-                        clause_number,
-                        clause_id_val,
+                results["skipped"].append(clause_id_val)
+                skipped_clauses += 1
+                processed_clauses += 1
+                continue
+            elif completion == "INCOMPLETE":
+                logger.warning(
+                    "Clause %s (id=%s) is INCOMPLETE — deleting partial data and regenerating",
+                    clause_number, clause_id_val,
+                )
+                _delete_clause_data(clause_id_val)
+                # Fall through to generate fresh
+
+            with session_scope() as session:
+                # Inside-session check as safety net
+                existing_count = session.query(ComplianceActivities).filter_by(
+                    clause_id=clause_id_val
+                ).count()
+                if existing_count > 0:
+                    logger.warning(
+                        "Clause %s (id=%s) still has %d activities after delete — skipping",
+                        clause_number, clause_id_val, existing_count,
                     )
-                    results["skipped"].append(clause_id_val)
-                    skipped_clauses += 1
-                    processed_clauses += 1
-                    continue
-                else:
-                    logger.info(
-                        "Clause %s (id=%s) has activities but missing test procedures - generating test procedures ONLY",
-                        clause_number,
-                        clause_id_val,
-                    )
-                    # Only generate missing test procedures - skip activity generation
-                    from app.services.manual_task import extract_test_procedures
-                    for act in existing_activities:
-                        has_test = TestProcedures.query.filter_by(
-                            activity_id=act.id
-                        ).first()
-                        if not has_test:
-                            extract_test_procedures.delay(act.id)
-                            logger.info("Queued test procedure for activity_id=%s", act.id)
                     results["skipped"].append(clause_id_val)
                     skipped_clauses += 1
                     processed_clauses += 1
                     continue
 
-            with session_scope() as session:
                 # Extract compliance activities
                 progress = 15 + (processed_clauses / total_clauses) * 60
                 update_compliance_progress(
@@ -2424,12 +2530,12 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                         existing_level = (existing.compliance_level or "").strip().lower()
                         # Check: same compliance level AND description similarity > 70%
                         if existing_level == new_level and existing_desc and new_desc:
-                            # Simple word overlap check
+                            # Simple word overlap check — 50% threshold (was 70%)
                             new_words = set(new_desc.split())
                             existing_words = set(existing_desc.split())
                             if len(new_words) > 0:
                                 overlap = len(new_words & existing_words) / len(new_words)
-                                if overlap > 0.7:
+                                if overlap > 0.5:
                                     logger.warning(
                                         "Skipping duplicate activity for clause %s (level=%s, overlap=%.0f%%): %s",
                                         clause_id_val, new_level, overlap*100, new_desc[:80]
@@ -2465,26 +2571,36 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                         _get(act, "compliance_level", "Design"),  # Log compliance level
                     )
 
-                    # Generate test procedure immediately after saving activity
+                    # Generate test procedure — synchronous
                     act_dict = _as_dict(act) if not isinstance(act, dict) else act
                     _generate_test_procedure_for_activity(comp_id_val, clause_text, act_dict)
 
-                    # Auto-trigger EVE checklist generation after test procedure
+                    # Generate EVE checklist — NOW SYNCHRONOUS (was async)
+                    # Must complete before clause is marked done
                     try:
                         from app.services.eve_tasks import generate_control_checklist
-                        from app.models.ai import ControlActivity
+                        from app.models.ai import ControlActivity as _CtrlAct
                         from app import db as _db
-                        ctrl = _db.session.query(ControlActivity).filter_by(
+                        ctrl = _db.session.query(_CtrlAct).filter_by(
                             compliance_activity_id=comp_id_val
                         ).first()
                         if ctrl:
-                            generate_control_checklist.apply_async(
-                                args=[ctrl.id],
-                                queue='eve_checklist'
+                            # Direct synchronous call — not apply_async
+                            generate_control_checklist(ctrl.id)
+                            logger.info(
+                                f"[EVE] Checklist generated synchronously for control_id={ctrl.id}"
                             )
-                            logger.info(f"[EVE] Auto-triggered checklist for control_id={ctrl.id}")
+                        else:
+                            logger.warning(
+                                f"[EVE] ControlActivity not found for comp_id={comp_id_val} "
+                                f"— checklist skipped"
+                            )
                     except Exception as eve_err:
-                        logger.warning(f"[EVE] Could not auto-trigger checklist: {eve_err}")
+                        logger.error(
+                            f"[EVE] Checklist generation failed for comp_id={comp_id_val}: {eve_err}"
+                        )
+                        # Re-raise — clause should be marked INCOMPLETE not silently skipped
+                        raise
 
                 results["activities"].append({clause_id_val: saved_activities})
                 processed_clauses += (
@@ -2595,7 +2711,7 @@ def extract_all_activities_and_tests(self, guideline_id: int):
         raise
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=0, time_limit=7200, soft_time_limit=6900)
 def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: list):
     """
     Batch extraction of compliance activities and test procedures for selected clauses only.
@@ -2660,47 +2776,23 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                 processed_clauses += 1
                 continue
 
-            # Check if clause already has compliance activities AND test procedures
-            # FIX: Use TestProcedures model (not ControlActivity) to check test existence
-            existing_activities = ComplianceActivities.query.filter_by(
-                clause_id=clause_id_val
-            ).all()
-            if existing_activities:
-                from app.models.ai import TestProcedures
-                all_have_tests = all(
-                    TestProcedures.query.filter_by(
-                        activity_id=act.id
-                    ).first() is not None
-                    for act in existing_activities
+            # Completeness check
+            completion = get_clause_completion_status(clause_id_val)
+            if completion == "COMPLETE":
+                logger.info(
+                    "Skipping clause %s (id=%s) — fully complete",
+                    clause_number, clause_id_val,
                 )
-                if all_have_tests:
-                    logger.info(
-                        "Skipping clause %s (id=%s) - already has compliance activities and test procedures",
-                        clause_number,
-                        clause_id_val,
-                    )
-                    results["skipped"].append(clause_id_val)
-                    skipped_clauses += 1
-                    processed_clauses += 1
-                    continue
-                else:
-                    logger.info(
-                        "Clause %s (id=%s) has activities but missing test procedures - generating test procedures ONLY",
-                        clause_number,
-                        clause_id_val,
-                    )
-                    # Only generate missing test procedures - skip activity generation
-                    for act in existing_activities:
-                        has_test = TestProcedures.query.filter_by(
-                            activity_id=act.id
-                        ).first()
-                        if not has_test:
-                            extract_test_procedures.delay(act.id)
-                            logger.info("Queued missing test procedure for activity_id=%s", act.id)
-                    results["skipped"].append(clause_id_val)
-                    skipped_clauses += 1
-                    processed_clauses += 1
-                    continue
+                results["skipped"].append(clause_id_val)
+                skipped_clauses += 1
+                processed_clauses += 1
+                continue
+            elif completion == "INCOMPLETE":
+                logger.warning(
+                    "Clause %s (id=%s) is INCOMPLETE — deleting and regenerating",
+                    clause_number, clause_id_val,
+                )
+                _delete_clause_data(clause_id_val)
 
             # Update progress with current clause info
             update_compliance_progress(
@@ -3106,7 +3198,9 @@ def _generate_test_procedure_for_activity(
         logger.error(
             "Test procedure generation failed for comp_id %s: %s", comp_id, str(e)
         )
-        # Don't re-raise to allow other activities to continue
+        # Re-raise so caller knows this activity is incomplete
+        # Clause will be marked INCOMPLETE on next run → delete + regenerate
+        raise
 
 
 def _extract_using_alternative_method(
