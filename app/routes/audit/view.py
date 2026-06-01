@@ -4700,11 +4700,17 @@ def reevaluate_activity():
             f"Results will appear in ~2 minutes.",
             "success"
         )
+        # Return JSON for AJAX calls, redirect for regular form POSTs
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+           'application/json' in request.headers.get('Accept', ''):
+            return jsonify({"success": True, "message": "Evaluation started", "evidence_count": step5_tasks})
         return redirect(request.referrer)
 
     except Exception as e:
         current_app.logger.exception(f"Error in EVE v3 reevaluate_activity: {str(e)}")
         flash(f"Error starting evaluation: {str(e)}", "error")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": str(e)}), 500
         return redirect(request.referrer)
 
 
