@@ -2035,10 +2035,9 @@
     </div>
   </div>
 
-  <form action="{{ url_for('audit.reevaluate_activity') }}" enctype="multipart/form-data" method="POST"
-    class="flex flex-col gap-4 w-full mx-auto bg-gray-50 border border-gray-200 rounded-lg shadow-sm"
-    id="evaluate_form_{{ item_loop_idx }}">
-    <input name="activity_code" value="{{ item.data.id }}" hidden />
+  <form id="evaluate_form_{{ item_loop_idx }}"
+    class="flex flex-col gap-4 w-full mx-auto bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+    <input type="hidden" id="activity_code_{{ item_loop_idx }}" value="{{ item.data.id }}" />
 
     <div class="space-y-1">
       <label for="user_input_{{ item_loop_idx }}" class="text-2xl text-sm font-medium text-gray-700">Additional Instructions:</label>
@@ -2067,17 +2066,16 @@
         Evaluate
       </button>
       {% elif all_findings_reviewed %}
-      <!-- All findings reviewed — Evaluate disabled -->
       <button type="button"
         class="px-5 py-2.5 bg-gray-300 text-gray-500 font-medium rounded-md cursor-not-allowed"
         disabled title="All findings reviewed. Use Re-evaluate to start fresh.">
         Evaluate
       </button>
       {% else %}
-      <!-- Active Evaluate button -->
-      <button type="submit"
+      <!-- Active Evaluate button — AJAX submit -->
+      <button type="button"
         id="evaluate_btn_{{ item_loop_idx }}"
-        onclick="startEveProgress({{ item_loop_idx }}, {{ item.data.id }})"
+        onclick="submitEvaluate({{ item_loop_idx }}, {{ item.data.id }})"
         class="px-5 py-2.5 bg-orange-600 text-white font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-150 ease-in-out">
         Evaluate
       </button>
@@ -2115,12 +2113,45 @@
   // ── EVE Progress Polling ──────────────────────────────────
   const evePollingIntervals = {};
 
-  function startEveProgress(idx, pcaId) {
-    // Show popup immediately
+  function submitEvaluate(idx, pcaId) {
+    // Get additional instructions
+    const userInput = document.getElementById('user_input_' + idx);
+    const instructions = userInput ? userInput.value : '';
+
+    // Show progress popup immediately
     const popup = document.getElementById('eve_progress_popup_' + idx);
     if (popup) popup.classList.remove('hidden');
 
-    // Start polling after 3 seconds (give celery time to start)
+    // Disable button to prevent double-click
+    const btn = document.getElementById('evaluate_btn_' + idx);
+    if (btn) { btn.disabled = true; btn.textContent = 'Evaluating...'; }
+
+    // AJAX POST to reevaluate_activity
+    const formData = new FormData();
+    formData.append('activity_code', pcaId);
+    formData.append('user_input', instructions);
+
+    fetch('/audit/reevaluate_activity', {
+      method: 'POST',
+      headers: {'Accept': 'application/json'},
+      body: formData,
+    })
+    .then(() => {
+      // Task dispatched — start polling
+      evePollingIntervals[idx] = setInterval(() => pollEveStatus(idx, pcaId), 3000);
+    })
+    .catch(err => {
+      console.error('Evaluate error:', err);
+      if (popup) popup.classList.add('hidden');
+      if (btn) { btn.disabled = false; btn.textContent = 'Evaluate'; }
+      alert('Error starting evaluation. Please try again.');
+    });
+  }
+
+  function startEveProgress(idx, pcaId) {
+    // Legacy — called from polling resume on page load
+    const popup = document.getElementById('eve_progress_popup_' + idx);
+    if (popup) popup.classList.remove('hidden');
     evePollingIntervals[idx] = setInterval(() => pollEveStatus(idx, pcaId), 3000);
   }
 
