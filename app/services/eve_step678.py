@@ -554,6 +554,7 @@ You must:
 * retain full traceability
 * consolidate recommendations aligned to merged findings
 * determine clause-level status and severity
+* use appropriate language based on finding_type
 
 Return ONLY valid JSON.
 
@@ -562,6 +563,7 @@ DO NOT:
 * generate new findings
 * generate new recommendations from scratch
 * assume missing information
+* include findings with auditor_status = "ACCEPTED" (already cleared)
 
 ---
 
@@ -588,68 +590,112 @@ SUB-STEP-1 — CONSOLIDATE OBSERVATIONS
   7. Evidence & Record Keeping
   8. Regulatory Compliance & Reporting
 
-SUB-STEP-2 — GROUP FINDINGS INTO CONTROLLED CATEGORIES
+SUB-STEP-2 — CLASSIFY EACH FINDING BY TYPE
+Before grouping, classify each incoming finding:
+* NORMAL — standard audit finding — factual gap or control failure
+* NEEDS_REVIEW — auditor raised as requiring review — evidence ambiguous or clarification needed
+* CONTRADICTION — internal document conflict or explicit exclusion detected
+
+Use the finding's existing type/auditor_status fields to determine classification.
+If finding has no type → treat as NORMAL.
+
+SUB-STEP-3 — GROUP FINDINGS INTO CONTROLLED CATEGORIES
 Assign each finding to EXACTLY ONE group from the 8 categories above.
 Group based on ROOT CAUSE (not symptom).
 Priority: Oversight > Governance > Risk > Roles > Implementation > Documentation > Evidence > Regulatory
 
-SUB-STEP-3 — MERGE FINDINGS
+SUB-STEP-4 — MERGE FINDINGS
 Within each group:
 * Merge findings that represent the SAME underlying issue
-* Do NOT merge unrelated issues
+* Do NOT merge findings of different types (NORMAL vs NEEDS_REVIEW vs CONTRADICTION)
 * Merged Severity = MAX(severity of grouped findings)
 * Each merged finding must include source_references with control_id, checklist_id, evidence_reference
 
-SUB-STEP-4 — CONSOLIDATE RECOMMENDATIONS
+SUB-STEP-5 — APPLY FINDING LANGUAGE BY TYPE
+
+For NORMAL findings — use factual, direct language:
+"The credit policy does not include a roles and responsibilities framework."
+"Board approval for the credit policy is not documented."
+
+For NEEDS_REVIEW findings — use clarification-pending language:
+"Board approval date requires clarification — two conflicting approval dates found in document. [Pending auditor review]"
+"Scope of the credit policy requires verification — document language is ambiguous regarding applicable products. [Pending auditor review]"
+"Policy version in document body does not match filename version — document integrity requires confirmation. [Pending auditor review]"
+
+For CONTRADICTION findings — use type-specific language:
+
+  EXPLICIT_EXCLUSION type:
+  "The credit policy explicitly excludes [topic] from its scope. Coverage gap identified."
+  "Document scope section explicitly states [requirement] is not applicable to this institution."
+
+  INTERNAL type:
+  "The credit policy contains contradictory statements regarding [topic] — [Section X] states [A] while [Section Y] states [B]. Control gap not resolved."
+  "Conflicting approval authorities identified — [Section X] assigns authority to [Body A] while [Section Y] assigns to [Body B]."
+
+  DATE_INCONSISTENCY type:
+  "Document date inconsistency detected — effective date [date] precedes approval date [date]. Document integrity requires verification."
+
+SUB-STEP-6 — CONSOLIDATE RECOMMENDATIONS
 * Map recommendations to merged findings using finding_id linkage
 * Combine recommendations addressing same issue
 * Do NOT generate new recommendations
 * Merged timeline = MOST URGENT: IMMEDIATE > SHORT_TERM > MEDIUM_TERM > LONG_TERM
+* For NEEDS_REVIEW findings → recommendation should be: "Obtain auditor clarification before escalating as finding."
+* For CONTRADICTION findings → recommendation should address root cause resolution
 
-SUB-STEP-5 — DETERMINE CLAUSE SEVERITY
-Clause Severity = MAX(severity across all merged findings)
+SUB-STEP-7 — DETERMINE CLAUSE SEVERITY
+Clause Severity = MAX(severity across all NORMAL + unresolved NEEDS_REVIEW + CONTRADICTION findings)
 
-SUB-STEP-6 — DETERMINE CLAUSE STATUS
+SUB-STEP-8 — DETERMINE CLAUSE STATUS
 IF any finding severity = CRITICAL → clause_status = NON_COMPLIANT
 ELSE IF any finding severity = HIGH → clause_status = PARTIALLY_COMPLIANT
 ELSE → clause_status = COMPLIANT
 
-SUB-STEP-7 — GENERATE CLAUSE SUMMARY
+SUB-STEP-9 — GENERATE CLAUSE SUMMARY
 Write a concise paragraph: what was assessed, key strengths (if any), key issues, overall conclusion.
 Tone: formal, auditor-style, evidence-based, no vague language.
+If NEEDS_REVIEW findings present — note: "X items require auditor clarification before final assessment."
+If CONTRADICTION findings present — note: "X document contradictions identified requiring resolution."
 
 OUTPUT FORMAT:
-{{
+{{{{
   "clause_id": "{clause_id}",
   "clause_text": "",
   "clause_status": "",
   "clause_severity": "",
   "summary": "",
+  "needs_review_count": 0,
+  "contradiction_count": 0,
   "observations": [],
   "findings": [
-    {{
+    {{{{
       "finding_id": "",
       "group": "",
+      "finding_type": "NORMAL | NEEDS_REVIEW | CONTRADICTION",
+      "contradiction_type": "EXPLICIT_EXCLUSION | INTERNAL | DATE_INCONSISTENCY | null",
       "issue": "",
       "impact": "",
       "severity": "",
       "source_references": [
-        {{"control_id": "", "checklist_id": "", "evidence_reference": ""}}
+        {{{{"control_id": "", "checklist_id": "", "evidence_reference": ""}}}}
       ]
-    }}
+    }}}}
   ],
   "recommendations": [
-    {{"finding_id": "", "recommendation": "", "implementation_steps": [], "timeline": ""}}
+    {{{{"finding_id": "", "recommendation": "", "implementation_steps": [], "timeline": ""}}}}
   ]
-}}
+}}}}
 
 STRICT CONSTRAINTS:
 * Do NOT duplicate findings
 * Do NOT lose traceability
 * Do NOT weaken severity
 * Do NOT introduce new issues
+* Do NOT include findings with auditor_status = ACCEPTED
 * Observations must remain evidence-linked
-* Recommendations must map 1:1 to merged findings"""
+* Recommendations must map 1:1 to merged findings
+* NEEDS_REVIEW findings must use clarification-pending language
+* CONTRADICTION findings must use type-specific language"""
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1164,11 +1210,61 @@ def run_eve_step8_clause_rollup(self, project_clause_id: int, generated_by: int 
         # ── 5. Build control_outputs for Step 8 ───────────────────────
         control_outputs = []
         for cr in control_results:
+            # Filter findings — exclude ACCEPTED findings (auditor cleared them)
+            raw_findings = cr.findings_json or []
+            filtered_findings = []
+            closed_finding_ids = set()
+            accepted_count = 0
+
+            for f in raw_findings:
+                auditor_status = f.get("auditor_status") if isinstance(f, dict) else None
+                if auditor_status == "ACCEPTED":
+                    accepted_count += 1
+                    logger.info(
+                        f"[Module G] Excluding ACCEPTED finding {f.get('finding_id', '?')} "
+                        f"from control_id={cr.project_control_activity_id}"
+                    )
+                elif auditor_status == "CLOSED":
+                    closed_finding_ids.add(f.get("finding_id"))
+                    logger.info(
+                        f"[Module G] Excluding CLOSED finding {f.get('finding_id', '?')} "
+                        f"from control_id={cr.project_control_activity_id}"
+                    )
+                else:
+                    filtered_findings.append(f)
+
+            if accepted_count or closed_finding_ids:
+                logger.info(
+                    f"[Module G] control_id={cr.project_control_activity_id}: "
+                    f"excluded {accepted_count} ACCEPTED + {len(closed_finding_ids)} CLOSED findings, "
+                    f"{len(filtered_findings)} remaining"
+                )
+
+            # Filter recommendations — exclude those linked to CLOSED/ACCEPTED findings
+            raw_recs = cr.recommendations_json or []
+            filtered_recs = []
+            excluded_finding_ids = closed_finding_ids  # ACCEPTED findings also excluded above
+            for f in raw_findings:
+                if isinstance(f, dict) and f.get("auditor_status") == "ACCEPTED":
+                    excluded_finding_ids.add(f.get("finding_id"))
+
+            for rec in raw_recs:
+                if isinstance(rec, dict):
+                    rec_finding_id = rec.get("finding_id") or rec.get("related_finding_id")
+                    if rec_finding_id and rec_finding_id in excluded_finding_ids:
+                        logger.info(
+                            f"[Module G] Excluding recommendation linked to "
+                            f"{'CLOSED' if rec_finding_id in closed_finding_ids else 'ACCEPTED'} "
+                            f"finding {rec_finding_id}"
+                        )
+                        continue
+                filtered_recs.append(rec)
+
             control_outputs.append({
                 "control_id": cr.project_control_activity_id,
                 "observations": cr.observations_json or [],
-                "findings": cr.findings_json or [],
-                "recommendations": cr.recommendations_json or [],
+                "findings": filtered_findings,
+                "recommendations": filtered_recs,
             })
 
         if not control_outputs:
