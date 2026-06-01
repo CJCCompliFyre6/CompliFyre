@@ -4708,6 +4708,229 @@ def reevaluate_activity():
         return redirect(request.referrer)
 
 
+# ─────────────────────────────────────────────────────────────
+# EVE Status — DB polling endpoint for progress popup
+# ─────────────────────────────────────────────────────────────
+@audit_bp.route("/eve_status/<int:pca_id>", methods=["GET"])
+@login_required
+def eve_status(pca_id):
+    """
+    Returns EVE evaluation progress for a project_control_activity.
+    Used by JS polling every 3 seconds to update progress popup.
+    """
+    try:
+        from app.models.eve_models import (
+            EveControlResult, EveEvidenceResult, ProjectChecklist
+        )
+
+        checklist = ProjectChecklist.query.filter_by(
+            project_control_activity_id=pca_id
+        ).first()
+
+        if not checklist:
+            return jsonify({
+                "stage": "NOT_STARTED",
+                "pct": 0,
+                "message": "Checklist not found — ensure EVE setup is complete"
+            })
+
+        # Total evidences
+        pca = ProjectControlActivity.query.get(pca_id)
+        total_evidence = len(pca.submitted_evidences or []) if pca else 0
+
+        if total_evidence == 0:
+            # No evidence — check step7 directly
+            ctrl_result = EveControlResult.query.filter_by(
+                project_control_activity_id=pca_id
+            ).first()
+            if ctrl_result and ctrl_result.step7_completed:
+                return jsonify({
+                    "stage": "COMPLETE",
+                    "pct": 100,
+                    "message": "Evaluation complete — results ready"
+                })
+            return jsonify({
+                "stage": "EVALUATING",
+                "pct": 40,
+                "message": "Evaluating checklist items..."
+            })
+
+        # Count Step 5 completed evidences
+        step5_done = EveEvidenceResult.query.filter_by(
+            project_checklist_id=checklist.id
+        ).count()
+
+        # Check Step 6+7
+        ctrl_result = EveControlResult.query.filter_by(
+            project_control_activity_id=pca_id
+        ).first()
+        step6_done = ctrl_result and ctrl_result.step6_completed
+        step7_done = ctrl_result and ctrl_result.step7_completed
+
+        # Calculate stage + progress
+        if step7_done:
+            stage = "COMPLETE"
+            pct = 100
+            message = "Evaluation complete — results ready"
+        elif step6_done:
+            stage = "FINDINGS"
+            pct = 85
+            message = "Generating findings and recommendations..."
+        elif step5_done >= total_evidence:
+            stage = "EVALUATING"
+            pct = 70
+            message = "Analysing control gaps..."
+        elif step5_done > 0:
+            stage = "EVALUATING"
+            pct = int(20 + (step5_done / total_evidence) * 50)
+            message = f"Evaluating evidence {step5_done} of {total_evidence}..."
+        else:
+            stage = "READING"
+            pct = 10
+            message = f"Reading evidence files..."
+
+        return jsonify({
+            "stage": stage,
+            "pct": pct,
+            "message": message,
+            "step5_done": step5_done,
+            "total_evidence": total_evidence,
+            "step6_done": bool(step6_done),
+            "step7_done": bool(step7_done),
+        })
+
+    except Exception as e:
+        current_app.logger.exception(f"Error in eve_status: {e}")
+        return jsonify({"stage": "ERROR", "pct": 0, "message": "Status check failed"}), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# Finding Review — Accept / Close a finding
+# ─────────────────────────────────────────────────────────────
+@audit_bp.route("/finding/review", methods=["POST"])
+@login_required
+def finding_review():
+    """
+    Accept or Close a finding from EVE evaluation.
+    Stores auditor decision in findings_json (no DB schema change).
+
+    Accept Finding  → auditor_status = "CONFIRMED" → flows to Step 8
+    Close (Not a Finding) → auditor_status = "CLOSED" → excluded from Step 8
+    """
+    try:
+        from app.models.eve_models import EveControlResult
+
+        data = request.get_json(silent=True) or {}
+        pca_id     = data.get("pca_id")
+        finding_id = data.get("finding_id")
+        action     = data.get("action")       # "CONFIRMED" or "CLOSED"
+        rationale  = data.get("rationale", "").strip()
+
+        if not all([pca_id, finding_id, action]):
+            return jsonify({"success": False, "error": "pca_id, finding_id, action required"}), 400
+
+        if action not in ("CONFIRMED", "CLOSED"):
+            return jsonify({"success": False, "error": "action must be CONFIRMED or CLOSED"}), 400
+
+        if action == "CLOSED" and not rationale:
+            return jsonify({"success": False, "error": "Rationale is mandatory when closing a finding"}), 400
+
+        ctrl_result = EveControlResult.query.filter_by(
+            project_control_activity_id=pca_id
+        ).first()
+
+        if not ctrl_result:
+            return jsonify({"success": False, "error": "No evaluation result found"}), 404
+
+        findings = ctrl_result.findings_json or []
+        updated = False
+
+        for finding in findings:
+            if isinstance(finding, dict) and finding.get("finding_id") == finding_id:
+                finding["auditor_status"]    = action
+                finding["auditor_rationale"] = rationale if rationale else None
+                finding["auditor_name"]      = current_user.name if hasattr(current_user, 'name') else str(current_user.id)
+                finding["auditor_timestamp"] = datetime.utcnow().isoformat()
+                updated = True
+                break
+
+        if not updated:
+            return jsonify({"success": False, "error": f"Finding {finding_id} not found"}), 404
+
+        # Check if ALL findings now have a decision
+        all_reviewed = all(
+            f.get("auditor_status") in ("CONFIRMED", "CLOSED")
+            for f in findings
+            if isinstance(f, dict)
+        )
+
+        from sqlalchemy.orm.attributes import flag_modified
+        ctrl_result.findings_json = findings
+        flag_modified(ctrl_result, "findings_json")
+        db.session.commit()
+
+        current_app.logger.info(
+            f"[Finding Review] pca_id={pca_id} finding={finding_id} "
+            f"action={action} by={current_user.id}"
+        )
+
+        return jsonify({
+            "success": True,
+            "finding_id": finding_id,
+            "action": action,
+            "all_reviewed": all_reviewed,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(f"Error in finding_review: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# Activity Reset — Delete EVE results for Re-evaluate
+# ─────────────────────────────────────────────────────────────
+@audit_bp.route("/activity/reset/<int:pca_id>", methods=["POST"])
+@login_required
+def activity_reset(pca_id):
+    """
+    Delete all EVE results for a project_control_activity.
+    Called when auditor clicks Re-evaluate after confirming warning.
+    Returns to State 1 (NOT_EVALUATED).
+    """
+    try:
+        from app.models.eve_models import (
+            EveControlResult, EveEvidenceResult, ProjectChecklist
+        )
+
+        # Delete EveEvidenceResult rows
+        checklist = ProjectChecklist.query.filter_by(
+            project_control_activity_id=pca_id
+        ).first()
+        if checklist:
+            EveEvidenceResult.query.filter_by(
+                project_checklist_id=checklist.id
+            ).delete()
+
+        # Delete EveControlResult
+        EveControlResult.query.filter_by(
+            project_control_activity_id=pca_id
+        ).delete()
+
+        db.session.commit()
+
+        current_app.logger.info(
+            f"[Activity Reset] pca_id={pca_id} EVE results deleted by user={current_user.id}"
+        )
+
+        return jsonify({"success": True, "message": "Evaluation reset — ready to re-evaluate"})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(f"Error in activity_reset: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @audit_bp.route("/delete-evidence", methods=["POST"])
 def delete_evidence():
     """

@@ -1924,9 +1924,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
             {% if consolidated_test_summary or consolidated_observation_summary or consolidated_findings_summary or consolidated_recommendations_summary %}
-            ⟳ Regenerate All AI Summaries
+            ⟳ Regenerate Summary
             {% else %}
-            ✨ Generate All AI Summaries
+            ✨ Generate Summary
             {% endif %}
         </button>
         
@@ -1935,19 +1935,19 @@ document.addEventListener('DOMContentLoaded', function() {
         <button
             class="px-4 py-2 bg-gray-400 text-white rounded-lg opacity-60 cursor-not-allowed text-sm font-medium flex items-center"
             disabled
-            title="⚠️ Cannot generate summaries until all applicable activities are evaluated. Progress: {{ evaluated_activities_count }}/{{ total_applicable_activities }} activities evaluated">
+            title="⚠️ Cannot generate summary until all applicable activities are evaluated and all findings reviewed. Progress: {{ evaluated_activities_count }}/{{ total_applicable_activities }} activities evaluated">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             {% if consolidated_test_summary or consolidated_observation_summary or consolidated_findings_summary or consolidated_recommendations_summary %}
-            ⟳ Regenerate All AI Summaries
+            ⟳ Regenerate Summary
             {% else %}
-            ✨ Generate All AI Summaries
+            ✨ Generate Summary
             {% endif %}
         </button>
         <span class="text-xs text-gray-500 ml-2">
-            ⏳ Waiting for {{ total_applicable_activities - evaluated_activities_count }} more {{ 'activity' if (total_applicable_activities - evaluated_activities_count) == 1 else 'activities' }} to be evaluated
+            ⏳ {{ total_applicable_activities - evaluated_activities_count }} applicable {{ 'activity' if (total_applicable_activities - evaluated_activities_count) == 1 else 'activities' }} pending evaluation and findings review
         </span>
         
         {% else %}
@@ -1961,9 +1961,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
                 {% if consolidated_test_summary or consolidated_observation_summary or consolidated_findings_summary or consolidated_recommendations_summary %}
-                ⟳ Regenerate All AI Summaries
+                ⟳ Regenerate Summary
                 {% else %}
-                ✨ Generate All AI Summaries
+                ✨ Generate Summary
                 {% endif %}
             </button>
         </form>
@@ -2098,7 +2098,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </svg>
                                 <p class="text-gray-500 text-sm mt-2">No consolidated test procedure summary
                                     generated yet.</p>
-                                <p class="text-gray-400 text-xs mt-1">Click "Generate AI Summary" to create a
+                                <p class="text-gray-400 text-xs mt-1">Click "Generate Summary" to create a
                                     consolidated view of all test procedures.</p>
                             </div>
                             {% endif %}
@@ -2189,7 +2189,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </svg>
                                 <p class="text-gray-500 text-sm mt-2">No consolidated observation summary generated
                                     yet.</p>
-                                <p class="text-gray-400 text-xs mt-1">Click "Generate AI Summary" to create a
+                                <p class="text-gray-400 text-xs mt-1">Click "Generate Summary" to create a
                                     consolidated view of all observations.</p>
                             </div>
                             {% endif %}
@@ -2256,7 +2256,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </svg>
                                 <p class="text-gray-500 text-sm mt-2">No consolidated findings summary generated
                                     yet.</p>
-                                <p class="text-gray-400 text-xs mt-1">Click "Generate AI Summary" to create a
+                                <p class="text-gray-400 text-xs mt-1">Click "Generate Summary" to create a
                                     consolidated view of all findings.</p>
                             </div>
                             {% endif %}
@@ -2333,7 +2333,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </svg>
                                 <p class="text-gray-500 text-sm mt-2">No consolidated recommendations summary
                                     generated yet.</p>
-                                <p class="text-gray-400 text-xs mt-1">Click "Generate AI Summary" to create a
+                                <p class="text-gray-400 text-xs mt-1">Click "Generate Summary" to create a
                                     consolidated view of all recommendations.</p>
                             </div>
                             {% endif %}
