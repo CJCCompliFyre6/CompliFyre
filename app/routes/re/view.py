@@ -160,10 +160,61 @@ def guidelines():
         # Log guideline count
         current_app.logger.info(f"Retrieved {len(guidelines)} guidelines")
 
+        # Calculate extraction progress per guideline
+        from sqlalchemy import text as sql_text
+        guideline_progress = {}
+        for g in guidelines:
+            try:
+                # Total clauses
+                total = db.session.execute(sql_text(
+                    "SELECT COUNT(*) FROM clauses WHERE guideline_id = :gid"
+                ), {"gid": g.id}).scalar() or 0
+
+                if total == 0:
+                    guideline_progress[g.id] = {"status": "no_clauses", "pct": 0, "complete": 0, "total": 0}
+                    continue
+
+                # Complete clauses = activities + control_activity + test_steps + checklist all exist
+                complete = db.session.execute(sql_text("""
+                    SELECT COUNT(DISTINCT c.id)
+                    FROM clauses c
+                    WHERE c.guideline_id = :gid
+                    AND EXISTS (
+                        SELECT 1 FROM compliance_activities ca
+                        WHERE ca.clause_id = c.id
+                        AND NOT EXISTS (
+                            SELECT 1 FROM compliance_activities ca2
+                            LEFT JOIN control_activities cta ON cta.compliance_activity_id = ca2.id
+                            LEFT JOIN test_steps ts ON ts.control_id = cta.id
+                            LEFT JOIN control_checklist cc ON cc.control_activity_id = cta.id
+                            WHERE ca2.clause_id = c.id
+                            AND (cta.id IS NULL OR ts.id IS NULL OR cc.id IS NULL)
+                        )
+                    )
+                """), {"gid": g.id}).scalar() or 0
+
+                pct = int((complete / total) * 100) if total > 0 else 0
+
+                if complete == 0:
+                    status = "not_started"
+                elif complete == total:
+                    status = "complete"
+                else:
+                    status = "in_progress"
+
+                guideline_progress[g.id] = {
+                    "status": status,
+                    "pct": pct,
+                    "complete": complete,
+                    "total": total,
+                }
+            except Exception as pe:
+                guideline_progress[g.id] = {"status": "unknown", "pct": 0, "complete": 0, "total": 0}
+
         # Convert guidelines to list of dictionaries for detailed logging
         for i, guideline in enumerate(guidelines):
             current_app.logger.info(f"Guideline {i+1}: {guideline.__dict__}")
-        return render_template("view.html", guidelines=guidelines)
+        return render_template("view.html", guidelines=guidelines, guideline_progress=guideline_progress)
     except PDFServiceError as pdf_err:
         current_app.logger.error(f"PDF Service Error: {str(pdf_err)}")
         return jsonify({"error": "Error with PDF service"}), 500
@@ -4122,13 +4173,47 @@ def test_evidence_artifacts(activity_id):
             ).order_by(EER2.id.desc()).first()
             step5_display = None
             if step5_result and step5_result.raw_output_json:
-                raw = step5_result.raw_output_json
-                step5_display = {
-                    "admissibility": step5_result.admissibility,
-                    "admissibility_reason": raw.get("admissibility_reason", ""),
-                    "admissibility_tests": raw.get("admissibility_tests", []),
-                    "checklist_evaluation": raw.get("checklist_evaluation", []),
-                }
+                try:
+                    raw = step5_result.raw_output_json
+                    # Ensure raw is a dict (safety for old records)
+                    if not isinstance(raw, dict):
+                        raw = {}
+                    # Ensure evidence_meta is always a dict (never None)
+                    evidence_meta = raw.get("evidence_meta") or {}
+                    if not isinstance(evidence_meta, dict):
+                        evidence_meta = {}
+                    step5_display = {
+                        "admissibility": step5_result.admissibility,
+                        "admissibility_reason": raw.get("admissibility_reason", ""),
+                        "admissibility_tests": raw.get("admissibility_tests") or [],
+                        "checklist_evaluation": raw.get("checklist_evaluation") or [],
+                        # V3 new fields
+                        "evidence_type": raw.get("evidence_type", ""),
+                        "evidence_meta": {
+                            "strength":           evidence_meta.get("evidence_strength") or evidence_meta.get("strength", ""),
+                            "role":               evidence_meta.get("evidence_role") or evidence_meta.get("role", ""),
+                            "entity_name":        evidence_meta.get("entity_name", ""),
+                            "document_title":     evidence_meta.get("document_title", ""),
+                            "document_version":   evidence_meta.get("document_version", ""),
+                            "approval_date":      evidence_meta.get("approval_date", ""),
+                            "effective_date":     evidence_meta.get("effective_date", ""),
+                            "review_frequency":   evidence_meta.get("review_frequency", ""),
+                            "version_alignment":  evidence_meta.get("version_alignment") or {},
+                            "date_contradictions": evidence_meta.get("date_contradictions") or [],
+                        },
+                        "oe_testing_results": raw.get("oe_testing_results") or {},
+                        # Org match UNKNOWN → needs auditor confirmation
+                        "org_confirmation_needed": any(
+                            t.get("test") == "ORGANIZATION_MATCH" and t.get("result") == "UNKNOWN"
+                            for t in (raw.get("admissibility_tests") or [])
+                        ),
+                    }
+                except Exception as step5_err:
+                    current_app.logger.warning(
+                        f"[EVE v3] Could not build step5_display for "
+                        f"artifact_id={p_evidence.id}: {step5_err}"
+                    )
+                    step5_display = None
             evidence_entry = {
                 "id": p_evidence.id,
                 "item": p_evidence.item,
@@ -4536,13 +4621,13 @@ def eve_evaluate_clause():
                 for evidence in evidence_artifacts:
                     run_eve_step5_for_all_evidence.apply_async(
                         args=[checklist.id, upload_base_path],
-                        queue='eve_evaluate'
+                        queue='eve_evaluate_staging'
                     )
 
             # Step 6 + 7 — Run after Step 5
             run_eve_step6_and_7.apply_async(
                 args=[control.id, current_user.id],
-                queue='eve_evaluate',
+                queue='eve_evaluate_staging',
                 countdown=30  # 30 second delay to allow Step 5 to complete
             )
 
