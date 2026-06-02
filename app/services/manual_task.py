@@ -2311,7 +2311,7 @@ def _delete_clause_data(clause_id: int):
         raise
 
 
-@shared_task(bind=True, max_retries=0, time_limit=7200, soft_time_limit=6900)
+@shared_task(bind=True, max_retries=0)
 def extract_all_activities_and_tests(self, guideline_id: int):
     """
     Batch extraction of clauses, compliance activities, and test procedures
@@ -2711,7 +2711,7 @@ def extract_all_activities_and_tests(self, guideline_id: int):
         raise
 
 
-@shared_task(bind=True, max_retries=0, time_limit=7200, soft_time_limit=6900)
+@shared_task(bind=True, max_retries=0)
 def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: list):
     """
     Batch extraction of compliance activities and test procedures for selected clauses only.
