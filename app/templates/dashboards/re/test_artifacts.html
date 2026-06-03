@@ -1849,10 +1849,19 @@
     {% if eve_recommendations and eve_recommendations|length > 0 %}
     <div class="space-y-3">
       {% for rec in eve_recommendations %}
-      <div class="border border-green-200 rounded-lg p-3 bg-green-50">
+      {% set rec_finding_closed = false %}
+      {% if rec.finding_id and eve_findings %}
+        {% for f in eve_findings %}
+          {% if f.finding_id == rec.finding_id and f.auditor_status == 'CLOSED' %}
+            {% set rec_finding_closed = true %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+      <div class="rec-card border border-green-200 rounded-lg p-3 bg-green-50 {% if rec_finding_closed %}opacity-50{% endif %}"
+           data-related-finding="{{ rec.finding_id or '' }}">
         <div class="flex items-center space-x-2 mb-1">
           <span class="text-xs font-mono font-bold text-gray-500">{{ rec.recommendation_id or loop.index }}</span>
-          <span class="text-sm font-bold text-gray-800">{{ rec.recommendation_summary or rec.recommendation or "" }}</span>
+          <span class="text-sm font-bold text-gray-800 {% if rec_finding_closed %}line-through{% endif %}">{{ rec.recommendation_summary or rec.recommendation or "" }}</span>
         </div>
         {% if rec.implementation_steps %}
         <div class="mt-1">
@@ -2366,6 +2375,32 @@
         }
       }
     });
+
+    // Cross out / restore matching recommendation
+    toggleRecommendation(idx, findingId, status === 'CLOSED');
+  }
+
+  function toggleRecommendation(idx, findingId, crossOut) {
+    // Find rec-cards anywhere in the same activity section
+    const findingsList = document.getElementById('findings_list_' + idx);
+    if (!findingsList) return;
+    // Walk up to the activity container to find recommendations section
+    const activityContainer = findingsList.closest('[id^="eve_results_"]') || findingsList.parentElement;
+    if (!activityContainer) return;
+    const recCards = activityContainer.querySelectorAll('.rec-card');
+    recCards.forEach(rec => {
+      if (rec.dataset.relatedFinding === findingId) {
+        if (crossOut) {
+          rec.classList.add('opacity-50');
+          const title = rec.querySelector('.text-sm.font-bold');
+          if (title) title.classList.add('line-through');
+        } else {
+          rec.classList.remove('opacity-50');
+          const title = rec.querySelector('.text-sm.font-bold');
+          if (title) title.classList.remove('line-through');
+        }
+      }
+    });
   }
 
   function editFinding(pcaId, findingId, idx) {
@@ -2398,6 +2433,9 @@
         }
       }
     });
+
+    // Restore recommendation when finding is re-opened
+    toggleRecommendation(idx, findingId, false);
   }
 
   // ── Re-evaluate ──────────────────────────────────────────────
@@ -2422,15 +2460,6 @@
     });
   }
 
-    setTimeout(() => {
-      notification.classList.add('opacity-0', 'transition-opacity', 'duration-300');
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 300);
-    }, 4000);
-  }
 </script>
 
 
