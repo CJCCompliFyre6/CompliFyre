@@ -5648,8 +5648,25 @@ def clause_test_steps(clause_id):
                 if ctrl_result and ctrl_result.findings_json:
                     for f in ctrl_result.findings_json:
                         if isinstance(f, dict) and f.get("auditor_status") not in ("CONFIRMED", "CLOSED"):
+                            logger.warning(
+                                f"[Generate Summary BLOCKED] activity_id={activity['id']} "
+                                f"finding={f.get('finding_id')} auditor_status={f.get('auditor_status')} "
+                                f"— not reviewed"
+                            )
                             all_findings_reviewed = False
                             break
+                    else:
+                        logger.info(
+                            f"[Generate Summary] activity_id={activity['id']} — all {len(ctrl_result.findings_json)} findings reviewed ✅"
+                        )
+                elif ctrl_result:
+                    logger.info(
+                        f"[Generate Summary] activity_id={activity['id']} — no findings (empty/null) ✅"
+                    )
+                else:
+                    logger.info(
+                        f"[Generate Summary] activity_id={activity['id']} — no EveControlResult found ✅"
+                    )
                 if not all_findings_reviewed:
                     break
         except Exception as fr_err:
@@ -5657,6 +5674,11 @@ def clause_test_steps(clause_id):
             all_findings_reviewed = False
     else:
         all_findings_reviewed = False
+
+    logger.info(
+        f"📊 Generate Summary check: all_evaluated={all_activities_evaluated and all_findings_reviewed}, "
+        f"eval_only={all_activities_evaluated}, findings_reviewed={all_findings_reviewed}"
+    )
 
     # Combined condition: both evaluated AND findings reviewed
     all_activities_evaluated = all_activities_evaluated and all_findings_reviewed
