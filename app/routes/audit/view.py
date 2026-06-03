@@ -55,6 +55,7 @@ import string
 from app.services.evaluation_prompt import *
 from app.models.project_instance_models import *
 from app.utils.bread_crumb import add_to_breadcrumb
+from app.utils.input_security import validate_upload_file, sanitize_text_input
 from app.utils.permission_handler import role_required
 from app.services.model_response import *
 from app.utils.email_service import (
@@ -2659,6 +2660,8 @@ def submit_interview_answer():
                 400,
             )
 
+        answer = sanitize_text_input(answer, context="interview")["value"]
+
         project_question = ProjectInterviewQuestion.query.get(project_question_id)
         if not project_question:
             return (
@@ -2753,6 +2756,10 @@ def answer_question_from_mom():
         full_physical_file_path = None
         filename = ""
         if files and files.filename:
+            _sec = validate_upload_file(files.filename, context="document")
+            if not _sec["ok"]:
+                flash(_sec["error"], "danger")
+                return redirect(request.referrer)
             if files.filename:
                 filename = secure_filename(
                     f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{files.filename}"
@@ -2763,15 +2770,6 @@ def answer_question_from_mom():
                 except IOError as io_err:
                     flash(f"Error saving file: {io_err}", "danger")
                     return redirect(request.referrer)
-            # else:
-            #     flash("Invalid file type.", "warning")
-            #     return redirect(request.referrer)
-
-        # try:
-        #     files.save(full_physical_file_path)
-        # except IOError as io_err:
-        #     flash(f"Error saving file: {io_err}", "danger")
-        #     return redirect(request.referrer)
 
         content = ""
         try:
@@ -2909,6 +2907,8 @@ def add_interview_question():
         if not project_control_activity_id or not question_text:
             flash("Activity ID and question text are required.", "danger")
             return redirect(request.referrer)
+
+        question_text = sanitize_text_input(question_text, context="interview")["value"]
 
         project_control_activity = ProjectControlActivity.query.get(
             project_control_activity_id
@@ -4271,8 +4271,9 @@ def upload_to_multiple_evidences():
             if not input_file or not input_file.filename:
                 continue
 
-            if not allowed_file(input_file.filename):
-                flash(f"Invalid file type for {input_file.filename}.", "warning")
+            _sec = validate_upload_file(input_file.filename, context="evidence")
+            if not _sec["ok"]:
+                flash(f"{input_file.filename}: {_sec['error']}", "warning")
                 continue
 
             timestamped = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
@@ -4608,6 +4609,7 @@ def reevaluate_activity():
     try:
         project_control_activity_id = request.form.get("activity_code")
         user_prompt = request.form.get("user_input", "")
+        user_prompt = sanitize_text_input(user_prompt, context="user_input")["value"]
 
         if not project_control_activity_id:
             flash("Activity ID is required for evaluation.", "error")
@@ -4880,11 +4882,65 @@ def finding_review():
             f"action={action} by={current_user.id}"
         )
 
+        # ── Check if all findings in this clause are reviewed ──────────
+        # Returns all_clause_reviewed flag — frontend uses this to
+        # enable/disable the "Generate Summary" button. Step 8 is NOT
+        # auto-triggered — user must click the button.
+        all_clause_reviewed = False
+        if all_reviewed:
+            try:
+                from app.models.project_instance_models import (
+                    ProjectControlActivity, ProjectComplianceActivity
+                )
+
+                pca_obj = ProjectControlActivity.query.get(pca_id)
+                if pca_obj and pca_obj.project_compliance_activity:
+                    project_clause_id = pca_obj.project_compliance_activity.project_clause_id
+
+                    # Get all APPLICABLE PCAs under same clause
+                    sibling_pcas = (
+                        db.session.query(ProjectControlActivity)
+                        .join(
+                            ProjectComplianceActivity,
+                            ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id,
+                        )
+                        .filter(
+                            ProjectComplianceActivity.project_clause_id == project_clause_id,
+                            ProjectComplianceActivity.applicability == True,
+                        )
+                        .all()
+                    )
+
+                    # Check all sibling PCAs have all findings reviewed
+                    all_clause_reviewed = True
+                    for sibling in sibling_pcas:
+                        sibling_result = EveControlResult.query.filter_by(
+                            project_control_activity_id=sibling.id
+                        ).first()
+                        if not sibling_result:
+                            all_clause_reviewed = False
+                            break
+                        sibling_findings = sibling_result.findings_json or []
+                        if not sibling_findings:
+                            continue
+                        if not all(
+                            f.get("auditor_status") in ("CONFIRMED", "CLOSED")
+                            for f in sibling_findings
+                            if isinstance(f, dict)
+                        ):
+                            all_clause_reviewed = False
+                            break
+            except Exception as check_err:
+                current_app.logger.warning(
+                    f"[Finding Review] Clause review check failed (non-fatal): {check_err}"
+                )
+
         return jsonify({
             "success": True,
             "finding_id": finding_id,
             "action": action,
             "all_reviewed": all_reviewed,
+            "all_clause_reviewed": all_clause_reviewed,
         })
 
     except Exception as e:
@@ -8070,3 +8126,323 @@ def get_eve_assurance_state(project_checklist_id):
     except Exception as e:
         logger.exception(f"Error fetching assurance state for checklist {project_checklist_id}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# OE Sampling — Upload Test Data & Run Attribute / Document Tests
+# POST /audit/upload_test_data
+#
+# Handles two evidence types:
+#   Excel/CSV  → attribute_testing_engine.py (pandas row-level)
+#   DOCX/PDF/Images → batch LLM call (one call per activity)
+#
+# Result merged into EveControlResult.findings_json as OE findings.
+# ─────────────────────────────────────────────────────────────
+
+@audit_bp.route("/upload_test_data", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def upload_test_data():
+    """
+    Receives one or more OE sample files for a project control activity.
+    Runs attribute testing (data files) or batch LLM testing (documents).
+    Returns structured results + merges OE findings into EveControlResult.
+    """
+    try:
+        from app.utils.input_security import validate_upload_file
+        from app.models.eve_models import ProjectChecklist, EveControlResult
+        from app.models.project_instance_models import ProjectControlActivity
+        from sqlalchemy.orm.attributes import flag_modified
+        import tempfile, uuid as _uuid
+
+        activity_id = request.form.get("activity_id")
+        if not activity_id:
+            return jsonify({"status": "error", "message": "activity_id required"}), 400
+
+        pca = ProjectControlActivity.query.get(int(activity_id))
+        if not pca:
+            return jsonify({"status": "error", "message": "Activity not found"}), 404
+
+        # ── Fetch OE checklist items ──────────────────────────────
+        checklist = ProjectChecklist.query.filter_by(
+            project_control_activity_id=pca.id
+        ).first()
+        if not checklist:
+            return jsonify({"status": "error", "message": "No checklist found — run Step 4 first"}), 400
+
+        oe_items = [
+            item for item in (checklist.checklist_json or [])
+            if item.get("effectiveness_type") == "OPERATING"
+            and str(item.get("oe_testing", {}).get("applicable", "NO")).upper() == "YES"
+        ]
+        if not oe_items:
+            return jsonify({"status": "error", "message": "No OE sampling items found in checklist"}), 400
+
+        # ── Save uploaded files ──────────────────────────────────
+        files = request.files.getlist("test_data_file")
+        if not files or all(f.filename == "" for f in files):
+            return jsonify({"status": "error", "message": "No files uploaded"}), 400
+
+        upload_dir = os.path.join(
+            current_app.root_path, "..", UPLOAD_FOLDER_1, "oe_samples"
+        )
+        os.makedirs(upload_dir, exist_ok=True)
+
+        saved_files = []   # [{path, filename, ext}]
+        for f in files:
+            if not f or f.filename == "":
+                continue
+            sec = validate_upload_file(f.filename, context="evidence")
+            if not sec["ok"]:
+                return jsonify({"status": "error", "message": sec["error"]}), 400
+            stored = secure_filename(
+                f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{f.filename}"
+            )
+            path = os.path.join(upload_dir, stored)
+            f.save(path)
+            saved_files.append({
+                "path": path,
+                "filename": f.filename,
+                "ext": os.path.splitext(f.filename)[1].lower(),
+            })
+
+        if not saved_files:
+            return jsonify({"status": "error", "message": "No valid files saved"}), 400
+
+        # ── Route by file type ───────────────────────────────────
+        data_exts   = {".xlsx", ".xls", ".csv"}
+        doc_exts    = {".pdf", ".docx", ".doc", ".txt"}
+        image_exts  = {".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"}
+
+        data_files  = [f for f in saved_files if f["ext"] in data_exts]
+        doc_files   = [f for f in saved_files if f["ext"] in doc_exts]
+        image_files = [f for f in saved_files if f["ext"] in image_exts]
+
+        combined_results = {
+            "activity_id": activity_id,
+            "files_processed": len(saved_files),
+            "oe_items_tested": len(oe_items),
+            "test_results": None,
+            "doc_results": None,
+            "image_results": None,
+        }
+
+        # ── Path A: Data files → attribute_testing_engine ────────
+        if data_files:
+            from app.services.attribute_testing_engine import run_attribute_testing
+
+            # Build test_attributes from OE checklist items
+            test_attributes = []
+            for item in oe_items:
+                oe = item.get("oe_testing", {})
+                test_attributes.append({
+                    "attribute_name":            item.get("assertion", item.get("requirement", "OE Check")),
+                    "testing_sequence":          1,
+                    "population_filters":        [],   # LLM column-mapped — no hard filters
+                    "test_column_description":   oe.get("attribute_being_tested", ""),
+                    "exception_identifier_column": oe.get("instance_identifier", ""),
+                    "test_type":                 "presence_check",
+                    "pass_criteria":             oe.get("pass_criteria", ""),
+                    "fail_criteria":             oe.get("fail_criteria", ""),
+                    "exception_logic":           oe.get("exception_logic", ""),
+                    "severity_if_failed":        item.get("failure_impact", "Significant"),
+                    "regulatory_reference":      item.get("requirement", ""),
+                })
+
+            # Run on first data file (most common case: one dataset)
+            file_path = data_files[0]["path"]
+            activity_name = (pca.activity_description or f"Activity {pca.id}")
+            attr_result = run_attribute_testing(file_path, test_attributes, activity_name)
+            combined_results["test_results"] = attr_result.get("test_results")
+
+        # ── Path B: Document files → batch LLM ───────────────────
+        if doc_files:
+            from app.services.eve_step5 import _extract_text_from_file
+            from app.services.eve_step678 import _call_llm_json
+
+            # Extract content from each doc
+            doc_contents = []
+            for df in doc_files:
+                content = _extract_text_from_file(df["path"])
+                doc_contents.append({
+                    "filename": df["filename"],
+                    "content":  content[:15000],   # cap per doc
+                })
+
+            # Build checklist summary for prompt
+            checklist_summary = []
+            for item in oe_items:
+                oe = item.get("oe_testing", {})
+                checklist_summary.append({
+                    "id":         item.get("checklist_item_id", ""),
+                    "assertion":  item.get("assertion", item.get("requirement", "")),
+                    "what_to_check": item.get("evaluation_logic", {}).get("check_for", ""),
+                    "pass_condition": oe.get("pass_criteria", ""),
+                    "fail_condition": oe.get("fail_criteria", ""),
+                })
+
+            system_msg = (
+                "You are a senior audit examiner. You receive multiple documents "
+                "and a list of checklist items. For each document, evaluate each "
+                "checklist item and report pass/fail with exact evidence location. "
+                "Return ONLY valid JSON."
+            )
+            user_msg = f"""
+DOCUMENTS SUBMITTED ({len(doc_files)} files):
+{json.dumps(doc_contents, indent=2)}
+
+CHECKLIST ITEMS TO EVALUATE:
+{json.dumps(checklist_summary, indent=2)}
+
+For each document, test each checklist item.
+Return this exact JSON structure:
+{{
+  "document_results": [
+    {{
+      "filename": "contract_abc.pdf",
+      "checklist_evaluations": [
+        {{
+          "checklist_item_id": "CHK_001",
+          "assertion": "...",
+          "result": "PASS | FAIL | PARTIAL | NOT_FOUND",
+          "finding": "Exact quote or location if PASS. Exact gap description if FAIL.",
+          "evidence_location": "Section X / Page Y / Clause Z"
+        }}
+      ],
+      "overall_result": "PASS | FAIL | PARTIAL"
+    }}
+  ],
+  "summary": {{
+    "total_documents": {len(doc_files)},
+    "documents_with_exceptions": 0,
+    "overall_result": "PASS | FAIL | PARTIAL"
+  }}
+}}
+"""
+            doc_llm_result = _call_llm_json(system_msg, user_msg)
+            combined_results["doc_results"] = doc_llm_result
+
+        # ── Path C: Image files → batch LLM vision ───────────────
+        if image_files:
+            # Images: PD-1/PD-3 pending full vision support
+            # For now return a structured placeholder with file list
+            combined_results["image_results"] = {
+                "status": "pending_vision_support",
+                "files": [f["filename"] for f in image_files],
+                "message": (
+                    f"{len(image_files)} image file(s) received. "
+                    "Automated image analysis (PD-1/PD-3) is pending. "
+                    "Please review images manually and record observations."
+                ),
+            }
+
+        # ── Merge OE findings into EveControlResult ──────────────
+        ctrl_result = EveControlResult.query.filter_by(
+            project_control_activity_id=pca.id
+        ).first()
+
+        if ctrl_result:
+            existing_findings = list(ctrl_result.findings_json or [])
+            # Remove stale OE findings from previous run
+            existing_findings = [
+                f for f in existing_findings
+                if not f.get("finding_id", "").startswith("OE-")
+            ]
+
+            new_oe_findings = _build_oe_findings(
+                combined_results, oe_items, saved_files
+            )
+            existing_findings.extend(new_oe_findings)
+            ctrl_result.findings_json = existing_findings
+            flag_modified(ctrl_result, "findings_json")
+            db.session.commit()
+            combined_results["findings_merged"] = len(new_oe_findings)
+        else:
+            combined_results["findings_merged"] = 0
+            combined_results["findings_note"] = (
+                "No EveControlResult found — run EVE Step 5 first to create baseline, "
+                "then re-upload OE data."
+            )
+
+        return jsonify({"status": "success", **combined_results})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(f"[upload_test_data] Error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def _build_oe_findings(combined_results: dict, oe_items: list, saved_files: list) -> list:
+    """
+    Convert OE test results (data + doc + image) into EveControlResult.findings_json format.
+    Finding IDs prefixed OE- to distinguish from Step 7 findings.
+    """
+    findings = []
+    counter = 1
+
+    # From data/attribute testing
+    test_results = combined_results.get("test_results") or {}
+    for attr in (test_results.get("attribute_results") or []):
+        if attr.get("exceptions", 0) > 0:
+            exc_list = attr.get("exception_list", [])
+            exc_summary = "; ".join(
+                f"{e.get('identifier', 'N/A')}: {e.get('actual_value', '')}"
+                for e in exc_list[:5]
+            )
+            if len(exc_list) > 5:
+                exc_summary += f" ... and {len(exc_list) - 5} more"
+            findings.append({
+                "finding_id":        f"OE-{counter:03d}",
+                "finding_type":      "OE_ATTRIBUTE",
+                "issue":             (
+                    f"{attr.get('attribute_name')}: "
+                    f"{attr.get('exceptions')} exception(s) out of "
+                    f"{attr.get('population_tested')} records tested "
+                    f"(exception rate: {attr.get('exception_rate')}%). "
+                    f"Exceptions: {exc_summary}"
+                ),
+                "severity":          attr.get("severity", "Significant"),
+                "root_cause":        f"Attribute test failed: {attr.get('fail_criteria', '')}",
+                "regulatory_impact": attr.get("regulatory_reference", ""),
+                "evidence_source":   "OE_DATA_FILE",
+                "exception_count":   attr.get("exceptions", 0),
+                "exception_rate":    attr.get("exception_rate", 0),
+                "exception_list":    exc_list,
+                "auditor_status":    None,
+            })
+            counter += 1
+
+    # From document testing
+    doc_results = combined_results.get("doc_results") or {}
+    for doc in (doc_results.get("document_results") or []):
+        for eval_item in (doc.get("checklist_evaluations") or []):
+            if eval_item.get("result") in ("FAIL", "PARTIAL"):
+                findings.append({
+                    "finding_id":        f"OE-{counter:03d}",
+                    "finding_type":      "OE_DOCUMENT",
+                    "issue":             (
+                        f"{doc.get('filename')}: "
+                        f"{eval_item.get('assertion', '')} — "
+                        f"{eval_item.get('finding', '')}"
+                    ),
+                    "severity":          "Significant",
+                    "root_cause":        eval_item.get("finding", ""),
+                    "evidence_location": eval_item.get("evidence_location", ""),
+                    "evidence_source":   "OE_DOCUMENT",
+                    "auditor_status":    None,
+                })
+                counter += 1
+
+    # Images — placeholder finding if images received
+    image_results = combined_results.get("image_results")
+    if image_results and image_results.get("status") == "pending_vision_support":
+        findings.append({
+            "finding_id":    f"OE-{counter:03d}",
+            "finding_type":  "OE_IMAGE_PENDING",
+            "issue":         image_results["message"],
+            "severity":      "Minor",
+            "evidence_source": "OE_IMAGE",
+            "auditor_status": "NEEDS_REVIEW",
+        })
+
+    return findings

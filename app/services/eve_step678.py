@@ -1066,11 +1066,34 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
         control_result.final_status = final_status
         control_result.final_severity = final_severity
         control_result.updated_at = datetime.utcnow()
+
+        # ── Sync ProjectControlActivity legacy fields ──────────────────
+        # Dashboard + reports read overall_severity_classification and
+        # compliant_status from ProjectControlActivity — keep them in sync
+        # with EVE final_severity / final_status so display is consistent.
+        _EVE_SEV_TO_LEGACY = {
+            "CRITICAL": "Critical",
+            "HIGH":     "Major",
+            "MEDIUM":   "Significant",
+            "LOW":      "Minor",
+        }
+        _EVE_STATUS_TO_LEGACY = {
+            "COMPLIANT":           "Compliant",
+            "PARTIALLY_COMPLIANT": "Partially Compliant",
+            "NON_COMPLIANT":       "Non-Compliant",
+        }
+        pca.overall_severity_classification = (
+            _EVE_SEV_TO_LEGACY.get(final_severity, "No findings noted")
+            if final_severity else "No findings noted"
+        )
+        pca.compliant_status = _EVE_STATUS_TO_LEGACY.get(final_status, final_status)
+
         db.session.commit()
 
         logger.info(
             f"[Module E+F] Steps 6+7 complete for pca_id={project_control_activity_id}: "
-            f"status={final_status}, severity={final_severity}"
+            f"status={final_status}, severity={final_severity} "
+            f"→ legacy: {pca.compliant_status} / {pca.overall_severity_classification}"
         )
 
         return {
@@ -1167,21 +1190,24 @@ def run_eve_step8_clause_rollup(self, project_clause_id: int, generated_by: int 
             if original:
                 clause_text = getattr(original, "clause_text", "") or ""
 
-        # ── 3. Get all PCAs under this project clause ──────────────────
+        # ── 3. Get all APPLICABLE PCAs under this project clause ──────
         pcas = (
             db.session.query(ProjectControlActivity)
             .join(
                 ProjectComplianceActivity,
                 ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id,
             )
-            .filter(ProjectComplianceActivity.project_clause_id == project_clause_id)
+            .filter(
+                ProjectComplianceActivity.project_clause_id == project_clause_id,
+                ProjectComplianceActivity.applicability == True,   # applicable only
+            )
             .all()
         )
 
         if not pcas:
             return {
                 "status": "error",
-                "message": "No control activities found under this clause",
+                "message": "No applicable control activities found under this clause",
                 "project_clause_id": project_clause_id,
             }
 

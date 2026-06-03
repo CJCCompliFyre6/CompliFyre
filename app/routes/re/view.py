@@ -46,6 +46,7 @@ from app.utils.cleaning import *
 from app.models.project_instance_models import *
 from app.services.prompt_service import *
 from app.utils.bread_crumb import add_to_breadcrumb
+from app.utils.input_security import validate_upload_file, sanitize_text_input
 from app.helper.evidence_helper import *
 from app.utils.compliance_utils import (
     evaluate_single_activity_ai,
@@ -4400,15 +4401,31 @@ def test_evidence_artifacts(activity_id):
                         eve_admissibility = 'INADMISSIBLE'
                     else:
                         eve_admissibility = 'PARTIAL' 
+
+                    # Collect admissibility reasons from EVE results
+                    eve_admissibility_reason = "; ".join(
+                        r.admissibility_reason for r in ev_results
+                        if r.admissibility_reason and r.admissibility in ('INADMISSIBLE', 'PARTIAL')
+                    ) or None
                 else:
                     eve_admissibility = None
 
                 # Dimensions from ProjectChecklist
-                from app.models.eve_models import ProjectChecklist as PC2
+                from app.models.eve_models import ProjectChecklist as PC2, EveAssuranceState
                 pc2 = PC2.query.filter_by(project_control_activity_id=int(activity_id)).first()
                 eve_dimension_design = pc2.dimension_design if pc2 else None
                 eve_dimension_impl = pc2.dimension_implementation if pc2 else None
                 eve_dimension_oper = pc2.dimension_operating if pc2 else None
+
+                # Evidence Quality Score from EveAssuranceState
+                if pc2:
+                    assurance_state = EveAssuranceState.query.filter_by(
+                        project_checklist_id=pc2.id
+                    ).first()
+                    if assurance_state:
+                        eve_assurance["evidence_quality_score"] = assurance_state.evidence_quality_score
+                        eve_assurance["assurance_score"] = assurance_state.assurance_score
+                        eve_assurance["coverage_score"] = assurance_state.coverage_score
 
         except Exception as eve_err:
             current_app.logger.warning(f"Could not fetch EVE results: {eve_err}")
@@ -4419,6 +4436,7 @@ def test_evidence_artifacts(activity_id):
             eve_dimension_design = None
             eve_dimension_impl = None
             eve_dimension_oper = None
+            eve_admissibility_reason = None
 
         return render_template(
             "test_artifacts.html",
@@ -4435,6 +4453,7 @@ def test_evidence_artifacts(activity_id):
             eve_control_support=eve_control_support,
             eve_assurance=eve_assurance,
             eve_admissibility=eve_admissibility,
+            eve_admissibility_reason=eve_admissibility_reason,
             eve_dimension_design=eve_dimension_design,
             eve_dimension_impl=eve_dimension_impl,
             eve_dimension_oper=eve_dimension_oper,
@@ -5065,6 +5084,13 @@ def upload_test_procedure_files():
             if file.filename == "":
                 continue
 
+            _sec = validate_upload_file(file.filename, context="document")
+            if not _sec["ok"]:
+                current_app.logger.warning(
+                    f"[upload_test_procedure_files] Blocked: {file.filename} — {_sec['error']}"
+                )
+                continue
+
             # Generate unique filename
             original_filename = secure_filename(file.filename)
             file_extension = os.path.splitext(original_filename)[1]
@@ -5368,7 +5394,7 @@ def evidences():
             and evidence_text.strip()
             and evidence_text.strip() != "<p><br></p>"
         ):
-            artifact.evidence_text = evidence_text
+            artifact.evidence_text = sanitize_text_input(evidence_text, context="observation")["value"]
             flash("Evidence updated with provided text.", "success")
             db.session.commit()
             return redirect(request.referrer)

@@ -43,6 +43,17 @@ def compliance_prompt(clause_text, department_list):
 
         2.  **Apply MECE Principle**: All activities must follow the MECE rule (Mutually Exclusive and Collectively Exhaustive) to ensure comprehensive coverage while eliminating redundancy of effort.
         
+        2b. **RE PERSPECTIVE RULE** (CRITICAL — Non-negotiable):
+            - Generate ONLY activities that the **RE (Regulated Entity)** — i.e., the Bank, NBFC, or financial institution being audited — must perform to comply with the clause
+            - Do NOT generate activities for: RBI/Regulator, SEBI, IRDAI, LSPs, third-party vendors, external auditors, rating agencies, or any body outside the RE
+            - Do NOT generate activities that describe what the regulator expects to see or what regulators/supervisors will do — only what the RE must DO
+            - Do NOT generate activities about what an industry body, association, or committee outside the RE is supposed to do
+            - Every activity must be owned and executable by the RE internally
+            - Every activity_description must start with an action verb owned by the RE: "Develop", "Implement", "Monitor", "Establish", "Ensure", "Maintain", "Submit", "Train", "Review", "Document", "Conduct", "Designate", "Appoint", "Report", "Verify"
+            - WRONG example: "RBI will inspect the institution's KYC records" → this is regulator's action, NOT RE's
+            - WRONG example: "LSP shall not exercise sanctioning authority" → this is LSP's obligation, NOT RE's
+            - RIGHT example: "Develop and implement a KYC policy framework approved by the Board" → RE's own action
+
         2a. **STRICT UNIQUENESS RULES** (CRITICAL):
             - Every activity_description must be **completely different** from every other activity in the list
             - Do NOT generate two activities that do the same thing with slightly different wording
