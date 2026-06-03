@@ -1698,6 +1698,7 @@
       <div class="border border-gray-200 rounded-lg overflow-hidden finding-card"
            id="finding_card_{{ item_loop_idx }}_{{ loop.index }}"
            data-finding-id="{{ finding.finding_id }}"
+           data-pca-id="{{ item.data.id }}"
            data-status="{{ finding.auditor_status or '' }}">
         <!-- Finding Header -->
         <div class="flex items-center justify-between px-4 py-3
@@ -1713,11 +1714,19 @@
               {{ finding.finding_summary or finding.issue or "No summary" }}
             </span>
           </div>
-          <div class="flex items-center space-x-2">
+          <div class="finding-actions flex items-center space-x-2">
             {% if finding.auditor_status == 'CONFIRMED' %}
-            <span class="text-xs px-2 py-1 bg-green-600 text-white rounded-full font-semibold">✓ Accepted</span>
+            <span class="text-xs px-2 py-1 bg-green-600 text-white rounded-full font-semibold">✓ Accepted Finding</span>
+            <button onclick="editFinding('{{ item.data.id }}', '{{ finding.finding_id }}', {{ item_loop_idx }})"
+              class="text-xs px-2 py-1 bg-white border border-gray-300 text-gray-600 rounded hover:bg-gray-100 font-medium ml-1">
+              ✎ Edit
+            </button>
             {% elif finding.auditor_status == 'CLOSED' %}
-            <span class="text-xs px-2 py-1 bg-gray-400 text-white rounded-full font-semibold">✗ Closed</span>
+            <span class="text-xs px-2 py-1 bg-gray-400 text-white rounded-full font-semibold">✗ Finding Closed</span>
+            <button onclick="editFinding('{{ item.data.id }}', '{{ finding.finding_id }}', {{ item_loop_idx }})"
+              class="text-xs px-2 py-1 bg-white border border-gray-300 text-gray-600 rounded hover:bg-gray-100 font-medium ml-1">
+              ✎ Edit
+            </button>
             {% else %}
             <!-- Action buttons — only when not yet reviewed -->
             <button onclick="acceptFinding('{{ item.data.id }}', '{{ finding.finding_id }}', {{ item_loop_idx }})"
@@ -1743,7 +1752,7 @@
           </div>
         </div>
         <!-- Finding Body -->
-        <div class="px-4 py-3 space-y-3 {% if finding.auditor_status == 'CLOSED' %}opacity-50{% endif %}">
+        <div class="finding-body px-4 py-3 space-y-3 {% if finding.auditor_status == 'CLOSED' %}opacity-50{% endif %}">
           {% if finding.root_issue %}
           <div>
             <p class="text-xs font-semibold text-gray-500 uppercase">Root Issue</p>
@@ -2310,19 +2319,86 @@
     cards.forEach(card => {
       if (card.dataset.findingId === findingId) {
         card.dataset.status = status;
+        const pcaId = card.dataset.pcaId || '';
+
         // Update header buttons area
-        const btnArea = card.querySelector('.flex.items-center.space-x-2');
+        const btnArea = card.querySelector('.finding-actions');
         if (btnArea) {
-          const acceptBtn = btnArea.querySelector('button:first-child');
-          const closeBtn = btnArea.querySelector('button:last-child');
-          if (acceptBtn && closeBtn) {
-            if (status === 'CONFIRMED') {
-              acceptBtn.outerHTML = '<span class="text-xs px-2 py-1 bg-green-600 text-white rounded-full font-semibold">✓ Accepted</span>';
-            } else {
-              closeBtn.outerHTML = '<span class="text-xs px-2 py-1 bg-gray-400 text-white rounded-full font-semibold">✗ Closed</span>';
-              if (acceptBtn) acceptBtn.remove();
-            }
+          if (status === 'CONFIRMED') {
+            btnArea.innerHTML = `
+              <span class="text-xs px-2 py-1 bg-green-600 text-white rounded-full font-semibold">✓ Accepted Finding</span>
+              <button onclick="editFinding('${pcaId}', '${findingId}', ${idx})"
+                class="text-xs px-2 py-1 bg-white border border-gray-300 text-gray-600 rounded hover:bg-gray-100 font-medium ml-1">
+                ✎ Edit
+              </button>`;
+          } else if (status === 'CLOSED') {
+            btnArea.innerHTML = `
+              <span class="text-xs px-2 py-1 bg-gray-400 text-white rounded-full font-semibold">✗ Finding Closed</span>
+              <button onclick="editFinding('${pcaId}', '${findingId}', ${idx})"
+                class="text-xs px-2 py-1 bg-white border border-gray-300 text-gray-600 rounded hover:bg-gray-100 font-medium ml-1">
+                ✎ Edit
+              </button>`;
           }
+        }
+
+        // Update body — add/remove rationale display
+        const bodyDiv = card.querySelector('.finding-body');
+        if (bodyDiv) {
+          // Remove any existing rationale display
+          const existing = bodyDiv.querySelector('.closed-rationale');
+          if (existing) existing.remove();
+
+          if (status === 'CLOSED' && rationale) {
+            const rationaleHtml = document.createElement('div');
+            rationaleHtml.className = 'closed-rationale bg-gray-50 border border-gray-200 rounded p-2 mt-2';
+            rationaleHtml.innerHTML = `
+              <p class="text-xs font-semibold text-gray-500 uppercase">Closed — Auditor Rationale</p>
+              <p class="text-sm text-gray-600 mt-0.5 italic">${rationale}</p>`;
+            bodyDiv.insertBefore(rationaleHtml, bodyDiv.firstChild);
+          }
+
+          // Dim the card if closed
+          if (status === 'CLOSED') {
+            bodyDiv.classList.add('opacity-50');
+          } else {
+            bodyDiv.classList.remove('opacity-50');
+          }
+        }
+      }
+    });
+  }
+
+  function editFinding(pcaId, findingId, idx) {
+    // Revert to Accept/Close buttons — user wants to reconsider
+    const cards = document.querySelectorAll('#findings_list_' + idx + ' .finding-card');
+    cards.forEach(card => {
+      if (card.dataset.findingId === findingId) {
+        card.dataset.status = '';
+
+        // Restore buttons
+        const btnArea = card.querySelector('.finding-actions');
+        if (btnArea) {
+          btnArea.innerHTML = `
+            <button onclick="acceptFinding('${pcaId}', '${findingId}', ${idx})"
+              class="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 font-medium">
+              Accept Finding
+            </button>
+            <button onclick="openCloseModal('${pcaId}', '${findingId}', ${idx})"
+              class="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 font-medium">
+              Close
+            </button>`;
+        }
+
+        // Remove rationale display and restore opacity
+        const bodyDiv = card.querySelector('.finding-body');
+        if (bodyDiv) {
+          const existing = bodyDiv.querySelector('.closed-rationale');
+          if (existing) existing.remove();
+          bodyDiv.classList.remove('opacity-50');
+        }
+      }
+    });
+  }
         }
       }
     });

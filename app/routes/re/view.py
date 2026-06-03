@@ -4402,11 +4402,20 @@ def test_evidence_artifacts(activity_id):
                     else:
                         eve_admissibility = 'PARTIAL' 
 
-                    # Collect admissibility reasons from EVE results
-                    eve_admissibility_reason = "; ".join(
+                    # Collect and deduplicate admissibility reasons
+                    raw_reasons = [
                         r.admissibility_reason for r in ev_results
                         if r.admissibility_reason and r.admissibility in ('INADMISSIBLE', 'PARTIAL')
-                    ) or None
+                    ]
+                    # Deduplicate — same reason from multiple evidence files
+                    unique_reasons = list(dict.fromkeys(raw_reasons))
+                    # Cap at 3 unique reasons for clean display
+                    if len(unique_reasons) > 3:
+                        eve_admissibility_reason = "; ".join(unique_reasons[:3]) + f" (+{len(unique_reasons)-3} more)"
+                    elif unique_reasons:
+                        eve_admissibility_reason = "; ".join(unique_reasons)
+                    else:
+                        eve_admissibility_reason = None
                 else:
                     eve_admissibility = None
 

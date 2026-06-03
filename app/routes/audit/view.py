@@ -5614,13 +5614,19 @@ def clause_test_steps(clause_id):
     # ============== CHECK IF ALL ACTIVITIES ARE EVALUATED ==============
     # An activity is considered "evaluated" if it has a compliant_status
     # that is NOT "To be Assessed" (i.e., Compliant, Partially Compliant, or Non-Compliant)
+    # EVE format: COMPLIANT, PARTIALLY_COMPLIANT, NON_COMPLIANT
+    # Legacy format: Compliant, Partially Compliant, Non-Compliant
+    EVALUATED_STATUSES = {
+        "Compliant", "Partially Compliant", "Non-Compliant",
+        "COMPLIANT", "PARTIALLY_COMPLIANT", "NON_COMPLIANT",
+    }
     all_activities_evaluated = True
     evaluated_count = 0
     not_evaluated_count = 0
 
     for activity in applicable_control_activities:
         status = activity.get("compliant_status", "To be Assessed")
-        if status in ["Compliant", "Partially Compliant", "Non-Compliant"]:
+        if status in EVALUATED_STATUSES:
             evaluated_count += 1
         else:
             all_activities_evaluated = False
@@ -5629,6 +5635,31 @@ def clause_test_steps(clause_id):
     logger.info(
         f"📊 Evaluation status: {evaluated_count}/{len(applicable_control_activities)} activities evaluated"
     )
+
+    # ============== CHECK IF ALL FINDINGS ARE REVIEWED ==============
+    all_findings_reviewed = True
+    if all_activities_evaluated:
+        try:
+            from app.models.eve_models import EveControlResult
+            for activity in applicable_control_activities:
+                ctrl_result = EveControlResult.query.filter_by(
+                    project_control_activity_id=activity["id"]
+                ).first()
+                if ctrl_result and ctrl_result.findings_json:
+                    for f in ctrl_result.findings_json:
+                        if isinstance(f, dict) and f.get("auditor_status") not in ("CONFIRMED", "CLOSED"):
+                            all_findings_reviewed = False
+                            break
+                if not all_findings_reviewed:
+                    break
+        except Exception as fr_err:
+            logger.warning(f"Findings review check failed: {fr_err}")
+            all_findings_reviewed = False
+    else:
+        all_findings_reviewed = False
+
+    # Combined condition: both evaluated AND findings reviewed
+    all_activities_evaluated = all_activities_evaluated and all_findings_reviewed
     
     # Add this line before render_template
     current_time = datetime.utcnow()
