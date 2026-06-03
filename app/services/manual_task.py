@@ -2199,32 +2199,39 @@ def get_clause_completion_status(clause_id: int) -> str:
     """
     Check if a clause has been fully extracted — activities + test procedures + checklists.
     Returns:
-      'EMPTY'      — no activities at all
-      'INCOMPLETE' — some data exists but not fully complete
-      'COMPLETE'   — all activities have test procedures + checklists
+      'EMPTY'                — no activities at all
+      'INCOMPLETE_STRUCTURE' — missing activities or test procedures — delete + regenerate
+      'INCOMPLETE_CHECKLIST' — activities + test procs exist but some checklists missing/empty
+                               — only regenerate missing checklists, do NOT delete activities
+      'COMPLETE'             — all activities have test procedures + valid checklists
     """
-    from app.models.ai import ControlActivity, TestSteps
+    from app.models.ai import ControlActivity
     from app.models.eve_models import ControlChecklist
 
     activities = ComplianceActivities.query.filter_by(clause_id=clause_id).all()
     if not activities:
         return "EMPTY"
 
+    has_missing_checklist = False
+
     for act in activities:
         ctrl = ControlActivity.query.filter_by(
             compliance_activity_id=act.id
         ).first()
         if not ctrl:
-            return "INCOMPLETE"
+            return "INCOMPLETE_STRUCTURE"
 
         if not ctrl.test_procedure:
-            return "INCOMPLETE"
+            return "INCOMPLETE_STRUCTURE"
 
         checklist = ControlChecklist.query.filter_by(
             control_activity_id=ctrl.id
         ).first()
-        if not checklist:
-            return "INCOMPLETE"
+        if not checklist or not checklist.raw_output_json:
+            has_missing_checklist = True
+
+    if has_missing_checklist:
+        return "INCOMPLETE_CHECKLIST"
 
     return "COMPLETE"
 
@@ -2392,9 +2399,33 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                 skipped_clauses += 1
                 processed_clauses += 1
                 continue
-            elif completion == "INCOMPLETE":
+            elif completion == "INCOMPLETE_CHECKLIST":
+                # Activities + test procedures exist — only generate missing checklists
                 logger.warning(
-                    "Clause %s (id=%s) is INCOMPLETE — deleting partial data and regenerating",
+                    "Clause %s (id=%s) — activities complete but checklists missing — generating checklists only",
+                    clause_number, clause_id_val,
+                )
+                from app.models.ai import ControlActivity as _CtrlAct
+                from app.models.eve_models import ControlChecklist as _CC
+                from app.services.eve_tasks import generate_control_checklist
+                activities_for_clause = ComplianceActivities.query.filter_by(
+                    clause_id=clause_id_val
+                ).all()
+                for act in activities_for_clause:
+                    ctrl = _CtrlAct.query.filter_by(compliance_activity_id=act.id).first()
+                    if ctrl:
+                        existing_cc = _CC.query.filter_by(control_activity_id=ctrl.id).first()
+                        if not existing_cc or not existing_cc.raw_output_json:
+                            logger.info("Generating missing checklist for control_id=%s", ctrl.id)
+                            generate_control_checklist(ctrl.id)
+                results["skipped"].append(clause_id_val)
+                skipped_clauses += 1
+                processed_clauses += 1
+                continue
+            elif completion == "INCOMPLETE_STRUCTURE":
+                # Missing activities or test procedures — full delete + regenerate
+                logger.warning(
+                    "Clause %s (id=%s) is INCOMPLETE_STRUCTURE — deleting partial data and regenerating",
                     clause_number, clause_id_val,
                 )
                 _delete_clause_data(clause_id_val)
@@ -2787,9 +2818,30 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                 skipped_clauses += 1
                 processed_clauses += 1
                 continue
-            elif completion == "INCOMPLETE":
+            elif completion == "INCOMPLETE_CHECKLIST":
                 logger.warning(
-                    "Clause %s (id=%s) is INCOMPLETE — deleting and regenerating",
+                    "Clause %s (id=%s) — checklists missing — generating checklists only",
+                    clause_number, clause_id_val,
+                )
+                from app.models.ai import ControlActivity as _CtrlAct
+                from app.models.eve_models import ControlChecklist as _CC
+                from app.services.eve_tasks import generate_control_checklist
+                activities_for_clause = ComplianceActivities.query.filter_by(
+                    clause_id=clause_id_val
+                ).all()
+                for act in activities_for_clause:
+                    ctrl = _CtrlAct.query.filter_by(compliance_activity_id=act.id).first()
+                    if ctrl:
+                        existing_cc = _CC.query.filter_by(control_activity_id=ctrl.id).first()
+                        if not existing_cc or not existing_cc.raw_output_json:
+                            generate_control_checklist(ctrl.id)
+                results["skipped"].append(clause_id_val)
+                skipped_clauses += 1
+                processed_clauses += 1
+                continue
+            elif completion == "INCOMPLETE_STRUCTURE":
+                logger.warning(
+                    "Clause %s (id=%s) is INCOMPLETE_STRUCTURE — deleting and regenerating",
                     clause_number, clause_id_val,
                 )
                 _delete_clause_data(clause_id_val)
