@@ -17,8 +17,15 @@ class Config:
         'pool_size': 10,
         'max_overflow': 20,
         'pool_timeout': 30,
-        "pool_pre_ping": True, 
-        "pool_recycle": 280,  
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,   # Increased from 280 — Azure PG idle timeout is ~30 min
+        "connect_args": {
+            "keepalives": 1,
+            "keepalives_idle": 60,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "connect_timeout": 30,
+        },
     }
 
     # --- OpenAI Configuration ---
