@@ -7673,8 +7673,18 @@ def generate_all_summaries_background(clause_id, app):
                         if ev.evidence_artifact_id and ev.evidence_artifact_id not in seen_artifacts:
                             seen_artifacts.add(ev.evidence_artifact_id)
                             artifact = ev.evidence_artifact
+                            if artifact:
+                                # Get file name from EvidenceFile relationship or path
+                                first_file = artifact.evidence_files.first()
+                                fname = (
+                                    first_file.file_name if first_file
+                                    else (os.path.basename(artifact.evidence_file_path) if artifact.evidence_file_path
+                                    else artifact.item or "Unknown")
+                                )
+                            else:
+                                fname = "Unknown"
                             evidence_info.append({
-                                "file_name": (artifact.file_name if artifact else "Unknown"),
+                                "file_name": fname,
                                 "evidence_type": ev.evidence_type,
                                 "admissibility": ev.admissibility,
                                 "admissibility_reason": ev.admissibility_reason,
