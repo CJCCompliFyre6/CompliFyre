@@ -4418,6 +4418,7 @@ def test_evidence_artifacts(activity_id):
                         eve_admissibility_reason = None
                 else:
                     eve_admissibility = None
+                    eve_admissibility_reason = None
 
                 # Dimensions from ProjectChecklist
                 from app.models.eve_models import ProjectChecklist as PC2, EveAssuranceState
