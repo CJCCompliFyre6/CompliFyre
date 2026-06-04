@@ -7608,64 +7608,283 @@ def check_all_summaries_task_status(clause_id):
 
 
 def generate_all_summaries_background(clause_id):
-    """Background task to generate all summaries"""
-    try:
-        print(f"Starting background generation of all summaries for clause {clause_id}")
-
-        # Store generation start time in session or cache
-        cache_key = f"summary_generation_{clause_id}"
-
-        # Generate test procedure summary
+    """Background task to generate all summaries from EVE evaluation data."""
+    from app import create_app
+    app = create_app()
+    with app.app_context():
         try:
-            print(f"Generating test procedure for clause {clause_id}")
-            result = generate_consolidated_test_procedure(clause_id)
-            print(f"Test procedure generation result: {result}")
+            from app.models.project_instance_models import (
+                ProjectClause, ProjectComplianceActivity, ProjectControlActivity
+            )
+            from app.models.eve_models import EveControlResult, EveEvidenceResult, ProjectChecklist
+            from app.models.ai import (
+                ConsolidatedTestSummary, ConsolidatedObservationSummary,
+                ConsolidatedFindingsSummary, ConsolidatedRecommendationsSummary
+            )
+            from app.services.eve_step678 import _call_llm_json
+            import json
+            from datetime import datetime
+
+            print(f"Starting EVE-based summary generation for clause {clause_id}")
+
+            # ── 1. Gather applicable activities + their EVE results ──
+            pcas = (
+                db.session.query(ProjectControlActivity)
+                .join(
+                    ProjectComplianceActivity,
+                    ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id,
+                )
+                .filter(
+                    ProjectComplianceActivity.project_clause_id == clause_id,
+                    ProjectComplianceActivity.applicability == True,
+                )
+                .all()
+            )
+
+            if not pcas:
+                print(f"No applicable activities for clause {clause_id}")
+                return
+
+            # Collect EVE data per activity
+            activities_data = []
+            all_confirmed_findings = []
+            all_confirmed_recommendations = []
+            all_evidence_files = []
+
+            for pca in pcas:
+                ctrl = EveControlResult.query.filter_by(
+                    project_control_activity_id=pca.id
+                ).first()
+
+                # Evidence files info
+                ev_results = EveEvidenceResult.query.filter_by(
+                    project_control_activity_id=pca.id
+                ).all()
+
+                evidence_info = []
+                for ev in ev_results:
+                    evidence_info.append({
+                        "file_name": ev.evidence_file_name or "Unknown",
+                        "evidence_type": ev.evidence_type,
+                        "admissibility": ev.admissibility,
+                        "admissibility_reason": ev.admissibility_reason,
+                    })
+
+                # Checklist results
+                checklist = ProjectChecklist.query.filter_by(
+                    project_control_activity_id=pca.id
+                ).first()
+                checklist_items = checklist.checklist_json or [] if checklist else []
+
+                # Checklist evaluation from EVE
+                checklist_summary = {"confirmed": 0, "partial": 0, "open": 0, "total": len(checklist_items)}
+                for item in checklist_items:
+                    status = item.get("status", item.get("item_status", ""))
+                    if status == "YES":
+                        checklist_summary["confirmed"] += 1
+                    elif status == "PARTIAL":
+                        checklist_summary["partial"] += 1
+                    else:
+                        checklist_summary["open"] += 1
+
+                # Findings — only CONFIRMED
+                findings = []
+                recommendations = []
+                if ctrl and ctrl.findings_json:
+                    for f in ctrl.findings_json:
+                        if isinstance(f, dict) and f.get("auditor_status") == "CONFIRMED":
+                            findings.append(f)
+                            all_confirmed_findings.append({
+                                **f,
+                                "activity_code": pca.activity_code,
+                                "activity_name": pca.activity_description,
+                            })
+
+                if ctrl and ctrl.recommendations_json:
+                    for r in ctrl.recommendations_json:
+                        if isinstance(r, dict):
+                            # Include recommendation only if its related finding is CONFIRMED
+                            related = r.get("finding_id", "")
+                            if not related or any(f.get("finding_id") == related for f in findings):
+                                recommendations.append(r)
+                                all_confirmed_recommendations.append({
+                                    **r,
+                                    "activity_code": pca.activity_code,
+                                })
+
+                activities_data.append({
+                    "activity_code": pca.activity_code,
+                    "activity_name": pca.activity_description,
+                    "evidence_files": evidence_info,
+                    "checklist_summary": checklist_summary,
+                    "findings_count": len(findings),
+                    "final_status": ctrl.final_status if ctrl else "NOT_EVALUATED",
+                    "final_severity": ctrl.final_severity if ctrl else None,
+                })
+                all_evidence_files.extend(evidence_info)
+
+            # ── Box 1: Test Procedure — use existing function ────────
+            try:
+                print(f"Generating test procedure for clause {clause_id}")
+                result = generate_consolidated_test_procedure(clause_id)
+                print(f"Test procedure: {result}")
+            except Exception as e:
+                print(f"Error generating test procedure: {e}")
+
+            # ── Box 2: Consolidated Observation Summary ──────────────
+            try:
+                print(f"Generating observations for clause {clause_id}")
+                obs_system = (
+                    "You are a senior audit report writer. Convert the structured audit data "
+                    "into a professional observation summary. Use audit-report language. "
+                    "Return ONLY valid JSON."
+                )
+                obs_user = f"""
+Based on the following audit evaluation data, write a consolidated observation summary.
+
+ACTIVITIES EVALUATED ({len(activities_data)}):
+{json.dumps(activities_data, indent=2, default=str)}
+
+EVIDENCE FILES REVIEWED ({len(all_evidence_files)}):
+{json.dumps(all_evidence_files, indent=2, default=str)}
+
+Return this JSON structure:
+{{
+  "consolidated_summary": "2-3 sentence overview of what was reviewed and key takeaways",
+  "key_observations": ["Observation 1 as bullet point", "Observation 2..."],
+  "common_patterns": ["Pattern 1...", "Pattern 2..."],
+  "risk_areas": ["Risk 1...", "Risk 2..."],
+  "improvement_opportunities": ["Improvement 1...", "Improvement 2..."],
+  "generated_at": "{datetime.utcnow().isoformat()}",
+  "activities_processed": {len(activities_data)}
+}}
+
+Rules:
+- "Obtained [document names]. [Which were admissible and why/why not]."
+- "Through evidence review, X of Y checklist requirements were confirmed. Z items remain open."
+- Mention walkthroughs conducted and interviews held if data exists.
+- Be factual. No vague qualifiers. No filler.
+"""
+                obs_result = _call_llm_json(obs_system, obs_user)
+                if obs_result:
+                    existing = ConsolidatedObservationSummary.query.filter_by(clause_id=clause_id).first()
+                    if existing:
+                        existing.consolidated_observation = json.dumps(obs_result)
+                    else:
+                        new_obs = ConsolidatedObservationSummary(
+                            clause_id=clause_id,
+                            consolidated_observation=json.dumps(obs_result)
+                        )
+                        db.session.add(new_obs)
+                    db.session.commit()
+                    print(f"Observations: saved ✅")
+            except Exception as e:
+                print(f"Error generating observations: {e}")
+                import traceback; traceback.print_exc()
+
+            # ── Box 3+4: Consolidated Findings + Recommendations ─────
+            try:
+                print(f"Generating findings + recommendations for clause {clause_id}")
+
+                if all_confirmed_findings:
+                    fr_system = (
+                        "You are a senior audit report writer. Consolidate related findings "
+                        "and their recommendations into a professional audit report format. "
+                        "Return ONLY valid JSON."
+                    )
+                    fr_user = f"""
+CONFIRMED FINDINGS ({len(all_confirmed_findings)}):
+{json.dumps(all_confirmed_findings, indent=2, default=str)}
+
+RECOMMENDATIONS FOR CONFIRMED FINDINGS ({len(all_confirmed_recommendations)}):
+{json.dumps(all_confirmed_recommendations, indent=2, default=str)}
+
+Consolidate into this JSON structure:
+{{
+  "detailed_findings": [
+    {{
+      "cf_id": "CF-001",
+      "consolidated_finding": "Clear description of the finding",
+      "impact": "Regulatory and operational impact",
+      "severity": "HIGHEST severity among source findings",
+      "source_findings": ["F-001/ACT-001", "F-001/ACT-002"],
+      "related_recommendation": {{
+        "cr_id": "CR-001",
+        "recommendation": "What to do",
+        "implementation_steps": ["Step 1", "Step 2"],
+        "timeline": "MOST URGENT among source recommendations"
+      }}
+    }}
+  ],
+  "generated_at": "{datetime.utcnow().isoformat()}",
+  "activities_processed": {len(activities_data)}
+}}
+
+Rules:
+- Merge RELATED findings across activities into single consolidated findings (CF-xxx)
+- Severity of consolidated finding = HIGHEST among merged source findings
+- Each CF has exactly ONE corresponding CR (consolidated recommendation)
+- Timeline of CR = MOST URGENT among merged (IMMEDIATE > SHORT_TERM > MEDIUM_TERM > LONG_TERM)
+- Implementation steps: deduplicate across sources
+- Keep source_findings for traceability
+- Use professional audit report language
+"""
+                    fr_result = _call_llm_json(fr_system, fr_user)
+                else:
+                    fr_result = {
+                        "detailed_findings": [],
+                        "generated_at": datetime.utcnow().isoformat(),
+                        "activities_processed": len(activities_data),
+                        "note": "No confirmed findings to report."
+                    }
+
+                if fr_result:
+                    # Save findings
+                    findings_data = {
+                        "detailed_findings": fr_result.get("detailed_findings", []),
+                        "generated_at": fr_result.get("generated_at"),
+                        "activities_processed": fr_result.get("activities_processed", 0),
+                    }
+                    existing_f = ConsolidatedFindingsSummary.query.filter_by(clause_id=clause_id).first()
+                    if existing_f:
+                        existing_f.consolidated_findings = json.dumps(findings_data)
+                    else:
+                        new_f = ConsolidatedFindingsSummary(
+                            clause_id=clause_id,
+                            consolidated_findings=json.dumps(findings_data)
+                        )
+                        db.session.add(new_f)
+
+                    # Save recommendations (extracted from findings result)
+                    recs_data = {
+                        "actionable_recommendations": [
+                            f["related_recommendation"]
+                            for f in fr_result.get("detailed_findings", [])
+                            if f.get("related_recommendation")
+                        ],
+                        "generated_at": fr_result.get("generated_at"),
+                        "activities_processed": fr_result.get("activities_processed", 0),
+                    }
+                    existing_r = ConsolidatedRecommendationsSummary.query.filter_by(clause_id=clause_id).first()
+                    if existing_r:
+                        existing_r.consolidated_recommendations = json.dumps(recs_data)
+                    else:
+                        new_r = ConsolidatedRecommendationsSummary(
+                            clause_id=clause_id,
+                            consolidated_recommendations=json.dumps(recs_data)
+                        )
+                        db.session.add(new_r)
+                    db.session.commit()
+                    print(f"Findings + Recommendations: saved ✅")
+            except Exception as e:
+                print(f"Error generating findings/recommendations: {e}")
+                import traceback; traceback.print_exc()
+
+            print(f"✅ Completed EVE-based summary generation for clause {clause_id}")
+
         except Exception as e:
-            print(f"Error generating test procedure: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-
-        # Generate observations summary
-        try:
-            print(f"Generating observations for clause {clause_id}")
-            result = generate_consolidated_observation_summary(clause_id)
-            print(f"Observations generation result: {result}")
-        except Exception as e:
-            print(f"Error generating observations: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-
-        # Generate findings summary
-        try:
-            print(f"Generating findings for clause {clause_id}")
-            result = generate_consolidated_findings_summary(clause_id)
-            print(f"Findings generation result: {result}")
-        except Exception as e:
-            print(f"Error generating findings: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-
-        # Generate recommendations summary
-        try:
-            print(f"Generating recommendations for clause {clause_id}")
-            result = generate_consolidated_recommendations_summary(clause_id)
-            print(f"Recommendations generation result: {result}")
-        except Exception as e:
-            print(f"Error generating recommendations: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-
-        print(f"✅ Completed background generation for clause {clause_id}")
-
-    except Exception as e:
-        print(f"❌ Error in generate_all_summaries_background: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+            print(f"❌ Error in generate_all_summaries_background: {e}")
+            import traceback; traceback.print_exc()
 
 
 def check_evidence_needs_regeneration(project, evidence_record):
