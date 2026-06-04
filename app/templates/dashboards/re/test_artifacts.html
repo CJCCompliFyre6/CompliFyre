@@ -2480,6 +2480,19 @@
       }
     });
   }
+  // ── On page load: apply recommendation strikethrough for CLOSED findings ──
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.finding-card').forEach(card => {
+      if (card.dataset.status === 'CLOSED' && card.dataset.findingId) {
+        // Find the parent findings_list to get idx
+        const findingsList = card.closest('[id^="findings_list_"]');
+        if (findingsList) {
+          const idx = findingsList.id.replace('findings_list_', '');
+          toggleRecommendation(parseInt(idx), card.dataset.findingId, true);
+        }
+      }
+    });
+  });
 
 </script>
 
