@@ -1847,21 +1847,23 @@
   <div class="mb-6 p-4 bg-white rounded-lg border-l-4 border-green-500">
     <h3 class="text-xl font-bold text-gray-900 mb-3">7. Recommendations</h3>
     {% if eve_recommendations and eve_recommendations|length > 0 %}
+    {# Build set of closed finding IDs BEFORE the loop #}
+    {% set closed_ids = [] %}
+    {% if eve_findings %}
+      {% for f in eve_findings %}
+        {% if f.auditor_status == 'CLOSED' and f.finding_id %}
+          {% if closed_ids.append(f.finding_id) %}{% endif %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
     <div class="space-y-3">
       {% for rec in eve_recommendations %}
-      {% set ns_rec = namespace(closed=false) %}
-      {% if rec.finding_id and eve_findings %}
-        {% for f in eve_findings %}
-          {% if f.finding_id == rec.finding_id and f.auditor_status == 'CLOSED' %}
-            {% set ns_rec.closed = true %}
-          {% endif %}
-        {% endfor %}
-      {% endif %}
-      <div class="rec-card border border-green-200 rounded-lg p-3 bg-green-50 {% if ns_rec.closed %}opacity-50{% endif %}"
+      {% set is_closed = (rec.finding_id in closed_ids) if rec.finding_id else false %}
+      <div class="rec-card border border-green-200 rounded-lg p-3 bg-green-50 {% if is_closed %}opacity-50{% endif %}"
            data-related-finding="{{ rec.finding_id or '' }}">
         <div class="flex items-center space-x-2 mb-1">
           <span class="text-xs font-mono font-bold text-gray-500">{{ rec.recommendation_id or loop.index }}</span>
-          <span class="text-sm font-bold text-gray-800 {% if ns_rec.closed %}line-through{% endif %}">{{ rec.recommendation_summary or rec.recommendation or "" }}</span>
+          <span class="text-sm font-bold text-gray-800 {% if is_closed %}line-through{% endif %}">{{ rec.recommendation_summary or rec.recommendation or "" }}</span>
         </div>
         {% if rec.implementation_steps %}
         <div class="mt-1">

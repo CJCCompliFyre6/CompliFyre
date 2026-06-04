@@ -7419,7 +7419,7 @@ def generate_all_consolidated_summaries_route():
         # Start background tasks for each summary type
         from threading import Thread
 
-        thread = Thread(target=generate_all_summaries_background, args=(clause_id,))
+        thread = Thread(target=generate_all_summaries_background, args=(clause_id, current_app._get_current_object()))
         thread.daemon = True
         thread.start()
 
@@ -7607,10 +7607,8 @@ def check_all_summaries_task_status(clause_id):
         )  # Return 200 even on error to keep polling alive
 
 
-def generate_all_summaries_background(clause_id):
+def generate_all_summaries_background(clause_id, app):
     """Background task to generate all summaries from EVE evaluation data."""
-    from app import create_app
-    app = create_app()
     with app.app_context():
         try:
             from app.models.project_instance_models import (
@@ -7676,16 +7674,25 @@ def generate_all_summaries_background(clause_id):
                 ).first()
                 checklist_items = checklist.checklist_json or [] if checklist else []
 
-                # Checklist evaluation from EVE
-                checklist_summary = {"confirmed": 0, "partial": 0, "open": 0, "total": len(checklist_items)}
+                # Checklist evaluation from EVE — include descriptions
+                checklist_confirmed = []
+                checklist_open = []
                 for item in checklist_items:
+                    desc = item.get("assertion", item.get("requirement", item.get("checklist_item_id", "Unknown")))
+                    item_id = item.get("checklist_item_id", "")
                     status = item.get("status", item.get("item_status", ""))
                     if status == "YES":
-                        checklist_summary["confirmed"] += 1
-                    elif status == "PARTIAL":
-                        checklist_summary["partial"] += 1
+                        checklist_confirmed.append(f"{item_id}: {desc}")
                     else:
-                        checklist_summary["open"] += 1
+                        checklist_open.append(f"{item_id}: {desc} [{status or 'OPEN'}]")
+
+                checklist_summary = {
+                    "confirmed": len(checklist_confirmed),
+                    "open": len(checklist_open),
+                    "total": len(checklist_items),
+                    "confirmed_items": checklist_confirmed,
+                    "open_items": checklist_open,
+                }
 
                 # Findings — only CONFIRMED
                 findings = []
@@ -7735,35 +7742,51 @@ def generate_all_summaries_background(clause_id):
             try:
                 print(f"Generating observations for clause {clause_id}")
                 obs_system = (
-                    "You are a senior audit report writer. Convert the structured audit data "
-                    "into a professional observation summary. Use audit-report language. "
-                    "Return ONLY valid JSON."
+                    "You are a senior audit report writer drafting the observation section "
+                    "of an internal audit report. Write in formal audit-report language. "
+                    "Be specific — name documents, checklist items, and controls. "
+                    "Return ONLY valid JSON. No filler text. Every sentence must convey a fact."
                 )
                 obs_user = f"""
-Based on the following audit evaluation data, write a consolidated observation summary.
+Write a consolidated observation summary for this audit activity based on the following ACTUAL evaluation data.
 
-ACTIVITIES EVALUATED ({len(activities_data)}):
-{json.dumps(activities_data, indent=2, default=str)}
+EVIDENCE DOCUMENTS OBTAINED:
+{json.dumps([e['file_name'] + ' (' + (e['admissibility'] or 'N/A') + ')' for e in all_evidence_files], indent=2)}
 
-EVIDENCE FILES REVIEWED ({len(all_evidence_files)}):
-{json.dumps(all_evidence_files, indent=2, default=str)}
+INADMISSIBLE EVIDENCE AND REASONS:
+{json.dumps([e['file_name'] + ': ' + (e['admissibility_reason'] or 'No reason') for e in all_evidence_files if e.get('admissibility') == 'INADMISSIBLE'], indent=2)}
 
-Return this JSON structure:
+CHECKLIST REQUIREMENTS CONFIRMED (through evidence review):
+{json.dumps([a['checklist_summary']['confirmed_items'] for a in activities_data], indent=2)}
+
+CHECKLIST REQUIREMENTS OPEN / NOT CONFIRMED:
+{json.dumps([a['checklist_summary']['open_items'] for a in activities_data], indent=2)}
+
+CONFIRMED FINDINGS ({len(all_confirmed_findings)}):
+{json.dumps([f.get('issue','') for f in all_confirmed_findings], indent=2)}
+
+Return EXACTLY this JSON — every field must be populated from ACTUAL data above:
 {{
-  "consolidated_summary": "2-3 sentence overview of what was reviewed and key takeaways",
-  "key_observations": ["Observation 1 as bullet point", "Observation 2..."],
-  "common_patterns": ["Pattern 1...", "Pattern 2..."],
-  "risk_areas": ["Risk 1...", "Risk 2..."],
-  "improvement_opportunities": ["Improvement 1...", "Improvement 2..."],
+  "consolidated_summary": "Start with: 'Obtained [list actual document names]. [State which were admissible and which were not and why]. Through evidence review, X of Y checklist requirements were confirmed including [name top 2-3 confirmed items]. Y requirements remain open including [name top 2-3 open items].'",
+  "key_observations": [
+    "Obtained and reviewed: [actual document names from evidence list]",
+    "The following requirements were confirmed: [list confirmed checklist items by description]",
+    "The following requirements could not be confirmed: [list open items by description]",
+    "X confirmed finding(s) were noted (if any)"
+  ],
+  "common_patterns": ["Pattern observed across checklist results — e.g. documentation gaps, missing approvals"],
+  "risk_areas": ["Specific risk based on open/failed items"],
+  "improvement_opportunities": ["Actionable improvement based on gaps found"],
   "generated_at": "{datetime.utcnow().isoformat()}",
   "activities_processed": {len(activities_data)}
 }}
 
-Rules:
-- "Obtained [document names]. [Which were admissible and why/why not]."
-- "Through evidence review, X of Y checklist requirements were confirmed. Z items remain open."
-- Mention walkthroughs conducted and interviews held if data exists.
-- Be factual. No vague qualifiers. No filler.
+CRITICAL RULES:
+- Use ONLY data provided above. Do NOT invent or assume.
+- Name actual documents. Name actual checklist items.
+- If there are confirmed findings, mention them.
+- If all requirements are met, say so clearly.
+- If items remain open, list them specifically.
 """
                 obs_result = _call_llm_json(obs_system, obs_user)
                 if obs_result:
@@ -7785,6 +7808,10 @@ Rules:
             # ── Box 3+4: Consolidated Findings + Recommendations ─────
             try:
                 print(f"Generating findings + recommendations for clause {clause_id}")
+                print(f"  → CONFIRMED findings found: {len(all_confirmed_findings)}")
+                print(f"  → CONFIRMED recommendations found: {len(all_confirmed_recommendations)}")
+                for cf in all_confirmed_findings:
+                    print(f"    Finding: {cf.get('finding_id')} severity={cf.get('severity')} status={cf.get('auditor_status')} activity={cf.get('activity_code')}")
 
                 if all_confirmed_findings:
                     fr_system = (
