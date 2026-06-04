@@ -2401,24 +2401,19 @@
   }
 
   function toggleRecommendation(idx, findingId, crossOut) {
-    // findings_list is inside Section 6 div.
-    // Recommendations are in Section 7 div — sibling of Section 6.
-    // Walk: findings_list → Section 6 (mb-6) → parent → find .rec-card
-    const findingsList = document.getElementById('findings_list_' + idx);
-    if (!findingsList) return;
-    const section6 = findingsList.closest('.mb-6');
-    if (!section6 || !section6.parentElement) return;
-    const recCards = section6.parentElement.querySelectorAll('.rec-card');
-    recCards.forEach(rec => {
+    // Simple global query — find ALL rec-cards on page matching this finding
+    document.querySelectorAll('.rec-card').forEach(rec => {
       if (rec.dataset.relatedFinding === findingId) {
         if (crossOut) {
           rec.classList.add('opacity-50');
-          const title = rec.querySelector('.text-sm.font-bold');
-          if (title) title.classList.add('line-through');
+          rec.querySelectorAll('.text-sm.font-bold, .text-sm.font-bold.text-gray-800').forEach(el => {
+            el.classList.add('line-through');
+          });
         } else {
           rec.classList.remove('opacity-50');
-          const title = rec.querySelector('.text-sm.font-bold');
-          if (title) title.classList.remove('line-through');
+          rec.querySelectorAll('.line-through').forEach(el => {
+            el.classList.remove('line-through');
+          });
         }
       }
     });
@@ -2480,18 +2475,26 @@
       }
     });
   }
-  // ── On page load: apply recommendation strikethrough for CLOSED findings ──
+  // ── On page load: strikethrough recommendations for CLOSED findings ──
   document.addEventListener('DOMContentLoaded', function() {
+    // Collect all closed finding IDs
+    const closedIds = [];
     document.querySelectorAll('.finding-card').forEach(card => {
       if (card.dataset.status === 'CLOSED' && card.dataset.findingId) {
-        // Find the parent findings_list to get idx
-        const findingsList = card.closest('[id^="findings_list_"]');
-        if (findingsList) {
-          const idx = findingsList.id.replace('findings_list_', '');
-          toggleRecommendation(parseInt(idx), card.dataset.findingId, true);
-        }
+        closedIds.push(card.dataset.findingId);
       }
     });
+    // Apply strikethrough to matching recommendations globally
+    if (closedIds.length > 0) {
+      document.querySelectorAll('.rec-card').forEach(rec => {
+        if (closedIds.includes(rec.dataset.relatedFinding)) {
+          rec.classList.add('opacity-50');
+          rec.querySelectorAll('.text-sm.font-bold, .text-sm.font-bold.text-gray-800').forEach(el => {
+            el.classList.add('line-through');
+          });
+        }
+      });
+    }
   });
 
 </script>
