@@ -7654,25 +7654,31 @@ def generate_all_summaries_background(clause_id, app):
                     project_control_activity_id=pca.id
                 ).first()
 
-                # Evidence files info
-                ev_results = EveEvidenceResult.query.filter_by(
-                    project_control_activity_id=pca.id
-                ).all()
-
-                evidence_info = []
-                for ev in ev_results:
-                    evidence_info.append({
-                        "file_name": ev.evidence_file_name or "Unknown",
-                        "evidence_type": ev.evidence_type,
-                        "admissibility": ev.admissibility,
-                        "admissibility_reason": ev.admissibility_reason,
-                    })
-
-                # Checklist results
+                # Checklist results — query FIRST so we can use checklist.id for evidence query
                 checklist = ProjectChecklist.query.filter_by(
                     project_control_activity_id=pca.id
                 ).first()
                 checklist_items = checklist.checklist_json or [] if checklist else []
+
+                # Evidence files info — via checklist → evidence results → artifact
+                evidence_info = []
+                if checklist:
+                    ev_results = EveEvidenceResult.query.filter_by(
+                        project_checklist_id=checklist.id
+                    ).all()
+
+                    # Get unique evidence artifacts (one per file, not per checklist item)
+                    seen_artifacts = set()
+                    for ev in ev_results:
+                        if ev.evidence_artifact_id and ev.evidence_artifact_id not in seen_artifacts:
+                            seen_artifacts.add(ev.evidence_artifact_id)
+                            artifact = ev.evidence_artifact
+                            evidence_info.append({
+                                "file_name": (artifact.file_name if artifact else "Unknown"),
+                                "evidence_type": ev.evidence_type,
+                                "admissibility": ev.admissibility,
+                                "admissibility_reason": ev.admissibility_reason,
+                            })
 
                 # Checklist evaluation from EVE — include descriptions
                 checklist_confirmed = []
