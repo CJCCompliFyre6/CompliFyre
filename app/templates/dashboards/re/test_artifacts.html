@@ -1858,9 +1858,11 @@
     {% endif %}
     <div class="space-y-3">
       {% for rec in eve_recommendations %}
-      {% set is_closed = (rec.finding_id in closed_ids) if rec.finding_id else false %}
+      {# Derive finding ID: use related_finding if set, else derive from REC-001 → F-001 #}
+      {% set rec_fid = rec.related_finding or rec.finding_id or (rec.recommendation_id | replace('REC-', 'F-') if rec.recommendation_id else '') %}
+      {% set is_closed = (rec_fid in closed_ids) if rec_fid else false %}
       <div class="rec-card border border-green-200 rounded-lg p-3 bg-green-50 {% if is_closed %}opacity-50{% endif %}"
-           data-related-finding="{{ rec.finding_id or '' }}">
+           data-related-finding="{{ rec_fid }}">
         <div class="flex items-center space-x-2 mb-1">
           <span class="text-xs font-mono font-bold text-gray-500">{{ rec.recommendation_id or loop.index }}</span>
           <span class="text-sm font-bold text-gray-800 {% if is_closed %}line-through{% endif %}">{{ rec.recommendation_summary or rec.recommendation or "" }}</span>
@@ -1878,8 +1880,8 @@
         {% if rec.timeline %}
         <p class="text-xs text-gray-500 mt-1">Timeline: {{ rec.timeline }}</p>
         {% endif %}
-        {% if rec.finding_id %}
-        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded mt-1 inline-block">Related: {{ rec.finding_id }}</span>
+        {% if rec.related_finding %}
+        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded mt-1 inline-block">Related: {{ rec.related_finding }}</span>
         {% endif %}
       </div>
       {% endfor %}
@@ -2401,9 +2403,14 @@
   }
 
   function toggleRecommendation(idx, findingId, crossOut) {
-    // Simple global query — find ALL rec-cards on page matching this finding
     document.querySelectorAll('.rec-card').forEach(rec => {
-      if (rec.dataset.relatedFinding === findingId) {
+      // Use data-related-finding, or derive from rec ID (REC-001 → F-001)
+      let relatedFinding = rec.dataset.relatedFinding;
+      if (!relatedFinding) {
+        const recIdEl = rec.querySelector('.text-xs.font-mono.font-bold');
+        if (recIdEl) relatedFinding = recIdEl.textContent.trim().replace(/^REC-/, 'F-');
+      }
+      if (relatedFinding === findingId) {
         if (crossOut) {
           rec.classList.add('opacity-50');
           rec.querySelectorAll('.text-sm.font-bold, .text-sm.font-bold.text-gray-800').forEach(el => {
@@ -2487,7 +2494,13 @@
     // Apply strikethrough to matching recommendations globally
     if (closedIds.length > 0) {
       document.querySelectorAll('.rec-card').forEach(rec => {
-        if (closedIds.includes(rec.dataset.relatedFinding)) {
+        // Use data-related-finding, or derive from rec ID (REC-001 → F-001)
+        let relatedFinding = rec.dataset.relatedFinding;
+        if (!relatedFinding) {
+          const recIdEl = rec.querySelector('.text-xs.font-mono.font-bold');
+          if (recIdEl) relatedFinding = recIdEl.textContent.trim().replace(/^REC-/, 'F-');
+        }
+        if (relatedFinding && closedIds.includes(relatedFinding)) {
           rec.classList.add('opacity-50');
           rec.querySelectorAll('.text-sm.font-bold, .text-sm.font-bold.text-gray-800').forEach(el => {
             el.classList.add('line-through');
