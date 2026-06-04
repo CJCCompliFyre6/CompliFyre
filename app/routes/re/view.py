@@ -4334,6 +4334,7 @@ def test_evidence_artifacts(activity_id):
         eve_control_support = None
         eve_assurance = {}
         eve_admissibility = None
+        eve_admissibility_reason = None
         eve_dimension_design = None
         eve_dimension_impl = None
         eve_dimension_oper = None
