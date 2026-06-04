@@ -539,6 +539,27 @@
                       </div>
                       {% endif %}
 
+                      <!-- Instance Identification (PRE-0) -->
+                      {% if value.step5.instance_meta %}
+                      {% set im = value.step5.instance_meta %}
+                      <div class="flex flex-wrap gap-2 mb-3 p-2 bg-indigo-50 border border-indigo-200 rounded">
+                        <span class="text-xs font-semibold text-indigo-700">📎 Instance:</span>
+                        <span class="text-xs text-indigo-800 font-medium">{{ im.instance_id }}</span>
+                        {% if im.instance_type and im.instance_type != 'UNKNOWN' %}
+                        <span class="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded">{{ im.instance_type | replace('_', ' ') }}</span>
+                        {% endif %}
+                        {% if im.document_date and im.document_date not in ('Not found', 'Not visible', 'Not extracted') %}
+                        <span class="text-xs text-gray-500">Date: {{ im.document_date }}</span>
+                        {% endif %}
+                        {% if im.source_system and im.source_system not in ('N/A', 'Unknown') %}
+                        <span class="text-xs text-gray-500">System: {{ im.source_system }}</span>
+                        {% endif %}
+                        {% if im.parties and im.parties | length > 0 %}
+                        <span class="text-xs text-gray-500">Parties: {{ im.parties | join(', ') }}</span>
+                        {% endif %}
+                      </div>
+                      {% endif %}
+
                       <!-- Org Confirmation Needed -->
                       {% if value.step5.org_confirmation_needed %}
                       <div class="mb-3 p-2 bg-amber-50 border border-amber-300 rounded-lg">
@@ -594,6 +615,27 @@
                       {% if value.step5.checklist_evaluation %}
                       <div class="mb-3">
                         <p class="text-xs font-semibold text-gray-600 mb-1">Checklist Item Evaluation</p>
+
+                        {# Check if evidence was inadmissible — show single banner instead of repeated gaps #}
+                        {% set ns_adm = namespace(is_inadmissible=false, fail_reason='') %}
+                        {% if value.step5.admissibility_tests %}
+                          {% for test in value.step5.admissibility_tests %}
+                            {% if test.result == 'FAIL' %}
+                              {% set ns_adm.is_inadmissible = true %}
+                              {% if not ns_adm.fail_reason %}
+                                {% set ns_adm.fail_reason = test.test | replace('_', ' ') | title ~ ': ' ~ test.reason %}
+                              {% endif %}
+                            {% endif %}
+                          {% endfor %}
+                        {% endif %}
+
+                        {% if ns_adm.is_inadmissible %}
+                        <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p class="text-xs font-semibold text-red-700">⛔ Checklist evaluation skipped — evidence inadmissible</p>
+                          <p class="text-xs text-red-600 mt-1">{{ ns_adm.fail_reason }}</p>
+                          <p class="text-xs text-gray-500 mt-1">{{ value.step5.checklist_evaluation | length }} checklist item(s) not evaluated. Resolve admissibility issue and re-evaluate.</p>
+                        </div>
+                        {% else %}
                         {% for item in value.step5.checklist_evaluation %}
                         <div class="mb-2 p-2 rounded border
                           {% if item.found == 'FOUND' %}border-green-200 bg-green-50
@@ -638,6 +680,7 @@
                           {% endif %}
                         </div>
                         {% endfor %}
+                        {% endif %}{# end inadmissibility check #}
                       </div>
                       {% endif %}
 
