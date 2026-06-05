@@ -440,9 +440,12 @@
                 <tbody class="divide-y divide-gray-100">
                     {% for item in guidelines%}
                     {% if item.guideline_data and item.guideline_data | length > 0 %}
-                    <tr class="bg-white">
-                        <td class="p-3 text-lg text-gray-700">{{
-                            item.guideline_data.DocumentDetails.DocumentName }}
+                    <tr class="{% if not item.enabled %}bg-gray-50 opacity-60{% else %}bg-white{% endif %}">
+                        <td class="p-3 text-lg text-gray-700">
+                            {{ item.guideline_data.DocumentDetails.DocumentName }}
+                            {% if not item.enabled %}
+                            <span class="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">DISABLED</span>
+                            {% endif %}
                         </td>
                         <td class="p-3 text-lg text-gray-700">{{
                             item.guideline_data.DocumentDetails.DocumentName }}
