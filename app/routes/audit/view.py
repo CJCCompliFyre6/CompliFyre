@@ -7831,9 +7831,9 @@ CRITICAL RULES:
 
                 if all_confirmed_findings:
                     fr_system = (
-                        "You are a senior audit report writer. Consolidate related findings "
-                        "and their recommendations into a professional audit report format. "
-                        "Return ONLY valid JSON."
+                        "You are a senior audit report writer for a financial institution. "
+                        "Consolidate audit findings and recommendations into a professional "
+                        "internal audit report format. Return ONLY valid JSON."
                     )
                     fr_user = f"""
 CONFIRMED FINDINGS ({len(all_confirmed_findings)}):
@@ -7847,15 +7847,15 @@ Consolidate into this JSON structure:
   "detailed_findings": [
     {{
       "cf_id": "CF-001",
-      "consolidated_finding": "Clear description of the finding",
-      "impact": "Regulatory and operational impact",
-      "severity": "HIGHEST severity among source findings",
-      "source_findings": ["F-001/ACT-001", "F-001/ACT-002"],
+      "consolidated_finding": "3-sentence finding per rules below",
+      "impact": "Combined regulatory and operational impact",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW",
+      "source_findings": ["F-001/ACT-001", "F-003/ACT-001"],
       "related_recommendation": {{
         "cr_id": "CR-001",
-        "recommendation": "What to do",
+        "recommendation": "Verb-first actionable directive",
         "implementation_steps": ["Step 1", "Step 2"],
-        "timeline": "MOST URGENT among source recommendations"
+        "timeline": "IMMEDIATE | SHORT_TERM | MEDIUM_TERM | LONG_TERM"
       }}
     }}
   ],
@@ -7863,14 +7863,28 @@ Consolidate into this JSON structure:
   "activities_processed": {len(activities_data)}
 }}
 
-Rules:
-- Merge RELATED findings across activities into single consolidated findings (CF-xxx)
-- Severity of consolidated finding = HIGHEST among merged source findings
-- Each CF has exactly ONE corresponding CR (consolidated recommendation)
-- Timeline of CR = MOST URGENT among merged (IMMEDIATE > SHORT_TERM > MEDIUM_TERM > LONG_TERM)
-- Implementation steps: deduplicate across sources
-- Keep source_findings for traceability
-- Use professional audit report language
+FINDING CONSOLIDATION RULES:
+1. Merge ONLY findings linked to the EXACT SAME checklist item ID (checklist_refs field).
+   Do NOT merge findings from different checklist items even if they appear related.
+   Each unique checklist item = one CF.
+2. Each consolidated_finding must follow this exact structure (max 3 sentences):
+   - Sentence 1: "[Control area] is [deficient/absent/inadequate] — [specific gap observed]"
+   - Sentence 2: "What was expected: [requirement]. What was found: [actual state]."
+   - Sentence 3: "If not remediated, [specific consequence — regulatory penalty / operational failure / financial risk]."
+3. Severity = HIGHEST value from source_findings severity field using this strict hierarchy:
+   CRITICAL > HIGH > MEDIUM > LOW
+   Look at each source finding's severity field literally and pick the highest. Do not interpret.
+4. Impact = combine regulatory_impact + operational_impact from all source findings, deduplicated, max 2 sentences.
+5. source_findings = list all source finding IDs with their activity code for traceability.
+
+RECOMMENDATION MERGING RULES:
+1. One CR per CF — same checklist item grouping as findings.
+2. Recommendation text must start with an action verb: "Develop", "Implement", "Establish", "Ensure", "Define".
+   Format: "[Verb] [specific action] to address [gap] in compliance with [regulatory requirement if known]."
+3. Implementation steps = union of all source steps, deduplicated, max 5 steps, each starting with a verb.
+4. Timeline = MOST URGENT among source recommendations using this hierarchy:
+   IMMEDIATE > SHORT_TERM > MEDIUM_TERM > LONG_TERM
+   Look at each source recommendation's timeline literally and pick most urgent. Do not interpret.
 """
                     fr_result = _call_llm_json(fr_system, fr_user)
                 else:
