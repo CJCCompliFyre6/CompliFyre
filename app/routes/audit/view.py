@@ -7882,11 +7882,11 @@ Rules:
                     }
 
                 if fr_result:
-                    # Save findings
+                    # Save findings — override activities_processed with actual count
                     findings_data = {
                         "detailed_findings": fr_result.get("detailed_findings", []),
                         "generated_at": fr_result.get("generated_at"),
-                        "activities_processed": fr_result.get("activities_processed", 0),
+                        "activities_processed": len(pcas),  # actual count, not LLM's
                     }
                     existing_f = ConsolidatedFindingsSummary.query.filter_by(clause_id=clause_id).first()
                     if existing_f:
@@ -7898,7 +7898,7 @@ Rules:
                         )
                         db.session.add(new_f)
 
-                    # Save recommendations (extracted from findings result)
+                    # Save recommendations — override activities_processed with actual count
                     recs_data = {
                         "actionable_recommendations": [
                             f["related_recommendation"]
@@ -7906,7 +7906,7 @@ Rules:
                             if f.get("related_recommendation")
                         ],
                         "generated_at": fr_result.get("generated_at"),
-                        "activities_processed": fr_result.get("activities_processed", 0),
+                        "activities_processed": len(pcas),  # actual count
                     }
                     existing_r = ConsolidatedRecommendationsSummary.query.filter_by(clause_id=clause_id).first()
                     if existing_r:
