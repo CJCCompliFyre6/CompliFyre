@@ -1019,7 +1019,7 @@
       </h2>
 
       <!-- Button group container -->
-      <div class="flex space-x-12">
+      <div class="flex items-center gap-3 flex-wrap">
 
         <!-- Get Consolidated Evidence -->
         <div id="consolidatedEvidenceActions" class="flex items-center space-x-4 mb-4">
@@ -1084,11 +1084,18 @@
             Evaluate
           </button> -->
         </form>
+        {% if project.project_complete_status %}
         <a href="{{ url_for('re.report_options', project_id=project.id) }}">
           <button class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none">
             Generate Report
           </button>
         </a>
+        {% else %}
+        <button class="px-6 py-3 bg-gray-300 text-gray-500 cursor-not-allowed transition-all rounded-none"
+          title="Complete all clause assessments before generating report" disabled>
+          Generate Report
+        </button>
+        {% endif %}
       </div>
     </div>
 

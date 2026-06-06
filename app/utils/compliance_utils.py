@@ -141,10 +141,17 @@ def get_clause_compliance_status(clause_activities):
     compliance_statuses = []
     for activity in applicable_activities:
         if activity.project_control_activities:
-            # Get the first (or only) control activity's status
             control_activity = activity.project_control_activities[0]
             if control_activity.compliant_status:
-                compliance_statuses.append(control_activity.compliant_status)
+                # Normalize: handle EVE V3 ("COMPLIANT","NON_COMPLIANT") and old ("Compliant","not-compliant")
+                raw = control_activity.compliant_status.upper().replace(" ", "_").replace("-", "_")
+                if raw in ("COMPLIANT",):
+                    compliance_statuses.append("compliant")
+                elif raw in ("NON_COMPLIANT", "NOT_COMPLIANT", "NONCOMPLIANT"):
+                    compliance_statuses.append("not-compliant")
+                elif raw in ("PARTIALLY_COMPLIANT", "PARTIAL",):
+                    compliance_statuses.append("partially-compliant")
+                # skip unknown statuses
 
     # If no applicable activities have compliance status yet
     if not compliance_statuses:
@@ -156,25 +163,30 @@ def get_clause_compliance_status(clause_activities):
     elif all(status == "not-compliant" for status in compliance_statuses):
         return "not-compliant"
     else:
-        # Mixed statuses (some compliant, some not, or partially compliant)
         return "partially-compliant"
 
 
-def get_assessment_status(compliance_status):
+def get_assessment_status(compliance_status, clause=None):
     """
-    Get assessment status based on compliance status.
-
-    Args:
-        compliance_status: The compliance status from get_clause_compliance_status()
-
-    Returns:
-        dict: Assessment status info with text and CSS class
+    Get assessment status based on ProjectClause.assessment_status field (primary)
+    or compliance_status (fallback).
+    
+    A clause is Completed when its assessment_status == "Completed" (set via Close Assessment button)
+    regardless of whether it is compliant or non-compliant.
+    A clause with findings reviewed + summary generated should also be Completed.
     """
-    if compliance_status == "compliant":
-        return {"text": "Completed", "css_class": "bg-green-200 text-green-800"}
-    elif compliance_status in ["partially-compliant", "not-compliant"]:
-        return {"text": "To Evaluate", "css_class": "bg-orange-200 text-orange-800"}
-    else:  # no-procedures or any other status
+    # Primary: use clause.assessment_status if available
+    if clause is not None:
+        clause_assessment_status = getattr(clause, 'assessment_status', None)
+        if clause_assessment_status == "Completed":
+            return {"text": "Completed", "css_class": "bg-green-200 text-green-800"}
+    
+    # Fallback: derive from compliance_status
+    if compliance_status == "no-procedures":
+        return {"text": "To Be Assessed", "css_class": "bg-gray-200 text-gray-800"}
+    elif compliance_status in ["compliant", "not-compliant", "partially-compliant"]:
+        return {"text": "In Progress", "css_class": "bg-orange-200 text-orange-800"}
+    else:
         return {"text": "To Be Assessed", "css_class": "bg-gray-200 text-gray-800"}
 
 
@@ -672,13 +684,27 @@ def get_project_severity_statistics(project_id):
             highest_score = 0
             
             for activity in activities:
-                activity_severity = activity.overall_severity_classification
+                raw_severity = activity.overall_severity_classification
                 
-                if not activity_severity or activity_severity == 'Not Classified':
-                    if activity.compliant_status == 'Compliant':
+                # Normalize EVE V3 severity values to standard labels
+                severity_map = {
+                    'CRITICAL': 'Critical', 'Critical': 'Critical',
+                    'HIGH': 'Major', 'High': 'Major', 'MAJOR': 'Major', 'Major': 'Major',
+                    'MEDIUM': 'Significant', 'Medium': 'Significant',
+                    'SIGNIFICANT': 'Significant', 'Significant': 'Significant',
+                    'LOW': 'Minor', 'Low': 'Minor', 'MINOR': 'Minor', 'Minor': 'Minor',
+                    'NO_FINDINGS': 'No findings noted', 'No findings noted': 'No findings noted',
+                    'NO FINDINGS NOTED': 'No findings noted',
+                }
+                activity_severity = severity_map.get(raw_severity, None)
+                
+                if not activity_severity:
+                    # Fallback — check compliant status
+                    raw_cs = (activity.compliant_status or '').upper().replace('-','_').replace(' ','_')
+                    if raw_cs == 'COMPLIANT':
                         activity_severity = 'No findings noted'
                     else:
-                        activity_severity = 'Not Classified'
+                        activity_severity = None
                 
                 if activity_severity and activity_severity != 'Not Classified':
                     severity_score = severity_hierarchy.get(activity_severity, 0)
@@ -741,8 +767,7 @@ def get_project_evidence_statistics(project_id):
             
             for activity in activities:
                 evidence_received = (
-                    activity.evidence_admissibility_decision == "Yes" and 
-                    activity.evidence_quality_rating == "STRONG"
+                    activity.evidence_admissibility_decision in ("Yes", "YES", "ADMISSIBLE")
                 )
                 if not evidence_received:
                     all_activities_have_evidence = False

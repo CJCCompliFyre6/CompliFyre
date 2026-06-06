@@ -1993,9 +1993,10 @@
     {% endif %}
   </div>
 
-  <!-- Edit Form (Keep existing form below, just update field references) -->
+  <!-- Select Compliance Status form hidden — EVE V3 sets compliance status automatically -->
   <form method="POST" id="complianceForm_{{ item_loop_idx }}" action="{{url_for('audit.update_control_activity')}}"
-    class="{% if item.data.findings or item.data.recommendations or item.data.observation %}hidden-form{% endif %}">
+    class="{% if item.data.findings or item.data.recommendations or item.data.observation %}hidden-form{% endif %}"
+    style="display:none !important">
     <input type="hidden" name="activity_id" value="{{item.data.activity_id}}" />
 
     <label class="block mb-2 text-sm font-medium text-gray-700">
@@ -2427,7 +2428,8 @@
     class="flex flex-col gap-4 w-full mx-auto bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
     <input type="hidden" id="activity_code_{{ item_loop_idx }}" value="{{ item.data.id }}" />
 
-    <div class="space-y-1">
+    <!-- Additional Instructions hidden — not integrated with EVE V3 yet, will be repurposed -->
+    <div class="space-y-1" style="display:none !important">
       <label for="user_input_{{ item_loop_idx }}" class="text-2xl text-sm font-medium text-gray-700">Additional Instructions:</label>
       <textarea id="user_input_{{ item_loop_idx }}" name="user_input" rows="4"
         placeholder="Provide additional context or instructions for the evaluation..."

@@ -5263,8 +5263,12 @@ def clause_test_steps(clause_id):
                  # Add these fields for evidence admissibility
                 "evidence_admissibility_decision": control_activity.evidence_admissibility_decision,
                 "evidence_quality_rating": control_activity.evidence_quality_rating,
-                # Add a calculated field for easy use in template
-                "evidence_received": len(control_activity.submitted_evidences) > 0
+                # evidence_received = True only if actual files/content uploaded
+                # submitted_evidences contains template artifacts (from guideline) even without uploads
+                "evidence_received": any(
+                    (ev.evidence_files.count() > 0 or ev.evidence_file_path or ev.evidence_text)
+                    for ev in control_activity.submitted_evidences
+                )
             }
             all_control_activities.append(activity_data)
 

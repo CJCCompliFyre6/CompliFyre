@@ -367,7 +367,7 @@
                     Request New Guideline
                 </button>
             </a>
-            <button id="exportCSV" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded">
+            <button id="exportCSV" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded" style="display:none !important">
                 Export to CSV
             </button>
         </div>
@@ -378,19 +378,19 @@
     <div class="table-container  rounded-xl">
         {% if guidelines %}
         <table id="guidelinesTable">
-            <thead class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+            <thead class="text-sm font-medium text-gray-600 rounded-xl sticky top-0 bg-white shadow-sm z-10">
                 <tr>
-                    <th>Guideline Name</th>
-                    <th>GID</th>
-                    <th>Issuing Authority</th>
-                    <th>Applicable Geography</th>
-                    <th>Applicable Industry</th>
-                    <th>Applicable Org Category</th>
-                    <th>Mandatory (Yes/No)</th>
-                    <th>Certification Available (Yes/No)</th>
-                    <th>Date of Issue</th>
-                    <th>Effective Date for Compliance</th>
-                    <th>Action</th>
+                    <th class="p-3 text-left">Guideline Name</th>
+                    <th class="p-3 text-left" style="display:none">GID</th>
+                    <th class="p-3 text-left">Issuing Authority</th>
+                    <th class="p-3 text-left" style="display:none">Applicable Geography</th>
+                    <th class="p-3 text-left">Applicable Industry</th>
+                    <th class="p-3 text-left" style="display:none">Applicable Org Category</th>
+                    <th class="p-3 text-left">Mandatory</th>
+                    <th class="p-3 text-left">Certification</th>
+                    <th class="p-3 text-left">Date of Issue</th>
+                    <th class="p-3 text-left">Effective Date</th>
+                    <th class="p-3 text-left">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -563,11 +563,11 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
             <td>${docDetails.DocumentName || 'Untitled Document'}</td>
-            <td>GID-${index + 1}</td>
+            <td style="display:none">GID-${index + 1}</td>
             <td>${docDetails.IssuingAuthority || 'Unknown Authority'}</td>
-            <td>${docDetails.ApplicableGeography || 'Global'}</td>
+            <td style="display:none">${docDetails.ApplicableGeography || 'Global'}</td>
             <td>${docDetails.ApplicableIndustries || 'General Industry'}</td>
-            <td>${docDetails.ApplicableOrganizations || 'General Organization'}</td>
+            <td style="display:none">${docDetails.ApplicableOrganizations || 'General Organization'}</td>
             <td>${docDetails.Mandatory === 'Yes' ? 'Yes' : 'No'}</td>
             <td>${docDetails.CertificationAvailable === 'Yes' ? 'Yes' : 'No'}</td>
             <td>${docDetails.IssuanceDate || 'Not Provided'}</td>
