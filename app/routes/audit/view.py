@@ -7683,6 +7683,9 @@ def generate_all_summaries_background(clause_id, app):
                                 )
                             else:
                                 fname = "Unknown"
+                            # Strip stored timestamp prefix e.g. "20260531101247_filename.docx" → "filename.docx"
+                            import re as _re
+                            fname = _re.sub(r'^\d{14}_', '', fname)
                             evidence_info.append({
                                 "file_name": fname,
                                 "evidence_type": ev.evidence_type,
@@ -8492,6 +8495,27 @@ def upload_test_data():
         if not pca:
             return jsonify({"status": "error", "message": "Activity not found"}), 404
 
+        # ── Fetch audit period from project ───────────────────────
+        audit_period_start = None
+        audit_period_end = None
+        try:
+            from app.models.project_instance_models import ProjectComplianceActivity, ProjectClause, ProjectGuideline
+            pca_obj = pca.project_compliance_activity
+            if pca_obj and pca_obj.project_clause:
+                guideline = pca_obj.project_clause.project_guideline
+                if guideline and guideline.project:
+                    proj = guideline.project
+                    if proj.audit_period_start:
+                        audit_period_start = str(proj.audit_period_start)
+                    if proj.audit_period_end:
+                        audit_period_end = str(proj.audit_period_end)
+        except Exception as ap_err:
+            current_app.logger.warning(f"Could not fetch audit period: {ap_err}")
+
+        current_app.logger.info(
+            f"[OE Testing] Audit period: {audit_period_start} to {audit_period_end}"
+        )
+
         # ── Fetch OE checklist items ──────────────────────────────
         checklist = ProjectChecklist.query.filter_by(
             project_control_activity_id=pca.id
@@ -8581,7 +8605,13 @@ def upload_test_data():
             # Run on first data file (most common case: one dataset)
             file_path = data_files[0]["path"]
             activity_name = (pca.activity_description or f"Activity {pca.id}")
-            attr_result = run_attribute_testing(file_path, test_attributes, activity_name)
+            attr_result = run_attribute_testing(
+                file_path,
+                test_attributes,
+                activity_name,
+                audit_period_start=audit_period_start,
+                audit_period_end=audit_period_end,
+            )
             combined_results["test_results"] = attr_result.get("test_results")
 
         # ── Path B: Document files → batch LLM ───────────────────
