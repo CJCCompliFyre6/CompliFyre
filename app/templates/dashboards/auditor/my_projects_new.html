@@ -1012,7 +1012,7 @@
       <h2 class="text-lg font-semibold text-gray-700 flex items-center gap-2">Project Details</h2>
 
       <!-- Button group container -->
-      <div class="flex items-center gap-3 flex-wrap">
+      <div class="flex items-center gap-2 flex-wrap mt-4">
 
         <!-- Get Consolidated Evidence -->
         <div id="consolidatedEvidenceActions" class="flex items-center space-x-2">
@@ -1024,14 +1024,14 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             {% endif %}
             <button id="get_consolidated_evidences" type="submit"
-              class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
+              class="px-4 py-2 text-sm bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
               Get Consolidated Evidence List
             </button>
           </form>
 
           <!-- Show Evidences button (shown when evidence exists) -->
           <button id="openModalBtn" onclick="document.getElementById('evidenceModal').classList.remove('hidden')"
-            class="px-6 py-3 bg-green-600 text-white hover:bg-green-700 transition-all rounded-full font-medium {% if consolidated_evidence %}block{% else %}hidden{% endif %}">
+            class="px-4 py-2 text-sm bg-green-600 text-white hover:bg-green-700 transition-all rounded-full font-medium {% if consolidated_evidence %}block{% else %}hidden{% endif %}">
             Show Consolidated Evidences
           </button>
 
@@ -1079,12 +1079,12 @@
         </form>
         {% if project.project_complete_status %}
         <a href="{{ url_for('re.report_options', project_id=project.id) }}">
-          <button class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
+          <button class="px-4 py-2 text-sm bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
             Generate Report
           </button>
         </a>
         {% else %}
-        <button class="px-6 py-3 bg-gray-300 text-gray-500 cursor-not-allowed transition-all rounded-full font-medium"
+        <button class="px-4 py-2 text-sm bg-gray-300 text-gray-500 cursor-not-allowed transition-all rounded-full font-medium"
           title="Complete all clause assessments before generating report" disabled>
           Generate Report
         </button>
