@@ -1012,13 +1012,13 @@
       <h2 class="text-lg font-semibold text-gray-700 flex items-center gap-2">Project Details</h2>
 
       <!-- Button group container -->
-      <div class="flex items-center gap-2 flex-wrap mt-4">
+      <div class="flex items-center gap-1 flex-wrap mt-4">
 
         <!-- Get Consolidated Evidence -->
-        <div id="consolidatedEvidenceActions" class="flex items-center space-x-2">
+        <div id="consolidatedEvidenceActions" class="flex items-center space-x-1">
           <!-- Get Consolidated Evidence List (shown when no evidence exists) -->
           <form id="consolidateForm" action="{{ url_for('audit.consolidate_evidence') }}" method="POST"
-            class="mr-2 {% if consolidated_evidence %}hidden{% else %}block{% endif %}">
+            class="{% if consolidated_evidence %}hidden{% else %}block{% endif %}">
             <input name="project_name" value="{{ project_name }}" hidden />
             {% if csrf_token %}
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -1037,7 +1037,7 @@
 
           <!-- Regenerate Evidence button (shown when evidence exists but applicability changed) -->
           <form id="regenerateForm" action="{{ url_for('audit.consolidate_evidence') }}" method="POST"
-            class="mr-2 hidden">
+            class="hidden">
             <input name="project_name" value="{{ project_name }}" hidden />
             {% if csrf_token %}
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -1071,7 +1071,7 @@
 
 
         <!-- Evaluate -->
-        <form action="{{ url_for('audit.evaluate_all_projects') }}" method="POST" class="mr-6">
+        <form action="{{ url_for('audit.evaluate_all_projects') }}" method="POST" class="">
           <input name="project_name" value="{{ project_name }}" hidden />
           <!-- <button id="evaluate" class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded">
             Evaluate
