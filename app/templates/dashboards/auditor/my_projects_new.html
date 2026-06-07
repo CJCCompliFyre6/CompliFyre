@@ -1050,7 +1050,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             {% endif %}
             <button type="submit"
-              class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded-none">
+              class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none">
               Regenerate Evidence
             </button>
           </form>
@@ -2011,7 +2011,7 @@
       <thead class="bg-gray-50 border-b border-gray-200">
         <tr>
           <!-- Select All Column: Flexbox used to align Checkbox and Text side-by-side -->
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             <div class="flex items-center gap-3">
               <input type="checkbox" id="selectAllClauses"
                 class="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500 cursor-pointer">
@@ -2020,23 +2020,23 @@
           </th>
 
           <!-- Standard Columns -->
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Clause
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Applicability
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Assessment Status
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Compliance Status
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Actions
           </th>
         </tr>
@@ -2204,18 +2204,15 @@
 
 
 
-            <!-- Test Steps Button -->
-
-
-
+            <!-- Details Button -->
             <a href="{{ url_for('audit.clause_test_steps', clause_id=clause_data.clause.id) }}"
-              class="flex items-center px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded mt-4"
-              title="View Test Steps">
+              class="flex items-center px-4 py-2 bg-orange-500 text-white hover:bg-orange-600 transition-all rounded mt-4"
+              title="View Clause Details">
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
-              Test Steps
+              Details
             </a>
 
             {% else %}
