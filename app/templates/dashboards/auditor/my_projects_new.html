@@ -2097,7 +2097,7 @@
               current_user.free_report_used %}disabled{% endif %}>
           </td>
 
-          <td class="clause-number">
+          <td class="clause-number text-sm text-gray-700">
             {% if clause_data.clause %}
             <div class="flex flex-col space-y-1">
               <!-- Guideline Badge -->
@@ -2113,8 +2113,8 @@
                     {% endfor %}
               </div>
               <!-- Clause Content -->
-              <div>
-                <strong>{{ clause_data.clause.clause_no }}</strong> -
+              <div class="text-sm text-gray-700">
+                <span class="font-semibold">{{ clause_data.clause.clause_no }}</span> -
                 {{ clause_data.clause.clause_text }}
               </div>
             </div>
