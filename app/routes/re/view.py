@@ -133,29 +133,32 @@ def guidelines():
     """
     add_to_breadcrumb(request.full_path, "Guidelines")
     try:
-        guidelines_query = Guidelines.query
-        if current_user.is_authenticated and current_user.auditor_profile_id:
-            add_to_breadcrumb(request.full_path, "My Guidelines")
-            # Subquery to get all guideline_ids already selected
-            subquery = select(auditor_selected_guidelines.c.guideline_id).where(
-                auditor_selected_guidelines.c.audit_id
-                == current_user.auditor_profile_id
-            )
+        AUDITOR_ROLE_ID = 8
+        user_role_id = current_user.role_id if current_user.role_id else None
 
-            # Main query: get Guidelines NOT in the subquery
-            stmt = select(Guidelines).where(
-                ~Guidelines.id.in_(subquery), Guidelines.enabled == True
-            )
+        if user_role_id == AUDITOR_ROLE_ID:
+            # Auditor view — show only ENABLED guidelines not yet downloaded by this auditor
+            if current_user.auditor_profile_id:
+                subquery = select(auditor_selected_guidelines.c.guideline_id).where(
+                    auditor_selected_guidelines.c.audit_id
+                    == current_user.auditor_profile_id
+                )
+                stmt = select(Guidelines).where(
+                    ~Guidelines.id.in_(subquery),
+                    Guidelines.enabled == True
+                )
+            else:
+                # Auditor without auditor_profile — show enabled guidelines only (none downloaded yet)
+                stmt = select(Guidelines).where(Guidelines.enabled == True)
 
             guidelines = db.session.execute(stmt).scalars().all()
-            current_app.logger.info("If block executed - Auditor view")
-
-            # Check if download was successful from query parameter
+            current_app.logger.info(f"Auditor view — showing {len(guidelines)} enabled + not downloaded guidelines")
             download_success = request.args.get("download_success")
+
         else:
-            # For other roles (COMPLIFYRE, RE) show all guidelines (including disabled)
-            guidelines = guidelines_query.order_by(Guidelines.created_at.desc()).all()
-            current_app.logger.info("Else block executed - Non-auditor view")
+            # COMPLIFYRE / RE / ADMIN — show ALL guidelines including disabled
+            guidelines = Guidelines.query.order_by(Guidelines.created_at.desc()).all()
+            current_app.logger.info(f"Non-auditor view (role_id={user_role_id}) — showing all {len(guidelines)} guidelines including disabled")
             download_success = None
 
         # Log guideline count

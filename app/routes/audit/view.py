@@ -5263,8 +5263,12 @@ def clause_test_steps(clause_id):
                  # Add these fields for evidence admissibility
                 "evidence_admissibility_decision": control_activity.evidence_admissibility_decision,
                 "evidence_quality_rating": control_activity.evidence_quality_rating,
-                # Add a calculated field for easy use in template
-                "evidence_received": len(control_activity.submitted_evidences) > 0
+                # evidence_received = True only if actual files/content uploaded
+                # submitted_evidences contains template artifacts (from guideline) even without uploads
+                "evidence_received": any(
+                    (ev.evidence_files.count() > 0 or ev.evidence_file_path or ev.evidence_text)
+                    for ev in control_activity.submitted_evidences
+                )
             }
             all_control_activities.append(activity_data)
 
@@ -7683,6 +7687,9 @@ def generate_all_summaries_background(clause_id, app):
                                 )
                             else:
                                 fname = "Unknown"
+                            # Strip stored timestamp prefix e.g. "20260531101247_filename.docx" → "filename.docx"
+                            import re as _re
+                            fname = _re.sub(r'^\d{14}_', '', fname)
                             evidence_info.append({
                                 "file_name": fname,
                                 "evidence_type": ev.evidence_type,
@@ -7831,9 +7838,9 @@ CRITICAL RULES:
 
                 if all_confirmed_findings:
                     fr_system = (
-                        "You are a senior audit report writer. Consolidate related findings "
-                        "and their recommendations into a professional audit report format. "
-                        "Return ONLY valid JSON."
+                        "You are a senior audit report writer for a financial institution. "
+                        "Consolidate audit findings and recommendations into a professional "
+                        "internal audit report format. Return ONLY valid JSON."
                     )
                     fr_user = f"""
 CONFIRMED FINDINGS ({len(all_confirmed_findings)}):
@@ -7847,15 +7854,15 @@ Consolidate into this JSON structure:
   "detailed_findings": [
     {{
       "cf_id": "CF-001",
-      "consolidated_finding": "Clear description of the finding",
-      "impact": "Regulatory and operational impact",
-      "severity": "HIGHEST severity among source findings",
-      "source_findings": ["F-001/ACT-001", "F-001/ACT-002"],
+      "consolidated_finding": "3-sentence finding per rules below",
+      "impact": "Combined regulatory and operational impact",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW",
+      "source_findings": ["F-001/ACT-001", "F-003/ACT-001"],
       "related_recommendation": {{
         "cr_id": "CR-001",
-        "recommendation": "What to do",
+        "recommendation": "Verb-first actionable directive",
         "implementation_steps": ["Step 1", "Step 2"],
-        "timeline": "MOST URGENT among source recommendations"
+        "timeline": "IMMEDIATE | SHORT_TERM | MEDIUM_TERM | LONG_TERM"
       }}
     }}
   ],
@@ -7863,14 +7870,28 @@ Consolidate into this JSON structure:
   "activities_processed": {len(activities_data)}
 }}
 
-Rules:
-- Merge RELATED findings across activities into single consolidated findings (CF-xxx)
-- Severity of consolidated finding = HIGHEST among merged source findings
-- Each CF has exactly ONE corresponding CR (consolidated recommendation)
-- Timeline of CR = MOST URGENT among merged (IMMEDIATE > SHORT_TERM > MEDIUM_TERM > LONG_TERM)
-- Implementation steps: deduplicate across sources
-- Keep source_findings for traceability
-- Use professional audit report language
+FINDING CONSOLIDATION RULES:
+1. Merge ONLY findings linked to the EXACT SAME checklist item ID (checklist_refs field).
+   Do NOT merge findings from different checklist items even if they appear related.
+   Each unique checklist item = one CF.
+2. Each consolidated_finding must follow this exact structure (max 3 sentences):
+   - Sentence 1: "[Control area] is [deficient/absent/inadequate] — [specific gap observed]"
+   - Sentence 2: "What was expected: [requirement]. What was found: [actual state]."
+   - Sentence 3: "If not remediated, [specific consequence — regulatory penalty / operational failure / financial risk]."
+3. Severity = HIGHEST value from source_findings severity field using this strict hierarchy:
+   CRITICAL > HIGH > MEDIUM > LOW
+   Look at each source finding's severity field literally and pick the highest. Do not interpret.
+4. Impact = combine regulatory_impact + operational_impact from all source findings, deduplicated, max 2 sentences.
+5. source_findings = list all source finding IDs with their activity code for traceability.
+
+RECOMMENDATION MERGING RULES:
+1. One CR per CF — same checklist item grouping as findings.
+2. Recommendation text must start with an action verb: "Develop", "Implement", "Establish", "Ensure", "Define".
+   Format: "[Verb] [specific action] to address [gap] in compliance with [regulatory requirement if known]."
+3. Implementation steps = union of all source steps, deduplicated, max 5 steps, each starting with a verb.
+4. Timeline = MOST URGENT among source recommendations using this hierarchy:
+   IMMEDIATE > SHORT_TERM > MEDIUM_TERM > LONG_TERM
+   Look at each source recommendation's timeline literally and pick most urgent. Do not interpret.
 """
                     fr_result = _call_llm_json(fr_system, fr_user)
                 else:
@@ -7882,11 +7903,11 @@ Rules:
                     }
 
                 if fr_result:
-                    # Save findings
+                    # Save findings — override activities_processed with actual count
                     findings_data = {
                         "detailed_findings": fr_result.get("detailed_findings", []),
                         "generated_at": fr_result.get("generated_at"),
-                        "activities_processed": fr_result.get("activities_processed", 0),
+                        "activities_processed": len(pcas),  # actual count, not LLM's
                     }
                     existing_f = ConsolidatedFindingsSummary.query.filter_by(clause_id=clause_id).first()
                     if existing_f:
@@ -7898,7 +7919,7 @@ Rules:
                         )
                         db.session.add(new_f)
 
-                    # Save recommendations (extracted from findings result)
+                    # Save recommendations — override activities_processed with actual count
                     recs_data = {
                         "actionable_recommendations": [
                             f["related_recommendation"]
@@ -7906,7 +7927,7 @@ Rules:
                             if f.get("related_recommendation")
                         ],
                         "generated_at": fr_result.get("generated_at"),
-                        "activities_processed": fr_result.get("activities_processed", 0),
+                        "activities_processed": len(pcas),  # actual count
                     }
                     existing_r = ConsolidatedRecommendationsSummary.query.filter_by(clause_id=clause_id).first()
                     if existing_r:
@@ -8478,6 +8499,27 @@ def upload_test_data():
         if not pca:
             return jsonify({"status": "error", "message": "Activity not found"}), 404
 
+        # ── Fetch audit period from project ───────────────────────
+        audit_period_start = None
+        audit_period_end = None
+        try:
+            from app.models.project_instance_models import ProjectComplianceActivity, ProjectClause, ProjectGuideline
+            pca_obj = pca.project_compliance_activity
+            if pca_obj and pca_obj.project_clause:
+                guideline = pca_obj.project_clause.project_guideline
+                if guideline and guideline.project:
+                    proj = guideline.project
+                    if proj.audit_period_start:
+                        audit_period_start = str(proj.audit_period_start)
+                    if proj.audit_period_end:
+                        audit_period_end = str(proj.audit_period_end)
+        except Exception as ap_err:
+            current_app.logger.warning(f"Could not fetch audit period: {ap_err}")
+
+        current_app.logger.info(
+            f"[OE Testing] Audit period: {audit_period_start} to {audit_period_end}"
+        )
+
         # ── Fetch OE checklist items ──────────────────────────────
         checklist = ProjectChecklist.query.filter_by(
             project_control_activity_id=pca.id
@@ -8567,7 +8609,13 @@ def upload_test_data():
             # Run on first data file (most common case: one dataset)
             file_path = data_files[0]["path"]
             activity_name = (pca.activity_description or f"Activity {pca.id}")
-            attr_result = run_attribute_testing(file_path, test_attributes, activity_name)
+            attr_result = run_attribute_testing(
+                file_path,
+                test_attributes,
+                activity_name,
+                audit_period_start=audit_period_start,
+                audit_period_end=audit_period_end,
+            )
             combined_results["test_results"] = attr_result.get("test_results")
 
         # ── Path B: Document files → batch LLM ───────────────────

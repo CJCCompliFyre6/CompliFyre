@@ -149,6 +149,24 @@
             </svg>
             Back to All Clauses
         </a>
+
+        <!-- Close Assessment button — top of page (F-16) -->
+        {% if assessment_status == "Completed" %}
+        <span class="flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold">
+            ✅ Assessment Completed
+        </span>
+        {% else %}
+        <button id="closeAssessmentBtnTop"
+            onclick="document.getElementById('closeAssessmentBtn') && document.getElementById('closeAssessmentBtn').click()"
+            class="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors duration-200 shadow-sm
+            {% if clause_status_info.text == 'To be Assessed' %}opacity-50 cursor-not-allowed{% endif %}"
+            {% if clause_status_info.text == "To be Assessed" %}disabled title="Complete all activity evaluations before closing assessment"{% endif %}>
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Close Assessment
+        </button>
+        {% endif %}
     </div>
 </div>
     <!-- ... existing project details, description, guidelines ... -->
@@ -1910,7 +1928,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
-            AI-Generated Consolidated Summaries
+            EVE-Generated Consolidated Summaries
         </h3>
         
         {% if current_user.free_report_used %}
@@ -2049,9 +2067,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="bg-white p-4 rounded-lg border border-purple-200">
 
 
-                    <!-- AI-Generated Consolidated test Summary -->
+                    <!-- EVE Consolidated Test Summary -->
                     <div id="consolidated_test_summary">
-                        <h4 class="font-semibold text-gray-700 mb-3">AI-Enhanced Consolidated Test Summary</h4>
+                        
                         <div class="bg-purple-50 p-4 rounded border-l-4 border-purple-400">
                             {% if consolidated_test_summary %}
                             <div id="consolidated_summary_view">
@@ -2125,10 +2143,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
 
                 <div class="bg-white p-4 rounded-lg border border-blue-200">
-                    <!-- AI-Generated Consolidated Observation Summary -->
+                    <!-- EVE Consolidated Observation Summary -->
                     <div id="consolidated_observation_summary">
-                        <h4 class="font-semibold text-gray-700 mb-3">AI-Enhanced Consolidated Observation Summary
-                        </h4>
+                        
                         <div class="bg-blue-50 p-4 rounded border-l-4 border-blue-400">
                             {% if consolidated_observation_summary %}
                             <div id="consolidated_observation_view">
@@ -2217,21 +2234,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
 
                 <div class="bg-white p-4 rounded-lg border border-green-200">
-                    <!-- AI-Generated Consolidated Findings Summary -->
+                    <!-- EVE Consolidated Findings Summary -->
                     <div id="consolidated_findings_summary">
-                        <h4 class="font-semibold text-gray-700 mb-3">AI-Enhanced Consolidated Findings Summary</h4>
+                        
                         <div class="bg-green-50 p-4 rounded border-l-4 border-green-400">
                             {% if consolidated_findings_summary %}
                             <div id="consolidated_findings_view">
                                 <div class="prose max-w-none">
                                     <h5 class="font-semibold text-green-700 mb-2">Detailed Findings Summary</h5>
-                                    <ul class="text-sm text-gray-700 list-disc list-inside space-y-2">
-                                        {% for finding in consolidated_findings_summary.consolidated_summary %}
-                                        <li class="leading-relaxed">{{ finding }}</li>
+                                    {% set findings_list = consolidated_findings_summary.detailed_findings or consolidated_findings_summary.consolidated_summary or [] %}
+                                    {% if findings_list %}
+                                    <div class="space-y-3">
+                                        {% for finding in findings_list %}
+                                        {% if finding is mapping %}
+                                        <div class="border border-green-200 rounded p-3 bg-white">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <span class="text-xs font-mono text-gray-500">{{ finding.cf_id or loop.index }}</span>
+                                                <span class="text-xs px-1.5 py-0.5 rounded font-semibold
+                                                    {% if finding.severity in ('CRITICAL','Critical') %}bg-red-100 text-red-700
+                                                    {% elif finding.severity in ('HIGH','High','MAJOR','Major') %}bg-orange-100 text-orange-700
+                                                    {% elif finding.severity in ('MEDIUM','Medium','SIGNIFICANT','Significant') %}bg-yellow-100 text-yellow-700
+                                                    {% else %}bg-blue-100 text-blue-700{% endif %}">
+                                                    {{ finding.severity }}
+                                                </span>
+                                            </div>
+                                            <p class="text-sm text-gray-800 font-medium">{{ finding.consolidated_finding or finding }}</p>
+                                            {% if finding.impact %}
+                                            <p class="text-xs text-gray-500 mt-1">Impact: {{ finding.impact }}</p>
+                                            {% endif %}
+                                            {% if finding.source_findings %}
+                                            <p class="text-xs text-gray-400 mt-1">Sources: {{ finding.source_findings | join(', ') }}</p>
+                                            {% endif %}
+                                        </div>
+                                        {% else %}
+                                        <div class="text-sm text-gray-700 border-l-2 border-green-400 pl-2">{{ finding }}</div>
+                                        {% endif %}
                                         {% endfor %}
-                                    </ul>
-
-
+                                    </div>
+                                    {% if consolidated_findings_summary.generated_at %}
+                                    <p class="text-xs text-green-600 mt-3">Generated: {{ consolidated_findings_summary.generated_at[:16].replace('T',' ') if consolidated_findings_summary.generated_at else '' }} | Activities Processed: {{ consolidated_findings_summary.activities_processed or '' }}</p>
+                                    {% endif %}
+                                    {% else %}
+                                    <p class="text-sm text-gray-500 italic">No confirmed findings to report.</p>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -2283,30 +2328,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
 
                 <div class="bg-white p-4 rounded-lg border border-purple-200">
-                    <!-- AI-Generated Consolidated Recommendations Summary -->
+                    <!-- EVE Consolidated Recommendations Summary -->
                     <div id="consolidated_recommendations_summary">
-                        <h4 class="font-semibold text-gray-700 mb-3">AI-Enhanced Consolidated Recommendations
+                        <h4 class="font-semibold text-gray-700 mb-3">EVE Consolidated Recommendations
                             Summary</h4>
                         <div class="bg-purple-50 p-4 rounded border-l-4 border-purple-400">
                             {% if consolidated_recommendations_summary %}
                             <div id="consolidated_recommendations_view">
                                 <div class="prose max-w-none">
                                     <h5 class="font-semibold text-purple-700 mb-2">Actionable Recommendations</h5>
-                                    <ul class="text-sm text-gray-700 list-disc list-inside space-y-2">
-                                        {% for recommendation in
-                                        consolidated_recommendations_summary.consolidated_summary %}
-                                        <li class="leading-relaxed">{{ recommendation }}</li>
+                                    {% set recs_list = consolidated_recommendations_summary.actionable_recommendations or consolidated_recommendations_summary.consolidated_summary or [] %}
+                                    {% if recs_list %}
+                                    <div class="space-y-3">
+                                        {% for rec in recs_list %}
+                                        {% if rec is mapping %}
+                                        <div class="border border-purple-200 rounded p-3 bg-white">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <span class="text-xs font-mono text-gray-500">{{ rec.cr_id or loop.index }}</span>
+                                                {% if rec.timeline %}
+                                                <span class="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">{{ rec.timeline }}</span>
+                                                {% endif %}
+                                            </div>
+                                            <p class="text-sm text-gray-800 font-medium">{{ rec.recommendation or rec }}</p>
+                                            {% if rec.implementation_steps %}
+                                            <p class="text-xs font-semibold text-gray-600 mt-2">IMPLEMENTATION STEPS</p>
+                                            <ul class="text-xs text-gray-600 list-disc list-inside mt-1 space-y-0.5">
+                                                {% for step in rec.implementation_steps %}
+                                                <li>{{ step }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                            {% endif %}
+                                            {% if rec.for_finding %}
+                                            <p class="text-xs text-gray-400 mt-1">Related: {{ rec.for_finding }}</p>
+                                            {% endif %}
+                                        </div>
+                                        {% else %}
+                                        <div class="text-sm text-gray-700 border-l-2 border-purple-400 pl-2">{{ rec }}</div>
+                                        {% endif %}
                                         {% endfor %}
-                                    </ul>
-
-                                    <!-- Show generation info -->
+                                    </div>
+                                    {% else %}
+                                    <p class="text-sm text-gray-500 italic">No recommendations generated.</p>
+                                    {% endif %}
                                     <div class="mt-4 pt-4 border-t border-purple-200">
                                         <p class="text-xs text-purple-600">
-                                            Generated: {{
-                                            consolidated_recommendations_summary.generated_at[:16].replace('T', ' ')
-                                            }} |
-                                            Activities Processed: {{
-                                            consolidated_recommendations_summary.activities_processed }}
+                                            Generated: {{ consolidated_recommendations_summary.generated_at[:16].replace('T', ' ') if consolidated_recommendations_summary.generated_at else '' }} |
+                                            Activities Processed: {{ consolidated_recommendations_summary.activities_processed or '' }}
                                         </p>
                                     </div>
                                 </div>

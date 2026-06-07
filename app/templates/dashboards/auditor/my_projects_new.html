@@ -1006,51 +1006,44 @@
   {% endwith %}
 </div> #}
 
-<div class="w-auto mx-8 bg-orange-100 rounded-xl p-6">
+<div class="w-auto mx-8 rounded-xl">
   <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
     <div class="border-b border-gray-200 pb-4 mb-4">
-      <h2 class="text-2xl font-bold text-gray-800 flex items-center mb-4">
-        <svg class="w-6 h-6 mr-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
-          </path>
-        </svg>
-        Project Details
-      </h2>
+      <h2 class="text-lg font-semibold text-gray-700 flex items-center gap-2">Project Details</h2>
 
       <!-- Button group container -->
-      <div class="flex space-x-12">
+      <div class="flex items-center gap-1 flex-wrap mt-4">
 
         <!-- Get Consolidated Evidence -->
-        <div id="consolidatedEvidenceActions" class="flex items-center space-x-4 mb-4">
+        <div id="consolidatedEvidenceActions" class="flex items-center space-x-1">
           <!-- Get Consolidated Evidence List (shown when no evidence exists) -->
           <form id="consolidateForm" action="{{ url_for('audit.consolidate_evidence') }}" method="POST"
-            class="mr-2 {% if consolidated_evidence %}hidden{% else %}block{% endif %}">
+            class="{% if consolidated_evidence %}hidden{% else %}block{% endif %}">
             <input name="project_name" value="{{ project_name }}" hidden />
             {% if csrf_token %}
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             {% endif %}
             <button id="get_consolidated_evidences" type="submit"
-              class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none ">
+              class="px-4 py-2 text-sm bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
               Get Consolidated Evidence List
             </button>
           </form>
 
           <!-- Show Evidences button (shown when evidence exists) -->
           <button id="openModalBtn" onclick="document.getElementById('evidenceModal').classList.remove('hidden')"
-            class="px-6 py-3 bg-green-600 text-white hover:bg-green-700 transition-all rounded-none {% if consolidated_evidence %}block{% else %}hidden{% endif %}">
+            class="px-4 py-2 text-sm bg-green-600 text-white hover:bg-green-700 transition-all rounded-full font-medium {% if consolidated_evidence %}block{% else %}hidden{% endif %}">
             Show Consolidated Evidences
           </button>
 
           <!-- Regenerate Evidence button (shown when evidence exists but applicability changed) -->
           <form id="regenerateForm" action="{{ url_for('audit.consolidate_evidence') }}" method="POST"
-            class="mr-2 hidden">
+            class="hidden">
             <input name="project_name" value="{{ project_name }}" hidden />
             {% if csrf_token %}
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             {% endif %}
             <button type="submit"
-              class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded-none">
+              class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none">
               Regenerate Evidence
             </button>
           </form>
@@ -1078,17 +1071,24 @@
 
 
         <!-- Evaluate -->
-        <form action="{{ url_for('audit.evaluate_all_projects') }}" method="POST" class="mr-6">
+        <form action="{{ url_for('audit.evaluate_all_projects') }}" method="POST" class="">
           <input name="project_name" value="{{ project_name }}" hidden />
           <!-- <button id="evaluate" class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded">
             Evaluate
           </button> -->
         </form>
+        {% if project.project_complete_status %}
         <a href="{{ url_for('re.report_options', project_id=project.id) }}">
-          <button class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none">
+          <button class="px-4 py-2 text-sm bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
             Generate Report
           </button>
         </a>
+        {% else %}
+        <button class="px-4 py-2 text-sm bg-gray-300 text-gray-500 cursor-not-allowed transition-all rounded-full font-medium"
+          title="Complete all clause assessments before generating report" disabled>
+          Generate Report
+        </button>
+        {% endif %}
       </div>
     </div>
 
@@ -1136,164 +1136,82 @@
             {% endif %}
           </div>
         </div>
+
+        <!-- Project Description merged into project info box -->
+        {% if project.project_description %}
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</h3>
+          <p class="text-sm text-gray-700">{{ project.project_description }}</p>
+        </div>
+        {% endif %}
       </div>
     </div>
 
-    <!-- Project Description - Full Width -->
-    <div class="mt-6">
-      <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border-l-4 border-orange-500">
-        <h3 class="text-sm font-semibold text-orange-800 uppercase tracking-wide mb-2">Project Description</h3>
-        <p class="text-gray-700 leading-relaxed">
-          {{ project.project_description }}
-        </p>
-      </div>
+    <!-- Compact Info Row: Guideline + Assessment Period + Status -->
+    <div class="mt-4">
+      <div class="bg-white border border-gray-200 rounded-lg p-4">
+        <div class="grid grid-cols-3 gap-4 items-start">
 
-      <!-- Assessment Period Section - Add this after the Project Description section -->
-      <div class="mt-6">
-        <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-l-4 border-green-500">
-          <h3 class="text-sm font-semibold text-green-800 uppercase tracking-wide mb-3">Assessment Period</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Assessment Start Date -->
-            <div class="bg-white rounded-lg p-4 border border-green-200">
-              <div class="flex items-center">
-                <div class="p-3 bg-green-100 rounded-full mr-4">
-                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-sm font-medium text-gray-500">Assessment Start Date</p>
-                  <p class="text-xl font-bold text-gray-800">
-                    {% if assessment_start_date %}
-                    {{ assessment_start_date.strftime('%d %B %Y') }}
-                    {% else %}
-                    <span class="text-gray-400">Not Started</span>
-                    {% endif %}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Assessment End Date -->
-            <div class="bg-white rounded-lg p-4 border border-green-200">
-              <div class="flex items-center">
-                <div class="p-3 bg-green-100 rounded-full mr-4">
-                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-sm font-medium text-gray-500">Assessment End Date</p>
-                  <p class="text-xl font-bold text-gray-800">
-                    {% if assessment_end_date %}
-                    {{ assessment_end_date.strftime('%d %B %Y') }}
-                    {% else %}
-                    {{ db_assessment_end_date.strftime('%d %B %Y') if db_assessment_end_date else 'Not Completed' }}
-                    <!-- <span class="text-green-600 font-semibold flex items-center">
-                      <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Present
-                    </span> -->
-                    {% endif %}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Progress Indicator -->
-          <div class="mt-4 bg-white rounded-lg p-4 border border-green-200">
-            <div class="flex justify-between items-center mb-2">
-              <span class="text-sm font-medium text-gray-700">Assessment Progress</span>
-              <span class="text-sm font-medium text-green-600">
-                {% if all_clauses_completed %}
-                Completed
-                {% else %}
-                In Progress
-                {% endif %}
-              </span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5">
-              {% set completed_clauses = clause_statistics.assessment.completed if clause_statistics else 0 %}
-              {% set total_applicable = clause_statistics.applicability.applicable if clause_statistics else 0 %}
-              {% set progress_percentage = (completed_clauses / total_applicable * 100) if total_applicable > 0 else 0
-              %}
-              <div class="bg-green-600 h-2.5 rounded-full" style="width: {{ progress_percentage|int }}%;"></div>
-            </div>
-            <div class="flex justify-between mt-2 text-xs text-gray-500">
-              <span>Assessment started: {{ assessment_start_date.strftime('%d %b %Y') if assessment_start_date else 'Not
-                started' }}</span>
-              <span>
-                {% if all_clauses_completed %}
-                Completed on: {{ assessment_end_date.strftime('%d %b %Y') }}
-                {% else %}
-                {{ completed_clauses }}/{{ total_applicable }} clauses completed
-                {% endif %}
-              </span>
-            </div>
-          </div>
-
-          <!-- Status Badge -->
-          <div class="mt-4 flex justify-end">
-            {% if all_clauses_completed %}
-            <span
-              class="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-green-100 text-green-800 border border-green-300">
-              <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clip-rule="evenodd" />
-              </svg>
-              Assessment Completed
-            </span>
+          <!-- Guideline -->
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Guideline</p>
+            {% if project.project_guidelines %}
+              {% for pg_item in project.project_guidelines %}
+              <p class="text-sm font-medium text-gray-800">
+                <span class="inline-flex items-center px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full text-xs font-bold mr-1">
+                  {{ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[loop.index0] if loop.index0 < 26 else 'GL' ~ loop.index }}
+                </span>
+                {{ pg_item.guideline_data.DocumentDetails.DocumentName if pg_item.guideline_data else 'Unknown' }}
+              </p>
+              {% endfor %}
             {% else %}
-            <span
-              class="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
-              <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                  clip-rule="evenodd" />
-              </svg>
-              Assessment In Progress
-            </span>
+            <p class="text-sm text-gray-500">No Guidelines</p>
             {% endif %}
           </div>
+
+          <!-- Assessment Period -->
+          <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Assessment Period</p>
+            <p class="text-sm font-medium text-gray-800">
+              {{ assessment_start_date.strftime('%d %b %Y') if assessment_start_date else 'Not set' }}
+              →
+              {{ assessment_end_date.strftime('%d %b %Y') if assessment_end_date else (db_assessment_end_date.strftime('%d %b %Y') if db_assessment_end_date else 'Not set') }}
+            </p>
+          </div>
+
+          <!-- Assessment Progress + Status -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Progress</p>
+              {% if all_clauses_completed %}
+              <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">Completed</span>
+              {% else %}
+              <span class="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full font-semibold">In Progress</span>
+              {% endif %}
+            </div>
+            {% set completed_clauses = clause_statistics.assessment.completed if clause_statistics else 0 %}
+            {% set total_applicable = clause_statistics.applicability.applicable if clause_statistics else 0 %}
+            {% set progress_pct = (completed_clauses / total_applicable * 100)|int if total_applicable > 0 else 0 %}
+            <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
+              <div class="bg-green-500 h-2 rounded-full" style="width: {{ progress_pct }}%"></div>
+            </div>
+            <p class="text-xs text-gray-500">{{ completed_clauses }}/{{ total_applicable }} clauses completed</p>
+          </div>
+
         </div>
       </div>
     </div>
 
-    <!-- Guidelines Section (with filter radios) -->
-    <!-- Guidelines Section (with filter radios and identifiers) -->
-    <div class="mt-6">
-      <div class="bg-gradient-to-r from-indigo-50 to-indigo-100 p-4 rounded-lg border-l-4 border-indigo-500">
-        <h3 class="text-sm font-semibold text-indigo-800 uppercase tracking-wide mb-3">Guidelines</h3>
-        <div class="bg-white rounded-lg p-3 border border-indigo-200">
-          {% if project.project_guidelines %}
-          <ul class="space-y-2">
-            {% for pg_item in project.project_guidelines %}
-            <li class="flex items-center">
-              <input type="radio" name="guidelineFilter" value="{{ pg_item.id }}" class="mr-2 guideline-radio"
-                data-guideline-label="{{ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[loop.index0] if loop.index0 < 26 else 'GL' ~ loop.index }}" />
-              <span class="inline-flex items-center">
-                <span class="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-bold mr-2">
-                  Guideline {{ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[loop.index0] if loop.index0 < 26 else 'GL' ~ loop.index }}
-                    </span>
-                    <span class="text-gray-700 font-medium">
-                      {{ pg_item.guideline_data.DocumentDetails.DocumentName }}
-                    </span>
-                </span>
-            </li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <p class="text-gray-500">No Guidelines Associated</p>
-          {% endif %}
-        </div>
-      </div>
+    <!-- Hidden guideline radio inputs for JS filtering (kept for JS compatibility) -->
+    <div class="hidden">
+      {% if project.project_guidelines %}
+      {% for pg_item in project.project_guidelines %}
+      <input type="radio" name="guidelineFilter" value="{{ pg_item.id }}" class="guideline-radio"
+        data-guideline-label="{{ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[loop.index0] if loop.index0 < 26 else 'GL' ~ loop.index }}"
+        {% if loop.first %}checked{% endif %} />
+      {% endfor %}
+      {% endif %}
     </div>
-
     {% else %}
     <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
       <p class="text-red-700 font-medium">Project information not available</p>
@@ -1309,16 +1227,11 @@
 </div>
 
 <!-- Main Content -->
-<main class="flex w-auto mx-8 my-12 z-1 rounded-xl justify-center items-center bg-orange-100 py-8">
-  <div class=" p-6 rounded-lg   mb-6">
-    <div class="border-b border-gray-200 pb-4 mb-4">
+<main class="w-auto mx-8 mt-4">
+  <div class="mb-6">
+    <div class="hidden">
       <h2 class="text-2xl font-bold text-gray-800 flex items-center">
-        <svg class="w-6 h-6 mr-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
-          </path>
-        </svg>
-        Detailed Assessment for {{ project_name }}
+        <!-- Detailed Assessment heading hidden F-31 -->
       </h2>
     </div>
 
@@ -1326,7 +1239,7 @@
 
 
 
-    <div class="top-buttons">
+    <div class="top-buttons" style="display:none !important">
       <div class="search-bar">
         <input type="text" id="searchInput" placeholder="Search.." />
       </div>
@@ -2004,7 +1917,7 @@
       <thead class="bg-gray-50 border-b border-gray-200">
         <tr>
           <!-- Select All Column: Flexbox used to align Checkbox and Text side-by-side -->
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             <div class="flex items-center gap-3">
               <input type="checkbox" id="selectAllClauses"
                 class="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500 cursor-pointer">
@@ -2013,23 +1926,23 @@
           </th>
 
           <!-- Standard Columns -->
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Clause
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Applicability
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Assessment Status
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Compliance Status
           </th>
 
-          <th class="font-serif text-xl rounded-xl sticky top-0 bg-white shadow-sm z-10">
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Actions
           </th>
         </tr>
@@ -2090,7 +2003,7 @@
               current_user.free_report_used %}disabled{% endif %}>
           </td>
 
-          <td class="clause-number">
+          <td class="clause-number text-sm text-gray-700">
             {% if clause_data.clause %}
             <div class="flex flex-col space-y-1">
               <!-- Guideline Badge -->
@@ -2106,8 +2019,8 @@
                     {% endfor %}
               </div>
               <!-- Clause Content -->
-              <div>
-                <strong>{{ clause_data.clause.clause_no }}</strong> -
+              <div class="text-sm text-gray-700">
+                <span class="font-semibold">{{ clause_data.clause.clause_no }}</span> -
                 {{ clause_data.clause.clause_text }}
               </div>
             </div>
@@ -2197,18 +2110,15 @@
 
 
 
-            <!-- Test Steps Button -->
-
-
-
+            <!-- Details Button -->
             <a href="{{ url_for('audit.clause_test_steps', clause_id=clause_data.clause.id) }}"
-              class="flex items-center px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded mt-4"
-              title="View Test Steps">
+              class="flex items-center px-4 py-2 bg-orange-500 text-white hover:bg-orange-600 transition-all rounded mt-4"
+              title="View Clause Details">
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
-              Test Steps
+              Details
             </a>
 
             {% else %}

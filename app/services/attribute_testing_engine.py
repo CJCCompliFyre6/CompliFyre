@@ -249,6 +249,127 @@ If no good match exists, use null.
         }
 
     # ─────────────────────────────────────────────
+    # STEP 2B: Period Filter
+    # ─────────────────────────────────────────────
+    def apply_period_filter(
+        self,
+        audit_start: str,
+        audit_end: str,
+    ) -> dict:
+        """
+        Auto-detect date column(s) and filter rows to audit period.
+        Organization/entity check is intentionally skipped — data
+        files from internal systems often do not carry entity name.
+
+        Returns:
+        {
+            "total_rows": 500,
+            "within_period": 347,
+            "excluded": 153,
+            "date_column_used": "Disbursement Date",
+            "period_applied": "2024-04-01 to 2025-03-31",
+            "filtered_df": <DataFrame of 347 rows>
+        }
+        """
+        import anthropic, json, re as _re
+        from datetime import datetime
+
+        total_rows = len(self.df)
+        columns = list(self.df.columns)
+        sample = self.df.head(5).to_dict(orient="records")
+
+        # Ask LLM to identify the most relevant date column
+        prompt = f"""You are a data analyst reviewing an audit dataset.
+
+Dataset columns: {columns}
+Sample rows (first 5): {json.dumps(sample, default=str)}
+
+Audit period: {audit_start} to {audit_end}
+
+Task: Identify the SINGLE most relevant date column that represents when
+each transaction/event occurred (e.g. Disbursement Date, Transaction Date,
+Approval Date, Effective Date). This column will be used to filter records
+within the audit period.
+
+Return ONLY this JSON:
+{{
+  "date_column": "exact column name or null if none found",
+  "confidence": "HIGH | MEDIUM | LOW",
+  "reason": "one sentence explanation"
+}}"""
+
+        try:
+            from app import client as _openai_client
+            response = _openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = response.choices[0].message.content.strip()
+            result = json.loads(raw)
+        except Exception as e:
+            logger.warning(f"Period filter LLM call failed: {e}")
+            return {
+                "total_rows": total_rows,
+                "within_period": total_rows,
+                "excluded": 0,
+                "date_column_used": None,
+                "period_applied": None,
+                "note": f"Period filter skipped — LLM error: {e}",
+                "filtered_df": self.df,
+            }
+
+        date_col = result.get("date_column")
+        if not date_col or date_col not in self.df.columns:
+            return {
+                "total_rows": total_rows,
+                "within_period": total_rows,
+                "excluded": 0,
+                "date_column_used": None,
+                "period_applied": None,
+                "note": "Period filter not applied — no date column identified in dataset",
+                "filtered_df": self.df,
+            }
+
+        # Parse dates
+        try:
+            parsed_dates = pd.to_datetime(self.df[date_col], errors="coerce", dayfirst=True)
+            start_dt = pd.Timestamp(audit_start)
+            end_dt   = pd.Timestamp(audit_end)
+
+            mask = (parsed_dates >= start_dt) & (parsed_dates <= end_dt)
+            filtered = self.df[mask].copy()
+            within  = int(mask.sum())
+            excluded = total_rows - within
+
+            logger.info(
+                f"[Period filter] Column='{date_col}' | "
+                f"Total={total_rows} | Within period={within} | Excluded={excluded}"
+            )
+
+            return {
+                "total_rows": total_rows,
+                "within_period": within,
+                "excluded": excluded,
+                "date_column_used": date_col,
+                "period_applied": f"{audit_start} to {audit_end}",
+                "note": result.get("reason", ""),
+                "filtered_df": filtered,
+            }
+        except Exception as e:
+            logger.warning(f"Period date parsing failed: {e}")
+            return {
+                "total_rows": total_rows,
+                "within_period": total_rows,
+                "excluded": 0,
+                "date_column_used": date_col,
+                "period_applied": None,
+                "note": f"Date parsing failed — testing all rows: {e}",
+                "filtered_df": self.df,
+            }
+
+    # ─────────────────────────────────────────────
     # STEP 5: Run All Attributes
     # ─────────────────────────────────────────────
     def run_all_attributes(self, test_attributes: list[dict]) -> dict:
@@ -350,44 +471,95 @@ Format in clear paragraphs.
 # ─────────────────────────────────────────────
 # Convenience function for route integration
 # ─────────────────────────────────────────────
-def run_attribute_testing(file_path: str, test_attributes: list[dict], activity_name: str) -> dict:
+def run_attribute_testing(
+    file_path: str,
+    test_attributes: list[dict],
+    activity_name: str,
+    audit_period_start: str = None,
+    audit_period_end: str = None,
+) -> dict:
     """
     Main entry point for attribute testing.
     Called from route when auditor uploads data file.
+    Now supports:
+    - Period filtering (audit_period_start / audit_period_end)
+    - Column inventory (which columns were tested)
     """
     engine = AttributeTestingEngine(file_path)
-    
+
     # Load file
     load_result = engine.load_file()
     if load_result["status"] == "error":
         return load_result
-    
-    # Collect all column descriptions needed
+
+    # ── Column inventory: collect all descriptions needed ──────
     col_descriptions = []
     for attr in test_attributes:
         for f in attr.get("population_filters", []):
             col_descriptions.append(f.get("column_description"))
         col_descriptions.append(attr.get("test_column_description"))
         col_descriptions.append(attr.get("exception_identifier_column"))
-    
-    # Remove duplicates and None values
+
     col_descriptions = list(set(filter(None, col_descriptions)))
-    
+
     # Map columns with AI
     mapping_result = engine.map_columns_with_ai(col_descriptions)
     if mapping_result["status"] == "error":
         return mapping_result
-    
-    # Run all attributes
+
+    # Build column inventory — natural description → actual column name
+    column_inventory = {
+        desc: engine.column_map.get(desc)
+        for desc in col_descriptions
+        if engine.column_map.get(desc)
+    }
+
+    # ── Period filter ──────────────────────────────────────────
+    period_stats = None
+    if audit_period_start and audit_period_end:
+        period_result = engine.apply_period_filter(audit_period_start, audit_period_end)
+        period_stats = {
+            "total_rows_in_file": period_result["total_rows"],
+            "within_audit_period": period_result["within_period"],
+            "excluded_outside_period": period_result["excluded"],
+            "date_column_used": period_result["date_column_used"],
+            "period_applied": period_result["period_applied"],
+            "note": period_result.get("note", ""),
+        }
+        # Replace engine's DataFrame with period-filtered one
+        engine.df = period_result["filtered_df"]
+        logger.info(
+            f"[Attribute Testing] Period filter applied: "
+            f"{period_stats['total_rows_in_file']} total → "
+            f"{period_stats['within_audit_period']} within period"
+        )
+    else:
+        period_stats = {
+            "total_rows_in_file": load_result["total_rows"],
+            "within_audit_period": load_result["total_rows"],
+            "excluded_outside_period": 0,
+            "date_column_used": None,
+            "period_applied": None,
+            "note": "No audit period provided — all rows tested",
+        }
+
+    # ── Run all attribute tests ────────────────────────────────
     test_results = engine.run_all_attributes(test_attributes)
-    
+
+    # Add period stats to test results for reporting
+    test_results["period_stats"] = period_stats
+    test_results["column_inventory"] = column_inventory
+    test_results["rows_tested"] = len(engine.df)
+
     # Generate audit finding
     finding = engine.generate_audit_finding(test_results, activity_name)
-    
+
     return {
         "status": "success",
         "file_info": load_result,
         "column_mapping": mapping_result["mapping"],
+        "column_inventory": column_inventory,
+        "period_stats": period_stats,
         "test_results": test_results,
-        "audit_finding": finding
+        "audit_finding": finding,
     }
