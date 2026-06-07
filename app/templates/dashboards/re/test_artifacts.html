@@ -1945,6 +1945,8 @@
       <span class="text-lg font-semibold">Overall Severity:</span>
       {# Derive severity from CONFIRMED findings only — CLOSED findings excluded #}
       {% set confirmed = eve_findings | selectattr('auditor_status', 'equalto', 'CONFIRMED') | list if eve_findings else [] %}
+      {% set closed = eve_findings | selectattr('auditor_status', 'equalto', 'CLOSED') | list if eve_findings else [] %}
+      {% set pending_review = eve_findings | rejectattr('auditor_status', 'in', ['CONFIRMED', 'CLOSED']) | list if eve_findings else [] %}
       {% set sev_order = {'CRITICAL': 5, 'HIGH': 4, 'MEDIUM': 3, 'LOW': 2} %}
       {% set ns_sev = namespace(max_sev=0, max_label='No findings noted') %}
       {% for f in confirmed %}
@@ -1987,7 +1989,15 @@
     </div>
     {% else %}
     <div class="mt-3 text-xs text-gray-500">
-      <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded">All findings closed — no severity applicable</span>
+      {% if eve_findings and eve_findings|length > 0 and pending_review|length == 0 and confirmed|length == 0 %}
+      {# All findings explicitly closed by auditor #}
+      <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded">All findings closed by auditor — no severity applicable</span>
+      {% elif eve_findings and pending_review|length > 0 %}
+      {# Findings exist but not yet reviewed #}
+      <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded">{{ pending_review|length }} finding(s) pending review — accept or close to update severity</span>
+      {% else %}
+      <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded">No findings noted</span>
+      {% endif %}
     </div>
     {% endif %}
     {% endif %}
