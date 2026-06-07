@@ -1009,20 +1009,17 @@
 <div class="w-auto mx-8 bg-orange-100 rounded-xl p-6">
   <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
     <div class="border-b border-gray-200 pb-4 mb-4">
-      <h2 class="text-2xl font-bold text-gray-800 flex items-center mb-4">
-        <svg class="w-6 h-6 mr-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <h2 class="text-lg font-semibold text-gray-700 flex items-center gap-2"><svg class="w-6 h-6 mr-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
           </path>
-        </svg>
-        Project Details
-      </h2>
+        </svg> Project Details</h2>
 
       <!-- Button group container -->
       <div class="flex items-center gap-3 flex-wrap">
 
         <!-- Get Consolidated Evidence -->
-        <div id="consolidatedEvidenceActions" class="flex items-center space-x-4 mb-4">
+        <div id="consolidatedEvidenceActions" class="flex items-center space-x-2">
           <!-- Get Consolidated Evidence List (shown when no evidence exists) -->
           <form id="consolidateForm" action="{{ url_for('audit.consolidate_evidence') }}" method="POST"
             class="mr-2 {% if consolidated_evidence %}hidden{% else %}block{% endif %}">
@@ -1031,14 +1028,14 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             {% endif %}
             <button id="get_consolidated_evidences" type="submit"
-              class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none ">
+              class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
               Get Consolidated Evidence List
             </button>
           </form>
 
           <!-- Show Evidences button (shown when evidence exists) -->
           <button id="openModalBtn" onclick="document.getElementById('evidenceModal').classList.remove('hidden')"
-            class="px-6 py-3 bg-green-600 text-white hover:bg-green-700 transition-all rounded-none {% if consolidated_evidence %}block{% else %}hidden{% endif %}">
+            class="px-6 py-3 bg-green-600 text-white hover:bg-green-700 transition-all rounded-full font-medium {% if consolidated_evidence %}block{% else %}hidden{% endif %}">
             Show Consolidated Evidences
           </button>
 
@@ -1086,12 +1083,12 @@
         </form>
         {% if project.project_complete_status %}
         <a href="{{ url_for('re.report_options', project_id=project.id) }}">
-          <button class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-none">
+          <button class="px-6 py-3 bg-orange-600 text-white hover:bg-orange-700 transition-all rounded-full font-medium">
             Generate Report
           </button>
         </a>
         {% else %}
-        <button class="px-6 py-3 bg-gray-300 text-gray-500 cursor-not-allowed transition-all rounded-none"
+        <button class="px-6 py-3 bg-gray-300 text-gray-500 cursor-not-allowed transition-all rounded-full font-medium"
           title="Complete all clause assessments before generating report" disabled>
           Generate Report
         </button>
@@ -1143,21 +1140,20 @@
             {% endif %}
           </div>
         </div>
+
+        <!-- Project Description merged into project info box -->
+        {% if project.project_description %}
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</h3>
+          <p class="text-sm text-gray-700">{{ project.project_description }}</p>
+        </div>
+        {% endif %}
       </div>
     </div>
 
-    <!-- Project Description - Full Width -->
+    <!-- Project Description merged into project info box above -->
     <div class="mt-6">
-      <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border-l-4 border-orange-500">
-        <h3 class="text-sm font-semibold text-orange-800 uppercase tracking-wide mb-2">Project Description</h3>
-        <p class="text-gray-700 leading-relaxed">
-          {{ project.project_description }}
-        </p>
-      </div>
-
-      <!-- Assessment Period Section - Add this after the Project Description section -->
-      <div class="mt-6">
-        <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-l-4 border-green-500">
+      <!-- Assessment Period Section -->
           <h3 class="text-sm font-semibold text-green-800 uppercase tracking-wide mb-3">Assessment Period</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Assessment Start Date -->
