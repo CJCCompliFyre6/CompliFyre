@@ -377,20 +377,20 @@
 
     <div class="table-container  rounded-xl">
         {% if guidelines %}
-        <table id="guidelinesTable">
-            <thead class="text-sm font-medium text-gray-600 rounded-xl sticky top-0 bg-white shadow-sm z-10">
+        <table id="guidelinesTable" class="w-full border-collapse text-sm">
+            <thead class="text-sm font-medium text-gray-600 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                 <tr>
-                    <th class="p-3 text-left">Guideline Name</th>
-                    <th class="p-3 text-left" style="display:none">GID</th>
-                    <th class="p-3 text-left">Issuing Authority</th>
-                    <th class="p-3 text-left" style="display:none">Applicable Geography</th>
-                    <th class="p-3 text-left">Applicable Industry</th>
-                    <th class="p-3 text-left" style="display:none">Applicable Org Category</th>
-                    <th class="p-3 text-left">Mandatory</th>
-                    <th class="p-3 text-left">Certification</th>
-                    <th class="p-3 text-left">Date of Issue</th>
-                    <th class="p-3 text-left">Effective Date</th>
-                    <th class="p-3 text-left">Action</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Guideline Name</th>
+                    <th class="p-3 text-left font-medium text-gray-600" style="display:none">GID</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Issuing Authority</th>
+                    <th class="p-3 text-left font-medium text-gray-600" style="display:none">Applicable Geography</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Applicable Industry</th>
+                    <th class="p-3 text-left font-medium text-gray-600" style="display:none">Applicable Org Category</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Mandatory</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Certification</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Date of Issue</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Effective Date</th>
+                    <th class="p-3 text-left font-medium text-gray-600">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -401,8 +401,8 @@
                     <td>India</td>
                     <td>Banking</td>
                     <td>All banks</td>
-                    <td>Yes</td>
-                    <td>No</td>
+                    <td class="p-3">{{item.guideline_data.DocumentDetails.Mandatory or "Yes"}}</td>
+                    <td class="p-3">{{item.guideline_data.DocumentDetails.CertificationAvailable or "No"}}</td>
                     <td>Apr-15</td>
                     <td>Apr-15</td>
                     <td>
@@ -416,22 +416,15 @@
                 </tr> -->
 
                 {% for item in guidelines%}
-                <tr>
-                    <td>{{ item.guideline_data.DocumentDetails.DocumentName }}</td>
-                    <td>{{ item.guideline_data.DocumentDetails.DocumentName }}</td>
-                    <td>{{item.guideline_data.DocumentDetails.IssuingAuthority}}</td>
-                    <td>
+                <tr class="border-b border-gray-100 hover:bg-orange-50 transition-colors">
+                    <td class="p-3">{{ item.guideline_data.DocumentDetails.DocumentName }}</td>
+                    <td class="p-3" style="display:none">{{ loop.index }}</td>
+                    <td class="p-3">{{item.guideline_data.DocumentDetails.IssuingAuthority}}</td>
+                    <td style="display:none">
                         {% set loc = item.guideline_data.DocumentDetails.ApplicableGeography %}
-
-                        {% if loc is string %}
-                        {{ loc }}
-                        {% elif loc is iterable %}
-                        {{ loc | join(', ') }}
-                        {% else %}
-                        {{ loc }}
-                        {% endif %}
+                        {% if loc is string %}{{ loc }}{% elif loc is iterable %}{{ loc | join(', ') }}{% else %}{{ loc }}{% endif %}
                     </td>
-                    <td>
+                    <td class="p-3">
                         {% set industries = item.guideline_data.DocumentDetails.ApplicableIndustries %}
 
                         {% if industries is string %}
@@ -442,19 +435,12 @@
                         {{ industries }}
                         {% endif %}
                     </td>
-                    <td>
+                    <td style="display:none">
                         {% set org = item.guideline_data.DocumentDetails.ApplicableOrganizations%}
-
-                        {% if org is string %}
-                        {{ org }}
-                        {% elif org is iterable %}
-                        {{ org | join(', ') }}
-                        {% else %}
-                        {{ org }}
-                        {% endif %}
+                        {% if org is string %}{{ org }}{% elif org is iterable %}{{ org | join(', ') }}{% else %}{{ org }}{% endif %}
                     </td>
-                    <td>Yes</td>
-                    <td>No</td>
+                    <td class="p-3">{{item.guideline_data.DocumentDetails.Mandatory or "Yes"}}</td>
+                    <td class="p-3">{{item.guideline_data.DocumentDetails.CertificationAvailable or "No"}}</td>
                     <td>{{item.guideline_data.DocumentDetails.IssuanceDate}}</td>
                     <td>{{item.guideline_data.DocumentDetails.ComplianceDeadline}}</td>
                     <td>
@@ -561,6 +547,7 @@
                 console.log(file['id'])
                 const id = file['id'] || 'unknown'; // Add a fallback value for id
                 const row = document.createElement('tr');
+            row.className = 'border-b border-gray-100 hover:bg-orange-50 transition-colors';
                 row.innerHTML = `
             <td>${docDetails.DocumentName || 'Untitled Document'}</td>
             <td style="display:none">GID-${index + 1}</td>
@@ -629,6 +616,7 @@
 
         prompts.forEach(prompt => {
             const row = document.createElement('tr');
+            row.className = 'border-b border-gray-100 hover:bg-orange-50 transition-colors';
             row.innerHTML = `
                 <tr>
                     <td class="p-4 border">${prompt.id}</td>
