@@ -3901,16 +3901,30 @@ def activity(project_id):
         total_applicable_activities = clause_statistics['applicability']['applicable']
 
         # Count total individual findings across all applicable clauses
-        from app.models.eve_models import EveControlResult as _ECR2
+        # Findings live in ConsolidatedFindingsSummary per clause, not EveControlResult.findings_json
+        from app.models.ai import ConsolidatedFindingsSummary as _CFS
+        import json as _json2
         total_findings = 0
         for clause_data in enriched_clauses:
-            if not clause_data["clause"].applicability:
+            clause = clause_data["clause"]
+            if not clause.applicability:
                 continue
-            for pca in clause_data.get("activities", []):
-                for ctrl in getattr(pca, "project_control_activities", []):
-                    ecr = _ECR2.query.filter_by(project_control_activity_id=ctrl.id).first()
-                    if ecr and ecr.findings_json:
-                        total_findings += len(ecr.findings_json)
+            cfs = (
+                _CFS.query.filter_by(clause_id=clause.id)
+                .order_by(_CFS.created_at.desc())
+                .first()
+            )
+            if cfs and cfs.consolidated_findings:
+                try:
+                    parsed = _json2.loads(cfs.consolidated_findings)
+                    findings_list = (
+                        parsed.get("detailed_findings")
+                        or parsed.get("consolidated_summary")
+                        or []
+                    )
+                    total_findings += len(findings_list)
+                except (ValueError, TypeError):
+                    pass
 
         from datetime import datetime
         current_time = datetime.now()
