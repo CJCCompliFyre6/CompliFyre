@@ -1534,19 +1534,29 @@
 <!-- EVE Assessment Dashboard -->
 <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
 
-  <!-- Dashboard Title -->
-  <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+  <!-- Dashboard Title — clickable to collapse -->
+  <div id="dashboardHeader" class="px-6 py-4 border-b border-gray-100 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+    onclick="toggleNewDashboard()">
     <div class="flex items-center gap-2">
       <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
       </svg>
       <h2 class="text-base font-semibold text-gray-800">Assessment Dashboard</h2>
+      <span class="text-xs text-gray-400 ml-1">Click to expand/collapse</span>
     </div>
-    <span class="text-xs px-3 py-1 rounded-full font-semibold
-      {% if all_clauses_completed %}bg-green-100 text-green-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
-      {% if all_clauses_completed %}Completed{% else %}In Progress{% endif %}
-    </span>
+    <div class="flex items-center gap-3">
+      <span class="text-xs px-3 py-1 rounded-full font-semibold
+        {% if all_clauses_completed %}bg-green-100 text-green-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
+        {% if all_clauses_completed %}Completed{% else %}In Progress{% endif %}
+      </span>
+      <svg id="dashboardChevron" class="w-5 h-5 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </div>
   </div>
+
+  <!-- Collapsible content -->
+  <div id="newDashboardContent">
 
   <div class="p-6">
 
@@ -1852,7 +1862,25 @@
     </div>
 
   </div>
+  </div><!-- end newDashboardContent -->
 </div>
+
+<script>
+// ── Dashboard Toggle ───────────────────────────────────────────
+function toggleNewDashboard() {
+  const content = document.getElementById('newDashboardContent');
+  const chevron = document.getElementById('dashboardChevron');
+  if (!content) return;
+  const isCollapsed = content.style.display === 'none';
+  content.style.display = isCollapsed ? 'block' : 'none';
+  if (chevron) chevron.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+// Start expanded
+document.addEventListener('DOMContentLoaded', function() {
+  const content = document.getElementById('newDashboardContent');
+  if (content) content.style.display = 'block';
+});
+</script>
 
 <script>
 // ── Bubble Chart ───────────────────────────────────────────────
@@ -1931,6 +1959,9 @@
   });
 })();
 </script>
+<script>
+// ── EVE Dashboard Charts ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
 (function() {
   const totalClauses = {{ total_clauses }};
   const applicable = {{ applicable }};
@@ -2000,6 +2031,7 @@
     stroke: { lineCap: 'round' },
   }).render();
 })();
+}); // end DOMContentLoaded
 </script>
 
 
