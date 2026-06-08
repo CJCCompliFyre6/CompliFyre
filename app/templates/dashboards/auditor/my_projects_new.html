@@ -1565,18 +1565,18 @@
     {% set applicable = clause_statistics.applicability.applicable if clause_statistics else 0 %}
     {% set not_applicable = clause_statistics.applicability.not_applicable if clause_statistics else 0 %}
     {% set assessed = clause_statistics.assessment.completed if clause_statistics else 0 %}
-    {% set with_evidence = clause_statistics.clauses_with_evidence if clause_statistics else 0 %}
-    {% set findings_count = (severity_stats.Critical + severity_stats.Major + severity_stats.Significant + severity_stats.Minor) if severity_stats else 0 %}
+    {% set with_evidence = evidence_stats.with_evidence if evidence_stats else 0 %}
+    {% set findings_count = total_findings if total_findings is defined else 0 %}
     {% set evidence_gaps = applicable - with_evidence if applicable > with_evidence else 0 %}
 
     <div class="grid grid-cols-6 gap-2 mb-6">
       {% set pipeline = [
         ('Total Clauses', total_clauses, 'All clauses in scope', 'bg-indigo-100 text-indigo-700 border-indigo-200'),
-        ('Applicable', applicable, (applicable|string + '% of total') if total_clauses > 0 else '0% of total', 'bg-purple-100 text-purple-700 border-purple-200'),
+        ('Applicable', applicable, (((applicable/total_clauses*100)|int)|string + '% of total') if total_clauses > 0 else '0% of total', 'bg-purple-100 text-purple-700 border-purple-200'),
         ('Assessed', assessed, (((assessed/applicable*100)|int)|string + '% of applicable') if applicable > 0 else '0% of applicable', 'bg-orange-100 text-orange-700 border-orange-200'),
         ('Evidence Received', with_evidence, (((with_evidence/applicable*100)|int)|string + '% of applicable') if applicable > 0 else '0% of applicable', 'bg-green-100 text-green-700 border-green-200'),
         ('Findings', findings_count, findings_count|string + ' total findings', 'bg-red-100 text-red-700 border-red-200'),
-        ('Evidence Gaps', evidence_gaps, '100% of applicable', 'bg-gray-100 text-gray-700 border-gray-200'),
+        ('Evidence Gaps', evidence_gaps, (((evidence_gaps/applicable*100)|int)|string + '% of applicable') if applicable > 0 else '0% of applicable', 'bg-gray-100 text-gray-700 border-gray-200'),
       ] %}
       {% for label, value, sub, color in pipeline %}
       <div class="relative">

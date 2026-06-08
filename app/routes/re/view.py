@@ -3633,36 +3633,22 @@ def activity(project_id):
             if not control_activities:
                 continue
             
-            # Check if ALL applicable activities have admissible evidence
-            all_activities_have_evidence = True
-            activities_with_evidence_count = 0
-            total_applicable_activities = len(control_activities)
-            
-            for activity in control_activities:
-                # Check if activity has evidence received (admissible and strong)
-                evidence_received = (
-                    activity.evidence_admissibility_decision == "Yes" and 
-                    activity.evidence_quality_rating == "STRONG"
-                )
-                
-                if evidence_received:
-                    activities_with_evidence_count += 1
-                else:
-                    # If any activity lacks evidence, the clause fails the ALL condition
-                    all_activities_have_evidence = False
-                    # Log which activity is missing evidence for debugging
-                    current_app.logger.info(f"Clause {clause.clause_no} - Activity {activity.activity_code} missing evidence: Admissibility={activity.evidence_admissibility_decision}, Quality={activity.evidence_quality_rating}")
-            
-            # Determine clause evidence status based on ALL activities having evidence
-            if all_activities_have_evidence:
+            # Check if ANY applicable activity has an EveControlResult
+            # (EVE ran = evidence was submitted and processed for that activity)
+            from app.models.eve_models import EveControlResult as _ECR
+            activity_ids = [a.id for a in control_activities]
+            any_activity_has_evidence = _ECR.query.filter(
+                _ECR.project_control_activity_id.in_(activity_ids)
+            ).first() is not None
+
+            if any_activity_has_evidence:
                 clauses_with_evidence += 1
                 evidence_status = "YES"
             else:
                 clauses_without_evidence += 1
                 evidence_status = "NO"
-            
-            # Log for debugging
-            current_app.logger.info(f"Clause {clause.clause_no}: {activities_with_evidence_count}/{total_applicable_activities} activities with evidence - ALL have evidence: {all_activities_have_evidence} -> Evidence Status: {evidence_status}")
+
+            current_app.logger.info(f"Clause {clause.clause_no}: EVE evidence received = {evidence_status}")
             
             # ============== CALCULATE SEVERITY FOR THIS CLAUSE ==============
             # Get the overall severity for this clause (highest severity across all applicable activities)
@@ -3909,11 +3895,22 @@ def activity(project_id):
         # Serialize bubble_data for JS
         import json as _json
         bubble_data_json = _json.dumps(bubble_data)
-        
+
         # Calculate evaluated activities count
         evaluated_activities_count = clause_statistics['assessment']['completed']
         total_applicable_activities = clause_statistics['applicability']['applicable']
 
+        # Count total individual findings across all applicable clauses
+        from app.models.eve_models import EveControlResult as _ECR2
+        total_findings = 0
+        for clause_data in enriched_clauses:
+            if not clause_data["clause"].applicability:
+                continue
+            for pca in clause_data.get("activities", []):
+                for ctrl in getattr(pca, "project_control_activities", []):
+                    ecr = _ECR2.query.filter_by(project_control_activity_id=ctrl.id).first()
+                    if ecr and ecr.findings_json:
+                        total_findings += len(ecr.findings_json)
 
         from datetime import datetime
         current_time = datetime.now()
@@ -3974,6 +3971,7 @@ def activity(project_id):
             compliance_status_stats=compliance_status_stats,
             evaluated_activities_count=evaluated_activities_count,
             total_applicable_activities=total_applicable_activities,
+            total_findings=total_findings,
             current_time=current_time,
         )
 
