@@ -5072,6 +5072,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Show success message
                 showToast('Assessment closed successfully! Status updated to "Completed".', 'success');
+                
+                // Reload page after 2 seconds so dashboard reflects updated status
+                setTimeout(() => { window.location.reload(); }, 2000);
+                
+                // Reload page after 2 seconds so dashboard reflects updated status
+                setTimeout(() => { window.location.reload(); }, 2000);
             } else {
                 throw new Error(data.error || 'Failed to close assessment');
             }
