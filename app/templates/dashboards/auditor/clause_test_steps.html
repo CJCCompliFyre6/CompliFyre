@@ -141,7 +141,7 @@
 
     <!-- Wrap in the same container as your main content -->
 <div class="mx-8 mb-4">
-    <div class="flex justify-start">
+    <div class="flex justify-start gap-3">
         <a href="{{ url_for('re.activity', project_id=project.id) }}"
             class="flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,7 +157,7 @@
         </span>
         {% else %}
         <button id="closeAssessmentBtnTop"
-            onclick="document.getElementById('closeAssessmentBtn') && document.getElementById('closeAssessmentBtn').click()"
+            onclick="const cid = {{ clause.id }}; if(typeof closeAssessment === 'function'){ closeAssessment(cid); } else { document.getElementById('closeAssessmentBtn') && document.getElementById('closeAssessmentBtn').click(); }"
             class="flex items-center px-4 py-2 transition-colors duration-200 shadow-sm rounded-lg
             {% if summary_ready %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-gray-200 text-gray-400 cursor-not-allowed{% endif %}"
             {% if not summary_ready %}disabled title="Generate clause summary first before closing assessment"{% endif %}>
