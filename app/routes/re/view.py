@@ -3531,8 +3531,16 @@ def activity(project_id):
                     elif status == "Non-Compliant":
                         non_compliant_clauses += 1
 
+            # Evidence Statistics
+            clauses_with_evidence = sum(
+                1 for clause in compliance_clauses
+                if clause["clause"].applicability
+                and clause.get("evidence_received", False)
+            )
+
             return {
                 "total_clauses": total_clauses,
+                "clauses_with_evidence": clauses_with_evidence,
                 "applicability": {
                     "applicable": applicable_clauses,
                     "not_applicable": not_applicable_clauses,
