@@ -3705,6 +3705,51 @@ def activity(project_id):
                               'bg-orange-500' if evidence_percentage >= 25 else 'bg-red-500'
         }
 
+        # ============== CALCULATE EVIDENCE GAPS ==============
+        # Case 1: No evidence uploaded for any applicable activity in clause
+        # Case 2: Any EveEvidenceResult with admissibility == "INADMISSIBLE" for any applicable activity
+        from app.models.eve_models import EveEvidenceResult as _EER_gap
+        evidence_gap_count = 0
+        for clause_data in enriched_clauses:
+            clause = clause_data["clause"]
+            if not clause.applicability:
+                continue
+            ctrl_activities = (
+                db.session.query(ProjectControlActivity)
+                .join(ProjectComplianceActivity,
+                      ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id)
+                .filter(ProjectComplianceActivity.project_clause_id == clause.id)
+                .filter(ProjectComplianceActivity.applicability == True)
+                .all()
+            )
+            if not ctrl_activities:
+                continue
+            # Case 1: any activity has real evidence uploaded?
+            has_any_evidence = any(
+                ev.evidence_text or ev.evidence_file_path or ev.evidence_files.count() > 0
+                for ctrl in ctrl_activities
+                for ev in ctrl.submitted_evidences
+            )
+            if not has_any_evidence:
+                evidence_gap_count += 1
+                continue
+            # Case 2: any evidence artifact marked INADMISSIBLE by EVE?
+            has_inadmissible = (
+                db.session.query(_EER_gap)
+                .join(_EER_gap.evidence_artifact)
+                .filter(
+                    _EER_gap.evidence_artifact_id.in_([
+                        ev.id
+                        for ctrl in ctrl_activities
+                        for ev in ctrl.submitted_evidences
+                    ]),
+                    _EER_gap.admissibility == "INADMISSIBLE"
+                )
+                .first() is not None
+            )
+            if has_inadmissible:
+                evidence_gap_count += 1
+
         # Calculate assessment status statistics for the status bar
         assessment_status_stats = {
             'Completed': clause_statistics['assessment']['completed'],
@@ -3978,6 +4023,7 @@ def activity(project_id):
             db_assessment_end_date=db_assessment_end_date,
             all_clauses_completed=all_clauses_completed,
             evidence_stats=evidence_stats,
+            evidence_gap_count=evidence_gap_count,
             severity_stats=severity_stats,
             overall_project_severity=overall_project_severity,
             severity_color_class=severity_color_class,

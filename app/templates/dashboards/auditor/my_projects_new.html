@@ -1567,7 +1567,7 @@
     {% set assessed = clause_statistics.assessment.completed if clause_statistics else 0 %}
     {% set with_evidence = evidence_stats.with_evidence if evidence_stats else 0 %}
     {% set findings_count = total_findings if total_findings is defined else 0 %}
-    {% set evidence_gaps = applicable - with_evidence if applicable > with_evidence else 0 %}
+    {% set evidence_gaps = evidence_gap_count if evidence_gap_count is defined else (applicable - with_evidence if applicable > with_evidence else 0) %}
 
     <div class="grid grid-cols-6 gap-2 mb-6">
       {% set pipeline = [
