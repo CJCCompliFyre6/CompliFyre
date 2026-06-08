@@ -3873,21 +3873,21 @@ def activity(project_id):
 
                 # Evidence quality per clause
                 quality_entries = []
-                for pca in clause_data.get('activities', []):
-                    if not pca.get('applicability'):
+                for pca in clause.project_compliance_activities:
+                    if not pca.applicability:
                         continue
-                    for ctrl in pca.get('project_control_activities', []):
+                    for ctrl in pca.project_control_activities:
                         ecr = EveControlResult.query.filter_by(
                             project_control_activity_id=ctrl.id
                         ).first()
                         if not ecr:
                             continue
 
-                        # Bubble chart — CONFIRMED findings
+                        # Bubble chart — CONFIRMED/ACCEPTED findings
                         for finding in (ecr.findings_json or []):
                             if not isinstance(finding, dict):
                                 continue
-                            if finding.get('auditor_status') != 'CONFIRMED':
+                            if finding.get('auditor_status') not in ('CONFIRMED', 'ACCEPTED', 'accepted', 'confirmed'):
                                 continue
                             raw_sev = finding.get('severity', '')
                             sev = SEVERITY_MAP.get(raw_sev, None)
@@ -3900,7 +3900,6 @@ def activity(project_id):
                             key = f"{sev}|{timeline}"
                             if key not in bubble_data:
                                 bubble_data[key] = []
-                            # Add clause if not already added for this key
                             if not any(c['clause_id'] == clause_id for c in bubble_data[key]):
                                 bubble_data[key].append({
                                     'clause_no': clause_no,
@@ -3915,7 +3914,7 @@ def activity(project_id):
                         if eas:
                             quality_entries.append({
                                 'score': eas.evidence_quality_score or 0,
-                                'admissibility': ecr.admissibility or 'NOT_EVALUATED',
+                                'admissibility': getattr(ecr, 'admissibility', None) or 'NOT_EVALUATED',
                             })
 
                 if quality_entries:
