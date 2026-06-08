@@ -5832,27 +5832,14 @@ def close_clause_assessment(clause_id):
                 400,
             )
 
-        # Check if compliance status is still "To be Assessed"
+        # If compliance status is still "To be Assessed", auto-calculate from activities and save it
         if clause.overall_compliance_status == "To be Assessed":
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Cannot close assessment while compliance status is 'To be Assessed'",
-                    }
-                ),
-                400,
-            )
+            calculated = calculate_clause_compliance_status(clause.id)
+            calculated_text = calculated.get("text", "To be Assessed")
+            if calculated_text != "To be Assessed":
+                clause.overall_compliance_status = calculated_text
 
-        # Update assessment status to "Completed"
-        # You might want to create a new field in ProjectClause for assessment_status
-        # For now, let's assume we're adding a new field called `assessment_status`
-
-        # First, check if the field exists (you'll need to add this to your model)
-        # Add this to your ProjectClause model:
-        # assessment_status = db.Column(db.String(50), default="In Progress")
-
-        # Update assessment status
+        # Mark assessment as closed
         clause.assessment_status = "Completed"
         clause.assessment_closed_at = db.func.current_timestamp()
         clause.assessment_closed_by = current_user.id
@@ -5864,6 +5851,7 @@ def close_clause_assessment(clause_id):
                 "success": True,
                 "message": "Assessment closed successfully",
                 "assessment_status": "Completed",
+                "compliance_status": clause.overall_compliance_status,
             }
         )
 

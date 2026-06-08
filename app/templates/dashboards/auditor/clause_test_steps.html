@@ -350,6 +350,7 @@
             <h2 class="text-xl font-semibold text-gray-800">Compliant Status</h2>
              <!-- Add Close Assessment Button Here -->
         {% if summary_ready and assessment_status != "Completed" %}
+        <button id="closeAssessmentBtn"
                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
                 {% if current_user.free_report_used %}disabled title="Editing disabled - Report already generated"{% endif %}>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5030,7 +5031,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (closeAssessmentBtn && !closeAssessmentBtn.disabled) {
         closeAssessmentBtn.addEventListener('click', function() {
-            // Show confirmation popup
             if (confirm('The evaluation results as displayed on this page will now be considered final.\n\nClick OK to close the assessment.')) {
                 closeAssessment(clauseId);
             }
@@ -5038,45 +5038,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function closeAssessment(clauseId) {
-        // Show loading state
-        closeAssessmentBtn.innerHTML = `
-            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Closing...
-        `;
-        closeAssessmentBtn.disabled = true;
-        
-        // Send request to server
+        const topBtn = document.getElementById('closeAssessmentBtnTop');
+        const spinnerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Closing...`;
+
+        // Show loading state on top button
+        if (topBtn) { topBtn.innerHTML = spinnerHTML; topBtn.disabled = true; }
+        // Show loading state on bottom button if rendered
+        if (closeAssessmentBtn) { closeAssessmentBtn.innerHTML = spinnerHTML; closeAssessmentBtn.disabled = true; }
+
         fetch(`/audit/clause/${clauseId}/close-assessment`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Update the button to show completed state
-                closeAssessmentBtn.outerHTML = `
-                    <span class="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold flex items-center space-x-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                  d="M5 13l4 4L19 7"></path>
+                const closedLabel = `
+                    <span class="flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
-                        <span>Assessment Completed</span>
-                    </span>
-                `;
-                
-                // Show success message
-                showToast('Assessment closed successfully! Status updated to "Completed".', 'success');
-                
-                // Reload page after 2 seconds so dashboard reflects updated status
-                setTimeout(() => { window.location.reload(); }, 2000);
-                
-                // Reload page after 2 seconds so dashboard reflects updated status
+                        Assessment Closed
+                    </span>`;
+                // Replace top button with "Assessment Closed" label
+                if (topBtn) { topBtn.outerHTML = closedLabel; }
+                // Replace bottom button if rendered
+                if (closeAssessmentBtn) { closeAssessmentBtn.outerHTML = closedLabel; }
+                showToast('Assessment closed successfully! Statuses updated.', 'success');
                 setTimeout(() => { window.location.reload(); }, 2000);
             } else {
                 throw new Error(data.error || 'Failed to close assessment');
@@ -5084,9 +5072,10 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error closing assessment:', error);
-            showToast('Failed to close assessment. Please try again.', 'error');
-            closeAssessmentBtn.innerHTML = '<span>Close Assessment</span>';
-            closeAssessmentBtn.disabled = false;
+            showToast('Failed to close assessment: ' + error.message, 'error');
+            const origLabel = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Close Assessment`;
+            if (topBtn) { topBtn.innerHTML = origLabel; topBtn.disabled = false; }
+            if (closeAssessmentBtn) { closeAssessmentBtn.innerHTML = '<span>Close Assessment</span>'; closeAssessmentBtn.disabled = false; }
         });
     }
     
