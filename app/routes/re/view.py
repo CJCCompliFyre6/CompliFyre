@@ -3567,8 +3567,8 @@ def activity(project_id):
                     "non_compliant": non_compliant_clauses,
                     "total_assessed": completed_assessments,
                     "percentage_compliant": (
-                        round((compliant_clauses / completed_assessments * 100), 1)
-                        if completed_assessments > 0
+                        round((compliant_clauses / applicable_clauses * 100), 1)
+                        if applicable_clauses > 0
                         else 0
                     ),
                     "percentage_partially_compliant": (
@@ -3726,6 +3726,181 @@ def activity(project_id):
             'total': clause_statistics['compliance']['total_assessed'],
             'percentage_compliant': clause_statistics['compliance']['percentage_compliant']
         }
+
+        # ── ACTION ITEMS — human-in-the-loop accountability ──────────────────
+        # For each applicable clause, check what action is pending from auditor
+        action_items = {
+            'pending_findings_review': [],   # EVE done, findings not yet reviewed
+            'pending_summary': [],           # All findings reviewed, no summary
+            'pending_close': [],             # Summary done, not closed
+        }
+        try:
+            from app.models.eve_models import EveControlResult, EveEvidenceResult
+            from app.models.ai import ConsolidatedFindingsSummary
+
+            for clause_data in enriched_clauses:
+                clause = clause_data.get('clause')
+                if not clause or not clause.applicability:
+                    continue
+
+                clause_id = clause.id
+                clause_no = clause.clause_no or ''
+                clause_link = f"/audit/clause/{clause_id}/test-steps"
+
+                # Check all control activities for this clause
+                all_findings = []
+                has_eve_results = False
+                for pca in clause_data.get('activities', []):
+                    if not pca.get('applicability'):
+                        continue
+                    ctrl_activities = pca.get('project_control_activities', [])
+                    for ctrl in ctrl_activities:
+                        ecr = EveControlResult.query.filter_by(
+                            project_control_activity_id=ctrl.id
+                        ).first()
+                        if ecr and ecr.findings_json:
+                            has_eve_results = True
+                            all_findings.extend(ecr.findings_json or [])
+
+                if not has_eve_results:
+                    continue  # EVE not run yet — not actionable
+
+                # Check 1: Any finding without auditor_status → pending review
+                unreviewed = [
+                    f for f in all_findings
+                    if isinstance(f, dict) and not f.get('auditor_status')
+                ]
+                if unreviewed:
+                    action_items['pending_findings_review'].append({
+                        'clause_no': clause_no,
+                        'clause_id': clause_id,
+                        'link': clause_link,
+                        'count': len(unreviewed),
+                    })
+                    continue  # Don't check further — findings need review first
+
+                # Check 2: All findings reviewed — has summary been generated?
+                summary = ConsolidatedFindingsSummary.query.filter_by(
+                    clause_id=clause_id
+                ).first()
+                if not summary:
+                    action_items['pending_summary'].append({
+                        'clause_no': clause_no,
+                        'clause_id': clause_id,
+                        'link': clause_link,
+                    })
+                    continue
+
+                # Check 3: Summary exists — has assessment been closed?
+                if clause.assessment_status != 'Completed':
+                    action_items['pending_close'].append({
+                        'clause_no': clause_no,
+                        'clause_id': clause_id,
+                        'link': clause_link,
+                    })
+
+        except Exception as ai_err:
+            current_app.logger.warning(f"Action items computation failed: {ai_err}")
+            action_items = {
+                'pending_findings_review': [],
+                'pending_summary': [],
+                'pending_close': [],
+            }
+
+        # ── BUBBLE CHART DATA — Findings Severity vs Recommendation Timeline ──
+        # Only CONFIRMED findings with their recommendation timelines
+        bubble_data = {}  # {(severity, timeline): [{'clause_no': X, 'clause_id': Y}]}
+        evidence_quality_data = []  # [{clause_no, clause_id, artifacts: [{name, quality, admissibility}]}]
+
+        SEVERITY_ORDER = ['Critical', 'Major', 'Significant', 'Minor']
+        TIMELINE_ORDER = ['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM']
+        SEVERITY_MAP = {
+            'CRITICAL': 'Critical', 'Critical': 'Critical',
+            'HIGH': 'Major', 'MAJOR': 'Major', 'Major': 'Major',
+            'MEDIUM': 'Significant', 'SIGNIFICANT': 'Significant', 'Significant': 'Significant',
+            'LOW': 'Minor', 'MINOR': 'Minor', 'Minor': 'Minor',
+        }
+
+        try:
+            from app.models.eve_models import EveControlResult, EveAssuranceState
+            for clause_data in enriched_clauses:
+                clause = clause_data.get('clause')
+                if not clause or not clause.applicability:
+                    continue
+
+                clause_no = clause.clause_no or ''
+                clause_id = clause.id
+                clause_link = f"/audit/clause/{clause_id}/test-steps"
+
+                # Evidence quality per clause
+                quality_entries = []
+                for pca in clause_data.get('activities', []):
+                    if not pca.get('applicability'):
+                        continue
+                    for ctrl in pca.get('project_control_activities', []):
+                        ecr = EveControlResult.query.filter_by(
+                            project_control_activity_id=ctrl.id
+                        ).first()
+                        if not ecr:
+                            continue
+
+                        # Bubble chart — CONFIRMED findings
+                        for finding in (ecr.findings_json or []):
+                            if not isinstance(finding, dict):
+                                continue
+                            if finding.get('auditor_status') != 'CONFIRMED':
+                                continue
+                            raw_sev = finding.get('severity', '')
+                            sev = SEVERITY_MAP.get(raw_sev, None)
+                            if not sev:
+                                continue
+                            reco = finding.get('related_recommendation') or finding.get('recommendation') or {}
+                            timeline = reco.get('timeline', 'IMMEDIATE') if isinstance(reco, dict) else 'IMMEDIATE'
+                            if timeline not in TIMELINE_ORDER:
+                                timeline = 'IMMEDIATE'
+                            key = f"{sev}|{timeline}"
+                            if key not in bubble_data:
+                                bubble_data[key] = []
+                            # Add clause if not already added for this key
+                            if not any(c['clause_id'] == clause_id for c in bubble_data[key]):
+                                bubble_data[key].append({
+                                    'clause_no': clause_no,
+                                    'clause_id': clause_id,
+                                    'link': clause_link,
+                                })
+
+                        # Evidence quality
+                        eas = EveAssuranceState.query.filter_by(
+                            project_control_activity_id=ctrl.id
+                        ).first()
+                        if eas:
+                            quality_entries.append({
+                                'score': eas.evidence_quality_score or 0,
+                                'admissibility': ecr.admissibility or 'NOT_EVALUATED',
+                            })
+
+                if quality_entries:
+                    avg_score = round(sum(e['score'] for e in quality_entries) / len(quality_entries))
+                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] in ('INADMISSIBLE', 'NO'))
+                    evidence_quality_data.append({
+                        'clause_no': clause_no,
+                        'clause_id': clause_id,
+                        'link': clause_link,
+                        'avg_score': avg_score,
+                        'total': len(quality_entries),
+                        'inadmissible': inadmissible,
+                        'quality_label': 'Strong' if avg_score >= 75 else 'Adequate' if avg_score >= 40 else 'Weak',
+                        'color': 'green' if avg_score >= 75 else 'yellow' if avg_score >= 40 else 'red',
+                    })
+
+        except Exception as chart_err:
+            current_app.logger.warning(f"Chart data computation failed: {chart_err}")
+            bubble_data = {}
+            evidence_quality_data = []
+
+        # Serialize bubble_data for JS
+        import json as _json
+        bubble_data_json = _json.dumps(bubble_data)
         
         # Calculate evaluated activities count
         evaluated_activities_count = clause_statistics['assessment']['completed']
@@ -3774,6 +3949,9 @@ def activity(project_id):
             project_compliance_status=project_compliance_status,
             project_status_info=project_status_info,
             clause_statistics=clause_statistics,
+            action_items=action_items,
+            bubble_data_json=bubble_data_json,
+            evidence_quality_data=evidence_quality_data,
             now=datetime.now(),
 
             assessment_start_date=project.assesment_start_date if project else None,
