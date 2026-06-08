@@ -3253,7 +3253,7 @@ def activity(project_id):
             clause_status_info[clause_id] = get_compliance_status_display_info(
                 clause_status
             )
-            assessment_status_info[clause_id] = get_assessment_status(clause_status)
+            assessment_status_info[clause_id] = get_assessment_status(clause_status, clause=unique_clauses[clause_id]["clause"])
         
         # ============== CALCULATE ASSESSMENT END DATE ==============
         # Check if all clauses have assessment status as "Completed"
