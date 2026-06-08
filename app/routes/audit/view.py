@@ -6358,17 +6358,21 @@ def calculate_clause_compliance_status(clause_id):
             ecr = _ECR_calc.query.filter_by(
                 project_control_activity_id=activity.id
             ).first()
-            status = (
+            raw = (
                 (ecr.final_status if ecr and ecr.final_status else None)
                 or getattr(activity, "compliant_status", None)
             )
-
-            if status == "Compliant":
-                status_counts["Compliant"] += 1
-            elif status == "Partially Compliant":
-                status_counts["Partially Compliant"] += 1
-            elif status == "Non-Compliant":
-                status_counts["Non-Compliant"] += 1
+            # Normalize: EVE writes "NON_COMPLIANT"; legacy writes "Non-Compliant"
+            if raw:
+                n = raw.upper().replace(" ", "_").replace("-", "_")
+                if n == "COMPLIANT":
+                    status_counts["Compliant"] += 1
+                elif n in ("NON_COMPLIANT", "NOT_COMPLIANT", "NONCOMPLIANT"):
+                    status_counts["Non-Compliant"] += 1
+                elif n in ("PARTIALLY_COMPLIANT", "PARTIAL"):
+                    status_counts["Partially Compliant"] += 1
+                else:
+                    status_counts["Not Assessed"] += 1
             else:
                 status_counts["Not Assessed"] += 1
 
