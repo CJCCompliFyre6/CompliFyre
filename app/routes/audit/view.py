@@ -6343,7 +6343,9 @@ def calculate_clause_compliance_status(clause_id):
                     compliance_activity.project_control_activities
                 )
 
-        # Count statuses
+        # Count statuses — check EveControlResult.final_status first (EVE pipeline),
+        # fall back to activity.compliant_status (manual), then "Not Assessed"
+        from app.models.eve_models import EveControlResult as _ECR_calc
         status_counts = {
             "total": len(applicable_activities),
             "Compliant": 0,
@@ -6353,7 +6355,13 @@ def calculate_clause_compliance_status(clause_id):
         }
 
         for activity in applicable_activities:
-            status = getattr(activity, "compliant_status", None)
+            ecr = _ECR_calc.query.filter_by(
+                project_control_activity_id=activity.id
+            ).first()
+            status = (
+                (ecr.final_status if ecr and ecr.final_status else None)
+                or getattr(activity, "compliant_status", None)
+            )
 
             if status == "Compliant":
                 status_counts["Compliant"] += 1
@@ -6364,25 +6372,33 @@ def calculate_clause_compliance_status(clause_id):
             else:
                 status_counts["Not Assessed"] += 1
 
-        # Determine overall status
+        # Apply user's formula on assessed activities only:
+        # All Compliant → Compliant | All Non-Compliant → Non-Compliant | Mix → Partially Compliant
+        assessed_count = (
+            status_counts["Compliant"]
+            + status_counts["Partially Compliant"]
+            + status_counts["Non-Compliant"]
+        )
+
         if status_counts["total"] == 0:
             overall_status = "To be Assessed"
             details = "No activities found for this clause"
-        elif status_counts["Not Assessed"] > 0:
+        elif assessed_count == 0:
             overall_status = "To be Assessed"
-            details = f"{status_counts['Not Assessed']} of {status_counts['total']} activities need assessment"
-        elif status_counts["Non-Compliant"] > 0:
-            overall_status = "Non-Compliant"
-            details = f"{status_counts['Non-Compliant']} non-compliant activities found"
-        elif status_counts["Partially Compliant"] > 0:
-            overall_status = "Partially Compliant"
-            details = f"{status_counts['Partially Compliant']} partially compliant activities found"
-        elif status_counts["Compliant"] == status_counts["total"]:
+            details = f"0 of {status_counts['total']} activities have been assessed"
+        elif status_counts["Compliant"] == assessed_count:
             overall_status = "Compliant"
             details = "All applicable activities are compliant"
+        elif status_counts["Non-Compliant"] == assessed_count:
+            overall_status = "Non-Compliant"
+            details = f"All {status_counts['Non-Compliant']} assessed activities are non-compliant"
         else:
-            overall_status = "To be Assessed"
-            details = "Status needs assessment"
+            overall_status = "Partially Compliant"
+            details = (
+                f"{status_counts['Compliant']} compliant, "
+                f"{status_counts['Non-Compliant']} non-compliant, "
+                f"{status_counts['Partially Compliant']} partially compliant"
+            )
 
         return {
             "text": overall_status,
