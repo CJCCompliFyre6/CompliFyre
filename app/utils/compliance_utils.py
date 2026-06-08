@@ -137,30 +137,38 @@ def get_clause_compliance_status(clause_activities):
     if not has_control_activities:
         return "no-procedures"
 
-    # Get compliance statuses for applicable activities that have control activities
+    # Get compliance statuses — check EveControlResult.final_status first (EVE pipeline),
+    # fall back to control_activity.compliant_status (manual). Check ALL control activities.
+    from app.models.eve_models import EveControlResult as _ECR_utils
     compliance_statuses = []
     for activity in applicable_activities:
-        if activity.project_control_activities:
-            control_activity = activity.project_control_activities[0]
-            if control_activity.compliant_status:
-                # Normalize: handle EVE V3 ("COMPLIANT","NON_COMPLIANT") and old ("Compliant","not-compliant")
-                raw = control_activity.compliant_status.upper().replace(" ", "_").replace("-", "_")
-                if raw in ("COMPLIANT",):
-                    compliance_statuses.append("compliant")
-                elif raw in ("NON_COMPLIANT", "NOT_COMPLIANT", "NONCOMPLIANT"):
-                    compliance_statuses.append("not-compliant")
-                elif raw in ("PARTIALLY_COMPLIANT", "PARTIAL",):
-                    compliance_statuses.append("partially-compliant")
-                # skip unknown statuses
+        for control_activity in activity.project_control_activities:
+            ecr = _ECR_utils.query.filter_by(
+                project_control_activity_id=control_activity.id
+            ).first()
+            raw_status = (
+                (ecr.final_status if ecr and ecr.final_status else None)
+                or control_activity.compliant_status
+            )
+            if not raw_status:
+                continue
+            raw = raw_status.upper().replace(" ", "_").replace("-", "_")
+            if raw == "COMPLIANT":
+                compliance_statuses.append("compliant")
+            elif raw in ("NON_COMPLIANT", "NOT_COMPLIANT", "NONCOMPLIANT"):
+                compliance_statuses.append("not-compliant")
+            elif raw in ("PARTIALLY_COMPLIANT", "PARTIAL"):
+                compliance_statuses.append("partially-compliant")
 
-    # If no applicable activities have compliance status yet
+    # If no assessed activities yet
     if not compliance_statuses:
         return "no-procedures"
 
-    # Apply business rules for this clause
-    if all(status == "compliant" for status in compliance_statuses):
+    # Apply user's formula on assessed activities:
+    # All Compliant → compliant | All Non-Compliant → not-compliant | Mix → partially-compliant
+    if all(s == "compliant" for s in compliance_statuses):
         return "compliant"
-    elif all(status == "not-compliant" for status in compliance_statuses):
+    elif all(s == "not-compliant" for s in compliance_statuses):
         return "not-compliant"
     else:
         return "partially-compliant"
