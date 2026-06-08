@@ -1551,10 +1551,11 @@
   <div class="p-6">
 
     <!-- SECTION 1: Compliance Pipeline -->
-    {% set total_clauses = clause_statistics.applicability.total if clause_statistics else 0 %}
+    {% set total_clauses = clause_statistics.total_clauses if clause_statistics else 0 %}
     {% set applicable = clause_statistics.applicability.applicable if clause_statistics else 0 %}
+    {% set not_applicable = clause_statistics.applicability.not_applicable if clause_statistics else 0 %}
     {% set assessed = clause_statistics.assessment.completed if clause_statistics else 0 %}
-    {% set with_evidence = evidence_stats.with_evidence if evidence_stats else 0 %}
+    {% set with_evidence = clause_statistics.clauses_with_evidence if clause_statistics else 0 %}
     {% set findings_count = (severity_stats.Critical + severity_stats.Major + severity_stats.Significant + severity_stats.Minor) if severity_stats else 0 %}
     {% set evidence_gaps = applicable - with_evidence if applicable > with_evidence else 0 %}
 
