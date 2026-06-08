@@ -151,7 +151,6 @@
         </a>
 
         <!-- Close Assessment button — top of page (F-16) -->
-        {% set summary_ready = consolidated_summary_record is not none %}
         {% if assessment_status == "Completed" %}
         <span class="flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold">
             ✅ Assessment Completed
@@ -351,7 +350,6 @@
             <h2 class="text-xl font-semibold text-gray-800">Compliant Status</h2>
              <!-- Add Close Assessment Button Here -->
         {% if summary_ready and assessment_status != "Completed" %}
-        <button id="closeAssessmentBtn" 
                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
                 {% if current_user.free_report_used %}disabled title="Editing disabled - Report already generated"{% endif %}>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

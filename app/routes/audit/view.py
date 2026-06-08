@@ -5507,6 +5507,12 @@ def clause_test_steps(clause_id):
         clause_id=clause_id
     ).first()
 
+    # Check ConsolidatedFindingsSummary — this is what "Generate Summary" button creates
+    from app.models.ai import ConsolidatedFindingsSummary as CFS
+    findings_summary_record = CFS.query.filter_by(clause_id=clause_id).first()
+    # summary_ready = either summary table has data
+    summary_ready = consolidated_summary_record is not None or findings_summary_record is not None
+
     consolidated_summary = None
     if consolidated_summary_record:
         consolidated_summary = consolidated_summary_record.consolidated_data
@@ -5718,6 +5724,7 @@ def clause_test_steps(clause_id):
         clause_status_info=clause_status_info,
         consolidated_summary=consolidated_summary,
         consolidated_summary_record=consolidated_summary_record,
+        summary_ready=summary_ready,
         consolidated_test_summary=consolidated_test_summary,
         consolidated_observation_summary=consolidated_observation_summary,
         consolidated_findings_summary=consolidated_findings_summary,
