@@ -6338,7 +6338,7 @@ def update_consolidated_bullet():
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
-def calculate_clause_compliance_status(clause_id):
+def calculate_clause_compliance_status(clause_id, ecr_map=None):
     """
     Calculate overall compliance status and consolidate observations, findings,
     and recommendations for only APPLICABLE activities in a clause.
@@ -6383,9 +6383,12 @@ def calculate_clause_compliance_status(clause_id):
         }
 
         for activity in applicable_activities:
-            ecr = _ECR_calc.query.filter_by(
-                project_control_activity_id=activity.id
-            ).first()
+            if ecr_map is not None:
+                ecr = ecr_map.get(activity.id)
+            else:
+                ecr = _ECR_calc.query.filter_by(
+                    project_control_activity_id=activity.id
+                ).first()
             raw = (
                 (ecr.final_status if ecr and ecr.final_status else None)
                 or getattr(activity, "compliant_status", None)

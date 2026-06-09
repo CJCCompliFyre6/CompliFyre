@@ -3447,7 +3447,7 @@ def activity(project_id):
             representative_activity = activities[0] if activities else None
 
             # Use the SAME calculate_clause_compliance_status function as clause_test_steps.html
-            detailed_clause_status = calculate_clause_compliance_status(clause_id)
+            detailed_clause_status = calculate_clause_compliance_status(clause_id, ecr_map=_ecr_map)
 
             # For backward compatibility, also calculate the old status
             old_clause_status = get_clause_compliance_status(activities)
@@ -4035,7 +4035,7 @@ def get_clause_statistics(project_id):
             if clause.applicability:
                 # Check if this clause has been assessed
                 # Get compliance status for the clause
-                clause_status_data = calculate_clause_compliance_status(clause.id)
+                clause_status_data = calculate_clause_compliance_status(clause.id, ecr_map=_ecr_map)
                 status_text = clause_status_data.get("text", "To Be Assessed")
 
                 if status_text != "To Be Assessed":
@@ -4050,7 +4050,7 @@ def get_clause_statistics(project_id):
 
         for clause in clauses:
             if clause.applicability:
-                clause_status_data = calculate_clause_compliance_status(clause.id)
+                clause_status_data = calculate_clause_compliance_status(clause.id, ecr_map=_ecr_map)
                 status_text = clause_status_data.get("text", "To Be Assessed")
 
                 if status_text == "Compliant":
