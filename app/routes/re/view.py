@@ -3917,17 +3917,63 @@ def activity(project_id):
         evaluated_activities_count = clause_statistics['assessment']['completed']
         total_applicable_activities = clause_statistics['applicability']['applicable']
 
-        # Count total individual findings across all applicable clauses
-        from app.models.eve_models import EveControlResult as _ECR2
+        # Count total findings — use already-loaded _ecr_map (0 extra queries)
         total_findings = 0
-        for clause_data in enriched_clauses:
-            if not clause_data["clause"].applicability:
+        for clause_id_f, clause_data_f in unique_clauses.items():
+            if not clause_data_f["clause"].applicability:
                 continue
-            for pca in clause_data.get("activities", []):
-                for ctrl in getattr(pca, "project_control_activities", []):
-                    ecr = _ECR2.query.filter_by(project_control_activity_id=ctrl.id).first()
-                    if ecr and ecr.findings_json:
+            for pca in clause_data_f["activities"]:
+                for ctrl in pca.project_control_activities:
+                    ecr = _ecr_map.get(ctrl.id)
+                    if ecr and ecr.findings_json and isinstance(ecr.findings_json, list):
                         total_findings += len(ecr.findings_json)
+
+        # Evidence Gaps:
+        # Case 1 — no EVE result for ANY activity in clause (no evidence processed)
+        # Case 2 — any INADMISSIBLE EveEvidenceResult for the clause
+        # Batch: get all inadmissible artifact IDs in ONE query
+        from app.models.eve_models import EveEvidenceResult as _EER_gap2
+        _all_ea_ids = [
+            ev.id
+            for clause_data_g in unique_clauses.values()
+            if clause_data_g["clause"].applicability
+            for pca in clause_data_g["activities"]
+            for ctrl in pca.project_control_activities
+            for ev in ctrl.submitted_evidences
+        ]
+        _inadmissible_artifact_ids = set()
+        if _all_ea_ids:
+            _inadmissible_artifact_ids = {
+                r.evidence_artifact_id
+                for r in _EER_gap2.query.filter(
+                    _EER_gap2.evidence_artifact_id.in_(_all_ea_ids),
+                    _EER_gap2.admissibility == "INADMISSIBLE"
+                ).all()
+            }
+        evidence_gap_count = 0
+        for clause_data_g in unique_clauses.values():
+            clause_g = clause_data_g["clause"]
+            if not clause_g.applicability:
+                continue
+            ctrl_ids = [
+                ctrl.id
+                for pca in clause_data_g["activities"]
+                for ctrl in pca.project_control_activities
+            ]
+            # Case 1: no ECR for any activity = no evidence processed
+            has_evidence = any(_ecr_map.get(cid) for cid in ctrl_ids)
+            if not has_evidence:
+                evidence_gap_count += 1
+                continue
+            # Case 2: any INADMISSIBLE artifact in this clause
+            ea_ids = {
+                ev.id
+                for pca in clause_data_g["activities"]
+                for ctrl in pca.project_control_activities
+                for ev in ctrl.submitted_evidences
+            }
+            if ea_ids & _inadmissible_artifact_ids:
+                evidence_gap_count += 1
 
         from datetime import datetime
         current_time = datetime.now()
@@ -3981,6 +4027,7 @@ def activity(project_id):
             db_assessment_end_date=db_assessment_end_date,
             all_clauses_completed=all_clauses_completed,
             evidence_stats=evidence_stats,
+            evidence_gap_count=evidence_gap_count,
             severity_stats=severity_stats,
             overall_project_severity=overall_project_severity,
             severity_color_class=severity_color_class,
