@@ -3253,7 +3253,7 @@ def activity(project_id):
             clause_status_info[clause_id] = get_compliance_status_display_info(
                 clause_status
             )
-            assessment_status_info[clause_id] = get_assessment_status(clause_status)
+            assessment_status_info[clause_id] = get_assessment_status(clause_status, clause=unique_clauses[clause_id]["clause"])
         
         # ============== CALCULATE ASSESSMENT END DATE ==============
         # Check if all clauses have assessment status as "Completed"
@@ -3531,8 +3531,16 @@ def activity(project_id):
                     elif status == "Non-Compliant":
                         non_compliant_clauses += 1
 
+            # Evidence Statistics
+            clauses_with_evidence = sum(
+                1 for clause in compliance_clauses
+                if clause["clause"].applicability
+                and clause.get("evidence_received", False)
+            )
+
             return {
                 "total_clauses": total_clauses,
+                "clauses_with_evidence": clauses_with_evidence,
                 "applicability": {
                     "applicable": applicable_clauses,
                     "not_applicable": not_applicable_clauses,
@@ -3625,36 +3633,22 @@ def activity(project_id):
             if not control_activities:
                 continue
             
-            # Check if ALL applicable activities have admissible evidence
-            all_activities_have_evidence = True
-            activities_with_evidence_count = 0
-            total_applicable_activities = len(control_activities)
-            
-            for activity in control_activities:
-                # Check if activity has evidence received (admissible and strong)
-                evidence_received = (
-                    activity.evidence_admissibility_decision == "Yes" and 
-                    activity.evidence_quality_rating == "STRONG"
-                )
-                
-                if evidence_received:
-                    activities_with_evidence_count += 1
-                else:
-                    # If any activity lacks evidence, the clause fails the ALL condition
-                    all_activities_have_evidence = False
-                    # Log which activity is missing evidence for debugging
-                    current_app.logger.info(f"Clause {clause.clause_no} - Activity {activity.activity_code} missing evidence: Admissibility={activity.evidence_admissibility_decision}, Quality={activity.evidence_quality_rating}")
-            
-            # Determine clause evidence status based on ALL activities having evidence
-            if all_activities_have_evidence:
+            # Check if ANY applicable activity has an EveControlResult
+            # (EVE ran = evidence was submitted and processed for that activity)
+            from app.models.eve_models import EveControlResult as _ECR
+            activity_ids = [a.id for a in control_activities]
+            any_activity_has_evidence = _ECR.query.filter(
+                _ECR.project_control_activity_id.in_(activity_ids)
+            ).first() is not None
+
+            if any_activity_has_evidence:
                 clauses_with_evidence += 1
                 evidence_status = "YES"
             else:
                 clauses_without_evidence += 1
                 evidence_status = "NO"
-            
-            # Log for debugging
-            current_app.logger.info(f"Clause {clause.clause_no}: {activities_with_evidence_count}/{total_applicable_activities} activities with evidence - ALL have evidence: {all_activities_have_evidence} -> Evidence Status: {evidence_status}")
+
+            current_app.logger.info(f"Clause {clause.clause_no}: EVE evidence received = {evidence_status}")
             
             # ============== CALCULATE SEVERITY FOR THIS CLAUSE ==============
             # Get the overall severity for this clause (highest severity across all applicable activities)
@@ -3710,6 +3704,51 @@ def activity(project_id):
                               'bg-yellow-500' if evidence_percentage >= 50 else 
                               'bg-orange-500' if evidence_percentage >= 25 else 'bg-red-500'
         }
+
+        # ============== CALCULATE EVIDENCE GAPS ==============
+        # Case 1: No evidence uploaded for any applicable activity in clause
+        # Case 2: Any EveEvidenceResult with admissibility == "INADMISSIBLE" for any applicable activity
+        from app.models.eve_models import EveEvidenceResult as _EER_gap
+        evidence_gap_count = 0
+        for clause_data in enriched_clauses:
+            clause = clause_data["clause"]
+            if not clause.applicability:
+                continue
+            ctrl_activities = (
+                db.session.query(ProjectControlActivity)
+                .join(ProjectComplianceActivity,
+                      ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id)
+                .filter(ProjectComplianceActivity.project_clause_id == clause.id)
+                .filter(ProjectComplianceActivity.applicability == True)
+                .all()
+            )
+            if not ctrl_activities:
+                continue
+            # Case 1: any activity has real evidence uploaded?
+            has_any_evidence = any(
+                ev.evidence_text or ev.evidence_file_path or ev.evidence_files.count() > 0
+                for ctrl in ctrl_activities
+                for ev in ctrl.submitted_evidences
+            )
+            if not has_any_evidence:
+                evidence_gap_count += 1
+                continue
+            # Case 2: any evidence artifact marked INADMISSIBLE by EVE?
+            has_inadmissible = (
+                db.session.query(_EER_gap)
+                .join(_EER_gap.evidence_artifact)
+                .filter(
+                    _EER_gap.evidence_artifact_id.in_([
+                        ev.id
+                        for ctrl in ctrl_activities
+                        for ev in ctrl.submitted_evidences
+                    ]),
+                    _EER_gap.admissibility == "INADMISSIBLE"
+                )
+                .first() is not None
+            )
+            if has_inadmissible:
+                evidence_gap_count += 1
 
         # Calculate assessment status statistics for the status bar
         assessment_status_stats = {
@@ -3822,7 +3861,14 @@ def activity(project_id):
         }
 
         try:
+<<<<<<< HEAD
             from app.models.eve_models import EveControlResult, EveAssuranceState
+=======
+            from app.models.ai import ConsolidatedFindingsSummary as _CFS_chart
+            from app.models.eve_models import EveEvidenceResult as _EER_chart
+            import json as _jchart
+
+>>>>>>> staging
             for clause_data in enriched_clauses:
                 clause = clause_data.get('clause')
                 if not clause or not clause.applicability:
@@ -3832,6 +3878,7 @@ def activity(project_id):
                 clause_id = clause.id
                 clause_link = f"/audit/clause/{clause_id}/test-steps"
 
+<<<<<<< HEAD
                 # Evidence quality per clause
                 quality_entries = []
                 for pca in clause_data.get('activities', []):
@@ -3850,10 +3897,29 @@ def activity(project_id):
                                 continue
                             if finding.get('auditor_status') != 'CONFIRMED':
                                 continue
+=======
+                # ── Bubble chart: findings from ConsolidatedFindingsSummary ──
+                # Timeline derived from severity (no timeline field in CFS)
+                SEVERITY_TO_TIMELINE = {
+                    'Critical': 'IMMEDIATE',
+                    'Major': 'SHORT_TERM',
+                    'Significant': 'MEDIUM_TERM',
+                    'Minor': 'LONG_TERM',
+                }
+                cfs = _CFS_chart.query.filter_by(clause_id=clause_id).order_by(_CFS_chart.created_at.desc()).first()
+                if cfs and cfs.consolidated_findings:
+                    try:
+                        parsed = _jchart.loads(cfs.consolidated_findings)
+                        findings_list = parsed.get('detailed_findings') or parsed.get('consolidated_summary') or []
+                        for finding in findings_list:
+                            if not isinstance(finding, dict):
+                                continue
+>>>>>>> staging
                             raw_sev = finding.get('severity', '')
                             sev = SEVERITY_MAP.get(raw_sev, None)
                             if not sev:
                                 continue
+<<<<<<< HEAD
                             reco = finding.get('related_recommendation') or finding.get('recommendation') or {}
                             timeline = reco.get('timeline', 'IMMEDIATE') if isinstance(reco, dict) else 'IMMEDIATE'
                             if timeline not in TIMELINE_ORDER:
@@ -3862,12 +3928,19 @@ def activity(project_id):
                             if key not in bubble_data:
                                 bubble_data[key] = []
                             # Add clause if not already added for this key
+=======
+                            timeline = SEVERITY_TO_TIMELINE.get(sev, 'MEDIUM_TERM')
+                            key = f"{sev}|{timeline}"
+                            if key not in bubble_data:
+                                bubble_data[key] = []
+>>>>>>> staging
                             if not any(c['clause_id'] == clause_id for c in bubble_data[key]):
                                 bubble_data[key].append({
                                     'clause_no': clause_no,
                                     'clause_id': clause_id,
                                     'link': clause_link,
                                 })
+<<<<<<< HEAD
 
                         # Evidence quality
                         eas = EveAssuranceState.query.filter_by(
@@ -3882,12 +3955,42 @@ def activity(project_id):
                 if quality_entries:
                     avg_score = round(sum(e['score'] for e in quality_entries) / len(quality_entries))
                     inadmissible = sum(1 for e in quality_entries if e['admissibility'] in ('INADMISSIBLE', 'NO'))
+=======
+                    except (ValueError, TypeError):
+                        pass
+
+                # ── Evidence Quality chart: from EveEvidenceResult records ──
+                quality_entries = []
+                for pca in clause.project_compliance_activities:
+                    if not pca.applicability:
+                        continue
+                    for ctrl in pca.project_control_activities:
+                        for ev_artifact in ctrl.submitted_evidences:
+                            eer_records = _EER_chart.query.filter_by(
+                                evidence_artifact_id=ev_artifact.id
+                            ).all()
+                            for eer in eer_records:
+                                quality_entries.append({
+                                    'admissibility': eer.admissibility or 'INADMISSIBLE',
+                                })
+
+                if quality_entries:
+                    total = len(quality_entries)
+                    admissible = sum(1 for e in quality_entries if e['admissibility'] == 'ADMISSIBLE')
+                    partial = sum(1 for e in quality_entries if e['admissibility'] == 'PARTIAL')
+                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] == 'INADMISSIBLE')
+                    avg_score = round((admissible * 100 + partial * 50) / total)
+>>>>>>> staging
                     evidence_quality_data.append({
                         'clause_no': clause_no,
                         'clause_id': clause_id,
                         'link': clause_link,
                         'avg_score': avg_score,
+<<<<<<< HEAD
                         'total': len(quality_entries),
+=======
+                        'total': total,
+>>>>>>> staging
                         'inadmissible': inadmissible,
                         'quality_label': 'Strong' if avg_score >= 75 else 'Adequate' if avg_score >= 40 else 'Weak',
                         'color': 'green' if avg_score >= 75 else 'yellow' if avg_score >= 40 else 'red',
@@ -3901,11 +4004,40 @@ def activity(project_id):
         # Serialize bubble_data for JS
         import json as _json
         bubble_data_json = _json.dumps(bubble_data)
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> staging
         # Calculate evaluated activities count
         evaluated_activities_count = clause_statistics['assessment']['completed']
         total_applicable_activities = clause_statistics['applicability']['applicable']
 
+        # Count total individual findings across all applicable clauses
+        # Findings live in ConsolidatedFindingsSummary per clause, not EveControlResult.findings_json
+        from app.models.ai import ConsolidatedFindingsSummary as _CFS
+        import json as _json2
+        total_findings = 0
+        for clause_data in enriched_clauses:
+            clause = clause_data["clause"]
+            if not clause.applicability:
+                continue
+            cfs = (
+                _CFS.query.filter_by(clause_id=clause.id)
+                .order_by(_CFS.created_at.desc())
+                .first()
+            )
+            if cfs and cfs.consolidated_findings:
+                try:
+                    parsed = _json2.loads(cfs.consolidated_findings)
+                    findings_list = (
+                        parsed.get("detailed_findings")
+                        or parsed.get("consolidated_summary")
+                        or []
+                    )
+                    total_findings += len(findings_list)
+                except (ValueError, TypeError):
+                    pass
 
         from datetime import datetime
         current_time = datetime.now()
@@ -3959,6 +4091,7 @@ def activity(project_id):
             db_assessment_end_date=db_assessment_end_date,
             all_clauses_completed=all_clauses_completed,
             evidence_stats=evidence_stats,
+            evidence_gap_count=evidence_gap_count,
             severity_stats=severity_stats,
             overall_project_severity=overall_project_severity,
             severity_color_class=severity_color_class,
@@ -3966,6 +4099,7 @@ def activity(project_id):
             compliance_status_stats=compliance_status_stats,
             evaluated_activities_count=evaluated_activities_count,
             total_applicable_activities=total_applicable_activities,
+            total_findings=total_findings,
             current_time=current_time,
         )
 

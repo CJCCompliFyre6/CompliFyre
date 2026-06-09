@@ -1864,7 +1864,6 @@ def create_new_project():
         # --- 3. Add departments to the many-to-many relationship ---
         # IMPORTANT: Add to session first before setting relationships
         db.session.add(new_project)
-        db.session.flush()  # This assigns an ID to new_project
 
         # Now add the departments
         for dept in department_records:
@@ -1883,7 +1882,6 @@ def create_new_project():
             )
             new_project.project_guidelines.append(project_guideline)
             db.session.add(project_guideline)
-            db.session.flush()
 
             for clause_template in guideline_template.clauses:
                 project_clause = ProjectClause(
@@ -1893,7 +1891,6 @@ def create_new_project():
                 )
                 project_guideline.project_clauses.append(project_clause)
                 db.session.add(project_clause)
-                db.session.flush()
 
                 for activity_template in clause_template.compliance_activities:
                     project_activity = ProjectComplianceActivity(
@@ -1906,7 +1903,6 @@ def create_new_project():
                     )
                     project_clause.project_compliance_activities.append(project_activity)
                     db.session.add(project_activity)
-                    db.session.flush()
 
                     for control_template in activity_template.control_activities:
                         project_control = ProjectControlActivity(
@@ -1923,9 +1919,8 @@ def create_new_project():
                         )
                         project_activity.project_control_activities.append(project_control)
                         db.session.add(project_control)
-                        db.session.flush()
 
-                        # Auto-copy EVE checklist from master to project
+                        # Auto-copy EVE checklist — use eve_checklist backref (no flush needed)
                         try:
                             from app.models.eve_models import ProjectChecklist, ControlChecklist
                             master_checklist = ControlChecklist.query.filter_by(
@@ -1933,7 +1928,6 @@ def create_new_project():
                             ).first()
                             if master_checklist:
                                 project_checklist = ProjectChecklist(
-                                    project_control_activity_id=project_control.id,
                                     checklist_json=master_checklist.checklist_json,
                                     dimension_design=master_checklist.dimension_design,
                                     dimension_implementation=master_checklist.dimension_implementation,
@@ -1943,20 +1937,14 @@ def create_new_project():
                                     scoring_rules_json=master_checklist.scoring_rules_json,
                                     status='pending'
                                 )
-                                db.session.add(project_checklist)
                             else:
-                                # Master checklist not yet generated — create placeholder
-                                # Will be updated when generate_control_checklist completes
                                 project_checklist = ProjectChecklist(
-                                    project_control_activity_id=project_control.id,
                                     checklist_json=[],
                                     dimension_design=False,
                                     dimension_implementation=False,
                                     dimension_operating=False,
                                     status='pending'
                                 )
-                                db.session.add(project_checklist)
-                                # Auto-trigger checklist generation
                                 try:
                                     from app.services.eve_tasks import generate_control_checklist
                                     generate_control_checklist.apply_async(
@@ -1965,6 +1953,8 @@ def create_new_project():
                                     )
                                 except Exception as tge:
                                     logger.warning(f"Could not trigger checklist generation: {tge}")
+                            project_control.eve_checklist = project_checklist
+                            db.session.add(project_checklist)
                         except Exception as ce:
                             logger.warning(f"Could not copy checklist: {ce}")
 
@@ -5507,6 +5497,12 @@ def clause_test_steps(clause_id):
         clause_id=clause_id
     ).first()
 
+    # Check ConsolidatedFindingsSummary — this is what "Generate Summary" button creates
+    from app.models.ai import ConsolidatedFindingsSummary as CFS
+    findings_summary_record = CFS.query.filter_by(clause_id=clause_id).first()
+    # summary_ready = either summary table has data
+    summary_ready = consolidated_summary_record is not None or findings_summary_record is not None
+
     consolidated_summary = None
     if consolidated_summary_record:
         consolidated_summary = consolidated_summary_record.consolidated_data
@@ -5718,6 +5714,7 @@ def clause_test_steps(clause_id):
         clause_status_info=clause_status_info,
         consolidated_summary=consolidated_summary,
         consolidated_summary_record=consolidated_summary_record,
+        summary_ready=summary_ready,
         consolidated_test_summary=consolidated_test_summary,
         consolidated_observation_summary=consolidated_observation_summary,
         consolidated_findings_summary=consolidated_findings_summary,
@@ -5825,27 +5822,14 @@ def close_clause_assessment(clause_id):
                 400,
             )
 
-        # Check if compliance status is still "To be Assessed"
+        # If compliance status is still "To be Assessed", auto-calculate from activities and save it
         if clause.overall_compliance_status == "To be Assessed":
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Cannot close assessment while compliance status is 'To be Assessed'",
-                    }
-                ),
-                400,
-            )
+            calculated = calculate_clause_compliance_status(clause.id)
+            calculated_text = calculated.get("text", "To be Assessed")
+            if calculated_text != "To be Assessed":
+                clause.overall_compliance_status = calculated_text
 
-        # Update assessment status to "Completed"
-        # You might want to create a new field in ProjectClause for assessment_status
-        # For now, let's assume we're adding a new field called `assessment_status`
-
-        # First, check if the field exists (you'll need to add this to your model)
-        # Add this to your ProjectClause model:
-        # assessment_status = db.Column(db.String(50), default="In Progress")
-
-        # Update assessment status
+        # Mark assessment as closed
         clause.assessment_status = "Completed"
         clause.assessment_closed_at = db.func.current_timestamp()
         clause.assessment_closed_by = current_user.id
@@ -5857,6 +5841,7 @@ def close_clause_assessment(clause_id):
                 "success": True,
                 "message": "Assessment closed successfully",
                 "assessment_status": "Completed",
+                "compliance_status": clause.overall_compliance_status,
             }
         )
 
@@ -6348,7 +6333,9 @@ def calculate_clause_compliance_status(clause_id):
                     compliance_activity.project_control_activities
                 )
 
-        # Count statuses
+        # Count statuses — check EveControlResult.final_status first (EVE pipeline),
+        # fall back to activity.compliant_status (manual), then "Not Assessed"
+        from app.models.eve_models import EveControlResult as _ECR_calc
         status_counts = {
             "total": len(applicable_activities),
             "Compliant": 0,
@@ -6358,36 +6345,54 @@ def calculate_clause_compliance_status(clause_id):
         }
 
         for activity in applicable_activities:
-            status = getattr(activity, "compliant_status", None)
-
-            if status == "Compliant":
-                status_counts["Compliant"] += 1
-            elif status == "Partially Compliant":
-                status_counts["Partially Compliant"] += 1
-            elif status == "Non-Compliant":
-                status_counts["Non-Compliant"] += 1
+            ecr = _ECR_calc.query.filter_by(
+                project_control_activity_id=activity.id
+            ).first()
+            raw = (
+                (ecr.final_status if ecr and ecr.final_status else None)
+                or getattr(activity, "compliant_status", None)
+            )
+            # Normalize: EVE writes "NON_COMPLIANT"; legacy writes "Non-Compliant"
+            if raw:
+                n = raw.upper().replace(" ", "_").replace("-", "_")
+                if n == "COMPLIANT":
+                    status_counts["Compliant"] += 1
+                elif n in ("NON_COMPLIANT", "NOT_COMPLIANT", "NONCOMPLIANT"):
+                    status_counts["Non-Compliant"] += 1
+                elif n in ("PARTIALLY_COMPLIANT", "PARTIAL"):
+                    status_counts["Partially Compliant"] += 1
+                else:
+                    status_counts["Not Assessed"] += 1
             else:
                 status_counts["Not Assessed"] += 1
 
-        # Determine overall status
+        # Apply user's formula on assessed activities only:
+        # All Compliant → Compliant | All Non-Compliant → Non-Compliant | Mix → Partially Compliant
+        assessed_count = (
+            status_counts["Compliant"]
+            + status_counts["Partially Compliant"]
+            + status_counts["Non-Compliant"]
+        )
+
         if status_counts["total"] == 0:
             overall_status = "To be Assessed"
             details = "No activities found for this clause"
-        elif status_counts["Not Assessed"] > 0:
+        elif assessed_count == 0:
             overall_status = "To be Assessed"
-            details = f"{status_counts['Not Assessed']} of {status_counts['total']} activities need assessment"
-        elif status_counts["Non-Compliant"] > 0:
-            overall_status = "Non-Compliant"
-            details = f"{status_counts['Non-Compliant']} non-compliant activities found"
-        elif status_counts["Partially Compliant"] > 0:
-            overall_status = "Partially Compliant"
-            details = f"{status_counts['Partially Compliant']} partially compliant activities found"
-        elif status_counts["Compliant"] == status_counts["total"]:
+            details = f"0 of {status_counts['total']} activities have been assessed"
+        elif status_counts["Compliant"] == assessed_count:
             overall_status = "Compliant"
             details = "All applicable activities are compliant"
+        elif status_counts["Non-Compliant"] == assessed_count:
+            overall_status = "Non-Compliant"
+            details = f"All {status_counts['Non-Compliant']} assessed activities are non-compliant"
         else:
-            overall_status = "To be Assessed"
-            details = "Status needs assessment"
+            overall_status = "Partially Compliant"
+            details = (
+                f"{status_counts['Compliant']} compliant, "
+                f"{status_counts['Non-Compliant']} non-compliant, "
+                f"{status_counts['Partially Compliant']} partially compliant"
+            )
 
         return {
             "text": overall_status,
