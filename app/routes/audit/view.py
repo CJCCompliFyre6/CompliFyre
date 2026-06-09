@@ -1869,10 +1869,50 @@ def create_new_project():
         for dept in department_records:
             new_project.departments.append(dept)
 
-        # --- 4. Fetch Master Guideline Templates ---
-        guideline_templates = Guidelines.query.filter(
-            Guidelines.id.in_(guideline_id_list)
-        ).all()
+        # --- 4. Fetch Master Guideline Templates with FULL eager loading ---
+        # selectinload prevents N+1 lazy queries for nested relationships
+        from sqlalchemy.orm import selectinload as _sl
+        guideline_templates = Guidelines.query.options(
+            _sl(Guidelines.clauses)
+            .selectinload(Clauses.compliance_activities)
+            .selectinload(ComplianceActivities.control_activities)
+            .selectinload(ControlActivity.evidences),
+            _sl(Guidelines.clauses)
+            .selectinload(Clauses.compliance_activities)
+            .selectinload(ComplianceActivities.control_activities)
+            .selectinload(ControlActivity.test_procedure)
+            .selectinload(TestSteps.documents),
+            _sl(Guidelines.clauses)
+            .selectinload(Clauses.compliance_activities)
+            .selectinload(ComplianceActivities.control_activities)
+            .selectinload(ControlActivity.test_procedure)
+            .selectinload(TestSteps.interviews)
+            .selectinload(Interview.roles),
+            _sl(Guidelines.clauses)
+            .selectinload(Clauses.compliance_activities)
+            .selectinload(ComplianceActivities.control_activities)
+            .selectinload(ControlActivity.test_procedure)
+            .selectinload(TestSteps.interviews)
+            .selectinload(Interview.questions),
+        ).filter(Guidelines.id.in_(guideline_id_list)).all()
+
+        # --- 4b. Batch load all master ControlChecklists in ONE query ---
+        from app.models.eve_models import ControlChecklist as _CCL_batch
+        _all_ctrl_ids = [
+            ctrl.id
+            for g in guideline_templates
+            for cl in g.clauses
+            for act in cl.compliance_activities
+            for ctrl in act.control_activities
+        ]
+        _master_checklists_map = {}
+        if _all_ctrl_ids:
+            _master_checklists_map = {
+                mc.control_activity_id: mc
+                for mc in _CCL_batch.query.filter(
+                    _CCL_batch.control_activity_id.in_(_all_ctrl_ids)
+                ).all()
+            }
 
         # --- 5. Build the Project Instance Tree ---
         for guideline_template in guideline_templates:
@@ -1923,9 +1963,7 @@ def create_new_project():
                         # Auto-copy EVE checklist — use eve_checklist backref (no flush needed)
                         try:
                             from app.models.eve_models import ProjectChecklist, ControlChecklist
-                            master_checklist = ControlChecklist.query.filter_by(
-                                control_activity_id=control_template.id
-                            ).first()
+                            master_checklist = _master_checklists_map.get(control_template.id)
                             if master_checklist:
                                 project_checklist = ProjectChecklist(
                                     checklist_json=master_checklist.checklist_json,
