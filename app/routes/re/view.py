@@ -3246,10 +3246,27 @@ def activity(project_id):
                 unique_clauses[clause_id]["activities"].append(activity)
 
         # Calculate compliance status for each clause
+        # Batch load ALL EveControlResult for this project in ONE query (avoids N+1)
+        from app.models.eve_models import EveControlResult as _ECR_batch
+        _all_pca_ids = [
+            ctrl.id
+            for acts in activities_by_clause.values()
+            for act in acts
+            for ctrl in act.project_control_activities
+        ]
+        _ecr_map = {}
+        if _all_pca_ids:
+            _ecr_map = {
+                e.project_control_activity_id: e
+                for e in _ECR_batch.query.filter(
+                    _ECR_batch.project_control_activity_id.in_(_all_pca_ids)
+                ).all()
+            }
+
         clause_status_info = {}
         assessment_status_info = {}
         for clause_id, activities in activities_by_clause.items():
-            clause_status = get_clause_compliance_status(activities)
+            clause_status = get_clause_compliance_status(activities, ecr_map=_ecr_map)
             clause_status_info[clause_id] = get_compliance_status_display_info(
                 clause_status
             )
@@ -3705,51 +3722,6 @@ def activity(project_id):
                               'bg-orange-500' if evidence_percentage >= 25 else 'bg-red-500'
         }
 
-        # ============== CALCULATE EVIDENCE GAPS ==============
-        # Case 1: No evidence uploaded for any applicable activity in clause
-        # Case 2: Any EveEvidenceResult with admissibility == "INADMISSIBLE" for any applicable activity
-        from app.models.eve_models import EveEvidenceResult as _EER_gap
-        evidence_gap_count = 0
-        for clause_data in enriched_clauses:
-            clause = clause_data["clause"]
-            if not clause.applicability:
-                continue
-            ctrl_activities = (
-                db.session.query(ProjectControlActivity)
-                .join(ProjectComplianceActivity,
-                      ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id)
-                .filter(ProjectComplianceActivity.project_clause_id == clause.id)
-                .filter(ProjectComplianceActivity.applicability == True)
-                .all()
-            )
-            if not ctrl_activities:
-                continue
-            # Case 1: any activity has real evidence uploaded?
-            has_any_evidence = any(
-                ev.evidence_text or ev.evidence_file_path or ev.evidence_files.count() > 0
-                for ctrl in ctrl_activities
-                for ev in ctrl.submitted_evidences
-            )
-            if not has_any_evidence:
-                evidence_gap_count += 1
-                continue
-            # Case 2: any evidence artifact marked INADMISSIBLE by EVE?
-            has_inadmissible = (
-                db.session.query(_EER_gap)
-                .join(_EER_gap.evidence_artifact)
-                .filter(
-                    _EER_gap.evidence_artifact_id.in_([
-                        ev.id
-                        for ctrl in ctrl_activities
-                        for ev in ctrl.submitted_evidences
-                    ]),
-                    _EER_gap.admissibility == "INADMISSIBLE"
-                )
-                .first() is not None
-            )
-            if has_inadmissible:
-                evidence_gap_count += 1
-
         # Calculate assessment status statistics for the status bar
         assessment_status_stats = {
             'Completed': clause_statistics['assessment']['completed'],
@@ -3861,10 +3833,7 @@ def activity(project_id):
         }
 
         try:
-            from app.models.ai import ConsolidatedFindingsSummary as _CFS_chart
-            from app.models.eve_models import EveEvidenceResult as _EER_chart
-            import json as _jchart
-
+            from app.models.eve_models import EveControlResult, EveAssuranceState
             for clause_data in enriched_clauses:
                 clause = clause_data.get('clause')
                 if not clause or not clause.applicability:
@@ -3874,66 +3843,62 @@ def activity(project_id):
                 clause_id = clause.id
                 clause_link = f"/audit/clause/{clause_id}/test-steps"
 
-                # ── Bubble chart: findings from ConsolidatedFindingsSummary ──
-                # Timeline derived from severity (no timeline field in CFS)
-                SEVERITY_TO_TIMELINE = {
-                    'Critical': 'IMMEDIATE',
-                    'Major': 'SHORT_TERM',
-                    'Significant': 'MEDIUM_TERM',
-                    'Minor': 'LONG_TERM',
-                }
-                cfs = _CFS_chart.query.filter_by(clause_id=clause_id).order_by(_CFS_chart.created_at.desc()).first()
-                if cfs and cfs.consolidated_findings:
-                    try:
-                        parsed = _jchart.loads(cfs.consolidated_findings)
-                        findings_list = parsed.get('detailed_findings') or parsed.get('consolidated_summary') or []
-                        for finding in findings_list:
+                # Evidence quality per clause
+                quality_entries = []
+                for pca in clause_data.get('activities', []):
+                    if not pca.get('applicability'):
+                        continue
+                    for ctrl in pca.get('project_control_activities', []):
+                        ecr = EveControlResult.query.filter_by(
+                            project_control_activity_id=ctrl.id
+                        ).first()
+                        if not ecr:
+                            continue
+
+                        # Bubble chart — CONFIRMED findings
+                        for finding in (ecr.findings_json or []):
                             if not isinstance(finding, dict):
+                                continue
+                            if finding.get('auditor_status') != 'CONFIRMED':
                                 continue
                             raw_sev = finding.get('severity', '')
                             sev = SEVERITY_MAP.get(raw_sev, None)
                             if not sev:
                                 continue
-                            timeline = SEVERITY_TO_TIMELINE.get(sev, 'MEDIUM_TERM')
+                            reco = finding.get('related_recommendation') or finding.get('recommendation') or {}
+                            timeline = reco.get('timeline', 'IMMEDIATE') if isinstance(reco, dict) else 'IMMEDIATE'
+                            if timeline not in TIMELINE_ORDER:
+                                timeline = 'IMMEDIATE'
                             key = f"{sev}|{timeline}"
                             if key not in bubble_data:
                                 bubble_data[key] = []
+                            # Add clause if not already added for this key
                             if not any(c['clause_id'] == clause_id for c in bubble_data[key]):
                                 bubble_data[key].append({
                                     'clause_no': clause_no,
                                     'clause_id': clause_id,
                                     'link': clause_link,
                                 })
-                    except (ValueError, TypeError):
-                        pass
 
-                # ── Evidence Quality chart: from EveEvidenceResult records ──
-                quality_entries = []
-                for pca in clause.project_compliance_activities:
-                    if not pca.applicability:
-                        continue
-                    for ctrl in pca.project_control_activities:
-                        for ev_artifact in ctrl.submitted_evidences:
-                            eer_records = _EER_chart.query.filter_by(
-                                evidence_artifact_id=ev_artifact.id
-                            ).all()
-                            for eer in eer_records:
-                                quality_entries.append({
-                                    'admissibility': eer.admissibility or 'INADMISSIBLE',
-                                })
+                        # Evidence quality
+                        eas = EveAssuranceState.query.filter_by(
+                            project_control_activity_id=ctrl.id
+                        ).first()
+                        if eas:
+                            quality_entries.append({
+                                'score': eas.evidence_quality_score or 0,
+                                'admissibility': ecr.admissibility or 'NOT_EVALUATED',
+                            })
 
                 if quality_entries:
-                    total = len(quality_entries)
-                    admissible = sum(1 for e in quality_entries if e['admissibility'] == 'ADMISSIBLE')
-                    partial = sum(1 for e in quality_entries if e['admissibility'] == 'PARTIAL')
-                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] == 'INADMISSIBLE')
-                    avg_score = round((admissible * 100 + partial * 50) / total)
+                    avg_score = round(sum(e['score'] for e in quality_entries) / len(quality_entries))
+                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] in ('INADMISSIBLE', 'NO'))
                     evidence_quality_data.append({
                         'clause_no': clause_no,
                         'clause_id': clause_id,
                         'link': clause_link,
                         'avg_score': avg_score,
-                        'total': total,
+                        'total': len(quality_entries),
                         'inadmissible': inadmissible,
                         'quality_label': 'Strong' if avg_score >= 75 else 'Adequate' if avg_score >= 40 else 'Weak',
                         'color': 'green' if avg_score >= 75 else 'yellow' if avg_score >= 40 else 'red',
@@ -3953,30 +3918,16 @@ def activity(project_id):
         total_applicable_activities = clause_statistics['applicability']['applicable']
 
         # Count total individual findings across all applicable clauses
-        # Findings live in ConsolidatedFindingsSummary per clause, not EveControlResult.findings_json
-        from app.models.ai import ConsolidatedFindingsSummary as _CFS
-        import json as _json2
+        from app.models.eve_models import EveControlResult as _ECR2
         total_findings = 0
         for clause_data in enriched_clauses:
-            clause = clause_data["clause"]
-            if not clause.applicability:
+            if not clause_data["clause"].applicability:
                 continue
-            cfs = (
-                _CFS.query.filter_by(clause_id=clause.id)
-                .order_by(_CFS.created_at.desc())
-                .first()
-            )
-            if cfs and cfs.consolidated_findings:
-                try:
-                    parsed = _json2.loads(cfs.consolidated_findings)
-                    findings_list = (
-                        parsed.get("detailed_findings")
-                        or parsed.get("consolidated_summary")
-                        or []
-                    )
-                    total_findings += len(findings_list)
-                except (ValueError, TypeError):
-                    pass
+            for pca in clause_data.get("activities", []):
+                for ctrl in getattr(pca, "project_control_activities", []):
+                    ecr = _ECR2.query.filter_by(project_control_activity_id=ctrl.id).first()
+                    if ecr and ecr.findings_json:
+                        total_findings += len(ecr.findings_json)
 
         from datetime import datetime
         current_time = datetime.now()
@@ -4030,7 +3981,6 @@ def activity(project_id):
             db_assessment_end_date=db_assessment_end_date,
             all_clauses_completed=all_clauses_completed,
             evidence_stats=evidence_stats,
-            evidence_gap_count=evidence_gap_count,
             severity_stats=severity_stats,
             overall_project_severity=overall_project_severity,
             severity_color_class=severity_color_class,

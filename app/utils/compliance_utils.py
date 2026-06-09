@@ -107,7 +107,7 @@ def get_compliance_status_display_info(status):
     return status_info.get(status, status_info["no-procedures"])
 
 
-def get_clause_compliance_status(clause_activities):
+def get_clause_compliance_status(clause_activities, ecr_map=None):
     """
     Calculate compliance status for a specific clause based on its activities.
 
@@ -143,9 +143,12 @@ def get_clause_compliance_status(clause_activities):
     compliance_statuses = []
     for activity in applicable_activities:
         for control_activity in activity.project_control_activities:
-            ecr = _ECR_utils.query.filter_by(
-                project_control_activity_id=control_activity.id
-            ).first()
+            if ecr_map is not None:
+                ecr = ecr_map.get(control_activity.id)
+            else:
+                ecr = _ECR_utils.query.filter_by(
+                    project_control_activity_id=control_activity.id
+                ).first()
             raw_status = (
                 (ecr.final_status if ecr and ecr.final_status else None)
                 or control_activity.compliant_status
