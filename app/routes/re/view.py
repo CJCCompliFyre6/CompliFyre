@@ -3861,14 +3861,10 @@ def activity(project_id):
         }
 
         try:
-<<<<<<< HEAD
-            from app.models.eve_models import EveControlResult, EveAssuranceState
-=======
             from app.models.ai import ConsolidatedFindingsSummary as _CFS_chart
             from app.models.eve_models import EveEvidenceResult as _EER_chart
             import json as _jchart
 
->>>>>>> staging
             for clause_data in enriched_clauses:
                 clause = clause_data.get('clause')
                 if not clause or not clause.applicability:
@@ -3878,26 +3874,6 @@ def activity(project_id):
                 clause_id = clause.id
                 clause_link = f"/audit/clause/{clause_id}/test-steps"
 
-<<<<<<< HEAD
-                # Evidence quality per clause
-                quality_entries = []
-                for pca in clause_data.get('activities', []):
-                    if not pca.get('applicability'):
-                        continue
-                    for ctrl in pca.get('project_control_activities', []):
-                        ecr = EveControlResult.query.filter_by(
-                            project_control_activity_id=ctrl.id
-                        ).first()
-                        if not ecr:
-                            continue
-
-                        # Bubble chart — CONFIRMED findings
-                        for finding in (ecr.findings_json or []):
-                            if not isinstance(finding, dict):
-                                continue
-                            if finding.get('auditor_status') != 'CONFIRMED':
-                                continue
-=======
                 # ── Bubble chart: findings from ConsolidatedFindingsSummary ──
                 # Timeline derived from severity (no timeline field in CFS)
                 SEVERITY_TO_TIMELINE = {
@@ -3914,48 +3890,20 @@ def activity(project_id):
                         for finding in findings_list:
                             if not isinstance(finding, dict):
                                 continue
->>>>>>> staging
                             raw_sev = finding.get('severity', '')
                             sev = SEVERITY_MAP.get(raw_sev, None)
                             if not sev:
                                 continue
-<<<<<<< HEAD
-                            reco = finding.get('related_recommendation') or finding.get('recommendation') or {}
-                            timeline = reco.get('timeline', 'IMMEDIATE') if isinstance(reco, dict) else 'IMMEDIATE'
-                            if timeline not in TIMELINE_ORDER:
-                                timeline = 'IMMEDIATE'
-                            key = f"{sev}|{timeline}"
-                            if key not in bubble_data:
-                                bubble_data[key] = []
-                            # Add clause if not already added for this key
-=======
                             timeline = SEVERITY_TO_TIMELINE.get(sev, 'MEDIUM_TERM')
                             key = f"{sev}|{timeline}"
                             if key not in bubble_data:
                                 bubble_data[key] = []
->>>>>>> staging
                             if not any(c['clause_id'] == clause_id for c in bubble_data[key]):
                                 bubble_data[key].append({
                                     'clause_no': clause_no,
                                     'clause_id': clause_id,
                                     'link': clause_link,
                                 })
-<<<<<<< HEAD
-
-                        # Evidence quality
-                        eas = EveAssuranceState.query.filter_by(
-                            project_control_activity_id=ctrl.id
-                        ).first()
-                        if eas:
-                            quality_entries.append({
-                                'score': eas.evidence_quality_score or 0,
-                                'admissibility': ecr.admissibility or 'NOT_EVALUATED',
-                            })
-
-                if quality_entries:
-                    avg_score = round(sum(e['score'] for e in quality_entries) / len(quality_entries))
-                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] in ('INADMISSIBLE', 'NO'))
-=======
                     except (ValueError, TypeError):
                         pass
 
@@ -3980,17 +3928,12 @@ def activity(project_id):
                     partial = sum(1 for e in quality_entries if e['admissibility'] == 'PARTIAL')
                     inadmissible = sum(1 for e in quality_entries if e['admissibility'] == 'INADMISSIBLE')
                     avg_score = round((admissible * 100 + partial * 50) / total)
->>>>>>> staging
                     evidence_quality_data.append({
                         'clause_no': clause_no,
                         'clause_id': clause_id,
                         'link': clause_link,
                         'avg_score': avg_score,
-<<<<<<< HEAD
-                        'total': len(quality_entries),
-=======
                         'total': total,
->>>>>>> staging
                         'inadmissible': inadmissible,
                         'quality_label': 'Strong' if avg_score >= 75 else 'Adequate' if avg_score >= 40 else 'Weak',
                         'color': 'green' if avg_score >= 75 else 'yellow' if avg_score >= 40 else 'red',
@@ -4004,11 +3947,7 @@ def activity(project_id):
         # Serialize bubble_data for JS
         import json as _json
         bubble_data_json = _json.dumps(bubble_data)
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> staging
         # Calculate evaluated activities count
         evaluated_activities_count = clause_statistics['assessment']['completed']
         total_applicable_activities = clause_statistics['applicability']['applicable']
