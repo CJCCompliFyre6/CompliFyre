@@ -3861,7 +3861,10 @@ def activity(project_id):
         }
 
         try:
-            from app.models.eve_models import EveControlResult, EveAssuranceState
+            from app.models.ai import ConsolidatedFindingsSummary as _CFS_chart
+            from app.models.eve_models import EveEvidenceResult as _EER_chart
+            import json as _jchart
+
             for clause_data in enriched_clauses:
                 clause = clause_data.get('clause')
                 if not clause or not clause.applicability:
@@ -3871,32 +3874,27 @@ def activity(project_id):
                 clause_id = clause.id
                 clause_link = f"/audit/clause/{clause_id}/test-steps"
 
-                # Evidence quality per clause
-                quality_entries = []
-                for pca in clause.project_compliance_activities:
-                    if not pca.applicability:
-                        continue
-                    for ctrl in pca.project_control_activities:
-                        ecr = EveControlResult.query.filter_by(
-                            project_control_activity_id=ctrl.id
-                        ).first()
-                        if not ecr:
-                            continue
-
-                        # Bubble chart — CONFIRMED/ACCEPTED findings
-                        for finding in (ecr.findings_json or []):
+                # ── Bubble chart: findings from ConsolidatedFindingsSummary ──
+                # Timeline derived from severity (no timeline field in CFS)
+                SEVERITY_TO_TIMELINE = {
+                    'Critical': 'IMMEDIATE',
+                    'Major': 'SHORT_TERM',
+                    'Significant': 'MEDIUM_TERM',
+                    'Minor': 'LONG_TERM',
+                }
+                cfs = _CFS_chart.query.filter_by(clause_id=clause_id).order_by(_CFS_chart.created_at.desc()).first()
+                if cfs and cfs.consolidated_findings:
+                    try:
+                        parsed = _jchart.loads(cfs.consolidated_findings)
+                        findings_list = parsed.get('detailed_findings') or parsed.get('consolidated_summary') or []
+                        for finding in findings_list:
                             if not isinstance(finding, dict):
-                                continue
-                            if finding.get('auditor_status') not in ('CONFIRMED', 'ACCEPTED', 'accepted', 'confirmed'):
                                 continue
                             raw_sev = finding.get('severity', '')
                             sev = SEVERITY_MAP.get(raw_sev, None)
                             if not sev:
                                 continue
-                            reco = finding.get('related_recommendation') or finding.get('recommendation') or {}
-                            timeline = reco.get('timeline', 'IMMEDIATE') if isinstance(reco, dict) else 'IMMEDIATE'
-                            if timeline not in TIMELINE_ORDER:
-                                timeline = 'IMMEDIATE'
+                            timeline = SEVERITY_TO_TIMELINE.get(sev, 'MEDIUM_TERM')
                             key = f"{sev}|{timeline}"
                             if key not in bubble_data:
                                 bubble_data[key] = []
@@ -3906,26 +3904,36 @@ def activity(project_id):
                                     'clause_id': clause_id,
                                     'link': clause_link,
                                 })
+                    except (ValueError, TypeError):
+                        pass
 
-                        # Evidence quality
-                        eas = EveAssuranceState.query.filter_by(
-                            project_control_activity_id=ctrl.id
-                        ).first()
-                        if eas:
-                            quality_entries.append({
-                                'score': eas.evidence_quality_score or 0,
-                                'admissibility': getattr(ecr, 'admissibility', None) or 'NOT_EVALUATED',
-                            })
+                # ── Evidence Quality chart: from EveEvidenceResult records ──
+                quality_entries = []
+                for pca in clause.project_compliance_activities:
+                    if not pca.applicability:
+                        continue
+                    for ctrl in pca.project_control_activities:
+                        for ev_artifact in ctrl.submitted_evidences:
+                            eer_records = _EER_chart.query.filter_by(
+                                evidence_artifact_id=ev_artifact.id
+                            ).all()
+                            for eer in eer_records:
+                                quality_entries.append({
+                                    'admissibility': eer.admissibility or 'INADMISSIBLE',
+                                })
 
                 if quality_entries:
-                    avg_score = round(sum(e['score'] for e in quality_entries) / len(quality_entries))
-                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] in ('INADMISSIBLE', 'NO'))
+                    total = len(quality_entries)
+                    admissible = sum(1 for e in quality_entries if e['admissibility'] == 'ADMISSIBLE')
+                    partial = sum(1 for e in quality_entries if e['admissibility'] == 'PARTIAL')
+                    inadmissible = sum(1 for e in quality_entries if e['admissibility'] == 'INADMISSIBLE')
+                    avg_score = round((admissible * 100 + partial * 50) / total)
                     evidence_quality_data.append({
                         'clause_no': clause_no,
                         'clause_id': clause_id,
                         'link': clause_link,
                         'avg_score': avg_score,
-                        'total': len(quality_entries),
+                        'total': total,
                         'inadmissible': inadmissible,
                         'quality_label': 'Strong' if avg_score >= 75 else 'Adequate' if avg_score >= 40 else 'Weak',
                         'color': 'green' if avg_score >= 75 else 'yellow' if avg_score >= 40 else 'red',
