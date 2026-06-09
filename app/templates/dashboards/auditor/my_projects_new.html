@@ -1534,37 +1534,14 @@
 <!-- EVE Assessment Dashboard -->
 <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
 
-<<<<<<< HEAD
-  <!-- Dashboard Title -->
-  <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-=======
   <!-- Dashboard Title — clickable to collapse -->
   <div id="dashboardHeader" class="px-6 py-4 border-b border-gray-100 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
     onclick="toggleNewDashboard()">
->>>>>>> staging
     <div class="flex items-center gap-2">
       <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
       </svg>
       <h2 class="text-base font-semibold text-gray-800">Assessment Dashboard</h2>
-<<<<<<< HEAD
-    </div>
-    <span class="text-xs px-3 py-1 rounded-full font-semibold
-      {% if all_clauses_completed %}bg-green-100 text-green-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
-      {% if all_clauses_completed %}Completed{% else %}In Progress{% endif %}
-    </span>
-  </div>
-
-  <div class="p-6">
-
-    <!-- SECTION 1: Compliance Pipeline -->
-    {% set total_clauses = clause_statistics.applicability.total if clause_statistics else 0 %}
-    {% set applicable = clause_statistics.applicability.applicable if clause_statistics else 0 %}
-    {% set assessed = clause_statistics.assessment.completed if clause_statistics else 0 %}
-    {% set with_evidence = evidence_stats.with_evidence if evidence_stats else 0 %}
-    {% set findings_count = (severity_stats.Critical + severity_stats.Major + severity_stats.Significant + severity_stats.Minor) if severity_stats else 0 %}
-    {% set evidence_gaps = applicable - with_evidence if applicable > with_evidence else 0 %}
-=======
       <span class="text-xs text-gray-400 ml-1">Click to expand/collapse</span>
     </div>
     <div class="flex items-center gap-3">
@@ -1591,24 +1568,15 @@
     {% set with_evidence = evidence_stats.with_evidence if evidence_stats else 0 %}
     {% set findings_count = total_findings if total_findings is defined else 0 %}
     {% set evidence_gaps = evidence_gap_count if evidence_gap_count is defined else (applicable - with_evidence if applicable > with_evidence else 0) %}
->>>>>>> staging
 
     <div class="grid grid-cols-6 gap-2 mb-6">
       {% set pipeline = [
         ('Total Clauses', total_clauses, 'All clauses in scope', 'bg-indigo-100 text-indigo-700 border-indigo-200'),
-<<<<<<< HEAD
-        ('Applicable', applicable, (applicable|string + '% of total') if total_clauses > 0 else '0% of total', 'bg-purple-100 text-purple-700 border-purple-200'),
-        ('Assessed', assessed, (((assessed/applicable*100)|int)|string + '% of applicable') if applicable > 0 else '0% of applicable', 'bg-orange-100 text-orange-700 border-orange-200'),
-        ('Evidence Received', with_evidence, (((with_evidence/applicable*100)|int)|string + '% of applicable') if applicable > 0 else '0% of applicable', 'bg-green-100 text-green-700 border-green-200'),
-        ('Findings', findings_count, findings_count|string + ' total findings', 'bg-red-100 text-red-700 border-red-200'),
-        ('Evidence Gaps', evidence_gaps, '100% of applicable', 'bg-gray-100 text-gray-700 border-gray-200'),
-=======
         ('Applicable', applicable, (((applicable/total_clauses*100)|int)|string + '% of total clauses') if total_clauses > 0 else '0% of total clauses', 'bg-purple-100 text-purple-700 border-purple-200'),
         ('Assessed', assessed, (((assessed/applicable*100)|int)|string + '% of applicable clauses') if applicable > 0 else '0% of applicable clauses', 'bg-orange-100 text-orange-700 border-orange-200'),
         ('Evidence Received', with_evidence, (((with_evidence/applicable*100)|int)|string + '% of applicable clauses') if applicable > 0 else '0% of applicable clauses', 'bg-green-100 text-green-700 border-green-200'),
         ('Findings', findings_count, findings_count|string + ' total findings', 'bg-red-100 text-red-700 border-red-200'),
         ('Evidence Gaps', evidence_gaps, (((evidence_gaps/applicable*100)|int)|string + '% of applicable activities') if applicable > 0 else '0% of applicable activities', 'bg-gray-100 text-gray-700 border-gray-200'),
->>>>>>> staging
       ] %}
       {% for label, value, sub, color in pipeline %}
       <div class="relative">
@@ -1894,11 +1862,6 @@
     </div>
 
   </div>
-<<<<<<< HEAD
-</div>
-
-<script>
-=======
   </div><!-- end newDashboardContent -->
 </div>
 
@@ -1920,7 +1883,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
->>>>>>> staging
 // ── Bubble Chart ───────────────────────────────────────────────
 (function() {
   const rawData = {{ bubble_data_json | safe }};
@@ -1997,12 +1959,9 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 })();
 </script>
-<<<<<<< HEAD
-=======
 <script>
 // ── EVE Dashboard Charts ───────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
->>>>>>> staging
 (function() {
   const totalClauses = {{ total_clauses }};
   const applicable = {{ applicable }};
@@ -2072,10 +2031,7 @@ document.addEventListener('DOMContentLoaded', function() {
     stroke: { lineCap: 'round' },
   }).render();
 })();
-<<<<<<< HEAD
-=======
 }); // end DOMContentLoaded
->>>>>>> staging
 </script>
 
 
