@@ -4043,6 +4043,76 @@ def activity(project_id):
         current_app.logger.error(f"Unexpected error: {str(err)}", exc_info=True)
         return jsonify({"error": f"Internal server error {err}"}), 500
 
+@re_bp.route("/activity_clauses/<int:project_id>", methods=["GET"])
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def activity_clauses(project_id):
+    """
+    AJAX endpoint — returns paginated clauses with status for a project.
+    Used by frontend pagination (no page reload).
+    """
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 10))
+
+        project = Projects.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+
+        # Get paginated clauses
+        clauses_query = (
+            ProjectClause.query
+            .join(ProjectGuideline, ProjectClause.project_guideline_id == ProjectGuideline.id)
+            .filter(ProjectGuideline.project_id == project_id)
+            .order_by(ProjectClause.id)
+        )
+        total_clauses = clauses_query.count()
+        clauses = clauses_query.offset((page - 1) * per_page).limit(per_page).all()
+
+        # Pre-load ECR map for this page only
+        from app.models.eve_models import EveControlResult as _ECR_ajax
+        _pca_ids = []
+        for clause in clauses:
+            if clause.applicability:
+                for pca in clause.project_compliance_activities:
+                    for ctrl in pca.project_control_activities:
+                        _pca_ids.append(ctrl.id)
+        _ecr_map = {}
+        if _pca_ids:
+            _ecr_map = {
+                e.project_control_activity_id: e
+                for e in _ECR_ajax.query.filter(
+                    _ECR_ajax.project_control_activity_id.in_(_pca_ids)
+                ).all()
+            }
+
+        # Build response
+        result = []
+        for clause in clauses:
+            status_data = calculate_clause_compliance_status(clause.id, ecr_map=_ecr_map)
+            status_text = status_data.get("text", "To Be Assessed")
+            result.append({
+                "id": clause.id,
+                "clause_no": clause.clause_no or "",
+                "clause_text": clause.clause_text or "",
+                "applicability": clause.applicability,
+                "overall_compliance_status": clause.overall_compliance_status or "To be Assessed",
+                "assessment_status": getattr(clause, "assessment_status", "In Progress") or "In Progress",
+                "calculated_compliance_status": status_text,
+            })
+
+        return jsonify({
+            "clauses": result,
+            "total": total_clauses,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (total_clauses + per_page - 1) // per_page,
+        })
+    except Exception as e:
+        current_app.logger.exception(f"Error in activity_clauses: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 
 @re_bp.route("/get_clause_statistics/<int:project_id>", methods=["GET"])
@@ -4073,39 +4143,47 @@ def get_clause_statistics(project_id):
         applicable_clauses = sum(1 for clause in clauses if clause.applicability)
         not_applicable_clauses = total_clauses - applicable_clauses
 
-        # Assessment Status Statistics (only for applicable clauses)
-        # For assessment, we need to check if activities exist and have been evaluated
+        # Assessment + Compliance Status Statistics — ONE loop with pre-loaded ECR map
+        # Pre-load all EveControlResult for this project in ONE query
+        from app.models.eve_models import EveControlResult as _ECR_stats
+        from app.models.project_instance_models import ProjectControlActivity as _PCA_stats, ProjectComplianceActivity as _PCA2_stats
+        _clause_ids = [c.id for c in clauses if c.applicability]
+        _pca_ids = []
+        if _clause_ids:
+            _pcas = _PCA2_stats.query.filter(_PCA2_stats.project_clause_id.in_(_clause_ids)).all()
+            for _pca in _pcas:
+                for _ctrl in _pca.project_control_activities:
+                    _pca_ids.append(_ctrl.id)
+        _ecr_map = {}
+        if _pca_ids:
+            _ecr_map = {
+                e.project_control_activity_id: e
+                for e in _ECR_stats.query.filter(
+                    _ECR_stats.project_control_activity_id.in_(_pca_ids)
+                ).all()
+            }
+
         completed_assessments = 0
         to_be_assessed = 0
-
-        for clause in clauses:
-            if clause.applicability:
-                # Check if this clause has been assessed
-                # Get compliance status for the clause
-                clause_status_data = calculate_clause_compliance_status(clause.id)
-                status_text = clause_status_data.get("text", "To Be Assessed")
-
-                if status_text != "To Be Assessed":
-                    completed_assessments += 1
-                else:
-                    to_be_assessed += 1
-
-        # Compliance Status Statistics (only for completed assessments)
         compliant_clauses = 0
         partially_compliant_clauses = 0
         non_compliant_clauses = 0
 
         for clause in clauses:
             if clause.applicability:
-                clause_status_data = calculate_clause_compliance_status(clause.id)
+                clause_status_data = calculate_clause_compliance_status(clause.id, ecr_map=_ecr_map)
                 status_text = clause_status_data.get("text", "To Be Assessed")
-
                 if status_text == "Compliant":
+                    completed_assessments += 1
                     compliant_clauses += 1
                 elif status_text == "Partially Compliant":
+                    completed_assessments += 1
                     partially_compliant_clauses += 1
                 elif status_text == "Non-Compliant":
+                    completed_assessments += 1
                     non_compliant_clauses += 1
+                else:
+                    to_be_assessed += 1
 
         statistics = {
             "total_clauses": total_clauses,
