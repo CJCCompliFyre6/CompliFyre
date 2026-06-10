@@ -3224,7 +3224,9 @@ def activity(project_id):
                 joinedload(ProjectComplianceActivity.project_clause).joinedload(
                     ProjectClause.project_guideline
                 ),
-                joinedload(ProjectComplianceActivity.project_control_activities),
+                joinedload(ProjectComplianceActivity.project_control_activities).joinedload(
+                    ProjectControlActivity.submitted_evidences
+                ),
             )
             .all()
         )
@@ -3363,6 +3365,26 @@ def activity(project_id):
                 else:
                     evidence_item["evidence_files"] = []
 
+        # PERF: Batch load ALL EvidenceFiles for this project in ONE query
+        # Collect all evidence artifact IDs first
+        _all_evidence_ids = []
+        for _ca in compliance_activities:
+            if _ca.project_control_activities:
+                for _ctrl in _ca.project_control_activities:
+                    if _ctrl.submitted_evidences:
+                        for _ev in _ctrl.submitted_evidences:
+                            _all_evidence_ids.append(_ev.id)
+        # Single batch query for all evidence files
+        _evidence_files_map = {}
+        if _all_evidence_ids:
+            _all_files = EvidenceFile.query.filter(
+                EvidenceFile.project_evidence_artifact_id.in_(_all_evidence_ids)
+            ).all()
+            for _f in _all_files:
+                if _f.project_evidence_artifact_id not in _evidence_files_map:
+                    _evidence_files_map[_f.project_evidence_artifact_id] = []
+                _evidence_files_map[_f.project_evidence_artifact_id].append(_f)
+
         # FIX: Generate evidence result with converted file objects
         result = []
         for ca in compliance_activities:
@@ -3381,10 +3403,8 @@ def activity(project_id):
                     evidences_with_files = []
                     if control.submitted_evidences:
                         for evidence in control.submitted_evidences:
-                            # Query evidence files
-                            evidence_files = EvidenceFile.query.filter_by(
-                                project_evidence_artifact_id=evidence.id
-                            ).all()
+                            # Use pre-loaded batch map
+                            evidence_files = _evidence_files_map.get(evidence.id, [])
 
                             # Convert EvidenceFile objects to dictionaries
                             evidence_files_dict = []
