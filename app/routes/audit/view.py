@@ -4698,24 +4698,28 @@ def reevaluate_activity():
         evidence_artifacts = project_control_activity.submitted_evidences or []
 
         # Trigger EVE Step 5 for each evidence
-        from app.services.eve_step5 import run_eve_step5_for_all_evidence
-        from app.services.eve_step678 import run_eve_step6_and_7
-
-        step5_tasks = len(evidence_artifacts)
         if evidence_artifacts:
-            run_eve_step5_for_all_evidence.apply_async(
-                args=[checklist.id, upload_base_path],
-                queue='eve_evaluate_staging'
+            # Step 5 → Step 6 using Celery chord (guaranteed ordering)
+            from celery import chord
+            from app.services.eve_step5 import run_eve_step5_for_evidence
+            from app.services.eve_step678 import run_eve_step6_and_7
+            step5_tasks_list = [
+                run_eve_step5_for_evidence.s(
+                    ev.id, checklist.id, upload_base_path
+                ).set(queue='eve_evaluate')
+                for ev in evidence_artifacts
+            ]
+            chord(step5_tasks_list)(
+                run_eve_step6_and_7.si(
+                    project_control_activity.id, current_user.id
+                ).set(queue='eve_evaluate')
             )
-
-        # Trigger Step 5B after Step 5A
-        from app.services.eve_step5 import run_eve_step5b_cross_evidence
-        countdown_5a = max(90, step5_tasks * 75)
-        run_eve_step5b_cross_evidence.apply_async(
-            args=[checklist.id],
-            queue='eve_evaluate_staging',
-            countdown=countdown_5a
-        )
+        else:
+            # No evidence — run Step 6 directly
+            run_eve_step6_and_7.apply_async(
+                args=[project_control_activity.id, current_user.id],
+                queue='eve_evaluate'
+            )
         # Step 6+7 triggered automatically by fix_pending_checklists periodic task
         # after all evidence evaluated (step7_completed=False)
 
@@ -5871,6 +5875,22 @@ def close_clause_assessment(clause_id):
         clause.assessment_status = "Completed"
         clause.assessment_closed_at = db.func.current_timestamp()
         clause.assessment_closed_by = current_user.id
+
+        # Check if all applicable clauses are now completed -> enable Generate Report
+        from app.models.project_instance_models import ProjectGuideline, Projects
+        _guideline = ProjectGuideline.query.filter_by(id=clause.project_guideline_id).first()
+        if _guideline:
+            _project = Projects.query.filter_by(id=_guideline.project_id).first()
+            if _project:
+                _all_clauses = ProjectClause.query.filter_by(
+                    project_guideline_id=clause.project_guideline_id
+                ).all()
+                _applicable = [c for c in _all_clauses if c.applicability]
+                _all_closed = all(
+                    (c.id == clause.id or c.assessment_status == "Completed")
+                    for c in _applicable
+                ) if _applicable else False
+                _project.project_complete_status = _all_closed
 
         db.session.commit()
 

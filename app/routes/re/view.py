@@ -4082,7 +4082,7 @@ def get_clause_statistics(project_id):
             if clause.applicability:
                 # Check if this clause has been assessed
                 # Get compliance status for the clause
-                clause_status_data = calculate_clause_compliance_status(clause.id, ecr_map=_ecr_map)
+                clause_status_data = calculate_clause_compliance_status(clause.id)
                 status_text = clause_status_data.get("text", "To Be Assessed")
 
                 if status_text != "To Be Assessed":
@@ -4097,7 +4097,7 @@ def get_clause_statistics(project_id):
 
         for clause in clauses:
             if clause.applicability:
-                clause_status_data = calculate_clause_compliance_status(clause.id, ecr_map=_ecr_map)
+                clause_status_data = calculate_clause_compliance_status(clause.id)
                 status_text = clause_status_data.get("text", "To Be Assessed")
 
                 if status_text == "Compliant":
@@ -4875,7 +4875,6 @@ def eve_evaluate_clause():
 
         # Trigger EVE Steps 5 → 6 → 7 for each control activity
         from app.services.eve_step678 import run_eve_step6_and_7
-        from app.services.eve_step5 import run_eve_step5_for_all_evidence
         from app.models.eve_models import ProjectChecklist
 
         dispatched = []
@@ -4898,19 +4897,27 @@ def eve_evaluate_clause():
             evidence_artifacts = control.submitted_evidences or []
 
             if evidence_artifacts:
-                # Step 5 — Evaluate each evidence
-                for evidence in evidence_artifacts:
-                    run_eve_step5_for_all_evidence.apply_async(
-                        args=[checklist.id, upload_base_path],
-                        queue='eve_evaluate_staging'
-                    )
-
-            # Step 6 + 7 — Run after Step 5
-            run_eve_step6_and_7.apply_async(
-                args=[control.id, current_user.id],
-                queue='eve_evaluate_staging',
-                countdown=30  # 30 second delay to allow Step 5 to complete
-            )
+                # Step 5 → Step 6 using Celery chord
+                # Guarantees Step 6 runs ONLY after ALL Step 5 tasks complete
+                from celery import chord
+                from app.services.eve_step5 import run_eve_step5_for_evidence
+                step5_tasks = [
+                    run_eve_step5_for_evidence.s(
+                        ev.id, checklist.id, upload_base_path
+                    ).set(queue='eve_evaluate')
+                    for ev in evidence_artifacts
+                ]
+                chord(step5_tasks)(
+                    run_eve_step6_and_7.si(
+                        control.id, current_user.id
+                    ).set(queue='eve_evaluate')
+                )
+            else:
+                # No evidence — run Step 6 directly
+                run_eve_step6_and_7.apply_async(
+                    args=[control.id, current_user.id],
+                    queue='eve_evaluate'
+                )
 
             dispatched.append({
                 "control_id": control.id,

@@ -100,7 +100,8 @@ def _call_llm_json(prompt: str, retries: int = 3, backoff: float = 2.0) -> dict 
     for attempt in range(retries):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
+                max_tokens=16000,
                 temperature=0,        # deterministic — same input = same output
                 top_p=0.1,
                 response_format={"type": "json_object"},

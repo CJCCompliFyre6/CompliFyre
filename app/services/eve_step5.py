@@ -1169,7 +1169,8 @@ def _call_eve_step5(
                 user_content = prompt
 
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
+                max_tokens=16000,
                 temperature=0,
                 top_p=0.1,
                 response_format={"type": "json_object"},
@@ -3033,7 +3034,7 @@ def run_eve_step5_for_all_evidence(
             task = run_eve_step5_for_evidence.apply_async(
                 args=[artifact.id, project_checklist_id],
                 kwargs={"upload_base_path": upload_base_path},
-                queue='eve_evaluate_staging',
+                queue='eve_evaluate',
             )
             dispatched.append({
                 "evidence_artifact_id": artifact.id,

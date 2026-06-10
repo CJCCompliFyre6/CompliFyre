@@ -42,7 +42,8 @@ def _call_llm_json(system_msg: str, user_msg: str, retries: int = 3, backoff: fl
     for attempt in range(retries):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
+                max_tokens=16000,
                 temperature=0,
                 top_p=0.1,
                 response_format={"type": "json_object"},

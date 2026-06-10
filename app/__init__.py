@@ -27,7 +27,7 @@ mail = Mail()
 sess = Session()
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY, timeout=120.0)
 
 # -----------------------------------------------------------------------------
 # Flask-Login Configuration
