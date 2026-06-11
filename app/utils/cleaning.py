@@ -1942,7 +1942,7 @@ def add_activities_table_to_word(document, activities_data, clause_ref):
     table1.allow_autofit = False
     
     # Set column widths for first table (total ~6 inches)
-    column_widths1 = [0.8, 2.5, 1.2, 1.2]
+    column_widths1 = [0.5, 3.2, 1.2, 1.1]
     for i, width in enumerate(column_widths1):
         table1.columns[i].width = Inches(width)
     
@@ -1970,10 +1970,8 @@ def add_activities_table_to_word(document, activities_data, clause_ref):
         row.cells[0].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         set_cell_borders(row.cells[0])
         
-        # Activity Name (truncated more aggressively)
+        # Activity Name (full text — no truncation)
         activity_name = activity['activity_name']
-        if len(activity_name) > 60:
-            activity_name = activity_name[:57] + "..."
         row.cells[1].text = activity_name
         row.cells[1].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         set_cell_borders(row.cells[1])

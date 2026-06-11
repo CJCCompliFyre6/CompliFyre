@@ -6322,7 +6322,7 @@ def generate_audit_report(project_id):
                 except (json.JSONDecodeError, TypeError):
                     test_procedure_text = consolidated_test_record.consolidated_summary
 
-            observation_data["Test to be performed"] = test_procedure_text
+            observation_data["Test Performed"] = test_procedure_text
 
             # Detailed observation (Consolidated Observation Summary)
             observation_text = "N/A"
