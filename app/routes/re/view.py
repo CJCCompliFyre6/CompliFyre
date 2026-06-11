@@ -6381,18 +6381,28 @@ def generate_audit_report(project_id):
                     )
 
                     # Extract findings from the new structure
-                    if findings_data.get("consolidated_summary"):
+                    if findings_data.get("detailed_findings"):
+                        findings_list = findings_data["detailed_findings"]
+                        parts = []
+                        for f in findings_list:
+                            cf_id = f.get("cf_id", "")
+                            finding = f.get("consolidated_finding", "")
+                            severity = f.get("severity", "")
+                            impact = f.get("impact", "")
+                            part = f"{cf_id}: {finding}"
+                            if impact:
+                                part += f"\nImpact: {impact}"
+                            if severity:
+                                part += f"\nSeverity: {severity}"
+                            parts.append(part)
+                        findings_text = "\n\n".join(parts)
+                    elif findings_data.get("consolidated_summary"):
                         findings_list = findings_data["consolidated_summary"]
                         if isinstance(findings_list, list) and findings_list:
-                            findings_text = "Consolidated Findings:\n• " + "\n• ".join(
-                                findings_list
-                            )
+                            findings_text = "Consolidated Findings:\n• " + "\n• ".join(findings_list)
                         else:
-                            findings_text = "Consolidated Findings:\n• " + str(
-                                findings_list
-                            )
+                            findings_text = str(findings_list)
                     else:
-                        # Fallback: try to extract from any available structure
                         findings_text = str(findings_data)
 
                 except (json.JSONDecodeError, TypeError, AttributeError) as e:
@@ -6414,19 +6424,28 @@ def generate_audit_report(project_id):
                     )
 
                     # Extract recommendations from the new structure
-                    if recommendations_data.get("consolidated_summary"):
+                    if recommendations_data.get("actionable_recommendations"):
+                        rec_list = recommendations_data["actionable_recommendations"]
+                        parts = []
+                        for r in rec_list:
+                            cr_id = r.get("cr_id", "")
+                            rec = r.get("recommendation", "")
+                            timeline = r.get("timeline", "")
+                            steps = r.get("implementation_steps", [])
+                            part = f"{cr_id}: {rec}"
+                            if timeline:
+                                part += f"\nTimeline: {timeline}"
+                            if steps:
+                                part += "\nSteps:\n• " + "\n• ".join(steps)
+                            parts.append(part)
+                        recommendations_text = "\n\n".join(parts)
+                    elif recommendations_data.get("consolidated_summary"):
                         rec_list = recommendations_data["consolidated_summary"]
                         if isinstance(rec_list, list) and rec_list:
-                            recommendations_text = (
-                                "Consolidated Recommendations:\n• "
-                                + "\n• ".join(rec_list)
-                            )
+                            recommendations_text = "Consolidated Recommendations:\n• " + "\n• ".join(rec_list)
                         else:
-                            recommendations_text = (
-                                "Consolidated Recommendations:\n• " + str(rec_list)
-                            )
+                            recommendations_text = str(rec_list)
                     else:
-                        # Fallback: try to extract from any available structure
                         recommendations_text = str(recommendations_data)
 
                 except (json.JSONDecodeError, TypeError, AttributeError) as e:
