@@ -4725,19 +4725,19 @@ def reevaluate_activity():
 
         current_app.logger.info(
             f"[EVE v3] Triggered evaluation for activity_id={project_control_activity_id}, "
-            f"evidence={step5_tasks}"
+            f"evidence={len(step5_tasks_list) if evidence_artifacts else 0}"
         )
 
         flash(
             f"EVE v3 evaluation started! "
-            f"{step5_tasks} evidence file(s) being processed. "
+            f"{len(step5_tasks_list) if evidence_artifacts else 0} evidence file(s) being processed. "
             f"Results will appear in ~2 minutes.",
             "success"
         )
         # Return JSON for AJAX calls, redirect for regular form POSTs
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
            'application/json' in request.headers.get('Accept', ''):
-            return jsonify({"success": True, "message": "Evaluation started", "evidence_count": step5_tasks})
+            return jsonify({"success": True, "message": "Evaluation started", "evidence_count": len(step5_tasks_list) if evidence_artifacts else 0})
         return redirect(request.referrer)
 
     except Exception as e:
@@ -5877,7 +5877,8 @@ def close_clause_assessment(clause_id):
         clause.assessment_closed_by = current_user.id
 
         # Check if all applicable clauses are now completed -> enable Generate Report
-        from app.models.project_instance_models import ProjectGuideline, Projects
+        from app.models.project_instance_models import ProjectGuideline
+        from app.models.auditOrganization import Projects
         _guideline = ProjectGuideline.query.filter_by(id=clause.project_guideline_id).first()
         if _guideline:
             _project = Projects.query.filter_by(id=_guideline.project_id).first()
