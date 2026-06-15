@@ -1892,18 +1892,45 @@ def extract_clauses(self, guideline_id: int):
             text = item["clause_number"]
             if text is None or text == "":
                 return [float("inf")]
+            # Strategy: convert entire clause_no to a comparable tuple
+            # All elements use same type to avoid str vs int comparison errors
+            # Format is always: PREFIX SECTION_ID [PART] [REG] [SUB...]
+            # e.g. CH IV 17 (1A) (a) (i)
+            # e.g. SCH II A A (4) (a)
             key = []
-            for part in re.split(r"(\s+|\(|\))", str(text)):
-                part = part.strip("() ")
-                if not part:
-                    continue
-                if part.isdigit():
-                    key.append(int(part))
-                elif re.match(r"^[IVXivx]+$", part) and len(part) <= 8 and part.upper() not in ("CH", "SCH", "ANN", "A", "B", "C", "D", "E", "F", "G", "H"):
-                    # Pure Roman numeral — convert to int (exclude known prefixes)
-                    key.append(roman_to_int(part))
+            tokens = re.split(r"\s+", str(text).strip())
+            for pos, token in enumerate(tokens):
+                if token.startswith("(") and token.endswith(")"):
+                    # Sub-clause in parentheses: (1), (a), (i), (1A), (ia)
+                    inner = token[1:-1]
+                    parts = re.findall(r"[0-9]+|[a-zA-Z]+", inner)
+                    for p in parts:
+                        if p.isdigit():
+                            key.append(("num", int(p)))
+                        else:
+                            key.append(("str", p.lower()))
+                elif token.isdigit():
+                    key.append(("num", int(token)))
+                elif pos == 1:
+                    # Section identifier position: I, II, III, IV, V, VA, VI, VII, VIII, IX, X
+                    # Always Roman numeral optionally followed by alpha suffix
+                    roman_match = re.match(r"^([IVXivx]+)([A-Za-z]*)$", token)
+                    if roman_match and token.upper() not in ("CH", "SCH", "ANN"):
+                        roman_part = roman_match.group(1)
+                        suffix_part = roman_match.group(2)
+                        key.append(("num", roman_to_int(roman_part)))
+                        if suffix_part:
+                            key.append(("str", suffix_part.lower()))
+                    else:
+                        key.append(("str", token.lower()))
                 else:
-                    key.append(part.lower())
+                    # Other: CH, SCH, ANN, A, B, 62I, 2A etc
+                    parts = re.findall(r"[0-9]+|[a-zA-Z]+", token)
+                    for p in parts:
+                        if p.isdigit():
+                            key.append(("num", int(p)))
+                        else:
+                            key.append(("str", p.lower()))
             return key
 
         sorted_clauses = sorted(unsorted_clauses, key=natural_sort_key)
