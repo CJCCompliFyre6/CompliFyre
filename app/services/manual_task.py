@@ -889,7 +889,14 @@ def extract_text_from_pdf_page_by_page(file_path):
                     if _re.match(r"^\d+\s+Prior to the", stripped, _re.IGNORECASE):
                         continue
                     cleaned_lines.append(line)
-                yield page_num + 1, "\n".join(cleaned_lines)
+                clean_text = "\n".join(cleaned_lines)
+                # Strip inline footnote references: 600[text] → text
+                clean_text = _re.sub(r'\d+\[([^\]]+)\]', r'\1', clean_text)
+                # Strip standalone superscript numbers between words: word1 234 word2 → word1 word2
+                clean_text = _re.sub(r'(?<=\w)\s+\d+(?=\s+[a-z\(\[])', ' ', clean_text)
+                # Strip footnote numbers at start of clause text like: 3[(ia)...] → [(ia)...]
+                clean_text = _re.sub(r'^\d+(?=\[)', '', clean_text, flags=_re.MULTILINE)
+                yield page_num + 1, clean_text
     except Exception as e:
         logger.error(f"Error extracting text from PDF: {e}")
         raise
