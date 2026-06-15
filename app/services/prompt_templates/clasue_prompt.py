@@ -420,6 +420,14 @@ def clause_prompt_def(page_range: str | None = None) -> str:
     {focus_instruction}
  </FocusInstruction>
 
+ <PageHandlingInstructions>
+  <Instruction>The document text contains page markers like "--- Page N ---". These are NOT part of the document content — they are technical separators only.</Instruction>
+  <Instruction>CROSS-PAGE CLAUSES: A clause that starts on one page and continues on the next page must be extracted as ONE complete clause. Do NOT split or truncate it at the page boundary. Continue reading past page markers to get the full clause text.</Instruction>
+  <Instruction>HEADERS: Ignore any repeated document title or heading at the top of a page — these are page headers, not clauses.</Instruction>
+  <Instruction>FOOTERS: Ignore standalone page numbers (e.g. a lone "157" or "26") — these are page footers, not clauses.</Instruction>
+  <Instruction>FOOTNOTES: Ignore any text starting with a superscript/footnote number followed by "Inserted by", "Substituted by", "Omitted by", "Added by", "Prior to", or containing "w.e.f." followed by a date — these are amendment footnotes, not regulatory requirements.</Instruction>
+ </PageHandlingInstructions>
+
  <CriticalNumberingInstructions>
   <Instruction number="1">PRESERVE ORIGINAL NUMBERING: Always use the exact clause numbers as they appear in the document.</Instruction>
   <Instruction number="2">MAINTAIN HIERARCHY: Keep the hierarchical structure (1, 1.1, 1.1.1, 2, 2.1, etc.) exactly as in the original document.</Instruction>

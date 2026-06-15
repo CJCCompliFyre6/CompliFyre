@@ -864,14 +864,32 @@ def generate_consolidated_recommendations_summary(self, clause_id: int):
 
 
 def extract_text_from_pdf_page_by_page(file_path):
-    """Extract text from PDF page by page - same as app.py"""
+    """Extract text from PDF page by page with header/footer removal."""
+    import re as _re
     try:
         with fitz.open(file_path) as doc:
             num_pages = doc.page_count
             for page_num in range(num_pages):
                 page = doc[page_num]
                 page_text = page.get_text()
-                yield page_num + 1, page_text
+                # Remove headers and footers
+                lines = page_text.split("\n")
+                cleaned_lines = []
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    # Skip standalone page numbers (footer)
+                    if _re.match(r"^\d{1,4}$", stripped):
+                        continue
+                    # Skip common header patterns
+                    if stripped in ("GAZETTE OF INDIA", "EXTRAORDINARY", "PUBLISHED BY AUTHORITY"):
+                        continue
+                    # Skip footnote lines (Inserted/Substituted/Omitted by...)
+                    if _re.match(r"^\d+\s+(Inserted|Substituted|Omitted|Added).+by", stripped, _re.IGNORECASE):
+                        continue
+                    if _re.match(r"^\d+\s+Prior to the", stripped, _re.IGNORECASE):
+                        continue
+                    cleaned_lines.append(line)
+                yield page_num + 1, "\n".join(cleaned_lines)
     except Exception as e:
         logger.error(f"Error extracting text from PDF: {e}")
         raise
