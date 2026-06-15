@@ -1851,14 +1851,35 @@ def extract_clauses(self, guideline_id: int):
         )
 
         # Sort clauses using natural sorting
+        def roman_to_int(s):
+            """Convert Roman numeral string to integer for correct sorting."""
+            vals = {"i":1,"v":5,"x":10,"l":50,"c":100,"d":500,"m":1000}
+            s = s.lower()
+            result = 0
+            for idx in range(len(s)):
+                if idx+1 < len(s) and vals.get(s[idx],0) < vals.get(s[idx+1],0):
+                    result -= vals.get(s[idx], 0)
+                else:
+                    result += vals.get(s[idx], 0)
+            return result
+
         def natural_sort_key(item):
             text = item["clause_number"]
             if text is None or text == "":
-                return [float("inf")]  # Put empty/missing numbers at the end
-            return [
-                int(part) if part.isdigit() else part.lower()
-                for part in re.split(r"(\d+)", str(text))
-            ]
+                return [float("inf")]
+            key = []
+            for part in re.split(r"(\s+|\(|\))", str(text)):
+                part = part.strip("() ")
+                if not part:
+                    continue
+                if part.isdigit():
+                    key.append(int(part))
+                elif re.match(r"^[IVXivx]+$", part) and len(part) <= 8 and part.upper() not in ("CH", "SCH", "ANN", "A", "B", "C", "D", "E", "F", "G", "H"):
+                    # Pure Roman numeral — convert to int (exclude known prefixes)
+                    key.append(roman_to_int(part))
+                else:
+                    key.append(part.lower())
+            return key
 
         sorted_clauses = sorted(unsorted_clauses, key=natural_sort_key)
 
@@ -1890,7 +1911,7 @@ def extract_clauses(self, guideline_id: int):
                         session.query(Clauses)
                         .filter_by(
                             guideline_id=guideline_id,
-                            clause_no=clause_number,
+                            clause_no=clause_number[:500] if clause_number else None,
                         )
                         .first()
                     )
@@ -1903,7 +1924,7 @@ def extract_clauses(self, guideline_id: int):
 
                 # Save new clause
                 clause_obj = Clauses(
-                    clause_no=clause_number,
+                    clause_no=clause_number[:500] if clause_number else None,
                     clause_text=clause_text,
                     guideline_id=guideline_id,
                     page_number=clause_data["page_number"],
