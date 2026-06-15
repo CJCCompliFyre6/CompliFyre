@@ -428,12 +428,66 @@ def clause_prompt_def(page_range: str | None = None) -> str:
   <Instruction>FOOTNOTES: Ignore any text starting with a superscript/footnote number followed by "Inserted by", "Substituted by", "Omitted by", "Added by", "Prior to", or containing "w.e.f." followed by a date — these are amendment footnotes, not regulatory requirements.</Instruction>
  </PageHandlingInstructions>
 
- <CriticalNumberingInstructions>
-  <Instruction number="1">PRESERVE ORIGINAL NUMBERING: Always use the exact clause numbers as they appear in the document.</Instruction>
-  <Instruction number="2">MAINTAIN HIERARCHY: Keep the hierarchical structure (1, 1.1, 1.1.1, 2, 2.1, etc.) exactly as in the original document.</Instruction>
-  <Instruction number="3">SEQUENTIAL ORDER: Extract clauses in their natural sequential order as they appear in the document.</Instruction>
-  <Instruction number="4">NUMBER CONSISTENCY: If you encounter clauses out of order, double-check the document structure and maintain the correct numerical sequence.</Instruction>
- </CriticalNumberingInstructions>
+ <StructuredIdentifierInstructions>
+  <Overview>
+   STEP 1 — Before extracting any clause, map the document structure:
+   Identify all CHAPTERS (Roman numerals: I, II, III...), SCHEDULES (Roman numerals or numbers), 
+   PARTS within each Schedule (Alphabets: A, B, C...), and ANNEXURES.
+  </Overview>
+
+  <ClauseNumberFormat>
+   Construct clause_number using this EXACT format: {{PREFIX}} {{SECTION}} {{PART}} {{REG}} {{SUB-LEVELS}}
+   
+   PREFIX codes:
+   - CH  = Chapter  (e.g. CHAPTER IV)
+   - SCH = Schedule (e.g. SCHEDULE III)
+   - ANN = Annexure (e.g. ANNEXURE A)
+   
+   RULES:
+   - Separate each level with a single space
+   - Sub-levels use parentheses exactly as in document: (1), (a), (i), (1A), (ia)
+   - Inserted sub-regulations like (1A), (1B), (1C) or inserted clauses like (ia), (na) — use exactly as written
+   
+   EXAMPLES:
+   - Chapter IV, Regulation 17, Sub-regulation (1), Clause (a)    → CH IV 17 (1) (a)
+   - Chapter I, Regulation 2, Sub-regulation (1), Clause (ia)     → CH I 2 (1) (ia)
+   - Chapter IV, Regulation 17, Sub-regulation (1C), Clause (a)   → CH IV 17 (1C) (a)
+   - Schedule I, Point (1), Sub-point (a)                         → SCH I (1) (a)
+   - Schedule II, Part A, Point A                                  → SCH II A A
+   - Schedule II, Part B, Point A, Sub-point (1)                  → SCH II B A (1)
+   - Schedule II, Part C, Point A, Sub-point (4), Sub-sub (a)     → SCH II C A (4) (a)
+   - Schedule III, Part A, Section A, Point 1, Sub (i), Sub (a)   → SCH III A A 1 (i) (a)
+   - Schedule V, Part A, Point 1                                   → SCH V A 1
+   - Schedule V, Part C, Sub-section (2), Sub-point (f)           → SCH V C (2) (f)
+   - Schedule IX, Amendment 1, Sub-amendment (i)                  → SCH IX 1 (i)
+   - Annexure A, Point 1, Sub-point (a)                           → ANN A 1 (a)
+  </ClauseNumberFormat>
+
+  <ExclusionRules>
+   DO NOT extract as clauses:
+   - Chapter/Schedule/Part headings (e.g. "CHAPTER IV", "PART A: MINIMUM INFORMATION...")
+   - Cross-reference tags (e.g. "[See Regulation 17(7)]")
+   - Omitted/deleted clauses marked with [***]
+   - Inline footnote reference numbers embedded in text (e.g. "600[or through...]" — strip the number, keep the text)
+   - Omitted Schedules/sections (e.g. "SCHEDULE VIII [***]" — do not extract)
+  </ExclusionRules>
+
+  <ClauseTextCleaning>
+   clause_text must contain ONLY the clean regulatory requirement text:
+   - Remove inline footnote reference numbers: "600[or through the depositories]" → "or through the depositories"
+   - Remove superscript numbers embedded in text
+   - Do NOT include the clause number itself in clause_text
+   - Provisos: extract as separate clause with suffix _PRV on clause_number (e.g. CH I 1 (2) _PRV)
+   - Explanations: extract as separate clause with suffix _EXP on clause_number
+  </ClauseTextCleaning>
+
+  <UniquenessRule>
+   CRITICAL: The clause_number alone must uniquely identify any clause in the entire document.
+   No two clauses should have the same clause_number.
+   If two clauses would have the same number (e.g. point "1" appears in both SCH II A and SCH III A),
+   the prefix ensures uniqueness: SCH II A 1 vs SCH III A 1.
+  </UniquenessRule>
+ </StructuredIdentifierInstructions>
 
   <AdditionalUserInstructions>
     {user_clauses or "Extract all clauses from the document."}
@@ -470,9 +524,14 @@ proceedings or in an administrative or out-of-court procedure", do not break it 
    {{
     "extracted_requirements": [
       {{
-        "clause_number": "1.1",
-        "clause_text": "Full text of the regulatory requirement.",
-        "page_number": 5
+        "clause_number": "CH IV 17 (1) (a)",
+        "clause_text": "where the chairperson of the board of directors is a non-executive director, at least one-third of the board of directors shall comprise of independent directors.",
+        "page_number": 26
+      }},
+      {{
+        "clause_number": "SCH II C A (4) (a)",
+        "clause_text": "matters required to be included in the director's responsibility statement to be included in the board's report in terms of clause (c) of sub-section (3) of Section 134 of the Companies Act, 2013.",
+        "page_number": 158
       }},
       ...
     ]
