@@ -546,3 +546,208 @@ proceedings or in an administrative or out-of-court procedure", do not break it 
 
 """
     return clause_prompt
+
+
+def stage2_semantic_prompt(node: dict, running_context: dict, guideline_licenses: list) -> str:
+    """
+    Stage 2: LLM semantic analysis for a single parsed node from Stage 1.
+    
+    Args:
+        node: single node dict from Stage 1 parser
+        running_context: accumulated applicability context from previous nodes
+        guideline_licenses: list of license codes this guideline applies to
+    
+    Returns:
+        prompt string for LLM
+    """
+
+    known_licenses_str = ', '.join(guideline_licenses) if guideline_licenses else 'Not specified'
+    
+    # Build running context string
+    context_lines = []
+    if running_context.get('section_applicability'):
+        for item in running_context['section_applicability']:
+            context_lines.append(f"  - {item['scope']} → applies to: {', '.join(item['applies_to'])} (source: {item['source']})")
+    
+    context_str = '\n'.join(context_lines) if context_lines else '  - No specific applicability detected yet'
+    
+    current_chapter = running_context.get('current_chapter', 'Unknown')
+    guideline_applies_to = ', '.join(running_context.get('guideline_applies_to', guideline_licenses))
+
+    prompt = f"""You are a regulatory compliance expert analyzing a clause from a regulatory circular.
+
+You will analyze ONE clause node and answer FOUR questions about it.
+
+---
+GUIDELINE APPLICABILITY:
+This guideline as a whole applies to: {guideline_applies_to}
+Known license codes for this regulator: {known_licenses_str}
+
+RUNNING APPLICABILITY CONTEXT (from previous clauses in this document):
+{context_str}
+
+CURRENT CHAPTER/SECTION: {current_chapter}
+
+---
+CLAUSE TO ANALYZE:
+clause_no: {node.get('clause_no', 'Unknown')}
+node_type: {node.get('node_type', 'Unknown')}
+page_number: {node.get('page_number', 'Unknown')}
+parent_clause_no: {node.get('parent_clause_no', 'None')}
+
+clause_text:
+{node.get('raw_text', '')}
+
+---
+ANSWER THESE FOUR QUESTIONS:
+
+Q1 — CLAUSE TYPE
+What type of content is this clause?
+
+Choose ONE:
+- OBLIGATION: imposes a hard mandatory requirement using "shall", "must", "is required to"
+- PRINCIPLE: principles-based obligation using "shall endeavour", "shall seek to", "should" — testable but softer
+- MIXED: contains BOTH a definition/applicability condition AND an obligation in the same text
+- DEFINITION: only defines a term ("X means...", "For the purpose of...X shall mean...") — no obligation
+- APPLICABILITY: only specifies who a regulation applies to — no direct obligation imposed
+- EXEMPTION: specifies who is excluded from a requirement ("shall not apply to...")
+
+IMPORTANT — EMBEDDED OBLIGATION RULE:
+If a definition clause contains language like "shall ensure", "shall maintain", "is required to" — classify as MIXED, not DEFINITION.
+If an applicability clause says "shall comply with regulations X to Y" — classify as MIXED, not APPLICABILITY.
+
+Q2 — MERGE DECISION
+Should this clause stand alone or be merged into its parent clause?
+
+Apply these THREE tests:
+Test 1: Does this clause have an INDEPENDENT audit scope? (Can an auditor test this separately from its parent?)
+Test 2: Does this clause require INDEPENDENT evidence? (Different documents/records than its parent?)
+Test 3: Would this clause produce an INDEPENDENT finding in the audit report? (A distinct finding, not just a sub-point of the parent finding?)
+
+Decision rules:
+- All three YES → STANDALONE
+- Any one NO → MERGE_PARENT
+- Provisos and Explanations → always MERGE_PARENT
+- Sub-points that are components of one governance area (e.g. shareholder rights sub-points) → MERGE_PARENT
+- Sub-regulations covering different entity types or different timelines → STANDALONE
+
+Q3 — APPLICABILITY
+Who does this specific clause apply to?
+
+Options:
+- INHERITS: same as parent clause or chapter (no specific entity mentioned in this clause)
+- SPECIFIC: this clause explicitly mentions specific entity types — list their license codes from: {known_licenses_str}
+- UNKNOWN: entity type mentioned but not matching any known license code — flag it
+
+If SPECIFIC, extract the exact entity types mentioned and map to license codes.
+If the text mentions an entity type not in the known license list, set UNKNOWN and describe what was found.
+
+Q4 — CROSS REFERENCES
+Does this clause explicitly reference other regulations, clauses, or external standards?
+
+Look for phrases like:
+- "as defined under regulation X" → INTERNAL reference
+- "in accordance with regulation X(Y)" → INTERNAL reference  
+- "as specified in Schedule X" → INTERNAL reference
+- "as per ISO 27001" or "as per RBI circular dated..." → EXTERNAL reference
+
+Extract ALL references found. If none, return empty list.
+
+---
+OUTPUT FORMAT — return ONLY valid JSON, no explanation, no markdown:
+
+{{
+  "clause_no": "{node.get('clause_no', '')}",
+  "clause_type": "OBLIGATION|PRINCIPLE|MIXED|DEFINITION|APPLICABILITY|EXEMPTION",
+  "merge_decision": "STANDALONE|MERGE_PARENT",
+  "merge_reason": "brief reason for merge decision",
+  "applicable_to": "INHERITS|SPECIFIC|UNKNOWN",
+  "applicable_to_licenses": ["LICENSE_CODE_1", "LICENSE_CODE_2"],
+  "applicable_to_unknown": "description if UNKNOWN, else null",
+  "applicability_updates_context": true or false,
+  "new_context_entry": {{
+    "scope": "clause_no or chapter this applies to",
+    "applies_to": ["LICENSE_CODE_1"],
+    "source": "clause_no where this was stated",
+    "inheritance": "this_clause_only|parent_and_siblings|all_children"
+  }},
+  "clause_references": [
+    {{
+      "type": "INTERNAL|CROSS_GUIDELINE|EXTERNAL",
+      "guideline_id": null,
+      "clause_no": "CH IV 16 (1) (b)",
+      "standard_name": null,
+      "section": null
+    }}
+  ],
+  "flag": null,
+  "flag_reason": null
+}}
+
+Set applicability_updates_context to true ONLY if this clause contains NEW applicability information that should be carried forward to subsequent clauses.
+Set new_context_entry only when applicability_updates_context is true.
+Set flag to "FLAGGED" and flag_reason when applicable_to is UNKNOWN or merge_decision is uncertain.
+Set clause_references to empty list [] if no references found.
+"""
+    return prompt
+
+
+def get_all_definition_clauses_context(guideline_id: int) -> str:
+    """
+    Fetches all DEFINITION clauses for a guideline and formats them as context
+    for activity generation prompts.
+    
+    Used in Step 3 (extract_activities) to inject relevant definitions.
+    """
+    from app.models.ai import Clauses
+    from app import db
+    
+    definitions = Clauses.query.filter_by(
+        guideline_id=guideline_id,
+        clause_type='DEFINITION'
+    ).all()
+    
+    if not definitions:
+        return ""
+    
+    lines = ["DEFINITIONS FROM THIS GUIDELINE (use as context when drafting activities):"]
+    for d in definitions:
+        lines.append(f"  [{d.clause_no}]: {d.clause_text[:300]}")
+    
+    return '\n'.join(lines)
+
+
+def get_referenced_clauses_context(clause_references: list, current_guideline_id: int) -> str:
+    """
+    Fetches referenced clauses text for context injection during activity generation.
+    Only fetches INTERNAL references for now.
+    
+    Args:
+        clause_references: list of reference dicts from clause.clause_references
+        current_guideline_id: id of the guideline being processed
+    
+    Returns:
+        formatted context string
+    """
+    if not clause_references:
+        return ""
+    
+    from app.models.ai import Clauses
+    
+    lines = ["REFERENCED CLAUSES (use as context):"]
+    
+    for ref in clause_references:
+        if ref.get('type') == 'INTERNAL':
+            ref_clause = Clauses.query.filter_by(
+                guideline_id=current_guideline_id,
+                clause_no=ref.get('clause_no')
+            ).first()
+            if ref_clause:
+                lines.append(f"  [{ref_clause.clause_no}]: {ref_clause.clause_text[:300]}")
+        elif ref.get('type') == 'EXTERNAL':
+            standard = ref.get('standard_name', '')
+            section = ref.get('section', '')
+            if standard:
+                lines.append(f"  [External: {standard} {section}]: Refer to the standard for full details")
+    
+    return '\n'.join(lines) if len(lines) > 1 else ""

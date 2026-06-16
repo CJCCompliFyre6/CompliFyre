@@ -184,6 +184,12 @@ class Guidelines(db.Model):
     enabled = db.Column(
         db.Boolean, nullable=False, default=True, server_default=sa.true()
     )
+    applicable_licenses = db.Column(db.JSON, nullable=True)
+    regulator_body_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey('"RegulatoryBodies".body_id'),
+        nullable=True
+    )
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
     updated_at = db.Column(
         db.TIMESTAMP,
@@ -285,17 +291,26 @@ class Clauses(db.Model):
     """
     Represents a specific clause within a Guideline. Deleting a Clause will also delete
     all of its associated ComplianceActivities.
+
+    clause_type: OBLIGATION / PRINCIPLE / MIXED / DEFINITION / APPLICABILITY / EXEMPTION
+    extraction_status: EXTRACTED / APPROVED / FLAGGED
+    flag_reason: UNKNOWN_APPLICABILITY / AMBIGUOUS_MERGE / UNKNOWN_LICENSE / CROSS_GUIDELINE_REF / EXTERNAL_REF
     """
 
     __tablename__ = "clauses"
 
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
-    clause_no = db.Column(db.String(100), nullable=True)
+    clause_no = db.Column(db.String(500), nullable=True)
     clause_text = db.Column(db.Text, nullable=False)
     guideline_id = db.Column(
         db.BigInteger, db.ForeignKey("guidelines.id"), nullable=False
     )
     page_number = db.Column(db.Integer, nullable=True)
+    clause_type = db.Column(db.String(50), nullable=True, default='OBLIGATION')
+    applicable_to = db.Column(db.JSON, nullable=True)
+    clause_references = db.Column(db.JSON, nullable=True)
+    extraction_status = db.Column(db.String(50), nullable=True, default='EXTRACTED')
+    flag_reason = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
     updated_at = db.Column(
         db.TIMESTAMP,
@@ -307,7 +322,6 @@ class Clauses(db.Model):
     compliance_activities = db.relationship(
         "ComplianceActivities", back_populates="clauses", cascade="all, delete-orphan"
     )
-
 
 class ComplianceActivities(db.Model):
     """

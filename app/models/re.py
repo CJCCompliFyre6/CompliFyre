@@ -104,3 +104,35 @@ class RegulationDependencies(db.Model):
         foreign_keys=[target_doc_id],
         backref="target_dependencies",
     )
+
+
+class RegulatorLicenses(db.Model):
+    """
+    Master list of all BFSI regulators worldwide and the license types they issue.
+    Used to tag guidelines and clauses with structured applicability codes.
+    license_code is the canonical identifier: RBI_NBFC_ICC, SEBI_LE_EQ, IRDAI_LIFE etc.
+    """
+    __tablename__ = "regulator_licenses"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    regulator_name = db.Column(db.String(200), nullable=False)
+    regulator_country = db.Column(db.String(100), nullable=False)
+    license_name = db.Column(db.String(200), nullable=False)
+    license_code = db.Column(db.String(50), nullable=False, unique=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+    updated_at = db.Column(
+        db.TIMESTAMP,
+        default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'regulator_name': self.regulator_name,
+            'regulator_country': self.regulator_country,
+            'license_name': self.license_name,
+            'license_code': self.license_code,
+            'is_active': self.is_active,
+        }

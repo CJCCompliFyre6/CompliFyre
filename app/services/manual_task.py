@@ -1695,15 +1695,24 @@ def _create_fallback_guideline(pdf_text: str):
 
 @shared_task(bind=True)
 def extract_clauses(self, guideline_id: int):
-    """Step 2: Extract clauses for a guideline using app.py logic"""
-    logger.info(
-        f"Step 2: Extracting clauses for guideline_id={guideline_id} using enhanced PDF processing"
-    )
+    """
+    Step 2: Extract clauses using new 3-stage hybrid pipeline.
+    Stage 1: Algorithmic structure parser (code)
+    Stage 2: LLM semantic analysis per node
+    Stage 3: Rule-based post processor (code)
+    """
+    import json as _json
+    from app.services.pdf_structure_parser import parse_pdf_structure, validate_nodes, get_parser_stats
+    from app.services.clause_post_processor import post_process_nodes
+    from app.services.prompt_templates.clasue_prompt import stage2_semantic_prompt
+    from openai import OpenAI
+
+    logger.info(f"extract_clauses v2: guideline_id={guideline_id}")
 
     try:
-        # Update initial progress
-        update_progress(guideline_id, "PROCESSING", 30, "Starting PDF processing...")
+        update_progress(guideline_id, "PROCESSING", 10, "Starting extraction pipeline...")
 
+        # --- Fetch guideline and file path ---
         with session_scope() as session:
             guideline = session.query(Guidelines).filter_by(id=guideline_id).first()
             if not guideline:
@@ -1712,326 +1721,160 @@ def extract_clauses(self, guideline_id: int):
             if not file_record:
                 raise ValueError("File record not found")
             file_path = file_record.path
+            guideline_licenses = guideline.applicable_licenses or []
 
-        # Update progress
-        update_progress(guideline_id, "PROCESSING", 50, "Extracting text from PDF...")
+        # --- STAGE 1: Algorithmic structure parsing ---
+        update_progress(guideline_id, "PROCESSING", 20, "Stage 1: Parsing document structure...")
+        logger.info(f"Stage 1 starting for guideline {guideline_id}")
 
-        # Process PDF page by page like app.py
-        page_texts = {}
-        for page_num, page_text in extract_text_from_pdf_page_by_page(file_path):
-            page_texts[page_num] = page_text
+        raw_nodes = parse_pdf_structure(file_path)
+        valid_nodes, parse_issues = validate_nodes(raw_nodes)
+        stats = get_parser_stats(valid_nodes)
 
-        total_pages = len(page_texts)
-        saved_clauses = []
-        all_extracted_clause_numbers = []
+        logger.info(f"Stage 1 complete: {stats}")
+        if parse_issues:
+            logger.warning(f"Stage 1 issues ({len(parse_issues)}): {parse_issues[:5]}")
 
-        # Collect all clauses first, then sort and save
-        unsorted_clauses = []
+        update_progress(guideline_id, "PROCESSING", 40,
+                        f"Stage 1 complete: {stats['total_nodes']} nodes extracted...")
 
-        # Update progress
-        update_progress(guideline_id, "PROCESSING", 70, "Sending to AI for analysis...")
+        # --- STAGE 2: LLM semantic analysis per node ---
+        update_progress(guideline_id, "PROCESSING", 50, "Stage 2: LLM semantic analysis...")
+        logger.info(f"Stage 2 starting: {len(valid_nodes)} nodes to analyze")
 
-        # Process in chunks (similar to app.py but using actual pages)
-        page_chunk_size = min(_get_dynamic_chunk_size(total_pages), total_pages)
-        if total_pages <= 5:
-            page_chunk_size = total_pages
+        client = get_llm_service()
+        stage2_results = {}
+        running_context = {
+            "guideline_applies_to": guideline_licenses,
+            "current_chapter": None,
+            "section_applicability": [],
+        }
 
-        for start_page in range(1, total_pages + 1, page_chunk_size):
-            end_page = min(start_page + page_chunk_size - 1, total_pages)
-            page_range_str = f"pages {start_page} to {end_page}"
-
-            logger.info(f"Processing {page_range_str} for guideline {guideline_id}")
-
-            # Combine text from pages in this chunk
-            chunk_text = ""
-            for page_num in range(start_page, end_page + 1):
-                if page_num in page_texts:
-                    chunk_text += f"\n--- Page {page_num} ---\n{page_texts[page_num]}\n"
-
-            if not chunk_text.strip():
-                logger.warning(f"No text found for {page_range_str}")
+        total_nodes = len(valid_nodes)
+        for idx, node in enumerate(valid_nodes):
+            clause_no = node.get("clause_no")
+            if not clause_no:
                 continue
 
-            # Extract context for analysis
-            context_text = chunk_text
+            # Update running context chapter tracking
+            if clause_no.startswith("CH "):
+                parts = clause_no.split(" ")
+                if len(parts) >= 2:
+                    running_context["current_chapter"] = f"CH {parts[1]}"
+            elif clause_no.startswith("SCH "):
+                parts = clause_no.split(" ")
+                if len(parts) >= 2:
+                    running_context["current_chapter"] = f"SCH {parts[1]}"
 
             try:
-                # Use the enhanced OpenAI extraction
-                chunk_response, usage_metrics = extract_clauses_with_openai(
-                    chunk_text, guideline_id, page_range_str
+                prompt = stage2_semantic_prompt(node, running_context, guideline_licenses)
+
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
                 )
 
-                logger.info(f"LLM response received for {page_range_str}")
+                result_text = response.choices[0].message.content.strip()
+                result = _json.loads(result_text)
+                stage2_results[clause_no] = result
 
-                # Analyze extraction quality
-                extraction_metrics = analyze_extraction_quality(
-                    chunk_response, context_text, total_pages, page_range_str
-                )
+                # Update running context if this node has new applicability info
+                if result.get("applicability_updates_context") and result.get("new_context_entry"):
+                    ctx = result["new_context_entry"]
+                    running_context["section_applicability"].append({
+                        "scope": ctx.get("scope", clause_no),
+                        "applies_to": ctx.get("applies_to", []),
+                        "source": clause_no,
+                    })
+                    # Keep context list manageable
+                    if len(running_context["section_applicability"]) > 50:
+                        running_context["section_applicability"] = running_context["section_applicability"][-50:]
 
-                # Save raw LLM response to database
-                try:
-                    with session_scope() as session:
-                        raw_response_text = (
-                            json.dumps(chunk_response)
-                            if chunk_response
-                            else "No response"
-                        )
+            except Exception as e:
+                logger.error(f"Stage 2 failed for {clause_no}: {e}")
+                # Default to OBLIGATION STANDALONE on failure
+                stage2_results[clause_no] = {
+                    "clause_no": clause_no,
+                    "clause_type": "OBLIGATION",
+                    "merge_decision": "STANDALONE",
+                    "merge_reason": "Stage 2 failed — defaulting to STANDALONE OBLIGATION",
+                    "applicable_to": "INHERITS",
+                    "applicable_to_licenses": [],
+                    "applicable_to_unknown": None,
+                    "applicability_updates_context": False,
+                    "new_context_entry": None,
+                    "clause_references": [],
+                    "flag": "FLAGGED",
+                    "flag_reason": f"Stage 2 LLM failed: {str(e)[:100]}",
+                }
 
-                        context_start_clean = (
-                            clean_string_for_db(context_text[:500])
-                            if context_text
-                            else ""
-                        )
-                        context_end_clean = (
-                            clean_string_for_db(context_text[-500:])
-                            if context_text
-                            else ""
-                        )
+            # Log progress every 50 nodes
+            if (idx + 1) % 50 == 0:
+                pct = 50 + int(((idx + 1) / total_nodes) * 30)
+                update_progress(guideline_id, "PROCESSING", pct,
+                                f"Stage 2: {idx+1}/{total_nodes} nodes analyzed...")
 
-                        raw_response_obj = RawLLMResponse(
-                            guideline_id=guideline_id,
-                            task_type="clause_extraction",
-                            page_range=page_range_str,
-                            raw_response=raw_response_text,
-                            context_start_text=context_start_clean,
-                            context_end_text=context_end_clean,
-                            total_context_length=(
-                                len(context_text) if context_text else 0
-                            ),
-                            prompt_tokens=usage_metrics.get("prompt_tokens", 0),
-                            completion_tokens=usage_metrics.get("completion_tokens", 0),
-                            total_tokens=usage_metrics.get("total_tokens", 0),
-                            expected_clauses_count=extraction_metrics.get(
-                                "expected_count", 0
-                            ),
-                            extracted_clauses_count=extraction_metrics.get(
-                                "extracted_count", 0
-                            ),
-                            missing_clauses=json.dumps(
-                                extraction_metrics.get("missing_clauses", {})
-                            ),
-                            confidence_score=extraction_metrics.get(
-                                "confidence_score", 0.0
-                            ),
-                        )
-                        session.add(raw_response_obj)
-                        session.commit()
-                        logger.info(
-                            f"✅ Successfully saved raw response for {page_range_str}"
-                        )
-                except Exception as db_error:
-                    logger.error(
-                        f"❌ Failed to save raw response for {page_range_str}: {str(db_error)}"
-                    )
+        logger.info(f"Stage 2 complete: {len(stage2_results)} nodes analyzed")
+        update_progress(guideline_id, "PROCESSING", 80, "Stage 3: Post-processing and saving...")
 
-                # Process extracted requirements - COLLECT BUT DON'T SAVE YET
-                if chunk_response and "extracted_requirements" in chunk_response:
-                    requirements_list = chunk_response["extracted_requirements"]
-                    logger.info(
-                        f"📝 Processing {len(requirements_list)} requirements from {page_range_str}"
-                    )
-
-                    for requirement in requirements_list:
-                        clause_text = requirement.get("clause_text", "").strip()
-                        clause_number = requirement.get("clause_number", "").strip()
-                        page_number = requirement.get("page_number", 0)
-
-                        if not clause_text:
-                            logger.warning(
-                                "Skipping requirement with empty clause text"
-                            )
-                            continue
-
-                        # Track extracted clause numbers
-                        if clause_number:
-                            all_extracted_clause_numbers.append(str(clause_number))
-
-                        logger.info(
-                            f"📄 Collected clause {clause_number} from page {page_number}"
-                        )
-
-                        # Store for later sorting - DON'T SAVE TO DB YET
-                        unsorted_clauses.append(
-                            {
-                                "clause_number": clause_number,
-                                "clause_text": clause_text,
-                                "page_number": page_number,
-                                "guideline_id": guideline_id,
-                            }
-                        )
-
-                else:
-                    logger.warning(
-                        f"No extracted_requirements found in response for {page_range_str}"
-                    )
-
-            except Exception as chunk_error:
-                logger.error(
-                    f"Error processing chunk {page_range_str}: {str(chunk_error)}"
-                )
-                continue
-
-        # AFTER PROCESSING ALL CHUNKS - NOW SORT AND SAVE ALL CLAUSES TOGETHER
-        logger.info(
-            f"📊 Processing complete. Now sorting {len(unsorted_clauses)} clauses..."
+        # --- STAGE 3: Post-processing and DB save ---
+        summary = post_process_nodes(
+            nodes=valid_nodes,
+            stage2_results=stage2_results,
+            guideline_id=guideline_id,
+            guideline_licenses=guideline_licenses,
         )
 
-        # Sort clauses using natural sorting
-        def roman_to_int(s):
-            """Convert Roman numeral string to integer for correct sorting."""
-            vals = {"i":1,"v":5,"x":10,"l":50,"c":100,"d":500,"m":1000}
-            s = s.lower()
-            result = 0
-            for idx in range(len(s)):
-                if idx+1 < len(s) and vals.get(s[idx],0) < vals.get(s[idx+1],0):
-                    result -= vals.get(s[idx], 0)
-                else:
-                    result += vals.get(s[idx], 0)
-            return result
+        logger.info(f"Stage 3 complete: {summary}")
 
-        def natural_sort_key(item):
-            text = item["clause_number"]
-            if text is None or text == "":
-                return [float("inf")]
-            # Strategy: convert entire clause_no to a comparable tuple
-            # All elements use same type to avoid str vs int comparison errors
-            # Format is always: PREFIX SECTION_ID [PART] [REG] [SUB...]
-            # e.g. CH IV 17 (1A) (a) (i)
-            # e.g. SCH II A A (4) (a)
-            key = []
-            tokens = re.split(r"\s+", str(text).strip())
-            for pos, token in enumerate(tokens):
-                if token.startswith("(") and token.endswith(")"):
-                    # Sub-clause in parentheses: (1), (a), (i), (1A), (ia)
-                    inner = token[1:-1]
-                    parts = re.findall(r"[0-9]+|[a-zA-Z]+", inner)
-                    for p in parts:
-                        if p.isdigit():
-                            key.append(("num", int(p)))
-                        else:
-                            key.append(("str", p.lower()))
-                elif token.isdigit():
-                    key.append(("num", int(token)))
-                elif pos == 1:
-                    # Section identifier position: I, II, III, IV, V, VA, VI, VII, VIII, IX, X
-                    # Always Roman numeral optionally followed by alpha suffix
-                    roman_match = re.match(r"^([IVXivx]+)([A-Za-z]*)$", token)
-                    if roman_match and token.upper() not in ("CH", "SCH", "ANN"):
-                        roman_part = roman_match.group(1)
-                        suffix_part = roman_match.group(2)
-                        key.append(("num", roman_to_int(roman_part)))
-                        if suffix_part:
-                            key.append(("str", suffix_part.lower()))
-                    else:
-                        key.append(("str", token.lower()))
-                else:
-                    # Other: CH, SCH, ANN, A, B, 62I, 2A etc
-                    parts = re.findall(r"[0-9]+|[a-zA-Z]+", token)
-                    for p in parts:
-                        if p.isdigit():
-                            key.append(("num", int(p)))
-                        else:
-                            key.append(("str", p.lower()))
-            return key
-
-        sorted_clauses = sorted(unsorted_clauses, key=natural_sort_key)
-
-        logger.info(
-            f"✅ Sorting complete. Saving {len(sorted_clauses)} clauses to database..."
-        )
-
-        # Save sorted clauses
-        with session_scope() as session:
-            for clause_data in sorted_clauses:
-                clause_number = clause_data["clause_number"]
-                clause_text = clause_data["clause_text"]
-                guideline_id = clause_data["guideline_id"]
-
-                # Check for duplicates by text
-                existing_clause = (
-                    session.query(Clauses)
-                    .filter_by(guideline_id=guideline_id, clause_text=clause_text)
-                    .first()
-                )
-
-                if existing_clause:
-                    logger.info(f"Skipping duplicate clause text: {clause_number}")
-                    continue
-
-                # Check for duplicates by clause number
-                if clause_number:
-                    existing_by_number = (
-                        session.query(Clauses)
-                        .filter_by(
-                            guideline_id=guideline_id,
-                            clause_no=clause_number[:500] if clause_number else None,
-                        )
-                        .first()
-                    )
-
-                    if existing_by_number:
-                        logger.info(
-                            f"Skipping duplicate clause number: {clause_number}"
-                        )
-                        continue
-
-                # Save new clause
-                clause_obj = Clauses(
-                    clause_no=clause_number[:500] if clause_number else None,
-                    clause_text=clause_text,
-                    guideline_id=guideline_id,
-                    page_number=clause_data["page_number"],
-                )
-                session.add(clause_obj)
-                session.flush()
-                saved_clauses.append(clause_obj.id)
-                logger.info(f"✅ Saved clause: {clause_number}")
-
-        # Final analysis
-        analyze_overall_missing_data(guideline_id, all_extracted_clause_numbers)
-
-        # Update final progress
-        update_progress(
-            guideline_id,
-            "COMPLETED",
-            100,
-            f"Clause extraction completed successfully! Saved {len(saved_clauses)} clauses.",
-            len(saved_clauses),
-        )
-
-        logger.info(
-            f"✅ Clause extraction completed for guideline {guideline_id}. Saved {len(saved_clauses)} clauses in correct numerical order."
-        )
-
-        # Auto-trigger activities generation for all saved clauses
+        # Auto-trigger activities for OBLIGATION/PRINCIPLE/MIXED clauses only
         try:
-            triggered_count = 0
-            for clause_id in saved_clauses:
+            with session_scope() as session:
+                eligible_clauses = session.query(Clauses).filter(
+                    Clauses.guideline_id == guideline_id,
+                    Clauses.clause_type.in_(["OBLIGATION", "PRINCIPLE", "MIXED"]),
+                    Clauses.extraction_status != "FLAGGED",
+                ).all()
+                eligible_ids = [c.id for c in eligible_clauses]
+
+            triggered = 0
+            for clause_id in eligible_ids:
                 extract_activities.apply_async(
                     args=[clause_id],
-                    queue='extract_activities'
+                    queue="extract_activities"
                 )
-                triggered_count += 1
-            logger.info(f"[AUTO] Triggered activities generation for {triggered_count} clauses")
+                triggered += 1
+            logger.info(f"Auto-triggered activities for {triggered} eligible clauses")
         except Exception as trigger_err:
-            logger.warning(f"[AUTO] Could not trigger activities: {trigger_err}")
+            logger.warning(f"Could not auto-trigger activities: {trigger_err}")
+
+        update_progress(
+            guideline_id, "COMPLETED", 100,
+            f"Extraction complete. Saved {summary['saved']} clauses, {summary['flagged']} flagged.",
+            summary["saved"],
+        )
 
         return {
             "status": "success",
             "guideline_id": guideline_id,
-            "clauses_saved": saved_clauses,
-            "total_extracted_clauses": len(all_extracted_clause_numbers),
+            "stage1_nodes": stats["total_nodes"],
+            "stage1_issues": len(parse_issues),
+            "stage2_analyzed": len(stage2_results),
+            "saved": summary["saved"],
+            "flagged": summary["flagged"],
+            "duplicate_issues": len(summary["duplicate_issues"]),
         }
 
     except Exception as e:
-        logger.exception(f"Clause extraction failed for guideline {guideline_id}")
+        logger.exception(f"extract_clauses failed for guideline {guideline_id}")
+        update_progress(guideline_id, "FAILED", 0, f"Extraction failed: {str(e)}")
         self.update_state(
-            state="FAILURE", meta={"exc_type": type(e).__name__, "exc_message": str(e)}
+            state="FAILURE",
+            meta={"exc_type": type(e).__name__, "exc_message": str(e)},
         )
         raise
-
-
-# ---------- Step 3: Extract Activities for a Clause ----------
 
 
 @shared_task(bind=True)
