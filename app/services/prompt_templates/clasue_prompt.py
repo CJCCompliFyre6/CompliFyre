@@ -501,6 +501,9 @@ def clause_prompt_def(page_range: str | None = None) -> str:
   <Instruction number="4">Avoid duplicates. Ensure each extracted clause is unique and not repeated.</Instruction>
   <Instruction number="5">Arrange in ascending order. Make sure the final output is sorted by clause_number.</Instruction>
   <MandatoryRequirement>COMPLETENESS IS MANDATORY: You MUST extract ALL regulatory requirements— no omissions.</MandatoryRequirement>
+  <MandatoryRequirement>DENSE PAGES: Some pages have heavy footnotes at the bottom. These footnotes are NOT clauses. The actual regulatory requirements are in the main body text. Do NOT skip any clause just because the page has many footnotes.</MandatoryRequirement>
+  <MandatoryRequirement>SEQUENTIAL COMPLETENESS: You are processing a CHUNK of pages. Extract EVERY clause in this chunk — do not skip middle sections. If a regulation has sub-clauses (1),(2),(3) or (a),(b),(c), extract ALL of them — not just the first few.</MandatoryRequirement>
+  <MandatoryRequirement>CROSS-PAGE CONTINUITY: A regulation that starts on one page and continues on the next must be extracted as complete clauses. Do not stop at the page boundary.</MandatoryRequirement>
   <MandatoryRequirement>If the Clause has big text do not break into sub clauses return the whole text.</MandatoryRequirement>
   <Example>Given the clause is "Derogating from the prohibition on processing special categories of personal data should also be allowed when
 provided for in Union or Member State law and subject to suitable safeguards, so as to protect personal data and

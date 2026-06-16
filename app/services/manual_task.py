@@ -120,11 +120,12 @@ def _ci_get(d: dict, key: str, default: Any = None) -> Any:
 
 
 def _get_dynamic_chunk_size(total_pages: int) -> int:
+    """Smaller chunks ensure LLM does not miss clauses in dense pages."""
     if total_pages <= 10:
-        return 10
+        return 5
     if total_pages <= 50:
-        return 8
-    return 10
+        return 5
+    return 5  # Always 5 pages max for accuracy
 
 
 def clean_markdown_text(text: str) -> str:
@@ -1731,7 +1732,7 @@ def extract_clauses(self, guideline_id: int):
         update_progress(guideline_id, "PROCESSING", 70, "Sending to AI for analysis...")
 
         # Process in chunks (similar to app.py but using actual pages)
-        page_chunk_size = min(10, total_pages)  # Process 10 pages at a time max
+        page_chunk_size = min(_get_dynamic_chunk_size(total_pages), total_pages)
         if total_pages <= 5:
             page_chunk_size = total_pages
 
