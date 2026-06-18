@@ -1201,6 +1201,39 @@ Activities will be generated in background.`);
 
 
 
+        <!-- Clause Type Filter Toggle -->
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <span class="text-sm font-medium text-gray-600">Show:</span>
+            <button onclick="setClauseFilter('obligations')" id="filter-obligations"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-orange-500 text-white">
+                Obligations
+            </button>
+            <button onclick="setClauseFilter('all')" id="filter-all"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                All Types
+            </button>
+            <button onclick="setClauseFilter('DEFINITION')" id="filter-DEFINITION"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                Definitions
+            </button>
+            <button onclick="setClauseFilter('APPLICABILITY')" id="filter-APPLICABILITY"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                Applicability
+            </button>
+            <button onclick="setClauseFilter('EXEMPTION')" id="filter-EXEMPTION"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                Exemptions
+            </button>
+            <button onclick="setClauseFilter('REFERENCE')" id="filter-REFERENCE"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                Reference
+            </button>
+            <button onclick="setClauseFilter('FLAGGED')" id="filter-FLAGGED"
+                class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                Flagged
+            </button>
+            <span class="ml-2 text-xs text-gray-400" id="clause-count-label"></span>
+        </div>
         <table id="guidelinesTable" class="w-full">
             <thead class="bg-gray-50 border-b-2 border-gray-200">
                 <tr>
@@ -1212,6 +1245,7 @@ Activities will be generated in background.`);
                     </th>
                     {%endif%}
                     <th class="p-3 text-lg font-semibold tracking-wide text-left">Status</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Type</th>
                     <th class="p-3 text-lg font-semibold tracking-wide text-left">Clause Number</th>
                     <th class="p-3 text-lg font-semibold tracking-wide text-left">Clause Text</th>
                     <th class="p-3 text-lg font-semibold tracking-wide text-center">Actions</th>
@@ -1219,7 +1253,9 @@ Activities will be generated in background.`);
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for clause in clause_data %}
-                <tr class="bg-white">
+                <tr class="bg-white clause-row"
+                    data-clause-type="{{ clause.clause_type or 'OBLIGATION' }}"
+                    data-extraction-status="{{ clause.extraction_status or 'EXTRACTED' }}">
                     {%if current_user.is_authenticated and current_user.role.name == "COMPLIFYRE"%}
 
                     <td class="p-3 text-center">
@@ -1242,6 +1278,29 @@ Activities will be generated in background.`);
                             </span>
                             {% endif %}
                         </div>
+                    </td>
+                    <td class="p-3">
+                        {% set ct = clause.clause_type or 'OBLIGATION' %}
+                        {% if ct == 'OBLIGATION' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Obligation</span>
+                        {% elif ct == 'PRINCIPLE' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Principle</span>
+                        {% elif ct == 'MIXED' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">Mixed</span>
+                        {% elif ct == 'DEFINITION' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">Definition</span>
+                        {% elif ct == 'APPLICABILITY' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">Applicability</span>
+                        {% elif ct == 'EXEMPTION' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">Exemption</span>
+                        {% elif ct == 'REFERENCE' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-400">Reference</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">{{ ct }}</span>
+                        {% endif %}
+                        {% if clause.extraction_status == 'FLAGGED' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 ml-1">⚑ Flagged</span>
+                        {% endif %}
                     </td>
                     <td class="p-3 text-lg text-gray-700 whitespace-nowrap">
                         <div id="clause-number-{{ clause.id }}" class="inline-editable flex items-center">
@@ -2866,6 +2925,54 @@ Are you sure you want to continue?`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 5000);
         }
+
+        // Clause type filter
+        const OBLIGATION_TYPES = ['OBLIGATION', 'PRINCIPLE', 'MIXED'];
+
+        function setClauseFilter(filter) {
+            // Update button styles
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-orange-500', 'text-white', 'bg-red-500');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            const activeBtn = document.getElementById('filter-' + filter);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                if (filter === 'FLAGGED') {
+                    activeBtn.classList.add('bg-red-500', 'text-white');
+                } else {
+                    activeBtn.classList.add('bg-orange-500', 'text-white');
+                }
+            }
+
+            // Filter rows
+            const rows = document.querySelectorAll('.clause-row');
+            let visible = 0;
+            rows.forEach(row => {
+                const ct = row.dataset.clauseType || 'OBLIGATION';
+                const status = row.dataset.extractionStatus || 'EXTRACTED';
+                let show = false;
+                if (filter === 'all') {
+                    show = true;
+                } else if (filter === 'obligations') {
+                    show = OBLIGATION_TYPES.includes(ct);
+                } else if (filter === 'FLAGGED') {
+                    show = status === 'FLAGGED';
+                } else {
+                    show = ct === filter;
+                }
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            const label = document.getElementById('clause-count-label');
+            if (label) label.textContent = visible + ' clause' + (visible !== 1 ? 's' : '');
+        }
+
+        // Apply default filter on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setClauseFilter('obligations');
+        });
+
     </script>
 
 

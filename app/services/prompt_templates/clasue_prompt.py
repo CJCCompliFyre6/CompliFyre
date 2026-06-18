@@ -611,10 +611,12 @@ Choose ONE:
 - DEFINITION: only defines a term ("X means...", "For the purpose of...X shall mean...") — no obligation
 - APPLICABILITY: only specifies who a regulation applies to — no direct obligation imposed
 - EXEMPTION: specifies who is excluded from a requirement ("shall not apply to...")
+- REFERENCE: historical circular references, appendix rows, amendment lists, or any content that is purely a reference to another document/circular with no regulatory requirement of its own
 
 IMPORTANT — EMBEDDED OBLIGATION RULE:
 If a definition clause contains language like "shall ensure", "shall maintain", "is required to" — classify as MIXED, not DEFINITION.
 If an applicability clause says "shall comply with regulations X to Y" — classify as MIXED, not APPLICABILITY.
+If content is a list of historical circulars, amendment references, or rows from an appendix with circular numbers and dates — classify as REFERENCE regardless of any other content.
 
 Q2 — MERGE DECISION
 Should this clause stand alone or be merged into its parent clause?
@@ -658,7 +660,7 @@ OUTPUT FORMAT — return ONLY valid JSON, no explanation, no markdown:
 
 {{
   "clause_no": "{node.get('clause_no', '')}",
-  "clause_type": "OBLIGATION|PRINCIPLE|MIXED|DEFINITION|APPLICABILITY|EXEMPTION",
+  "clause_type": "OBLIGATION|PRINCIPLE|MIXED|DEFINITION|APPLICABILITY|EXEMPTION|REFERENCE",
   "merge_decision": "STANDALONE|MERGE_PARENT",
   "merge_reason": "brief reason for merge decision",
   "applicable_to": "INHERITS|SPECIFIC|UNKNOWN",

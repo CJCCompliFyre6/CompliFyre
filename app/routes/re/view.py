@@ -2476,6 +2476,7 @@ def get_clause():
         # Sort clauses using natural sorting
         sorted_clauses = sorted(clauses, key=natural_sort_key)
         clause_data = sorted_clauses
+        clause_type_filter = request.args.get("clause_type_filter", "obligations")
 
         consolidated_evidence = None
         if guideline_id:
@@ -2503,6 +2504,7 @@ def get_clause():
             guideline=guideline,
             guideline_name=guideline_name,
             consolidated_evidence=consolidated_evidence,
+            clause_type_filter=clause_type_filter,
             now=datetime.now(),
         )
     except Exception as err:
