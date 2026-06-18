@@ -31,7 +31,7 @@ PATTERNS = {
     'cross_ref_tag':        re.compile(r'\[See\s+[^\]]+\]', re.IGNORECASE),
     'page_number':          re.compile(r'^\s*\d{1,4}\s*$'),
     'gazette_header':       re.compile(r'^(GAZETTE OF INDIA|EXTRAORDINARY|PUBLISHED BY AUTHORITY|THE GAZETTE)', re.IGNORECASE),
-    'appendix':             re.compile(r'^(APPENDIX|Appendix|LIST OF CIRCULARS|List of Circulars)', re.IGNORECASE),
+    'appendix':             re.compile(r'^(APPENDIX|Appendix|LIST OF CIRCULARS|List of Circulars|SCHEDULE X|Schedule X)', re.IGNORECASE),
     'superscript':          re.compile(r'(?<=\w)\s+\d+(?=\s+[a-z\(\[])'),
 }
 
@@ -118,6 +118,12 @@ def strip_page_noise(page_text):
         if PATTERNS['gazette_header'].match(stripped):
             continue
         if PATTERNS['footnote_block'].match(stripped):
+            in_footnote_block = True
+        if re.match(r'^\d+\.?\s+The words?\s+', stripped, re.IGNORECASE):
+            in_footnote_block = True
+        if re.match(r'^\d+\.?\s+Omitted by the', stripped, re.IGNORECASE):
+            in_footnote_block = True
+        if re.match(r'^\d+\.?\s+Words\s+', stripped, re.IGNORECASE):
             in_footnote_block = True
         if in_footnote_block:
             continue
@@ -372,8 +378,15 @@ def validate_nodes(nodes):
         if not node.get('clause_no'):
             issues.append(f"Missing clause_no: {node.get('raw_text','')[:50]}")
             continue
-        if not node.get('raw_text', '').strip():
+        text = node.get('raw_text', '').strip()
+        if not text:
             issues.append(f"Empty text: {node['clause_no']}")
+            continue
+        if len(text) < 10:
+            issues.append(f"Too short/omitted: {node['clause_no']} = {repr(text)}")
+            continue
+        if re.match(r'^[\*\s\d]+$', text):
+            issues.append(f"Junk text: {node['clause_no']} = {repr(text)}")
             continue
         if node['clause_no'] in seen:
             issues.append(f"Duplicate clause_no: {node['clause_no']} (pages {seen[node['clause_no']]} and {node['page_number']})")
