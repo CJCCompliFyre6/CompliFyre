@@ -31,7 +31,7 @@ PATTERNS = {
     'cross_ref_tag':        re.compile(r'\[See\s+[^\]]+\]', re.IGNORECASE),
     'page_number':          re.compile(r'^\s*\d{1,4}\s*$'),
     'gazette_header':       re.compile(r'^(GAZETTE OF INDIA|EXTRAORDINARY|PUBLISHED BY AUTHORITY|THE GAZETTE)', re.IGNORECASE),
-    'appendix':             re.compile(r'^(APPENDIX|Appendix|LIST OF CIRCULARS|List of Circulars|SCHEDULE X|Schedule X)', re.IGNORECASE),
+    'appendix':             re.compile(r'^(APPENDIX|Appendix|LIST OF CIRCULARS|List of Circulars)', re.IGNORECASE),
     'superscript':          re.compile(r'(?<=\w)\s+\d+(?=\s+[a-z\(\[])'),
 }
 
@@ -119,12 +119,6 @@ def strip_page_noise(page_text):
             continue
         if PATTERNS['footnote_block'].match(stripped):
             in_footnote_block = True
-        if re.match(r'^\d+\.?\s+The words?\s+', stripped, re.IGNORECASE):
-            in_footnote_block = True
-        if re.match(r'^\d+\.?\s+Omitted by the', stripped, re.IGNORECASE):
-            in_footnote_block = True
-        if re.match(r'^\d+\.?\s+Words\s+', stripped, re.IGNORECASE):
-            in_footnote_block = True
         if in_footnote_block:
             continue
         cleaned.append(line)
@@ -176,7 +170,35 @@ def extract_table_clauses(page, page_num, position):
     return nodes
 
 
-def parse_pdf_structure(file_path):
+
+def get_page_section(page_num, structure_map):
+    """Look up which section a page belongs to from structure map."""
+    if not structure_map or not structure_map.get("sections"):
+        return None
+    for section in structure_map["sections"]:
+        start = section.get("start_page", 0)
+        end = section.get("end_page", 99999)
+        if start <= page_num <= end:
+            return section
+    return None
+
+
+def build_prefix_from_section(section):
+    """Build clause_no prefix from structure map section."""
+    if not section:
+        return None
+    sec_type = section.get("type", "").lower()
+    sec_id = section.get("id", "")
+    if sec_type == "chapter":
+        return f"CH {sec_id}"
+    elif sec_type == "schedule":
+        return f"SCH {sec_id}"
+    elif sec_type == "annexure":
+        return f"ANN {sec_id}"
+    return None
+
+
+def parse_pdf_structure(file_path, structure_map=None):
     logger.info(f"Stage 1: Parsing {file_path}")
     nodes = []
     position = empty_position()
@@ -221,17 +243,53 @@ def parse_pdf_structure(file_path):
         buf_depth = depth
         buf_text[:] = [first_text] if first_text.strip() else []
 
+    # Track last known section from structure map to detect changes
+    last_section_id = None
+
     try:
         for page_num in range(total_pages):
             if skip_to_end:
                 continue
             fitz_page = pdf_fitz[page_num]
             raw_text = fitz_page.get_text()
-            if PATTERNS['appendix'].search(raw_text[:500]):
-                logger.info(f"Stage 1: Appendix at page {page_num+1} — stopping")
-                skip_to_end = True
-                flush()
-                continue
+
+            # --- STRUCTURE MAP MODE ---
+            if structure_map:
+                section = get_page_section(page_num + 1, structure_map)
+
+                # Skip pages not in any section or marked extract:false
+                if not section:
+                    continue
+                if not section.get("extract", True):
+                    continue
+
+                # If section changed — reset position and set new context from map
+                section_id = f"{section.get('type')}_{section.get('id')}"
+                if section_id != last_section_id:
+                    flush()
+                    position = empty_position()
+                    sec_type = section.get("type", "").lower()
+                    sec_id = section.get("id", "")
+                    if sec_type == "chapter":
+                        position["chapter"] = sec_id
+                        position["current_section"] = "chapter"
+                    elif sec_type == "schedule":
+                        position["schedule"] = sec_id
+                        position["current_section"] = "schedule"
+                    elif sec_type == "annexure":
+                        position["annexure"] = sec_id
+                        position["current_section"] = "annexure"
+                    last_section_id = section_id
+                    logger.debug(f"Stage 1: Page {page_num+1} → {section_id}")
+
+            # --- REGEX FALLBACK MODE (no structure map) ---
+            else:
+                if PATTERNS['appendix'].search(raw_text[:500]):
+                    logger.info(f"Stage 1: Appendix at page {page_num+1} — stopping")
+                    skip_to_end = True
+                    flush()
+                    continue
+
             clean_text = strip_page_noise(raw_text)
             plumber_page = pdf_plumber.pages[page_num]
             has_tables = bool(plumber_page.extract_tables())
@@ -243,25 +301,29 @@ def parse_pdf_structure(file_path):
                 stripped = line.strip()
                 if not stripped:
                     continue
-                m = PATTERNS['chapter'].match(stripped)
-                if m:
-                    flush(); position = empty_position()
-                    position['chapter'] = m.group(2); position['current_section'] = 'chapter'
-                    continue
-                m = PATTERNS['schedule'].match(stripped)
-                if m:
-                    flush(); position = empty_position()
-                    position['schedule'] = m.group(2); position['current_section'] = 'schedule'
-                    continue
-                m = PATTERNS['annexure'].match(stripped)
-                if m:
-                    flush(); position = empty_position()
-                    position['annexure'] = m.group(2); position['current_section'] = 'annexure'
-                    continue
-                m = PATTERNS['part'].match(stripped)
-                if m and position['current_section'] == 'schedule':
-                    flush(); position['part'] = m.group(2)
-                    position = reset_below(position, 'regulation'); continue
+
+                # Section detection — only in regex fallback mode
+                if not structure_map:
+                    m = PATTERNS['chapter'].match(stripped)
+                    if m:
+                        flush(); position = empty_position()
+                        position['chapter'] = m.group(2); position['current_section'] = 'chapter'
+                        continue
+                    m = PATTERNS['schedule'].match(stripped)
+                    if m:
+                        flush(); position = empty_position()
+                        position['schedule'] = m.group(2); position['current_section'] = 'schedule'
+                        continue
+                    m = PATTERNS['annexure'].match(stripped)
+                    if m:
+                        flush(); position = empty_position()
+                        position['annexure'] = m.group(2); position['current_section'] = 'annexure'
+                        continue
+                    m = PATTERNS['part'].match(stripped)
+                    if m and position['current_section'] == 'schedule':
+                        flush(); position['part'] = m.group(2)
+                        position = reset_below(position, 'regulation'); continue
+
                 if not position['current_section']:
                     continue
                 m = PATTERNS['regulation_solo'].match(line)

@@ -1693,6 +1693,69 @@ def _create_fallback_guideline(pdf_text: str):
 # ---------- Step 2: Extract Clauses for a Guideline ----------
 
 
+
+def generate_structure_map(file_path: str, guideline_id: int, regulator_name: str = "Unknown") -> dict:
+    """
+    Stage 1A: Generate document structure map using LLM.
+    Reads first line of each page + first 3 pages full text.
+    Returns structure map dict and saves to guidelines.structure_map in DB.
+    """
+    import json as _json
+    from app.services.prompt_templates.clasue_prompt import stage1a_structure_map_prompt
+
+    logger.info(f"Stage 1A: Generating structure map for {file_path}")
+
+    try:
+        pdf = fitz.open(file_path)
+        total_pages = len(pdf)
+
+        # Collect first line of each page
+        first_lines = []
+        for page_num in range(total_pages):
+            text = pdf[page_num].get_text()
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            first_line = lines[0] if lines else ""
+            first_lines.append((page_num + 1, first_line))
+
+        # Full text of first 3 pages for TOC
+        toc_text = ""
+        for page_num in range(min(3, total_pages)):
+            toc_text += pdf[page_num].get_text() + "\n"
+
+        pdf.close()
+
+        # Build prompt
+        prompt = stage1a_structure_map_prompt(first_lines, toc_text, regulator_name)
+
+        # Call LLM
+        client = get_llm_service()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        structure_map = _json.loads(result_text)
+        structure_map["total_pages"] = total_pages
+
+        # Save to DB
+        with session_scope() as session:
+            guideline = session.query(Guidelines).filter_by(id=guideline_id).first()
+            if guideline:
+                guideline.structure_map = structure_map
+                session.commit()
+                logger.info(f"Stage 1A: Structure map saved for guideline {guideline_id}")
+
+        logger.info(f"Stage 1A: {len(structure_map.get('sections', []))} sections detected")
+        return structure_map
+
+    except Exception as e:
+        logger.error(f"Stage 1A: Failed to generate structure map: {e}")
+        raise
+
+
 @shared_task(bind=True)
 def extract_clauses(self, guideline_id: int):
     """
@@ -1722,12 +1785,37 @@ def extract_clauses(self, guideline_id: int):
                 raise ValueError("File record not found")
             file_path = file_record.path
             guideline_licenses = guideline.applicable_licenses or []
+            # Get regulator name for structure map
+            guideline_data = guideline.guideline_data or {}
+            regulator_name = guideline_data.get("Regulator", "Unknown")
+            # Check if structure map already confirmed by user
+            existing_structure_map = guideline.structure_map
 
-        # --- STAGE 1: Algorithmic structure parsing ---
-        update_progress(guideline_id, "PROCESSING", 20, "Stage 1: Parsing document structure...")
-        logger.info(f"Stage 1 starting for guideline {guideline_id}")
+        # --- STAGE 1A: Generate structure map if not already confirmed ---
+        if existing_structure_map and existing_structure_map.get("confirmed"):
+            structure_map = existing_structure_map
+            logger.info(f"Stage 1A: Using pre-confirmed structure map for guideline {guideline_id}")
+            update_progress(guideline_id, "PROCESSING", 15,
+                          f"Using confirmed structure map: {len(structure_map.get('sections', []))} sections...")
+        else:
+            update_progress(guideline_id, "PROCESSING", 10, "Stage 1A: Generating document structure map...")
+            logger.info(f"Stage 1A starting for guideline {guideline_id}")
+            structure_map = generate_structure_map(file_path, guideline_id, regulator_name)
+            logger.info(f"Stage 1A complete: {len(structure_map.get('sections', []))} sections detected")
+            update_progress(guideline_id, "AWAITING_CONFIRMATION", 15,
+                          "Structure map generated. Please review and confirm before extraction continues.")
+            logger.info(f"Stage 1A: Awaiting human confirmation for guideline {guideline_id}")
+            return {
+                "status": "awaiting_confirmation",
+                "guideline_id": guideline_id,
+                "structure_map": structure_map,
+                "message": "Structure map generated. Please review and confirm to proceed."
+            }
 
-        raw_nodes = parse_pdf_structure(file_path)
+        # --- STAGE 1B: Algorithmic structure parsing using confirmed map ---
+        update_progress(guideline_id, "PROCESSING", 20, "Stage 1B: Parsing document structure...")
+        logger.info(f"Stage 1B starting for guideline {guideline_id}")
+        raw_nodes = parse_pdf_structure(file_path, structure_map=structure_map)
         valid_nodes, parse_issues = validate_nodes(raw_nodes)
         stats = get_parser_stats(valid_nodes)
 

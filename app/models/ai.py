@@ -185,6 +185,7 @@ class Guidelines(db.Model):
         db.Boolean, nullable=False, default=True, server_default=sa.true()
     )
     applicable_licenses = db.Column(db.JSON, nullable=True)
+    structure_map = db.Column(db.JSON, nullable=True)
     regulator_body_id = db.Column(
         db.BigInteger,
         db.ForeignKey('"RegulatoryBodies".body_id'),

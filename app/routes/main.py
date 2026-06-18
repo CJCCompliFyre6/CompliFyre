@@ -1092,31 +1092,109 @@ def get_redis_connection():
 @main_bp.route("/extract-clauses/<int:guideline_id>", methods=["GET"])
 def extract_clauses_route(guideline_id):
     """
-    Trigger clause extraction for a given guideline and redirect back to the referring page.
+    Trigger clause extraction. If structure map confirmed — start directly.
+    If not — redirect to structure map verification screen first.
     """
     try:
         if not guideline_id:
             flash("Invalid guideline ID", "error")
             return redirect(request.referrer)
 
-        # Check if clauses already exist for this guideline
-        existing_clauses = Clauses.query.filter_by(guideline_id=guideline_id).first()
-        if existing_clauses:
-            flash(
-                "Clauses already exist for this guideline. Running extraction will add new clauses only.",
-                "warning",
-            )
+        guideline = Guidelines.query.get(guideline_id)
+        if not guideline:
+            flash("Guideline not found", "error")
+            return redirect(request.referrer)
 
-        task = extract_clauses.delay(guideline_id)
-        flash("Clause extraction started. Refresh page after 5 mins", "success")
-        return redirect(request.referrer)
+        existing_map = guideline.structure_map
+        if existing_map and existing_map.get("confirmed"):
+            existing_clauses = Clauses.query.filter_by(guideline_id=guideline_id).first()
+            if existing_clauses:
+                flash("Clauses already exist. Running extraction will add new clauses only.", "warning")
+            task = extract_clauses.delay(guideline_id)
+            flash("Clause extraction started. Refresh page after a few minutes.", "success")
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for("main.structure_map_review", guideline_id=guideline_id))
 
     except Exception as e:
         flash(f"Unexpected server error: {str(e)}", "error")
         return redirect(request.referrer)
 
 
-# Add this temporary test route
+@main_bp.route("/structure-map/<int:guideline_id>", methods=["GET"])
+def structure_map_review(guideline_id):
+    """Show structure map verification screen."""
+    try:
+        guideline = Guidelines.query.get(guideline_id)
+        if not guideline:
+            flash("Guideline not found", "error")
+            return redirect(url_for("main.index"))
+
+        guideline_data = guideline.guideline_data or {}
+        guideline_name = guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+        regulator_name = guideline_data.get("Regulator", "Unknown")
+
+        existing_map = guideline.structure_map
+        if not existing_map:
+            from app.services.manual_task import generate_structure_map
+            file_record = guideline.file
+            if not file_record:
+                flash("No file found for this guideline", "error")
+                return redirect(url_for("main.index"))
+            structure_map = generate_structure_map(file_record.path, guideline_id, regulator_name)
+        else:
+            structure_map = existing_map
+
+        return render_template(
+            "structure_map_review.html",
+            guideline_id=guideline_id,
+            guideline_name=guideline_name,
+            structure_map=structure_map,
+        )
+    except Exception as e:
+        logger.error(f"Error in structure_map_review: {e}")
+        flash(f"Error generating structure map: {str(e)}", "error")
+        return redirect(url_for("main.index"))
+
+
+@main_bp.route("/confirm-structure-map/<int:guideline_id>", methods=["POST"])
+def confirm_structure_map(guideline_id):
+    """Save confirmed structure map and trigger extraction."""
+    try:
+        guideline = Guidelines.query.get(guideline_id)
+        if not guideline:
+            return jsonify({"status": "error", "message": "Guideline not found"}), 404
+
+        data = request.get_json()
+        if not data or "sections" not in data:
+            return jsonify({"status": "error", "message": "Invalid structure map data"}), 400
+
+        confirmed_map = data
+        confirmed_map["confirmed"] = True
+        guideline.structure_map = confirmed_map
+        db.session.commit()
+
+        # Delete existing clauses if any
+        existing_clauses = Clauses.query.filter_by(guideline_id=guideline_id).all()
+        if existing_clauses:
+            for clause in existing_clauses:
+                ComplianceActivities.query.filter_by(clause_id=clause.id).delete()
+                db.session.delete(clause)
+            db.session.commit()
+
+        task = extract_clauses.delay(guideline_id)
+        return jsonify({
+            "status": "success",
+            "message": "Structure map confirmed. Extraction started.",
+            "task_id": task.id,
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error confirming structure map: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @main_bp.route("/test-raw-model")
 def test_raw_model():
     """Test if RawLLMResponse model can save data"""

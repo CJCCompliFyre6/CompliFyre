@@ -1,0 +1,186 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<div class="max-w-5xl mx-auto p-6">
+
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Document Structure Review</h1>
+        <p class="text-gray-500 mt-1">{{ guideline_name }}</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="mb-4 p-3 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <p class="text-sm text-blue-800">
+            <strong>Please review the document structure below before starting extraction.</strong>
+            The AI has identified the following sections. You can toggle extraction on/off for each section,
+            and edit page ranges if needed. Click <strong>Confirm & Start Extraction</strong> when ready.
+        </p>
+        {% if structure_map.get('confidence') == 'low' or structure_map.get('flags') %}
+        <div class="mt-2 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
+            ⚠️ <strong>Review carefully:</strong>
+            {% if structure_map.get('confidence') == 'low' %}Structure confidence is LOW.{% endif %}
+            {% for flag in structure_map.get('flags', []) %}{{ flag }}{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Structure Map Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="p-3 text-left font-semibold text-gray-700">Section</th>
+                    <th class="p-3 text-left font-semibold text-gray-700">Label</th>
+                    <th class="p-3 text-left font-semibold text-gray-700">Pages</th>
+                    <th class="p-3 text-left font-semibold text-gray-700">Regulations</th>
+                    <th class="p-3 text-center font-semibold text-gray-700">Extract?</th>
+                    <th class="p-3 text-left font-semibold text-gray-700">Reason (if excluded)</th>
+                </tr>
+            </thead>
+            <tbody id="sectionsTable" class="divide-y divide-gray-100">
+                {% for section in structure_map.get('sections', []) %}
+                <tr class="section-row" data-index="{{ loop.index0 }}">
+                    <td class="p-3 font-medium text-gray-800">
+                        {{ section.type | capitalize }} {{ section.id }}
+                    </td>
+                    <td class="p-3 text-gray-600">{{ section.get('label', '') }}</td>
+                    <td class="p-3">
+                        <input type="number" value="{{ section.get('start_page', '') }}"
+                            class="start-page w-16 border border-gray-300 rounded px-1 py-0.5 text-xs mr-1"
+                            min="1">
+                        <span class="text-gray-400">to</span>
+                        <input type="number" value="{{ section.get('end_page', '') }}"
+                            class="end-page w-16 border border-gray-300 rounded px-1 py-0.5 text-xs ml-1"
+                            min="1">
+                    </td>
+                    <td class="p-3 text-gray-500 text-xs">
+                        {% if section.get('regulation_range') %}
+                            Reg {{ section.regulation_range.get('from', '?') }}
+                            to {{ section.regulation_range.get('to', '?') }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-center">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="extract-toggle sr-only"
+                                {% if section.get('extract', True) %}checked{% endif %}>
+                            <div class="toggle-bg w-10 h-5 bg-gray-300 rounded-full peer
+                                peer-checked:bg-orange-500 transition-colors duration-200 relative">
+                                <div class="toggle-dot absolute top-0.5 left-0.5 w-4 h-4 bg-white
+                                    rounded-full transition-transform duration-200
+                                    peer-checked:translate-x-5"></div>
+                            </div>
+                        </label>
+                    </td>
+                    <td class="p-3 text-xs text-gray-400">
+                        {{ section.get('exclude_reason', '') or '' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="flex items-center gap-4">
+        <button onclick="confirmAndExtract()"
+            class="px-6 py-2 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600
+                   focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
+            ✅ Confirm & Start Extraction
+        </button>
+        <button onclick="resetMap()"
+            class="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300
+                   focus:outline-none transition-all">
+            🔄 Regenerate Structure Map
+        </button>
+        <a href="javascript:history.back()"
+            class="px-4 py-2 text-gray-500 hover:text-gray-700 transition-all">
+            Cancel
+        </a>
+        <span id="status-msg" class="text-sm text-gray-500"></span>
+    </div>
+</div>
+
+<style>
+.extract-toggle:checked ~ .toggle-bg { background-color: #f97316; }
+.extract-toggle:checked ~ .toggle-bg .toggle-dot { transform: translateX(20px); }
+</style>
+
+<script>
+const originalMap = {{ structure_map | tojson }};
+const guidelineId = {{ guideline_id }};
+
+function buildCurrentMap() {
+    const rows = document.querySelectorAll('.section-row');
+    const sections = [];
+    originalMap.sections.forEach((section, idx) => {
+        const row = document.querySelector(`.section-row[data-index="${idx}"]`);
+        if (!row) return;
+        const startPage = parseInt(row.querySelector('.start-page').value) || section.start_page;
+        const endPage = parseInt(row.querySelector('.end-page').value) || section.end_page;
+        const extract = row.querySelector('.extract-toggle').checked;
+        sections.push({
+            ...section,
+            start_page: startPage,
+            end_page: endPage,
+            extract: extract,
+        });
+    });
+    return {
+        ...originalMap,
+        sections: sections,
+    };
+}
+
+async function confirmAndExtract() {
+    const btn = document.querySelector('button[onclick="confirmAndExtract()"]');
+    btn.disabled = true;
+    btn.textContent = '⏳ Starting extraction...';
+    document.getElementById('status-msg').textContent = 'Saving structure map and triggering extraction...';
+
+    const map = buildCurrentMap();
+
+    try {
+        const resp = await fetch(`/confirm-structure-map/${guidelineId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(map),
+        });
+        const data = await resp.json();
+        if (data.status === 'success') {
+            document.getElementById('status-msg').textContent = '✅ Extraction started! Redirecting...';
+            setTimeout(() => {
+                window.location.href = `/re/clause?guideline_id=${guidelineId}`;
+            }, 1500);
+        } else {
+            document.getElementById('status-msg').textContent = '❌ Error: ' + data.message;
+            btn.disabled = false;
+            btn.textContent = '✅ Confirm & Start Extraction';
+        }
+    } catch (e) {
+        document.getElementById('status-msg').textContent = '❌ Network error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '✅ Confirm & Start Extraction';
+    }
+}
+
+async function resetMap() {
+    if (!confirm('This will regenerate the structure map from scratch. Continue?')) return;
+    // Clear structure map and reload
+    const resp = await fetch(`/confirm-structure-map/${guidelineId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sections: [], reset: true}),
+    });
+    window.location.reload();
+}
+</script>
+{% endblock %}

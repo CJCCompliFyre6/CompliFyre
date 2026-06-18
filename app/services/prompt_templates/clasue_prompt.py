@@ -753,3 +753,109 @@ def get_referenced_clauses_context(clause_references: list, current_guideline_id
                 lines.append(f"  [External: {standard} {section}]: Refer to the standard for full details")
     
     return '\n'.join(lines) if len(lines) > 1 else ""
+
+
+def stage1a_structure_map_prompt(first_lines_per_page: list, toc_text: str, regulator_name: str) -> str:
+    """
+    Stage 1A: LLM prompt to generate document structure map.
+    
+    Args:
+        first_lines_per_page: list of (page_num, first_line) tuples
+        toc_text: full text of first 3 pages (for table of contents)
+        regulator_name: e.g. "SEBI", "RBI"
+    
+    Returns:
+        prompt string for LLM
+    """
+    
+    page_headings = '\n'.join([
+        f"Page {pg}: {line.strip()[:120]}"
+        for pg, line in first_lines_per_page
+        if line.strip()
+    ])
+
+    prompt = f"""You are an expert in analyzing regulatory documents issued by financial regulators.
+
+You are analyzing a regulatory document issued by: {regulator_name}
+
+---
+TABLE OF CONTENTS / FIRST PAGES:
+{toc_text[:3000]}
+
+---
+FIRST LINE OF EACH PAGE (for structure detection):
+{page_headings}
+
+---
+YOUR TASK:
+
+Analyze the page headings above and identify the complete structural map of this document.
+
+For each section identify:
+1. Section type: chapter / schedule / annexure / appendix
+2. Section identifier: Roman numeral (I, II, III...) or letter (A, B...) or number
+3. Section label/title if visible
+4. Start page and end page
+5. Regulation/clause number range within that section (e.g. "Reg 15 to Reg 30A")
+6. Whether to extract clauses from this section (true/false)
+7. If false — reason (e.g. "definitions only", "circular reference list", "amendment to other regulations", "rescinded circulars list")
+
+EXTRACTION RULES:
+- Extract: chapters and schedules containing obligations, principles, disclosures, governance requirements
+- Do NOT extract: 
+  * Sections containing only definitions (mark as extract:false, reason:"definitions only") — BUT still include in map
+  * Appendix or circular reference lists (reason: "circular reference list")
+  * Schedules containing amendments to OTHER regulations (reason: "amendments to other regulations")  
+  * Rescinded circulars lists (reason: "rescinded circulars list")
+  * Sections marked as [***] omitted entirely
+
+REGULATION NUMBER FORMAT:
+Also identify the regulation numbering format used in this document.
+Examples: "numeric" (1,2,3), "numeric_alpha" (1, 2A, 2B, 30A), "alphanumeric" (A1, B2)
+
+OUTPUT: Return ONLY valid JSON, no explanation, no markdown:
+
+{{
+  "regulator": "{regulator_name}",
+  "reg_number_format": "numeric_alpha",
+  "total_pages": 0,
+  "sections": [
+    {{
+      "type": "chapter",
+      "id": "I",
+      "label": "Preliminary",
+      "start_page": 1,
+      "end_page": 9,
+      "regulation_range": {{"from": "1", "to": "3"}},
+      "extract": true,
+      "exclude_reason": null
+    }},
+    {{
+      "type": "chapter", 
+      "id": "IV",
+      "label": "Listed Entity Obligations",
+      "start_page": 20,
+      "end_page": 154,
+      "regulation_range": {{"from": "15", "to": "31B"}},
+      "extract": true,
+      "exclude_reason": null
+    }},
+    {{
+      "type": "schedule",
+      "id": "X",
+      "label": "List of SEBI Circulars Rescinded",
+      "start_page": 210,
+      "end_page": 220,
+      "regulation_range": null,
+      "extract": false,
+      "exclude_reason": "rescinded circulars list"
+    }}
+  ],
+  "confidence": "high",
+  "flags": []
+}}
+
+confidence values: "high" (clear structure), "medium" (some ambiguity), "low" (unclear structure — needs human review)
+flags: list any sections you are uncertain about, e.g. ["Schedule IX boundary unclear — verify page range"]
+"""
+    return prompt
