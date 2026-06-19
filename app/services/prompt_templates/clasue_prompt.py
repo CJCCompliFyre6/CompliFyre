@@ -769,7 +769,7 @@ def get_referenced_clauses_context(clause_references: list, current_guideline_id
     return '\n'.join(lines) if len(lines) > 1 else ""
 
 
-def stage1a_structure_map_prompt(first_lines_per_page: list, toc_text: str, regulator_name: str) -> str:
+def stage1a_structure_map_prompt(first_lines_per_page: list, toc_text: str, regulator_name: str, total_pages: int = 0) -> str:
     """
     Stage 1A: LLM prompt to generate document structure map.
     
@@ -797,43 +797,44 @@ TABLE OF CONTENTS / FIRST PAGES:
 {toc_text[:3000]}
 
 ---
-HEADING LINES DETECTED PER PAGE (page number: heading text):
+STRUCTURAL HEADINGS FOUND IN DOCUMENT (page: heading):
 {page_headings}
 
 ---
 YOUR TASK:
 
-Using the heading lines above, identify EVERY structural section in this document.
+The list above shows EVERY chapter and schedule heading found in the document with its exact page number.
+Your job is to convert this into a structured map.
 
-CRITICAL INSTRUCTIONS:
-1. Include EVERY chapter and schedule — even inserted ones like "CHAPTER VA", "CHAPTER VIA", "CHAPTER VIII A", "CHAPTER XI-A", "CHAPTER XII"
-2. Use the EXACT chapter/schedule identifier as it appears in the document — e.g. "VA" not "5A", "VIA" not "6A"
-3. A section's start_page is the page where its heading appears
-4. A section's end_page is one page before the next section's start_page
-5. If a page shows "SCHEDULE VIII [***]" — it is omitted, set extract:false, reason:"omitted provision"
-6. Include ALL schedules you see — I, II, III, IV, V, VI, VII, VIII, IX, X, XI, XII
+STRICT RULES — FOLLOW EXACTLY:
 
-For each section identify:
-1. Section type: chapter / schedule / annexure
-2. Section identifier: EXACTLY as in document (e.g. "VA", "VIA", "VIII", "IX-A", "XII")
-3. Section label/title
-4. Start page (page where heading appears)
-5. End page (page before next section starts, or last page of document)
-6. Regulation/clause number range if visible (e.g. "Reg 15 to Reg 31B")
-7. Whether to extract clauses (true/false)
-8. If false — reason
+RULE 1 — CREATE ONE SECTION PER HEADING LINE ABOVE. Do not skip any heading. Do not combine headings.
 
-EXTRACTION RULES:
-- Extract TRUE: chapters with obligations/principles/disclosures/governance requirements
-- Extract FALSE with reasons:
-  * "definitions only" — section contains only definitions
-  * "rescinded circulars list" — list of rescinded/repealed circulars  
-  * "amendments to other regulations" — amendments to OTHER regulatory documents
-  * "omitted provision" — marked as [***] omitted
-  * "circular reference list" — historical circular reference table
+RULE 2 — start_page = the page number shown next to that heading above.
+
+RULE 3 — end_page = (start_page of the NEXT heading) minus 1.
+For the LAST section, end_page = total pages in document ({total_pages}).
+
+RULE 4 — Use the EXACT section identifier from the heading:
+- "CHAPTER VA" → id: "VA"
+- "CHAPTER IX-A" → id: "IX-A"  
+- "SCHEDULE XII" → id: "XII"
+- "CHAPTER IV" → id: "IV"
+
+RULE 5 — Section label = descriptive title after the chapter/schedule number if present, else leave blank.
+
+RULE 6 — Extract true/false:
+Set extract:false ONLY for these specific cases:
+- "definitions only" — section is purely definitions with no obligations
+- "rescinded circulars list" — list of old circulars being rescinded
+- "amendments to other regulations" — amends a DIFFERENT regulation entirely
+- "omitted provision" — marked as omitted [***]
+All other sections: extract:true
+
+RULE 7 — regulation_range: if you can see regulation numbers mentioned in the TOC or first pages, include them. Otherwise set null.
 
 REGULATION NUMBER FORMAT:
-Identify format: "numeric" (1,2,3), "numeric_alpha" (1, 2A, 30A, 31B), "alphanumeric" (A1, B2)
+Identify format used: "numeric" (1,2,3) or "numeric_alpha" (1, 2A, 30A, 31B)
 
 OUTPUT: Return ONLY valid JSON, no explanation, no markdown:
 

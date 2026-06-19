@@ -1756,7 +1756,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         pdf.close()
 
         # Build prompt
-        prompt = stage1a_structure_map_prompt(first_lines, toc_text, regulator_name)
+        prompt = stage1a_structure_map_prompt(first_lines, toc_text, regulator_name, total_pages)
 
         # Call LLM
         client = get_llm_service()
