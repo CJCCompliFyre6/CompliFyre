@@ -1768,8 +1768,41 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         )
 
         result_text = response.choices[0].message.content.strip()
-        structure_map = _json.loads(result_text)
-        structure_map["total_pages"] = total_pages
+        llm_output = _json.loads(result_text)
+
+        # Python calculates page ranges from heading pages — LLM does NOT set these
+        sections_raw = llm_output.get("sections", [])
+        # Sort by page number to ensure correct order
+        sections_raw.sort(key=lambda x: x.get("page", 0))
+
+        sections = []
+        for idx, sec in enumerate(sections_raw):
+            start_page = sec.get("page", 0)
+            # end_page = start of next section - 1, or total_pages for last
+            if idx + 1 < len(sections_raw):
+                end_page = sections_raw[idx + 1].get("page", start_page) - 1
+            else:
+                end_page = total_pages
+
+            sections.append({
+                "type": sec.get("section_type", "chapter"),
+                "id": sec.get("section_id", ""),
+                "label": sec.get("label", ""),
+                "start_page": start_page,
+                "end_page": end_page,
+                "regulation_range": sec.get("regulation_range", None),
+                "extract": sec.get("extract", True),
+                "exclude_reason": sec.get("exclude_reason", None),
+            })
+
+        structure_map = {
+            "regulator": llm_output.get("regulator", regulator_name),
+            "reg_number_format": llm_output.get("reg_number_format", "numeric_alpha"),
+            "confidence": llm_output.get("confidence", "medium"),
+            "flags": llm_output.get("flags", []),
+            "sections": sections,
+            "total_pages": total_pages,
+        }
 
         # Save to DB
         with session_scope() as session:

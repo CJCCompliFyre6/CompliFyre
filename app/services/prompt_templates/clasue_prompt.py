@@ -769,23 +769,26 @@ def get_referenced_clauses_context(clause_references: list, current_guideline_id
     return '\n'.join(lines) if len(lines) > 1 else ""
 
 
-def stage1a_structure_map_prompt(first_lines_per_page: list, toc_text: str, regulator_name: str, total_pages: int = 0) -> str:
+def stage1a_structure_map_prompt(heading_list: list, toc_text: str, regulator_name: str, total_pages: int = 0) -> str:
     """
     Stage 1A: LLM prompt to generate document structure map.
+    LLM only decides section type, id, label, and extract decision.
+    Python code calculates all page ranges.
     
     Args:
-        first_lines_per_page: list of (page_num, first_line) tuples
+        heading_list: list of {"page": int, "heading": str} dicts — only pages with headings
         toc_text: full text of first 3 pages (for table of contents)
         regulator_name: e.g. "SEBI", "RBI"
+        total_pages: total pages in document
     
     Returns:
         prompt string for LLM
     """
     
     page_headings = '\n'.join([
-        f"Page {pg}: {line.strip()[:120]}"
-        for pg, line in first_lines_per_page
-        if line.strip()
+        f"Page {item['page']}: {item['heading']}"
+        for item in heading_list
+        if item.get('heading', '').strip()
     ])
 
     prompt = f"""You are an expert in analyzing regulatory documents issued by financial regulators.
@@ -800,41 +803,62 @@ TABLE OF CONTENTS / FIRST PAGES:
 STRUCTURAL HEADINGS FOUND IN DOCUMENT (page: heading):
 {page_headings}
 
+TOTAL PAGES IN DOCUMENT: {total_pages}
+
 ---
 YOUR TASK:
 
-The list above shows EVERY chapter and schedule heading found in the document with its exact page number.
-Your job is to convert this into a structured map.
+The list above shows EVERY chapter and schedule heading with its exact page number.
+Page ranges are calculated automatically — you do NOT need to set start_page or end_page.
 
-STRICT RULES — FOLLOW EXACTLY:
+For each heading line above, provide:
+1. section_type: "chapter" / "schedule" / "annexure"
+2. section_id: EXACT identifier from heading (e.g. "VA", "IX-A", "XII", "IV")
+3. label: short descriptive title (from heading text after the number, or from TOC)
+4. extract: true or false
+5. exclude_reason: only if extract is false
 
-RULE 1 — CREATE ONE SECTION PER HEADING LINE ABOVE. Do not skip any heading. Do not combine headings.
+Extract FALSE only for:
+- "definitions only" — purely definitions, no obligations
+- "rescinded circulars list" — list of old circulars
+- "amendments to other regulations" — amends a different regulation
+- "omitted provision" — marked [***]
 
-RULE 2 — start_page = the page number shown next to that heading above.
+Extract TRUE for everything else including chapters with obligations, schedules with requirements.
 
-RULE 3 — end_page = (start_page of the NEXT heading) minus 1.
-For the LAST section, end_page = total pages in document ({total_pages}).
+Also identify:
+- reg_number_format: "numeric" or "numeric_alpha"
+- confidence: "high" / "medium" / "low"
 
-RULE 4 — Use the EXACT section identifier from the heading:
-- "CHAPTER VA" → id: "VA"
-- "CHAPTER IX-A" → id: "IX-A"  
-- "SCHEDULE XII" → id: "XII"
-- "CHAPTER IV" → id: "IV"
+OUTPUT FORMAT — return ONLY valid JSON:
 
-RULE 5 — Section label = descriptive title after the chapter/schedule number if present, else leave blank.
+{{
+  "regulator": "{regulator_name}",
+  "reg_number_format": "numeric_alpha",
+  "confidence": "high",
+  "flags": [],
+  "sections": [
+    {{
+      "page": 1,
+      "section_type": "chapter",
+      "section_id": "I",
+      "label": "Preliminary",
+      "extract": false,
+      "exclude_reason": "definitions only"
+    }},
+    {{
+      "page": 10,
+      "section_type": "chapter", 
+      "section_id": "II",
+      "label": "Obligations of Listed Entities",
+      "extract": true,
+      "exclude_reason": null
+    }}
+  ]
+}}
 
-RULE 6 — Extract true/false:
-Set extract:false ONLY for these specific cases:
-- "definitions only" — section is purely definitions with no obligations
-- "rescinded circulars list" — list of old circulars being rescinded
-- "amendments to other regulations" — amends a DIFFERENT regulation entirely
-- "omitted provision" — marked as omitted [***]
-All other sections: extract:true
-
-RULE 7 — regulation_range: if you can see regulation numbers mentioned in the TOC or first pages, include them. Otherwise set null.
-
-REGULATION NUMBER FORMAT:
-Identify format used: "numeric" (1,2,3) or "numeric_alpha" (1, 2A, 30A, 31B)
+IMPORTANT: Output sections in the SAME ORDER as the headings list above.
+Do NOT add or remove sections — one entry per heading line.
 
 OUTPUT: Return ONLY valid JSON, no explanation, no markdown:
 
