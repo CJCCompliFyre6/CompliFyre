@@ -1709,23 +1709,35 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         pdf = fitz.open(file_path)
         total_pages = len(pdf)
 
-        # Collect first meaningful line of each page (skip standalone page numbers)
+        # Collect structural headings from each page
+        # Send ALL chapter/schedule headings found + first meaningful line per page
+        import re as _re
+        heading_pattern = _re.compile(
+            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)'
+            r'\s+([IVXLCDM]+[A-Z]?|\d+[A-Z]?)'
+            r'(\s*[-–:]|\s*$|\s+[A-Z])',
+            _re.IGNORECASE
+        )
         first_lines = []
         for page_num in range(total_pages):
             text = pdf[page_num].get_text()
             lines = [l.strip() for l in text.split("\n") if l.strip()]
-            first_line = ""
+            # Check if any line on this page is a heading
+            heading_found = ""
+            first_meaningful = ""
             for line in lines:
-                # Skip standalone page numbers (1-4 digits alone)
-                import re as _re
                 if _re.match(r"^\d{1,4}$", line):
                     continue
-                # Skip gazette headers
                 if line in ("GAZETTE OF INDIA", "EXTRAORDINARY", "PUBLISHED BY AUTHORITY"):
                     continue
-                first_line = line
-                break
-            first_lines.append((page_num + 1, first_line))
+                if not first_meaningful:
+                    first_meaningful = line
+                if heading_pattern.match(line):
+                    heading_found = line
+                    break
+            # Prefer heading over first meaningful line
+            display_line = heading_found if heading_found else first_meaningful
+            first_lines.append((page_num + 1, display_line))
 
         # Full text of first 3 pages for TOC
         toc_text = ""
