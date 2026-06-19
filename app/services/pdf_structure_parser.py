@@ -454,6 +454,27 @@ def validate_nodes(nodes):
             issues.append(f"Duplicate clause_no: {node['clause_no']} (pages {seen[node['clause_no']]} and {node['page_number']})")
             continue
         seen[node['clause_no']] = node['page_number']
+
+        # Flag suspicious regulation numbers
+        # e.g. CH IV 2013 — 4-digit year-like numbers are almost always parsing errors
+        clause_no = node['clause_no']
+        parts = clause_no.split(' ')
+        if len(parts) >= 3:
+            reg_part = parts[2]  # e.g. "2013", "490", "1996"
+            # Flag if regulation number looks like a year (1900-2099)
+            if re.match(r'^(19|20)\d{2}$', reg_part):
+                node['extraction_status'] = 'FLAGGED'
+                node['flag_reason'] = f'SUSPICIOUS_REGULATION_NUMBER: {reg_part} looks like a year reference, not a regulation number. Verify on page {node["page_number"]}'
+            # Flag if regulation number is unusually large (>200 for most regulators)
+            elif re.match(r'^\d+$', reg_part) and int(reg_part) > 200:
+                node['extraction_status'] = 'FLAGGED'
+                node['flag_reason'] = f'SUSPICIOUS_REGULATION_NUMBER: {reg_part} is unusually large. Verify on page {node["page_number"]}'
+
+        # Flag short text clauses
+        if len(text) < 50 and not node.get('flag_reason'):
+            node['extraction_status'] = 'FLAGGED'
+            node['flag_reason'] = f'SHORT_TEXT: Clause text is only {len(text)} characters. May be incomplete or a parsing error. Verify on page {node["page_number"]}'
+
         valid.append(node)
     return valid, issues
 

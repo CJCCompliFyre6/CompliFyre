@@ -618,6 +618,13 @@ If a definition clause contains language like "shall ensure", "shall maintain", 
 If an applicability clause says "shall comply with regulations X to Y" — classify as MIXED, not APPLICABILITY.
 If content is a list of historical circulars, amendment references, or rows from an appendix with circular numbers and dates — classify as REFERENCE regardless of any other content.
 
+CRITICAL — NEVER SKIP, ALWAYS EXTRACT AND FLAG:
+If you are unsure about a clause — do NOT skip it. Always extract it and set flag to "FLAGGED" with an appropriate flag_reason.
+Inserted regulations like (16A), (16B), (19A), (19B) — extract them, classify as best you can, and flag as AMBIGUOUS_REGULATION_NUMBER if unsure.
+Clauses with unusual numbering — extract and flag as SUSPICIOUS_REGULATION_NUMBER.
+Clauses where applicability is unclear — extract and flag as UNKNOWN_APPLICABILITY.
+The page_number field must always be populated — this allows the user to trace the clause in the original document.
+
 Q2 — MERGE DECISION
 Should this clause stand alone or be merged into its parent clause?
 
@@ -688,7 +695,14 @@ OUTPUT FORMAT — return ONLY valid JSON, no explanation, no markdown:
 
 Set applicability_updates_context to true ONLY if this clause contains NEW applicability information that should be carried forward to subsequent clauses.
 Set new_context_entry only when applicability_updates_context is true.
-Set flag to "FLAGGED" and flag_reason when applicable_to is UNKNOWN or merge_decision is uncertain.
+Set flag to "FLAGGED" and flag_reason when any of the following apply:
+- applicable_to is UNKNOWN → flag_reason: "UNKNOWN_APPLICABILITY: <description>"
+- merge_decision is uncertain → flag_reason: "AMBIGUOUS_MERGE: <description>"  
+- regulation number looks inserted or unusual (16A, 19B etc) → flag_reason: "AMBIGUOUS_REGULATION_NUMBER: <description>"
+- references another guideline → flag_reason: "CROSS_GUIDELINE_REF: <description>"
+- references external standard like ISO → flag_reason: "EXTERNAL_REF: <description>"
+- clause text is very short or seems incomplete → flag_reason: "SHORT_TEXT: <description>"
+Always include page number in flag_reason description so user can verify in original document.
 Set clause_references to empty list [] if no references found.
 """
     return prompt
