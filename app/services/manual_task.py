@@ -1709,12 +1709,22 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         pdf = fitz.open(file_path)
         total_pages = len(pdf)
 
-        # Collect first line of each page
+        # Collect first meaningful line of each page (skip standalone page numbers)
         first_lines = []
         for page_num in range(total_pages):
             text = pdf[page_num].get_text()
             lines = [l.strip() for l in text.split("\n") if l.strip()]
-            first_line = lines[0] if lines else ""
+            first_line = ""
+            for line in lines:
+                # Skip standalone page numbers (1-4 digits alone)
+                import re as _re
+                if _re.match(r"^\d{1,4}$", line):
+                    continue
+                # Skip gazette headers
+                if line in ("GAZETTE OF INDIA", "EXTRAORDINARY", "PUBLISHED BY AUTHORITY"):
+                    continue
+                first_line = line
+                break
             first_lines.append((page_num + 1, first_line))
 
         # Full text of first 3 pages for TOC
