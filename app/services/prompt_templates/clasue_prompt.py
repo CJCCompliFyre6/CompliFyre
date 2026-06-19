@@ -797,35 +797,43 @@ TABLE OF CONTENTS / FIRST PAGES:
 {toc_text[:3000]}
 
 ---
-FIRST LINE OF EACH PAGE (for structure detection):
+HEADING LINES DETECTED PER PAGE (page number: heading text):
 {page_headings}
 
 ---
 YOUR TASK:
 
-Analyze the page headings above and identify the complete structural map of this document.
+Using the heading lines above, identify EVERY structural section in this document.
+
+CRITICAL INSTRUCTIONS:
+1. Include EVERY chapter and schedule — even inserted ones like "CHAPTER VA", "CHAPTER VIA", "CHAPTER VIII A", "CHAPTER XI-A", "CHAPTER XII"
+2. Use the EXACT chapter/schedule identifier as it appears in the document — e.g. "VA" not "5A", "VIA" not "6A"
+3. A section's start_page is the page where its heading appears
+4. A section's end_page is one page before the next section's start_page
+5. If a page shows "SCHEDULE VIII [***]" — it is omitted, set extract:false, reason:"omitted provision"
+6. Include ALL schedules you see — I, II, III, IV, V, VI, VII, VIII, IX, X, XI, XII
 
 For each section identify:
-1. Section type: chapter / schedule / annexure / appendix
-2. Section identifier: Roman numeral (I, II, III...) or letter (A, B...) or number
-3. Section label/title if visible
-4. Start page and end page
-5. Regulation/clause number range within that section (e.g. "Reg 15 to Reg 30A")
-6. Whether to extract clauses from this section (true/false)
-7. If false — reason (e.g. "definitions only", "circular reference list", "amendment to other regulations", "rescinded circulars list")
+1. Section type: chapter / schedule / annexure
+2. Section identifier: EXACTLY as in document (e.g. "VA", "VIA", "VIII", "IX-A", "XII")
+3. Section label/title
+4. Start page (page where heading appears)
+5. End page (page before next section starts, or last page of document)
+6. Regulation/clause number range if visible (e.g. "Reg 15 to Reg 31B")
+7. Whether to extract clauses (true/false)
+8. If false — reason
 
 EXTRACTION RULES:
-- Extract: chapters and schedules containing obligations, principles, disclosures, governance requirements
-- Do NOT extract: 
-  * Sections containing only definitions (mark as extract:false, reason:"definitions only") — BUT still include in map
-  * Appendix or circular reference lists (reason: "circular reference list")
-  * Schedules containing amendments to OTHER regulations (reason: "amendments to other regulations")  
-  * Rescinded circulars lists (reason: "rescinded circulars list")
-  * Sections marked as [***] omitted entirely
+- Extract TRUE: chapters with obligations/principles/disclosures/governance requirements
+- Extract FALSE with reasons:
+  * "definitions only" — section contains only definitions
+  * "rescinded circulars list" — list of rescinded/repealed circulars  
+  * "amendments to other regulations" — amendments to OTHER regulatory documents
+  * "omitted provision" — marked as [***] omitted
+  * "circular reference list" — historical circular reference table
 
 REGULATION NUMBER FORMAT:
-Also identify the regulation numbering format used in this document.
-Examples: "numeric" (1,2,3), "numeric_alpha" (1, 2A, 2B, 30A), "alphanumeric" (A1, B2)
+Identify format: "numeric" (1,2,3), "numeric_alpha" (1, 2A, 30A, 31B), "alphanumeric" (A1, B2)
 
 OUTPUT: Return ONLY valid JSON, no explanation, no markdown:
 
