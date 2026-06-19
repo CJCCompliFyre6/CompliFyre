@@ -1712,32 +1712,41 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         # Collect structural headings from each page
         # Send ALL chapter/schedule headings found + first meaningful line per page
         import re as _re
-        heading_pattern = _re.compile(
-            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)'
-            r'\s+([IVXLCDM]+[A-Z]?|\d+[A-Z]?)'
-            r'(\s*[-–:]|\s*$|\s+[A-Z])',
-            _re.IGNORECASE
-        )
-        first_lines = []
-        for page_num in range(total_pages):
-            text = pdf[page_num].get_text()
+        # Detect structural headings — handle footnote prefixes like "560[CHAPTER VA"
+        def extract_heading(text):
+            """Find chapter/schedule heading on a page, handling footnote prefixes."""
             lines = [l.strip() for l in text.split("\n") if l.strip()]
-            # Check if any line on this page is a heading
-            heading_found = ""
-            first_meaningful = ""
             for line in lines:
                 if _re.match(r"^\d{1,4}$", line):
                     continue
                 if line in ("GAZETTE OF INDIA", "EXTRAORDINARY", "PUBLISHED BY AUTHORITY"):
                     continue
-                if not first_meaningful:
-                    first_meaningful = line
-                if heading_pattern.match(line):
-                    heading_found = line
-                    break
-            # Prefer heading over first meaningful line
-            display_line = heading_found if heading_found else first_meaningful
-            first_lines.append((page_num + 1, display_line))
+                # Strip leading footnote reference: "560[CHAPTER VA" -> "CHAPTER VA"
+                clean = _re.sub(r"^\d+\[", "", line).strip()
+                # Must be a proper heading — CHAPTER/SCHEDULE followed by identifier
+                # AND the rest of line must be empty, a dash, colon, or ALL CAPS title
+                # NOT a comma followed by lowercase (that's a mid-sentence reference)
+                m = _re.match(
+                    r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)"
+                    r"\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?)"
+                    r"(\s*[-–:*]|\s*$|\s+[A-Z][A-Z\s]+$)",
+                    clean
+                )
+                if m:
+                    return clean[:80]
+            return ""
+
+        first_lines = []
+        for page_num in range(total_pages):
+            text = pdf[page_num].get_text()
+            heading = extract_heading(text)
+            if not heading:
+                # Fall back to first meaningful non-numeric line
+                for line in [l.strip() for l in text.split("\n") if l.strip()]:
+                    if not _re.match(r"^\d{1,4}$", line):
+                        heading = line[:80]
+                        break
+            first_lines.append((page_num + 1, heading))
 
         # Full text of first 3 pages for TOC
         toc_text = ""
