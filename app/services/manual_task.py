@@ -1756,7 +1756,17 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         pdf.close()
 
         # Build prompt
-        heading_list = [item for item in first_lines if item.get("heading", "").strip()]
+        import re as _re3
+        # Only keep pages where heading is an actual chapter/schedule heading
+        heading_pattern_filter = _re3.compile(
+            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)\s+',
+            _re3.IGNORECASE
+        )
+        heading_list = [
+            item for item in first_lines
+            if item.get("heading", "").strip()
+            and heading_pattern_filter.match(item["heading"].strip())
+        ]
         logger.info(f"Stage 1A: {len(heading_list)} headings detected")
 
         # Python builds sections with correct page ranges from detected headings
