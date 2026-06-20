@@ -1746,7 +1746,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                     if not _re.match(r"^\d{1,4}$", line):
                         heading = line[:80]
                         break
-            first_lines.append((page_num + 1, heading))
+            first_lines.append({"page": page_num + 1, "heading": heading})
 
         # Full text of first 3 pages for TOC
         toc_text = ""
@@ -1756,7 +1756,8 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         pdf.close()
 
         # Build prompt
-        prompt = stage1a_structure_map_prompt(first_lines, toc_text, regulator_name, total_pages)
+        heading_list = [item for item in first_lines if item.get("heading", "").strip()]
+        prompt = stage1a_structure_map_prompt(heading_list, toc_text, regulator_name, total_pages)
 
         # Call LLM
         client = get_llm_service()
