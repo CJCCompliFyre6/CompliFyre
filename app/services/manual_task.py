@@ -1757,10 +1757,48 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
 
         # Build prompt
         heading_list = [item for item in first_lines if item.get("heading", "").strip()]
-        logger.info(f"Stage 1A: {len(heading_list)} headings detected: {[(h['page'], h['heading'][:40]) for h in heading_list]}")
-        prompt = stage1a_structure_map_prompt(heading_list, toc_text, regulator_name, total_pages)
+        logger.info(f"Stage 1A: {len(heading_list)} headings detected")
 
-        # Call LLM
+        # Python builds sections with correct page ranges from detected headings
+        # LLM only decides extract:true/false for each section
+        sections_with_pages = []
+        for idx, item in enumerate(heading_list):
+            start_page = item["page"]
+            end_page = heading_list[idx + 1]["page"] - 1 if idx + 1 < len(heading_list) else total_pages
+            heading_text = item["heading"]
+
+            # Parse section type and id from heading
+            import re as _re2
+            m = _re2.match(
+                r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)"
+                r"\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?)",
+                heading_text, _re2.IGNORECASE
+            )
+            if m:
+                sec_type = m.group(1).lower()
+                sec_id = m.group(2).upper()
+                # Get label from rest of heading
+                label_part = heading_text[m.end():].strip().lstrip("-–: ")
+                # Strip footnote refs from label
+                label_part = _re2.sub(r"\d+\[", "", label_part).strip()
+            else:
+                sec_type = "chapter"
+                sec_id = str(idx + 1)
+                label_part = heading_text
+
+            sections_with_pages.append({
+                "page": start_page,
+                "start_page": start_page,
+                "end_page": end_page,
+                "type": sec_type,
+                "id": sec_id,
+                "label": label_part[:80],
+                "heading_raw": heading_text,
+            })
+
+        # Ask LLM only to decide extract:true/false for each section
+        prompt = stage1a_structure_map_prompt(sections_with_pages, toc_text, regulator_name, total_pages)
+
         client = get_llm_service()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -1772,35 +1810,27 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         result_text = response.choices[0].message.content.strip()
         llm_output = _json.loads(result_text)
 
-        # Python calculates page ranges from heading pages — LLM does NOT set these
-        sections_raw = llm_output.get("sections", [])
-        # Sort by page number to ensure correct order
-        sections_raw.sort(key=lambda x: x.get("page", 0))
+        # Merge LLM extract decisions back into sections
+        llm_decisions = {d.get("page"): d for d in llm_output.get("decisions", [])}
 
         sections = []
-        for idx, sec in enumerate(sections_raw):
-            start_page = sec.get("page", 0)
-            # end_page = start of next section - 1, or total_pages for last
-            if idx + 1 < len(sections_raw):
-                end_page = sections_raw[idx + 1].get("page", start_page) - 1
-            else:
-                end_page = total_pages
-
+        for sec in sections_with_pages:
+            decision = llm_decisions.get(sec["page"], {})
             sections.append({
-                "type": sec.get("section_type", "chapter"),
-                "id": sec.get("section_id", ""),
-                "label": sec.get("label", ""),
-                "start_page": start_page,
-                "end_page": end_page,
-                "regulation_range": sec.get("regulation_range", None),
-                "extract": sec.get("extract", True),
-                "exclude_reason": sec.get("exclude_reason", None),
+                "type": sec["type"],
+                "id": sec["id"],
+                "label": sec["label"],
+                "start_page": sec["start_page"],
+                "end_page": sec["end_page"],
+                "regulation_range": None,
+                "extract": decision.get("extract", True),
+                "exclude_reason": decision.get("exclude_reason", None),
             })
 
         structure_map = {
-            "regulator": llm_output.get("regulator", regulator_name),
+            "regulator": regulator_name,
             "reg_number_format": llm_output.get("reg_number_format", "numeric_alpha"),
-            "confidence": llm_output.get("confidence", "medium"),
+            "confidence": llm_output.get("confidence", "high"),
             "flags": llm_output.get("flags", []),
             "sections": sections,
             "total_pages": total_pages,

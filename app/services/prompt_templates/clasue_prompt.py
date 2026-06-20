@@ -769,15 +769,14 @@ def get_referenced_clauses_context(clause_references: list, current_guideline_id
     return '\n'.join(lines) if len(lines) > 1 else ""
 
 
-def stage1a_structure_map_prompt(heading_list: list, toc_text: str, regulator_name: str, total_pages: int = 0) -> str:
+def stage1a_structure_map_prompt(sections_with_pages: list, toc_text: str, regulator_name: str, total_pages: int = 0) -> str:
     """
-    Stage 1A: LLM prompt to generate document structure map.
-    LLM only decides section type, id, label, and extract decision.
-    Python code calculates all page ranges.
+    Stage 1A: LLM prompt — only decides extract:true/false for each section.
+    Python has already detected all sections and calculated page ranges.
     
     Args:
-        heading_list: list of {"page": int, "heading": str} dicts — only pages with headings
-        toc_text: full text of first 3 pages (for table of contents)
+        sections_with_pages: list of section dicts with page, type, id, label already set
+        toc_text: full text of first 3 pages
         regulator_name: e.g. "SEBI", "RBI"
         total_pages: total pages in document
     
@@ -786,10 +785,10 @@ def stage1a_structure_map_prompt(heading_list: list, toc_text: str, regulator_na
     """
     
     page_headings = '\n'.join([
-        f"Page {item['page']}: {item['heading']}"
-        for item in heading_list
-        if item.get('heading', '').strip()
+        f"Page {sec['start_page']}-{sec['end_page']}: {sec['type'].upper()} {sec['id']} — {sec['label']}"
+        for sec in sections_with_pages
     ])
+    section_count = len(sections_with_pages)
 
     prompt = f"""You are an expert in analyzing regulatory documents issued by financial regulators.
 
@@ -800,109 +799,51 @@ TABLE OF CONTENTS / FIRST PAGES:
 {toc_text[:3000]}
 
 ---
-STRUCTURAL HEADINGS FOUND IN DOCUMENT (page: heading):
+SECTIONS DETECTED IN DOCUMENT (with page ranges already calculated):
 {page_headings}
 
-TOTAL PAGES IN DOCUMENT: {total_pages}
+TOTAL PAGES: {total_pages}
+REGULATOR: {regulator_name}
 
 ---
-YOUR TASK:
+YOUR ONLY TASK:
 
-The list above shows EVERY chapter and schedule heading with its exact page number.
-Page ranges are calculated automatically — you do NOT need to set start_page or end_page.
+For each section listed above, decide whether to EXTRACT clauses from it or not.
 
-For each heading line above, provide:
-1. section_type: "chapter" / "schedule" / "annexure"
-2. section_id: EXACT identifier from heading (e.g. "VA", "IX-A", "XII", "IV")
-3. label: short descriptive title (from heading text after the number, or from TOC)
-4. extract: true or false
-5. exclude_reason: only if extract is false
+EXTRACT = true for:
+- Chapters with obligations, requirements, governance rules, disclosures, penalties
+- Schedules with compliance requirements, forms, procedures, tables of requirements
 
-Extract FALSE only for:
-- "definitions only" — purely definitions, no obligations
-- "rescinded circulars list" — list of old circulars
-- "amendments to other regulations" — amends a different regulation
-- "omitted provision" — marked [***]
-
-Extract TRUE for everything else including chapters with obligations, schedules with requirements.
+EXTRACT = false for:
+- Sections with ONLY definitions and no obligations
+- Lists of rescinded or repealed circulars
+- Sections amending OTHER regulations entirely
+- Omitted sections marked [***]
 
 Also identify:
-- reg_number_format: "numeric" or "numeric_alpha"
+- reg_number_format: "numeric" (1,2,3) or "numeric_alpha" (1, 2A, 30A)
 - confidence: "high" / "medium" / "low"
 
-OUTPUT FORMAT — return ONLY valid JSON:
+OUTPUT — return ONLY valid JSON, one decision per section in SAME ORDER as list above:
 
 {{
-  "regulator": "{regulator_name}",
   "reg_number_format": "numeric_alpha",
   "confidence": "high",
   "flags": [],
-  "sections": [
+  "decisions": [
     {{
       "page": 1,
-      "section_type": "chapter",
-      "section_id": "I",
-      "label": "Preliminary",
       "extract": false,
       "exclude_reason": "definitions only"
     }},
     {{
       "page": 10,
-      "section_type": "chapter", 
-      "section_id": "II",
-      "label": "Obligations of Listed Entities",
       "extract": true,
       "exclude_reason": null
     }}
   ]
 }}
 
-IMPORTANT: Output sections in the SAME ORDER as the headings list above.
-Do NOT add or remove sections — one entry per heading line.
-
-OUTPUT: Return ONLY valid JSON, no explanation, no markdown:
-
-{{
-  "regulator": "{regulator_name}",
-  "reg_number_format": "numeric_alpha",
-  "total_pages": 0,
-  "sections": [
-    {{
-      "type": "chapter",
-      "id": "I",
-      "label": "Preliminary",
-      "start_page": 1,
-      "end_page": 9,
-      "regulation_range": {{"from": "1", "to": "3"}},
-      "extract": true,
-      "exclude_reason": null
-    }},
-    {{
-      "type": "chapter", 
-      "id": "IV",
-      "label": "Listed Entity Obligations",
-      "start_page": 20,
-      "end_page": 154,
-      "regulation_range": {{"from": "15", "to": "31B"}},
-      "extract": true,
-      "exclude_reason": null
-    }},
-    {{
-      "type": "schedule",
-      "id": "X",
-      "label": "List of SEBI Circulars Rescinded",
-      "start_page": 210,
-      "end_page": 220,
-      "regulation_range": null,
-      "extract": false,
-      "exclude_reason": "rescinded circulars list"
-    }}
-  ],
-  "confidence": "high",
-  "flags": []
-}}
-
-confidence values: "high" (clear structure), "medium" (some ambiguity), "low" (unclear structure — needs human review)
-flags: list any sections you are uncertain about, e.g. ["Schedule IX boundary unclear — verify page range"]
+CRITICAL: decisions array must have EXACTLY {section_count} entries — one per section, in the same order.
 """
     return prompt
