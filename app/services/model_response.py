@@ -119,69 +119,53 @@ def extract_structured_info(
     backoff_factor: float = 1.5,
 ) -> Any | None:
     """
-    Extracts structured info from the model with retry and fallback logic.
-    Enhanced with regex fallback for compliance activities.
+    Extracts structured info using chat completions — provider agnostic.
+    vector_store_id parameter kept for backward compatibility but ignored.
+    Works with Azure OpenAI, OpenAI, and any chat completions compatible provider.
     """
+    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini")
     attempt = 0
-
-    tools = []
-    if vector_store_id:
-        tools = [
-            {
-                "type": "file_search",
-                "vector_store_ids": [vector_store_id],
-            }
-        ]
-
     while attempt < retries:
         try:
-            logger.info(
-                "Attempt #%d to extract structured info for schema: %s",
-                attempt + 1,
-                schema.__name__,
+            logger.info("Attempt #%d to extract structured info for schema: %s", attempt + 1, schema.__name__)
+            response = client.chat.completions.create(
+                model=deployment,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert compliance consultant. "
+                            "Return ONLY valid JSON that matches the requested schema. "
+                            "No markdown, no explanation, just JSON."
+                        ),
+                    },
+                    {"role": "user", "content": query},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.0,
             )
-
-            if tools:
-                response = client.responses.parse(
-                    input=query, model="gpt-4.1-mini", tools=tools, text_format=schema
-                )
-            else:
-                response = client.responses.parse(
-                    input=query, model="gpt-4.1-mini", text_format=schema
-                )
-
-            if response and response.output_parsed is not None:
-                logger.info("Successfully extracted structured data.")
-                return response.output_parsed
-
-            raise ValueError("Model returned None or an empty response.")
-
+            raw_json = response.choices[0].message.content
+            if not raw_json:
+                raise ValueError("Model returned empty response.")
+            raw_json = raw_json.strip()
+            if raw_json.startswith("```"):
+                raw_json = re.sub(r"^```(?:json)?\n?", "", raw_json)
+                raw_json = re.sub(r"\n?```$", "", raw_json).strip()
+            parsed = schema.model_validate_json(raw_json)
+            logger.info("Successfully extracted structured data.")
+            return parsed
         except (ValidationError, ValueError) as e:
-            logger.warning(
-                "Attempt #%d failed with a data validation error: %s", attempt + 1, e
-            )
-
+            logger.warning("Attempt #%d failed with validation error: %s", attempt + 1, e)
             if attempt == retries - 1 and schema.__name__ == "ComplianceRequirements":
                 logger.info("Trying regex fallback for compliance activities...")
-                return _extract_compliance_with_regex_fallback(query, tools)
-
+                return _extract_compliance_with_regex_fallback(query, [])
         except Exception as e:
-            logger.warning(
-                "Attempt #%d failed with a general error: %s", attempt + 1, e
-            )
-
+            logger.warning("Attempt #%d failed with general error: %s", attempt + 1, e)
         attempt += 1
         if attempt < retries:
-            wait_time = backoff_factor**attempt
-            logger.info("Waiting %.2f seconds before retrying...", wait_time)
-            time.sleep(wait_time)
-
-    logger.error(
-        "All %d attempts failed to extract structured data. Returning a default empty object.",
-        retries,
-    )
+            time.sleep(backoff_factor ** attempt)
+    logger.error("All %d attempts failed. Returning None.", retries)
     return None
-
 
 def _extract_compliance_with_regex_fallback(query: str, tools: list) -> Any | None:
     try:
@@ -312,59 +296,57 @@ def extract_structured_info_2(
     query: str, schema: Any, retries: int = 2, backoff_factor: float = 1.5
 ) -> Any | None:
     """
-    Extracts structured info from the model with retry and fallback logic.
+    Extracts structured info using chat completions — provider agnostic.
+    Works with Azure OpenAI, OpenAI, and any chat completions compatible provider.
     """
+    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini")
     attempt = 0
     while attempt < retries:
         try:
-            logger.info(
-                "Attempt #%d to extract structured info for schema: %s",
-                attempt + 1,
-                schema.__name__,
+            logger.info("Attempt #%d to extract structured info for schema: %s", attempt + 1, schema.__name__)
+            response = client.chat.completions.create(
+                model=deployment,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert compliance consultant. "
+                            "Return ONLY valid JSON that matches the requested schema. "
+                            "No markdown, no explanation, just JSON."
+                        ),
+                    },
+                    {"role": "user", "content": query},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.0,
+                max_tokens=16000,
             )
-
-            response = client.responses.parse(
-                input=query, model="gpt-4.1-mini", text_format=schema,
-                max_output_tokens=16000
-            )
-
-            if response and response.output_parsed is not None:
-                logger.info("Successfully extracted structured data.")
-                return response.output_parsed
-
-            raise ValueError("Model returned None or an empty response.")
-
+            raw_json = response.choices[0].message.content
+            if not raw_json:
+                raise ValueError("Model returned empty response.")
+            raw_json = raw_json.strip()
+            if raw_json.startswith("```"):
+                raw_json = re.sub(r"^```(?:json)?\n?", "", raw_json)
+                raw_json = re.sub(r"\n?```$", "", raw_json).strip()
+            parsed = schema.model_validate_json(raw_json)
+            logger.info("Successfully extracted structured data.")
+            return parsed
         except (ValidationError, ValueError) as e:
-            logger.warning(
-                "Attempt #%d failed with a data validation error: %s", attempt + 1, e
-            )
+            logger.warning("Attempt #%d failed with validation error: %s", attempt + 1, e)
         except Exception as e:
-            logger.warning(
-                "Attempt #%d failed with a general error: %s", attempt + 1, e
-            )
-
+            logger.warning("Attempt #%d failed with general error: %s", attempt + 1, e)
         attempt += 1
         if attempt < retries:
-            wait_time = backoff_factor**attempt
-            logger.info("Waiting %.2f seconds before retrying...", wait_time)
-            time.sleep(wait_time)
-
-    logger.error(
-        "All %d attempts failed to extract structured data. Returning a default empty object.",
-        retries,
-    )
-
+            time.sleep(backoff_factor ** attempt)
+    logger.error("All %d attempts failed. Returning default.", retries)
     if issubclass(schema, BaseModel):
         try:
             return schema.model_construct()
         except Exception as e:
-            logger.error("Could not construct an empty schema instance for fallback: %s", e)
+            logger.error("Could not construct empty schema: %s", e)
             return None
-
     return {}
 
-
-def encode_image_to_base64(image_path: str) -> str:
     try:
         if not os.path.exists(image_path):
             logger.error(f"Image file not found: {image_path}")
