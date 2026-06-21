@@ -2566,23 +2566,27 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                     processed_clauses += 1
                     continue
 
-                # Extract compliance activities
-                progress = 15 + (processed_clauses / total_clauses) * 60
-                update_compliance_progress(
-                    guideline_id,
-                    "PROCESSING",
-                    int(progress),
-                    f"Extracting activities for clause {clause_number}...",
-                    processed_clauses,
-                    total_clauses,
-                )
+            # LLM call OUTSIDE session — prevents SSL EOF from Azure PostgreSQL
+            # Extract compliance activities
+            progress = 15 + (processed_clauses / total_clauses) * 60
+            update_compliance_progress(
+                guideline_id,
+                "PROCESSING",
+                int(progress),
+                f"Extracting activities for clause {clause_number}...",
+                processed_clauses,
+                total_clauses,
+            )
 
-                activity_response = extract_structured_info(
-                    query=compliance_prompt(clause_text, list(department_list)),
-                    vector_store_id=vec_id,
-                    schema=ComplianceRequirements,
-                )
+            activity_response = extract_structured_info(
+                query=compliance_prompt(clause_text, list(department_list)),
+                vector_store_id=vec_id,
+                schema=ComplianceRequirements,
+            )
 
+
+            # Fresh session for saving — after LLM call completes
+            with session_scope() as session:
                 if not activity_response:
                     logger.info("No compliance activities for clause %s", clause_number)
                     results["activities"].append({clause_id_val: []})
