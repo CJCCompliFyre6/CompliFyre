@@ -439,7 +439,7 @@ class PDFService(PromptsText):
                 """
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",
@@ -463,7 +463,7 @@ class PDFService(PromptsText):
                 {text}
                 """
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",
@@ -487,7 +487,7 @@ class PDFService(PromptsText):
                 {text}
                 """
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",
@@ -516,7 +516,7 @@ class PDFService(PromptsText):
                 {text}
                 """
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",
@@ -542,7 +542,7 @@ class PDFService(PromptsText):
                 {text}
                 """
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",
@@ -566,7 +566,7 @@ class PDFService(PromptsText):
                 {text}
                 """
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",
@@ -591,7 +591,7 @@ class PDFService(PromptsText):
                 {text}
                 """
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",

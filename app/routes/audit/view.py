@@ -8343,7 +8343,7 @@ Return ONLY valid JSON:
 
         from app import client as openai_client
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {"role": "system", "content": "You are an audit evidence re-evaluation engine. Return only valid JSON."},
                 {"role": "user", "content": re_eval_prompt}

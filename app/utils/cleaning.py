@@ -1305,7 +1305,7 @@ DO NOT summarize entire document. Only map evidence relevant to activity objecti
         current_app.logger.info("=" * 80)
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {
                     "role": "system",

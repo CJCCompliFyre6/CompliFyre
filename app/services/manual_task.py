@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from typing import Any
 import fitz  # PyMuPDF
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 import redis
 import time
 
@@ -1883,7 +1883,7 @@ def extract_clauses(self, guideline_id: int):
     from app.services.pdf_structure_parser import parse_pdf_structure, validate_nodes, get_parser_stats
     from app.services.clause_post_processor import post_process_nodes
     from app.services.prompt_templates.clasue_prompt import stage2_semantic_prompt
-    from openai import OpenAI
+    from openai import OpenAI, AzureOpenAI
 
     logger.info(f"extract_clauses v2: guideline_id={guideline_id}")
 

@@ -301,7 +301,7 @@ Return ONLY this JSON:
         try:
             from app import client as _openai_client
             response = _openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
                 temperature=0,
                 response_format={"type": "json_object"},
                 messages=[{"role": "user", "content": prompt}],

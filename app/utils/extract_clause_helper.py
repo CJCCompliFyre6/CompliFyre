@@ -79,7 +79,7 @@ def extract_structured_info_with_metrics(
     """
     try:
         response = openai.chat.completions.create(
-            model="gpt-4o",                         # FIX 4: was gpt-4o-mini
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),                         # FIX 4: was gpt-4o-mini
             messages=[
                 {
                     "role": "system",
