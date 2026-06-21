@@ -143,11 +143,11 @@ def extract_structured_info(
 
             if tools:
                 response = client.responses.parse(
-                    input=query, model="gpt-4o-mini", tools=tools, text_format=schema
+                    input=query, model="gpt-4.1-mini", tools=tools, text_format=schema
                 )
             else:
                 response = client.responses.parse(
-                    input=query, model="gpt-4o-mini", text_format=schema
+                    input=query, model="gpt-4.1-mini", text_format=schema
                 )
 
             if response and response.output_parsed is not None:
@@ -190,7 +190,7 @@ def _extract_compliance_with_regex_fallback(query: str, tools: list) -> Any | No
 
         if tools:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=[
                     {
                         "role": "system",
@@ -201,7 +201,7 @@ def _extract_compliance_with_regex_fallback(query: str, tools: list) -> Any | No
             )
         else:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=[
                     {
                         "role": "system",
@@ -324,7 +324,7 @@ def extract_structured_info_2(
             )
 
             response = client.responses.parse(
-                input=query, model="gpt-4o-mini", text_format=schema,
+                input=query, model="gpt-4.1-mini", text_format=schema,
                 max_output_tokens=16000
             )
 
@@ -387,7 +387,7 @@ def encode_image_to_base64(image_path: str) -> str:
 
 def _get_config(file_name: str | None) -> dict:
     config = {
-        "model": "gpt-4o-mini",
+        "model": "gpt-4.1-mini",
         "preprocess": "text",
     }
 
@@ -398,26 +398,26 @@ def _get_config(file_name: str | None) -> dict:
     extension = extension.lower()
 
     CONFIG_BY_EXTENSION = {
-        ".pdf":  {"model": "gpt-4o-mini", "preprocess": "pdf"},
-        ".doc":  {"model": "gpt-4o-mini", "preprocess": "docx"},
-        ".docx": {"model": "gpt-4o-mini", "preprocess": "docx"},
-        ".ppt":  {"model": "gpt-4o-mini", "preprocess": "ppt"},
-        ".pptx": {"model": "gpt-4o-mini", "preprocess": "ppt"},
-        ".xls":  {"model": "gpt-4o-mini", "preprocess": "excel"},
-        ".xlsx": {"model": "gpt-4o-mini", "preprocess": "excel"},
-        ".csv":  {"model": "gpt-4o-mini", "preprocess": "csv"},
-        ".png":  {"model": "gpt-4o-mini", "preprocess": "image"},
-        ".jpg":  {"model": "gpt-4o-mini", "preprocess": "image"},
-        ".jpeg": {"model": "gpt-4o-mini", "preprocess": "image"},
-        ".gif":  {"model": "gpt-4o-mini", "preprocess": "image"},
-        ".bmp":  {"model": "gpt-4o-mini", "preprocess": "image"},
-        ".webp": {"model": "gpt-4o-mini", "preprocess": "image"},
-        ".mp3":  {"model": "gpt-4o-mini", "preprocess": "audio"},
-        ".wav":  {"model": "gpt-4o-mini", "preprocess": "audio"},
-        ".m4a":  {"model": "gpt-4o-mini", "preprocess": "audio"},
-        ".flac": {"model": "gpt-4o-mini", "preprocess": "audio"},
-        ".ogg":  {"model": "gpt-4o-mini", "preprocess": "audio"},
-        ".aac":  {"model": "gpt-4o-mini", "preprocess": "audio"},
+        ".pdf":  {"model": "gpt-4.1-mini", "preprocess": "pdf"},
+        ".doc":  {"model": "gpt-4.1-mini", "preprocess": "docx"},
+        ".docx": {"model": "gpt-4.1-mini", "preprocess": "docx"},
+        ".ppt":  {"model": "gpt-4.1-mini", "preprocess": "ppt"},
+        ".pptx": {"model": "gpt-4.1-mini", "preprocess": "ppt"},
+        ".xls":  {"model": "gpt-4.1-mini", "preprocess": "excel"},
+        ".xlsx": {"model": "gpt-4.1-mini", "preprocess": "excel"},
+        ".csv":  {"model": "gpt-4.1-mini", "preprocess": "csv"},
+        ".png":  {"model": "gpt-4.1-mini", "preprocess": "image"},
+        ".jpg":  {"model": "gpt-4.1-mini", "preprocess": "image"},
+        ".jpeg": {"model": "gpt-4.1-mini", "preprocess": "image"},
+        ".gif":  {"model": "gpt-4.1-mini", "preprocess": "image"},
+        ".bmp":  {"model": "gpt-4.1-mini", "preprocess": "image"},
+        ".webp": {"model": "gpt-4.1-mini", "preprocess": "image"},
+        ".mp3":  {"model": "gpt-4.1-mini", "preprocess": "audio"},
+        ".wav":  {"model": "gpt-4.1-mini", "preprocess": "audio"},
+        ".m4a":  {"model": "gpt-4.1-mini", "preprocess": "audio"},
+        ".flac": {"model": "gpt-4.1-mini", "preprocess": "audio"},
+        ".ogg":  {"model": "gpt-4.1-mini", "preprocess": "audio"},
+        ".aac":  {"model": "gpt-4.1-mini", "preprocess": "audio"},
     }
 
     return CONFIG_BY_EXTENSION.get(extension, config)
