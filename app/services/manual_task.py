@@ -904,18 +904,27 @@ def extract_text_from_pdf_page_by_page(file_path):
 
 
 def get_llm_service():
-    """Get OpenAI client"""
+    """Get OpenAI client — supports both Azure OpenAI and direct OpenAI"""
     try:
-        api_key = os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY
+        azure_key = os.getenv("AZURE_OPENAI_API_KEY")
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+        if azure_key and azure_endpoint:
+            from openai import AzureOpenAI
+            client = AzureOpenAI(
+                api_key=azure_key,
+                azure_endpoint=azure_endpoint,
+                api_version=azure_api_version,
+            )
+            return client
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("OPENAI_API_KEY not found")
-
+            raise ValueError("No OpenAI API key found — set OPENAI_API_KEY or AZURE_OPENAI_API_KEY")
         client = OpenAI(api_key=api_key)
         return client
     except Exception as e:
         logger.error(f"Error initializing OpenAI client: {e}")
         raise
-
 
 # Add Redis connection for progress tracking
 def get_redis_connection(max_retries=3, retry_delay=1):
@@ -1113,7 +1122,7 @@ def extract_clauses_with_openai(document_text, guideline_id, page_range):
 
         # FIXED: Use the correct method name - chat.completions.create()
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {"role": "system", "content": full_prompt},
             ],
@@ -1811,7 +1820,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
 
         client = get_llm_service()
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
             response_format={"type": "json_object"},
@@ -1964,7 +1973,7 @@ def extract_clauses(self, guideline_id: int):
                 prompt = stage2_semantic_prompt(node, running_context, guideline_licenses)
 
                 response = client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
                     response_format={"type": "json_object"},
