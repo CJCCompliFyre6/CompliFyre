@@ -128,17 +128,23 @@ def extract_structured_info(
     while attempt < retries:
         try:
             logger.info("Attempt #%d to extract structured info for schema: %s", attempt + 1, schema.__name__)
+            # Build schema description from Pydantic model
+            try:
+                schema_json = json.dumps(schema.model_json_schema(), indent=2)
+            except Exception:
+                schema_json = str(schema)
+
+            system_msg = (
+                "You are an expert compliance consultant. "
+                "Return ONLY valid JSON matching EXACTLY this schema — no extra fields, no missing fields:\n"
+                f"{schema_json}\n"
+                "All required fields must be present. Return only the JSON object, no markdown."
+            )
+
             response = client.chat.completions.create(
                 model=deployment,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert compliance consultant. "
-                            "Return ONLY valid JSON that matches the requested schema. "
-                            "No markdown, no explanation, just JSON."
-                        ),
-                    },
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": query},
                 ],
                 response_format={"type": "json_object"},
@@ -304,17 +310,22 @@ def extract_structured_info_2(
     while attempt < retries:
         try:
             logger.info("Attempt #%d to extract structured info for schema: %s", attempt + 1, schema.__name__)
+            try:
+                schema_json = json.dumps(schema.model_json_schema(), indent=2)
+            except Exception:
+                schema_json = str(schema)
+
+            system_msg = (
+                "You are an expert compliance consultant. "
+                "Return ONLY valid JSON matching EXACTLY this schema:\n"
+                f"{schema_json}\n"
+                "All required fields must be present. Return only the JSON object, no markdown."
+            )
+
             response = client.chat.completions.create(
                 model=deployment,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert compliance consultant. "
-                            "Return ONLY valid JSON that matches the requested schema. "
-                            "No markdown, no explanation, just JSON."
-                        ),
-                    },
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": query},
                 ],
                 response_format={"type": "json_object"},
