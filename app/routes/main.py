@@ -1128,7 +1128,7 @@ def structure_map_review(guideline_id):
         guideline = Guidelines.query.get(guideline_id)
         if not guideline:
             flash("Guideline not found", "error")
-            return redirect(url_for("main.index"))
+            return redirect(request.referrer or "/")
 
         guideline_data = guideline.guideline_data or {}
         guideline_name = guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
@@ -1140,7 +1140,7 @@ def structure_map_review(guideline_id):
             file_record = guideline.file
             if not file_record:
                 flash("No file found for this guideline", "error")
-                return redirect(url_for("main.index"))
+                return redirect(request.referrer or "/")
             structure_map = generate_structure_map(file_record.path, guideline_id, regulator_name)
         else:
             structure_map = existing_map
@@ -1154,7 +1154,7 @@ def structure_map_review(guideline_id):
     except Exception as e:
         logger.error(f"Error in structure_map_review: {e}")
         flash(f"Error generating structure map: {str(e)}", "error")
-        return redirect(url_for("main.index"))
+        return redirect(request.referrer or "/")
 
 
 @main_bp.route("/confirm-structure-map/<int:guideline_id>", methods=["POST"])
@@ -1588,7 +1588,7 @@ def delete_guideline(guideline_id):
     guideline = Guidelines.query.get(guideline_id)
     if not guideline:
         flash(f"Guideline with ID {guideline_id} not found.", "error")
-        return redirect(request.referrer or url_for("main.index"))
+        return redirect(request.referrer or request.referrer or "/")
 
     try:
         db.session.delete(guideline)
@@ -1598,7 +1598,7 @@ def delete_guideline(guideline_id):
         db.session.rollback()
         flash(f"Error deleting guideline: {str(e)}", "error")
 
-    return redirect(request.referrer or url_for("main.index"))
+    return redirect(request.referrer or request.referrer or "/")
 
 
 # ===========Clauses==================================================

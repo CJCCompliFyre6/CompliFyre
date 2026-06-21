@@ -188,7 +188,6 @@ class Guidelines(db.Model):
     structure_map = db.Column(db.JSON, nullable=True)
     regulator_body_id = db.Column(
         db.BigInteger,
-        db.ForeignKey('"RegulatoryBodies".body_id'),
         nullable=True
     )
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
