@@ -69,7 +69,7 @@ class TestAttribute(BaseModel):
     
     # Testing sequence
     testing_sequence: int = Field(..., description="Order in which this attribute should be tested. Start from 1.")
-    depends_on_attribute: str = Field(None, description="Name of attribute that must pass before this one is tested. Leave null if independent.")
+    depends_on_attribute: str | None = Field(None, description="Name of attribute that must pass before this one is tested. Leave null if independent.")
 
 class InterviewModel(BaseModel):
     roles: list[str] = Field(..., description="List of roles to be interviewed.")
