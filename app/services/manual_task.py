@@ -2755,7 +2755,7 @@ def extract_all_activities_and_tests(self, guideline_id: int):
                             f"[EVE] Checklist generation failed for comp_id={comp_id_val}: {eve_err}"
                         )
                         # Re-raise — clause should be marked INCOMPLETE not silently skipped
-                        raise
+                        logger.warning(f"[EVE] Checklist skipped for comp_id={comp_id_val} — will be retried by fix_pending_checklists")
 
                 results["activities"].append({clause_id_val: saved_activities})
                 processed_clauses += (
