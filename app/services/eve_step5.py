@@ -1575,6 +1575,23 @@ Map evidence role to applicable dimensions:
 Only evaluate checklist items whose dimension matches the evidence role.
 For items outside scope — mark as NOT_APPLICABLE with basis: "Evidence role does not cover this dimension"
 
+EVIDENCE TYPE RELEVANCE RULE (CRITICAL):
+Each checklist item has an "expected_evidence_types" field listing evidence types that naturally contain proof for that item.
+RULE: If the current evidence type does NOT match any of the expected_evidence_types for a checklist item:
+  Mark that item as: found = NOT_APPLICABLE
+  basis: "Evidence type does not typically contain this information. Expected: [list expected_evidence_types]"
+  Do NOT mark as NOT_FOUND — this is a scope mismatch, not a gap.
+  Do NOT raise a finding for NOT_APPLICABLE items.
+EXAMPLE:
+  CHK_002 requires meeting minutes — expected_evidence_types: ["meeting minutes", "board resolutions"]
+  Current evidence is a POLICY_DOCUMENT
+  Correct response: found = NOT_APPLICABLE
+  Wrong response: found = NOT_FOUND (would incorrectly generate a finding)
+CRITICAL DISTINCTION:
+  NOT_FOUND = information should be here but is absent = potential finding
+  NOT_APPLICABLE = wrong evidence type for this item = no finding, evaluate against other evidence
+
+
 ---
 
 SUB-STEP-6 — EXTRACT CLAIMS AND CHECKPOINTS:
@@ -2099,17 +2116,16 @@ def run_eve_step5_for_evidence(
                     }
                 # PARTIAL — continue with evaluation but note missing columns
 
-        # PRE-4: Filter checklist items by dimension (SS5)
-        # Determine evidence role from map (before LLM — use file type heuristic)
-        # Will be overridden by LLM output in POST-3
-        pre_role = EVIDENCE_ROLE_MAP.get("OTHER", "DESIGN_EVIDENCE")
-        applicable_items, not_applicable_items = filter_applicable_items(
-            checklist_items, pre_role
-        )
-        # If filtering removes everything, use all items
-        if not applicable_items:
-            applicable_items = checklist_items
-            not_applicable_items = []
+        # PRE-4: Do NOT pre-filter checklist items by dimension before LLM runs.
+        # We don't know the evidence type yet (LLM determines it).
+        # Pre-filtering with wrong default (OTHER→DESIGN_EVIDENCE) caused
+        # IMPLEMENTATION/OPERATING items to never be evaluated by any evidence,
+        # leading to false findings when those items were actually FOUND in other evidence.
+        # Fix: pass ALL items to LLM. After LLM returns evidence_type,
+        # use expected_evidence_types guidance in prompt to get NOT_APPLICABLE
+        # instead of NOT_FOUND for wrong evidence types.
+        applicable_items = checklist_items
+        not_applicable_items = []
 
         # PRE-5: Detect explicit exclusions in content (SS7 Type 2)
         exclusions = detect_explicit_exclusions(evidence_content, applicable_items)
