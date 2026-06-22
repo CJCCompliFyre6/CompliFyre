@@ -133,36 +133,27 @@ PRINCIPLE 3 — MULTI-EVIDENCE CONSOLIDATION (CRITICAL RULES):
 Consolidate corroborative evidence. Reconcile overlapping evidence. Preserve evidence lineage.
 Disclose which evidence sources contributed to final support status.
 
-EVIDENCE HIERARCHY FOR CONSOLIDATION:
-Evidence has two strength tiers that affect how FOUND signals are weighted:
-  TIER 1 — PRIMARY DOCUMENT EVIDENCE: Policy Documents, Board Minutes, Meeting Minutes, Signed Agreements, System Reports, Transaction Data, Audit Reports, Registers, Logs
-  TIER 2 — SECONDARY EVIDENCE: Interview responses, Walkthrough documentation, Verbal confirmations, Observational notes
+CRITICAL — PRE-COMPUTED CONSOLIDATION:
+The input data contains a "cross_evidence_consolidation" field per evidence piece.
+This field has ALREADY computed the consolidated state for each checklist item across all evidence.
+You MUST use these pre-computed values — do NOT re-derive consolidation from raw signals.
 
-CONSOLIDATION RULES FOR EACH CHECKLIST ITEM:
+For each checklist item, find its entry in cross_evidence_consolidation and apply:
+  consolidated_state = "SUPPORTED" AND suppress_finding = true
+    → Final state = Supported. DO NOT raise a finding for this item. MANDATORY.
+  consolidated_state = "PARTIALLY_SUPPORTED" AND suppress_finding = false
+    → Final state = Partially Supported. Raise finding at REDUCED severity.
+  consolidated_state = "UNSUPPORTED" AND suppress_finding = false
+    → Final state = Unsupported. Raise finding at full severity.
+  consolidated_state = "NOT_APPLICABLE"
+    → Do not raise a finding. Raise inquiry instead.
 
-RULE 3A — FOUND IN TIER 1 EVIDENCE → SUPPRESS FINDING:
-If a checklist item is FOUND (or PARTIAL) in ANY Tier 1 (primary document) evidence piece:
-  → Final state for that item = Supported (or Partially Supported if all are PARTIAL)
-  → Do NOT raise a finding for this item
-  → NOT_FOUND in other evidence pieces is IGNORED for this item
-  → Rationale: Primary document evidence is authoritative — if it exists in one document, the control is evidenced
+EVIDENCE HIERARCHY (for reference only — consolidation already computed):
+  TIER 1 — PRIMARY: Policy Documents, Board Minutes, Meeting Minutes, System Reports, Transaction Data, Audit Reports
+  TIER 2 — SECONDARY: Interview responses, Walkthroughs, Observational notes
 
-RULE 3B — FOUND ONLY IN TIER 2 EVIDENCE → DOWNGRADE, DON'T SUPPRESS:
-If a checklist item is FOUND only in interview/walkthrough (Tier 2) but NOT_FOUND in all Tier 1 evidence:
-  → Final state = Partially Supported
-  → Raise a finding but at LOWER severity (downgrade by one level: CRITICAL→HIGH, HIGH→MEDIUM, MEDIUM→LOW)
-  → Note: "Verbal/observational confirmation only — documentary evidence required"
-
-RULE 3C — NOT_APPLICABLE IS NOT NOT_FOUND:
-If a checklist item is NOT_APPLICABLE for an evidence piece (wrong evidence type):
-  → That NOT_APPLICABLE signal does NOT count as NOT_FOUND
-  → Only count NOT_FOUND signals from evidence where the item WAS applicable
-  → If item was NOT_APPLICABLE in all evidence pieces → raise inquiry, not finding
-
-RULE 3D — NOT_FOUND IN ALL APPLICABLE EVIDENCE → RAISE FINDING:
-If a checklist item is NOT_FOUND in ALL evidence pieces where it was applicable (not NOT_APPLICABLE):
-  → Final state = Unsupported
-  → Raise finding at full severity
+suppress_finding = true means NO FINDING for that checklist item regardless of what individual evidence pieces say.
+This is NON-NEGOTIABLE — if suppress_finding is true, the item is considered evidenced.
 
 PRINCIPLE 4 — ASSURANCE STATE CONSOLIDATION:
 Maintain assurance metrics:
@@ -823,6 +814,88 @@ def _build_evidence_results_for_step6(checklist_id: int) -> list:
     for ev in evidence_map.values():
         ev.pop("_checklist_eval_map", None)
         output.append(ev)
+
+    # ── PRE-CONSOLIDATION: compute cross-evidence found state per checklist item ──
+    # This tells Step 6 LLM exactly what the consolidated state is — no guessing needed
+    # RULE 3A: If FOUND in ANY Tier 1 (document) evidence → mark as consolidated_found
+    # RULE 3C: NOT_APPLICABLE is not NOT_FOUND
+    TIER1_EVIDENCE_ROLES = {"PRIMARY", "CORROBORATIVE"}
+    TIER1_EVIDENCE_TYPES = {
+        "POLICY_DOCUMENT", "BOARD_MINUTES", "MEETING_MINUTES", "SIGNED_AGREEMENT",
+        "SYSTEM_REPORT", "TRANSACTION_DATA", "AUDIT_REPORT", "REGISTER", "LOG",
+        "FINANCIAL_STATEMENT", "CONTRACT", "CERTIFICATE", "APPROVAL_LETTER",
+        "BOARD_RESOLUTION", "CIRCULAR", "NOTICE", "REGULATORY_FILING"
+    }
+
+    # Build per-checklist-item cross-evidence summary
+    checklist_cross_summary = {}
+    for ev in output:
+        ev_type = (ev.get("evidence_type") or "").upper().replace(" ", "_")
+        ev_role = (ev.get("evidence_meta", {}).get("role") or "").upper()
+        is_tier1 = ev_role in TIER1_EVIDENCE_ROLES or ev_type in TIER1_EVIDENCE_TYPES
+
+        for result in ev.get("results", []):
+            chk_id = result.get("checklist_id")
+            found_val = (result.get("found") or "").upper()
+            if not chk_id:
+                continue
+            if chk_id not in checklist_cross_summary:
+                checklist_cross_summary[chk_id] = {
+                    "tier1_found": False,
+                    "tier1_partial": False,
+                    "any_found": False,
+                    "all_not_applicable": True,
+                    "contributing_evidence": []
+                }
+            summary = checklist_cross_summary[chk_id]
+            if found_val == "NOT_APPLICABLE":
+                continue  # skip — not a finding signal
+            summary["all_not_applicable"] = False
+            if found_val in ("FOUND",):
+                summary["any_found"] = True
+                if is_tier1:
+                    summary["tier1_found"] = True
+                    summary["contributing_evidence"].append({
+                        "evidence_id": ev.get("evidence_id"),
+                        "evidence_type": ev.get("evidence_type"),
+                        "tier": "TIER1"
+                    })
+            elif found_val == "PARTIAL":
+                if is_tier1:
+                    summary["tier1_partial"] = True
+                    summary["contributing_evidence"].append({
+                        "evidence_id": ev.get("evidence_id"),
+                        "evidence_type": ev.get("evidence_type"),
+                        "tier": "TIER1_PARTIAL"
+                    })
+
+    # Compute consolidated state per checklist item
+    for chk_id, summary in checklist_cross_summary.items():
+        if summary["tier1_found"]:
+            summary["consolidated_state"] = "SUPPORTED"
+            summary["suppress_finding"] = True
+            summary["reason"] = "FOUND in Tier 1 (primary document) evidence — finding suppressed per RULE 3A"
+        elif summary["tier1_partial"]:
+            summary["consolidated_state"] = "PARTIALLY_SUPPORTED"
+            summary["suppress_finding"] = False
+            summary["reason"] = "Only PARTIAL in Tier 1 evidence — finding may be raised at reduced severity"
+        elif summary["any_found"]:
+            summary["consolidated_state"] = "PARTIALLY_SUPPORTED"
+            summary["suppress_finding"] = False
+            summary["reason"] = "FOUND only in Tier 2 (secondary) evidence — documentary evidence required"
+        elif summary["all_not_applicable"]:
+            summary["consolidated_state"] = "NOT_APPLICABLE"
+            summary["suppress_finding"] = True
+            summary["reason"] = "Item not applicable to any evidence type submitted — raise inquiry"
+        else:
+            summary["consolidated_state"] = "UNSUPPORTED"
+            summary["suppress_finding"] = False
+            summary["reason"] = "NOT_FOUND in all applicable evidence — finding should be raised"
+
+    # Attach cross-summary to output for Step 6 LLM
+    for ev in output:
+        ev["cross_evidence_consolidation"] = checklist_cross_summary
+
     return output
 
 
