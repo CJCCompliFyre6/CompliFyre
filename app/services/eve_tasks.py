@@ -554,7 +554,20 @@ For each checklist item output EXACTLY this JSON structure:
   "materiality": "HIGH | MEDIUM | LOW",
   "testing_method": "DOCUMENT_REVIEW | CONTENT_VALIDATION | APPROVAL_VALIDATION | CONFIGURATION_VALIDATION | ATTRIBUTE_VERIFICATION | SAMPLE_TESTING | LOG_REVIEW | TIMELINE_VALIDATION | RECONCILIATION | PROCESS_TRACE | DIAGRAM_ANALYSIS | COMMUNICATION_VALIDATION | THIRD_PARTY_VALIDATION | EXCEPTION_ANALYSIS",
   "testing_approach": "FULL | SAMPLE | TREND | RECOMPUTE | WALKTHROUGH",
-  "expected_evidence_types": ["LIST ALL ACCEPTABLE TYPES"],
+  "expected_evidence_types": ["SPECIFIC EVIDENCE TYPES THAT WOULD CONTAIN PROOF FOR THIS ITEM"],
+  // CRITICAL — expected_evidence_types RULES:
+  // Set this based on the REQUIREMENT TEXT of this specific checklist item — not the overall activity.
+  // Examples:
+  //   Requirement mentions "approval signatures" → ["Policy Documents", "Signed Agreements"]
+  //   Requirement mentions "meeting minutes" or "board resolution" → ["Board Meeting Minutes", "Board Resolutions"]
+  //   Requirement mentions "training records" or "attendance" → ["Training Records", "Attendance Logs"]
+  //   Requirement mentions "system logs" or "audit trail" → ["System Logs", "Audit Trail Reports"]
+  //   Requirement mentions "transaction data" or "loan register" → ["Transaction Data", "Loan Register", "Excel Reports"]
+  //   Requirement mentions "policy document" or "framework" → ["Policy Documents", "Control Frameworks"]
+  //   Requirement mentions "communication" or "notice" → ["Email Communications", "Notices", "Circulars"]
+  // NEVER set all items to the same evidence type — each item should reflect its specific requirement
+  // This field is used to determine if an evidence piece is RELEVANT to this checklist item
+  // Wrong evidence type → NOT_APPLICABLE (no finding), Correct evidence type but missing → NOT_FOUND (finding)
   "evidence_strength_required": "PRIMARY | SUPPORTING | OBSERVATIONAL | ANALYTICAL",
   "evidence_logic": {{{{
     "minimum_required": 1,

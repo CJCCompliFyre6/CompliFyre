@@ -1575,21 +1575,45 @@ Map evidence role to applicable dimensions:
 Only evaluate checklist items whose dimension matches the evidence role.
 For items outside scope — mark as NOT_APPLICABLE with basis: "Evidence role does not cover this dimension"
 
-EVIDENCE TYPE RELEVANCE RULE (CRITICAL):
-Each checklist item has an "expected_evidence_types" field listing evidence types that naturally contain proof for that item.
-RULE: If the current evidence type does NOT match any of the expected_evidence_types for a checklist item:
-  Mark that item as: found = NOT_APPLICABLE
-  basis: "Evidence type does not typically contain this information. Expected: [list expected_evidence_types]"
-  Do NOT mark as NOT_FOUND — this is a scope mismatch, not a gap.
-  Do NOT raise a finding for NOT_APPLICABLE items.
-EXAMPLE:
-  CHK_002 requires meeting minutes — expected_evidence_types: ["meeting minutes", "board resolutions"]
-  Current evidence is a POLICY_DOCUMENT
-  Correct response: found = NOT_APPLICABLE
-  Wrong response: found = NOT_FOUND (would incorrectly generate a finding)
+EVIDENCE TYPE RELEVANCE RULE (CRITICAL — prevents false NOT_FOUND findings):
+Before evaluating each checklist item, determine if the current evidence is the RIGHT TYPE of evidence for that item.
+Use TWO signals to determine relevance:
+  Signal 1 — expected_evidence_types field: if current evidence type does not match any listed type → likely NOT_APPLICABLE
+  Signal 2 — requirement text keywords: read the requirement text and identify what KIND of document it expects:
+    * If requirement says "meeting minutes", "board resolution", "minutes of meeting" → needs BOARD_MINUTES type evidence
+    * If requirement says "training records", "attendance", "training completion" → needs training records
+    * If requirement says "approval signatures", "signed policy", "policy document" → needs POLICY_DOCUMENT
+    * If requirement says "system logs", "audit trail", "transaction data" → needs system/transaction evidence
+    * If requirement says "communication", "email", "notice", "circular" → needs communication evidence
+
+RULE: If BOTH signals suggest the current evidence is NOT the right type for this checklist item:
+  → Mark as: found = NOT_APPLICABLE
+  → basis: "Requirement asks for [type from requirement text] but current evidence is [current type]. This item should be evaluated against [expected type] evidence."
+  → Do NOT mark as NOT_FOUND
+  → Do NOT raise a finding
+
+RULE: If current evidence IS the right type but information is absent:
+  → Mark as: found = NOT_FOUND
+  → This IS a gap → will generate a finding
+
+EXAMPLE 1 (correct behavior):
+  CHK_002 requirement: "The meeting minutes confirm the Board's approval of the KYC policy"
+  Current evidence type: POLICY_DOCUMENT
+  Signal 1: expected_evidence_types = ["Policy Documents"] (may be wrong in data)
+  Signal 2: requirement says "meeting minutes" → needs BOARD_MINUTES not POLICY_DOCUMENT
+  → Mark as NOT_APPLICABLE — policy document cannot contain meeting minutes
+  → No finding raised for this item from this evidence
+
+EXAMPLE 2 (correct behavior):
+  CHK_001 requirement: "The KYC policy document is approved by the Board"
+  Current evidence type: POLICY_DOCUMENT
+  Signal 1: expected_evidence_types = ["Policy Documents"]
+  Signal 2: requirement mentions "policy document" → correct evidence type
+  → Evaluate normally → if approval signatures absent → NOT_FOUND → finding raised
+
 CRITICAL DISTINCTION:
-  NOT_FOUND = information should be here but is absent = potential finding
-  NOT_APPLICABLE = wrong evidence type for this item = no finding, evaluate against other evidence
+  NOT_FOUND = right evidence type, information is absent = potential finding
+  NOT_APPLICABLE = wrong evidence type for this item = no finding, other evidence will be checked
 
 
 ---
