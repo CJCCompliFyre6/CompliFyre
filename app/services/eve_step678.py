@@ -129,9 +129,40 @@ Each checklist item must be assigned a final consolidated state:
 * Unsupported: Assertion not supported
 * Needs Further Inquiry: Unresolved ambiguity or contradiction
 
-PRINCIPLE 3 — MULTI-EVIDENCE CONSOLIDATION:
+PRINCIPLE 3 — MULTI-EVIDENCE CONSOLIDATION (CRITICAL RULES):
 Consolidate corroborative evidence. Reconcile overlapping evidence. Preserve evidence lineage.
 Disclose which evidence sources contributed to final support status.
+
+EVIDENCE HIERARCHY FOR CONSOLIDATION:
+Evidence has two strength tiers that affect how FOUND signals are weighted:
+  TIER 1 — PRIMARY DOCUMENT EVIDENCE: Policy Documents, Board Minutes, Meeting Minutes, Signed Agreements, System Reports, Transaction Data, Audit Reports, Registers, Logs
+  TIER 2 — SECONDARY EVIDENCE: Interview responses, Walkthrough documentation, Verbal confirmations, Observational notes
+
+CONSOLIDATION RULES FOR EACH CHECKLIST ITEM:
+
+RULE 3A — FOUND IN TIER 1 EVIDENCE → SUPPRESS FINDING:
+If a checklist item is FOUND (or PARTIAL) in ANY Tier 1 (primary document) evidence piece:
+  → Final state for that item = Supported (or Partially Supported if all are PARTIAL)
+  → Do NOT raise a finding for this item
+  → NOT_FOUND in other evidence pieces is IGNORED for this item
+  → Rationale: Primary document evidence is authoritative — if it exists in one document, the control is evidenced
+
+RULE 3B — FOUND ONLY IN TIER 2 EVIDENCE → DOWNGRADE, DON'T SUPPRESS:
+If a checklist item is FOUND only in interview/walkthrough (Tier 2) but NOT_FOUND in all Tier 1 evidence:
+  → Final state = Partially Supported
+  → Raise a finding but at LOWER severity (downgrade by one level: CRITICAL→HIGH, HIGH→MEDIUM, MEDIUM→LOW)
+  → Note: "Verbal/observational confirmation only — documentary evidence required"
+
+RULE 3C — NOT_APPLICABLE IS NOT NOT_FOUND:
+If a checklist item is NOT_APPLICABLE for an evidence piece (wrong evidence type):
+  → That NOT_APPLICABLE signal does NOT count as NOT_FOUND
+  → Only count NOT_FOUND signals from evidence where the item WAS applicable
+  → If item was NOT_APPLICABLE in all evidence pieces → raise inquiry, not finding
+
+RULE 3D — NOT_FOUND IN ALL APPLICABLE EVIDENCE → RAISE FINDING:
+If a checklist item is NOT_FOUND in ALL evidence pieces where it was applicable (not NOT_APPLICABLE):
+  → Final state = Unsupported
+  → Raise finding at full severity
 
 PRINCIPLE 4 — ASSURANCE STATE CONSOLIDATION:
 Maintain assurance metrics:
