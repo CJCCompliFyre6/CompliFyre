@@ -55,7 +55,7 @@ def celery_init_app(app: Flask) -> Celery:
         },
         "imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5"),"imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5", "app.services.eve_step678"),
         "task_track_started": True,
-        "task_time_limit":8 * 60 * 60,  # 8 hours
+        "task_time_limit": 24 * 60 * 60,  # 24 hours
         "task_acks_late": True,
         "worker_prefetch_multiplier": 1,
         "result_extended": True,  # Enable extended result features
