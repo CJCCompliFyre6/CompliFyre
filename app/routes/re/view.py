@@ -5833,11 +5833,22 @@ def evidences():
                     ".wav",
                 )
 
-                # EVE v3: No upload-time AI processing needed
-                # Step 5 reads file content directly during evaluation
-                # Manual text entry is handled separately above
-
-                flash(f"File uploaded successfully!", "success")
+                # EVE v3: Trigger Step 5 re-evaluation after file replacement
+                try:
+                    from app.models.eve_models import EveEvidenceResult as _EER
+                    from app.services.eve_step5 import run_eve_step5_for_evidence
+                    old_results = _EER.query.filter_by(evidence_artifact_id=artifact.id).all()
+                    for r in old_results:
+                        db.session.delete(r)
+                    db.session.commit()
+                    run_eve_step5_for_evidence.apply_async(
+                        args=[artifact.id],
+                        queue="run_eve_step5_for_evidence"
+                    )
+                    flash("File uploaded and re-evaluation triggered!", "success")
+                except Exception as eve_err:
+                    current_app.logger.error(f"EVE Step5 re-trigger failed: {eve_err}")
+                    flash("File uploaded successfully!", "success")
                 db.session.commit()
                 return redirect(request.referrer)
 
@@ -5858,6 +5869,37 @@ def evidences():
         return redirect(request.referrer)
 
 
+
+
+@re_bp.route("/evidence/<int:artifact_id>/re-evaluate", methods=["POST"])
+@login_required
+def re_evaluate_evidence(artifact_id):
+    """Re-run EVE Step 5 for a single evidence artifact."""
+    try:
+        from app.models.eve_models import EveEvidenceResult as _EER
+        from app.services.eve_step5 import run_eve_step5_for_evidence
+        artifact = ProjectEvidenceArtifact.query.get(artifact_id)
+        if not artifact:
+            return jsonify({"status": "error", "message": "Evidence artifact not found"}), 404
+        # Delete old Step 5 results
+        old_results = _EER.query.filter_by(evidence_artifact_id=artifact_id).all()
+        for r in old_results:
+            db.session.delete(r)
+        db.session.commit()
+        # Trigger Step 5
+        task = run_eve_step5_for_evidence.apply_async(
+            args=[artifact_id],
+            queue="run_eve_step5_for_evidence"
+        )
+        return jsonify({
+            "status": "success",
+            "message": "Re-evaluation triggered",
+            "task_id": task.id
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Re-evaluate evidence failed: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 @re_bp.route("/populate_data", methods=["GET"])
 def extract_and_format_data():
     """

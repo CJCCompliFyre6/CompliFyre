@@ -506,6 +506,13 @@
                         class="edit-btn">
                         Edit
                       </button>
+                      {% if value.id %}
+                      <button type="button"
+                        onclick="reEvaluateEvidence({{ value.id }}, this)"
+                        class="px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs ml-1">
+                        Re-evaluate
+                      </button>
+                      {% endif %}
                       {% endif %}
                     </div>
                   </div>
@@ -3499,6 +3506,39 @@
   }
 
   // Function to toggle edit form visibility
+  async function reEvaluateEvidence(artifactId, btn) {
+    const originalText = btn.innerText;
+    btn.innerText = 'Running...';
+    btn.disabled = true;
+    try {
+      const response = await fetch(`/re/evidence/${artifactId}/re-evaluate`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''}
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        btn.innerText = 'Triggered!';
+        btn.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+        btn.classList.add('bg-green-500');
+        setTimeout(() => location.reload(), 2000);
+      } else {
+        btn.innerText = 'Error';
+        btn.classList.add('bg-red-500');
+        alert('Re-evaluation failed: ' + data.message);
+      }
+    } catch (err) {
+      btn.innerText = 'Error';
+      alert('Re-evaluation failed: ' + err);
+    } finally {
+      setTimeout(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+        btn.classList.remove('bg-green-500', 'bg-red-500');
+        btn.classList.add('bg-orange-500', 'hover:bg-orange-600');
+      }, 3000);
+    }
+  }
+
   function toggleEditForm(formId) {
     const form = document.getElementById(formId);
     let displayDiv = null;
