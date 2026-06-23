@@ -1397,6 +1397,23 @@ ORGANIZATION CONTEXT RULES (CRITICAL):
 3. MISSING ORGANIZATION CONTEXT: If organization context is not available AND it is needed to evaluate a specific checklist item, raise an INQUIRY trigger — do NOT automatically fail the item.
 4. ABSENCE IS NOT FAILURE: Absence of a product, service, or process that the institution does not offer is NOT a finding. Only raise findings for mandatory regulatory requirements that are clearly not met.
 
+APPROVAL EVIDENCE RULES (CRITICAL — applies to all approval/authorization checklist items):
+5. POLICY DOCUMENT APPROVAL — Document Control Table is SUFFICIENT:
+   For Policy Documents, Frameworks, SOPs, Manuals, Circulars, and Guidelines:
+   A Document Control table or header section showing "Approved By" + approval date IS complete and sufficient evidence of Board/authority approval.
+   Physical wet signatures are NOT required on these document types in Indian BFSI context.
+   PASS if: Document Control table shows approving authority (e.g. "Board of Directors") AND approval date within or before audit period.
+   PARTIAL if: Approving authority mentioned but no explicit approval date, OR approval date outside audit period.
+   Do NOT mark as PARTIAL or NOT_FOUND merely because there are no physical signature blocks on a policy document.
+
+6. CONTRACTS AND LEGAL INSTRUMENTS — Physical Signatures Required:
+   For Contracts, Agreements, MoUs, Loan Documents, Deeds, and Legal Instruments:
+   Physical signature blocks MUST be present and visibly signed.
+   Detect PRESENCE of signatures only — do NOT attempt to verify authenticity.
+   PASS if: Signature blocks present with names/designations of all required parties.
+   PARTIAL if: Some required signatories present but not all.
+   NOT_FOUND if: Signature blocks completely absent or all blank.
+
 * Required Dimensions:
   {json.dumps(required_dimensions, indent=2)}
 

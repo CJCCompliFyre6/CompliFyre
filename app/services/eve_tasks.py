@@ -605,6 +605,18 @@ For each checklist item output EXACTLY this JSON structure:
     "partial_condition": "Explicitly defined partial condition — NOT vague",
     "fail_condition": "Binary testable fail condition",
     "contradiction_action": "INQUIRY"
+
+  // APPROVAL EVIDENCE RULES (CRITICAL — apply when requirement involves approval/authorization):
+  // POLICY DOCUMENTS, FRAMEWORKS, SOPs, MANUALS, CIRCULARS, GUIDELINES:
+  //   Document Control table with "Approved By" + approval date = SUFFICIENT evidence of approval.
+  //   Do NOT require physical wet signatures. Do NOT set fail_condition as "lacks approval signatures".
+  //   pass_condition: "Document shows approved authority and approval date"
+  //   fail_condition: "No approval authority or approval date found anywhere in document"
+  // CONTRACTS, AGREEMENTS, MoUs, LOAN DOCUMENTS, DEEDS, LEGAL INSTRUMENTS:
+  //   Physical signature blocks MUST be present (detect presence only, not verify authenticity).
+  //   pass_condition: "Signature blocks present with signatory names/designations"
+  //   fail_condition: "Signature blocks absent or blank"
+  //   partial_condition: "Some but not all required signatories present"
   }}}},
   "failure_impact": "CRITICAL | MAJOR | SIGNIFICANT | MINOR"
 }}}}
