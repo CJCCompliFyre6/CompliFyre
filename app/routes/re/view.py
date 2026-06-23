@@ -5833,22 +5833,8 @@ def evidences():
                     ".wav",
                 )
 
-                # EVE v3: Trigger Step 5 re-evaluation after file replacement
-                try:
-                    from app.models.eve_models import EveEvidenceResult as _EER
-                    from app.services.eve_step5 import run_eve_step5_for_evidence
-                    old_results = _EER.query.filter_by(evidence_artifact_id=artifact.id).all()
-                    for r in old_results:
-                        db.session.delete(r)
-                    db.session.commit()
-                    run_eve_step5_for_evidence.apply_async(
-                        args=[artifact.id],
-                        queue="run_eve_step5_for_evidence"
-                    )
-                    flash("File uploaded and re-evaluation triggered!", "success")
-                except Exception as eve_err:
-                    current_app.logger.error(f"EVE Step5 re-trigger failed: {eve_err}")
-                    flash("File uploaded successfully!", "success")
+                # EVE v3: Save file only — re-evaluation triggered via Re-evaluate button
+                flash("File uploaded successfully! Click Re-evaluate to run a fresh evaluation.", "success")
                 db.session.commit()
                 return redirect(request.referrer)
 
@@ -5874,27 +5860,70 @@ def evidences():
 @re_bp.route("/evidence/<int:artifact_id>/re-evaluate", methods=["POST"])
 @login_required
 def re_evaluate_evidence(artifact_id):
-    """Re-run EVE Step 5 for a single evidence artifact."""
+    """Re-run EVE Step 5 for a single evidence artifact + Step 6/7/8."""
     try:
         from app.models.eve_models import EveEvidenceResult as _EER
+        from app.models.eve_models import EveControlResult, EveAssuranceState
         from app.services.eve_step5 import run_eve_step5_for_evidence
+        from celery import chord
+        import os
+        upload_base_path = os.getenv("UPLOAD_FOLDER", "uploads")
+
         artifact = ProjectEvidenceArtifact.query.get(artifact_id)
         if not artifact:
             return jsonify({"status": "error", "message": "Evidence artifact not found"}), 404
-        # Delete old Step 5 results
+
+        # Get project_control_activity and checklist
+        pca = artifact.project_control_activity
+        if not pca:
+            return jsonify({"status": "error", "message": "No control activity linked to this artifact"}), 404
+
+        from app.models.eve_models import ProjectChecklist
+        checklist = ProjectChecklist.query.filter_by(
+            project_control_activity_id=pca.id
+        ).first()
+        if not checklist:
+            return jsonify({"status": "error", "message": "No checklist found — run Step 4 first"}), 404
+
+        # Delete old Step 5 results for this artifact
         old_results = _EER.query.filter_by(evidence_artifact_id=artifact_id).all()
         for r in old_results:
             db.session.delete(r)
+
+        # Delete old Step 6/7/8 results for this control activity
+        old_ctrl = EveControlResult.query.filter_by(
+            project_control_activity_id=pca.id
+        ).all()
+        for r in old_ctrl:
+            db.session.delete(r)
+        old_state = EveAssuranceState.query.filter_by(
+            project_control_activity_id=pca.id
+        ).all()
+        for r in old_state:
+            db.session.delete(r)
         db.session.commit()
-        # Trigger Step 5
-        task = run_eve_step5_for_evidence.apply_async(
-            args=[artifact_id],
-            queue="run_eve_step5_for_evidence"
+
+        # Get all evidence artifacts for this control
+        all_artifacts = ProjectEvidenceArtifact.query.filter_by(
+            project_control_activity_id=pca.id
+        ).all()
+
+        # Run Step 5 for all evidence → then Step 6/7/8
+        step5_tasks = [
+            run_eve_step5_for_evidence.s(
+                ev.id, checklist.id, upload_base_path
+            ).set(queue='eve_evaluate')
+            for ev in all_artifacts
+        ]
+        chord(step5_tasks)(
+            run_eve_step6_and_7.si(
+                pca.id, current_user.id
+            ).set(queue='eve_evaluate')
         )
+
         return jsonify({
             "status": "success",
-            "message": "Re-evaluation triggered",
-            "task_id": task.id
+            "message": "Re-evaluation triggered for all evidence"
         })
     except Exception as e:
         db.session.rollback()

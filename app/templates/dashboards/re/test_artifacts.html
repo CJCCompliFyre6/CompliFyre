@@ -506,13 +506,6 @@
                         class="edit-btn">
                         Edit
                       </button>
-                      {% if value.id %}
-                      <button type="button"
-                        onclick="reEvaluateEvidence({{ value.id }}, this)"
-                        class="px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs ml-1">
-                        Re-evaluate
-                      </button>
-                      {% endif %}
                       {% endif %}
                     </div>
                   </div>
@@ -2455,31 +2448,22 @@
 
     <div class="flex items-center justify-end space-x-3">
 
-      <!-- Re-evaluate button — only shown when all findings reviewed -->
-      {% set all_findings_reviewed = (eve_findings and eve_findings|length > 0 and
-         eve_findings | selectattr('auditor_status', 'defined') | selectattr('auditor_status', 'in', ['CONFIRMED', 'CLOSED']) | list | length == eve_findings | length) %}
-      {% if all_findings_reviewed %}
-      <button type="button"
-        onclick="openReevaluateModal({{ item_loop_idx }})"
-        class="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600">
-        Re-evaluate
-      </button>
-      {% endif %}
-
+      <!-- Show Re-evaluate if evaluation already run, Evaluate if fresh -->
+      {% set has_been_evaluated = (eve_findings is defined and eve_findings is not none) %}
       {% if current_user.free_report_used %}
       <button type="button"
         class="px-5 py-2.5 bg-gray-400 text-white font-medium rounded-md opacity-60 cursor-not-allowed"
         disabled title="Editing disabled - Report already generated">
-        Evaluate
+        {{ "Re-evaluate" if has_been_evaluated else "Evaluate" }}
       </button>
-      {% elif all_findings_reviewed %}
+      {% elif has_been_evaluated %}
       <button type="button"
-        class="px-5 py-2.5 bg-gray-300 text-gray-500 font-medium rounded-md cursor-not-allowed"
-        disabled title="All findings reviewed. Use Re-evaluate to start fresh.">
-        Evaluate
+        id="evaluate_btn_{{ item_loop_idx }}"
+        onclick="reEvaluateActivity({{ item_loop_idx }}, {{ item.data.id }})"
+        class="px-5 py-2.5 bg-amber-500 text-white font-medium rounded-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition duration-150 ease-in-out">
+        Re-evaluate
       </button>
       {% else %}
-      <!-- Active Evaluate button — AJAX submit -->
       <button type="button"
         id="evaluate_btn_{{ item_loop_idx }}"
         onclick="submitEvaluate({{ item_loop_idx }}, {{ item.data.id }})"
@@ -3506,38 +3490,45 @@
   }
 
   // Function to toggle edit form visibility
-  async function reEvaluateEvidence(artifactId, btn) {
-    const originalText = btn.innerText;
-    btn.innerText = 'Running...';
-    btn.disabled = true;
+  async function reEvaluateActivity(idx, pcaId) {
+    if (!confirm('This will delete all existing findings, recommendations and observations and run a fresh evaluation. Continue?')) return;
+    const btn = document.getElementById('evaluate_btn_' + idx);
+    const originalText = btn ? btn.innerText : 'Re-evaluate';
+    if (btn) { btn.disabled = true; btn.innerText = 'Running...'; }
+    // Show progress popup
+    const popup = document.getElementById('eve_progress_popup_' + idx);
+    if (popup) popup.classList.remove('hidden');
     try {
+      // Get first evidence artifact id from the page
+      const artifactIdEl = document.querySelector(`[data-pca-id="${pcaId}"]`);
+      const artifactId = artifactIdEl ? artifactIdEl.dataset.artifactId : null;
+      if (!artifactId) {
+        // Fall back to submitEvaluate which handles re-run via reevaluate_activity route
+        submitEvaluate(idx, pcaId);
+        return;
+      }
       const response = await fetch(`/re/evidence/${artifactId}/re-evaluate`, {
         method: 'POST',
-        headers: {'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''}
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''
+        }
       });
       const data = await response.json();
       if (data.status === 'success') {
-        btn.innerText = 'Triggered!';
-        btn.classList.remove('bg-orange-500', 'hover:bg-orange-600');
-        btn.classList.add('bg-green-500');
-        setTimeout(() => location.reload(), 2000);
+        if (btn) btn.innerText = 'Triggered!';
+        showNotification('Re-evaluation started — page will refresh shortly', 'success');
+        setTimeout(() => location.reload(), 3000);
       } else {
-        btn.innerText = 'Error';
-        btn.classList.add('bg-red-500');
-        alert('Re-evaluation failed: ' + data.message);
+        if (btn) { btn.innerText = originalText; btn.disabled = false; }
+        showNotification('Re-evaluation failed: ' + data.message, 'error');
       }
     } catch (err) {
-      btn.innerText = 'Error';
-      alert('Re-evaluation failed: ' + err);
-    } finally {
-      setTimeout(() => {
-        btn.innerText = originalText;
-        btn.disabled = false;
-        btn.classList.remove('bg-green-500', 'bg-red-500');
-        btn.classList.add('bg-orange-500', 'hover:bg-orange-600');
-      }, 3000);
+      // Fall back to normal submitEvaluate
+      submitEvaluate(idx, pcaId);
     }
   }
+
 
   function toggleEditForm(formId) {
     const form = document.getElementById(formId);
