@@ -876,6 +876,39 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
         dimension_implementation = str(dims.get("implementation", "NO")).upper() == "YES"
         dimension_operating = str(dims.get("operating", "NO")).upper() == "YES"
 
+        # CODE-LEVEL DIMENSION OVERRIDE — based on control_type and frequency
+        # These rules are deterministic and override LLM output
+        ct = (control_type or "").strip().lower()
+        freq = (frequency or "").strip().lower()
+
+        if ct == "detective" or freq in ("per transaction", "per instance", "per event"):
+            # Detective/per-transaction controls = pure OE testing
+            dimension_design = False
+            dimension_implementation = False
+            dimension_operating = True
+            logger.info(f"[Module B] Dimension override: Detective/PerTransaction → OPERATING only")
+        elif freq == "one time":
+            # One-time controls = pure design
+            dimension_design = True
+            dimension_implementation = False
+            dimension_operating = False
+            logger.info(f"[Module B] Dimension override: One Time → DESIGN only")
+
+        # Also filter checklist items to match overridden dimensions
+        if not dimension_design or not dimension_implementation or not dimension_operating:
+            allowed_dims = []
+            if dimension_design: allowed_dims.append("DESIGN")
+            if dimension_implementation: allowed_dims.append("IMPLEMENTATION")
+            if dimension_operating: allowed_dims.append("OPERATING")
+            if allowed_dims and validated.checklist:
+                filtered = [
+                    item for item in validated.checklist
+                    if item.get("effectiveness_type", "DESIGN") in allowed_dims
+                ]
+                if filtered:
+                    validated.checklist = filtered
+                    logger.info(f"[Module B] Filtered checklist to {len(filtered)} items for dims: {allowed_dims}")
+
         # ── 8. Store in DB ────────────────────────────────────────────
         checklist_record = ControlChecklist(
             control_activity_id=control_activity_id,
