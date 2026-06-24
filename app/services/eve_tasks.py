@@ -357,6 +357,8 @@ def _build_checklist_prompt(
     control_activity: str,
     test_procedure: str,
     evidence_list: str,
+    control_type: str = "Unknown",
+    frequency: str = "Unknown",
 ) -> str:
     """Build EVE v3 Step 4 prompt — all 15 principles implemented."""
 
@@ -378,10 +380,29 @@ INPUT:
 * Regulation Type: {regulation_type}
 * Domain: {domain}
 * Auditor Profile: {auditor_profile}
+* Control Type: {control_type}
+* Frequency: {frequency}
 * Clause: {clause_text}
 * Control Activity: {control_activity}
 * Test Procedure: {test_procedure}
 * Evidence List: {evidence_list}
+
+---
+
+CONTROL TYPE + FREQUENCY DIMENSION OVERRIDE RULES (CRITICAL — apply FIRST before intent classification):
+These rules take absolute priority over intent-based classification:
+
+RULE A: Control Type = Detective → ALWAYS include OPERATING dimension. Never generate only DESIGN items for Detective controls.
+RULE B: Frequency = Per Transaction OR Per Instance OR Per Event → OPERATING mandatory.
+RULE C: Frequency = One Time → DESIGN only, NEVER OPERATING.
+RULE D: Control Type = Governance AND Frequency = One Time → DESIGN only.
+RULE E: Control Type = Preventive AND Frequency = ongoing (Daily/Weekly/Monthly/Per Transaction) → DESIGN + OPERATING.
+
+DIMENSION EXAMPLES:
+  Detective + Per Transaction → DESIGN=NO, IMPLEMENTATION=NO, OPERATING=YES
+  Governance + One Time → DESIGN=YES, IMPLEMENTATION=NO, OPERATING=NO
+  Preventive + Monthly → DESIGN=YES, IMPLEMENTATION=YES, OPERATING=YES
+  Detective + Monthly → DESIGN=NO, IMPLEMENTATION=NO, OPERATING=YES
 
 ---
 
@@ -785,6 +806,8 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
         control_activity_text = (
             f"{control.activity_name or ''}\n{control.activity_description or ''}"
         ).strip()
+        control_type = getattr(control, "control_type", "") or "Unknown"
+        frequency = getattr(control, "frequency", "") or "Unknown"
 
         # Get test procedure text from linked TestSteps
         test_procedure_text = ""
@@ -820,6 +843,8 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
             control_activity=control_activity_text or "Not available",
             test_procedure=test_procedure_text or "Not available",
             evidence_list=evidence_list_text or "Not available",
+            control_type=control_type,
+            frequency=frequency,
         )
 
         raw_output = _call_llm_json(prompt)

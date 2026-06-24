@@ -73,6 +73,10 @@ ORG_ALIASES = {
     "anixo": [
         "anixo bank",
         "anixo bank limited",
+        "anixo finance",
+        "anixo finance limited",
+        "anixo bank ltd",
+        "anixo finance ltd",
     ],
     "jk": [
         "jk bank",
