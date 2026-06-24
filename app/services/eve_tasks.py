@@ -407,6 +407,11 @@ DIMENSION EXAMPLES:
 ---
 
 STEP 3 — DETERMINE REQUIRED EFFECTIVENESS DIMENSIONS (INTENT-DRIVEN)
+IMPORTANT: Before classifying intent, check the CONTROL TYPE + FREQUENCY OVERRIDE RULES above.
+If Control Type = Detective OR Frequency = Per Transaction → set DESIGN=NO, IMPLEMENTATION=NO, OPERATING=YES and SKIP the rest of STEP 3.
+If Frequency = One Time → set DESIGN=YES, IMPLEMENTATION=NO, OPERATING=NO and SKIP the rest of STEP 3.
+Only proceed with intent classification below if no override rule applies.
+
 
 Classify intent into one or more of:
 * GOVERNANCE → policy/framework/documentation/approval
