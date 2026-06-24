@@ -880,6 +880,7 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
         # These rules are deterministic and override LLM output
         ct = (control_type or "").strip().lower()
         freq = (frequency or "").strip().lower()
+        logger.info(f"[Module B] Dimension override check: control_type='{ct}', frequency='{freq}'")
 
         if ct == "detective" or freq in ("per transaction", "per instance", "per event"):
             # Detective/per-transaction controls = pure OE testing
