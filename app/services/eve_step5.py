@@ -1038,6 +1038,25 @@ def check_relevance(
             type_match = True
             break
 
+    # Option D: evidence role match — if evidence is OPERATING type and
+    # checklist has OPERATING items → always relevant
+    OPERATING_EVIDENCE_TYPES = {
+        "COMPLIANCE_REPORT", "MONITORING_REPORT", "VERIFICATION_REPORT",
+        "WEIGHT_VERIFICATION_REPORT", "INCIDENT_REPORT", "EXCEPTION_REPORT",
+        "EXCEPTION_LOG", "COLLATERAL_REGISTER", "LOAN_REGISTER",
+        "SAMPLE_TESTING_RESULTS", "AUDIT_REPORT", "TRANSACTION_DATA",
+        "SAMPLE_DATA", "RECONCILIATION_REPORT", "ACCESS_LOG",
+        "FINANCIAL_STATEMENT", "SYSTEM_SCREENSHOT"
+    }
+    evidence_type_upper = (evidence_type or "").upper().replace(" ", "_")
+    if not type_match and evidence_type_upper in OPERATING_EVIDENCE_TYPES:
+        has_operating_items = any(
+            item.get("effectiveness_type", "") == "OPERATING"
+            for item in checklist_items
+        )
+        if has_operating_items:
+            type_match = True
+
     # Option B: keyword match
     keywords = set()
     for item in checklist_items:
@@ -1095,12 +1114,12 @@ def recalculate_admissibility(tests: list) -> str:
         return "INADMISSIBLE"
     if results.get("DOCUMENT_AUTHENTICITY") == "FAIL":
         return "INADMISSIBLE"
-    if results.get("RELEVANCE_TO_ACTIVITY") == "FAIL":
-        return "INADMISSIBLE"
+    # RELEVANCE_TO_ACTIVITY FAIL is now a soft fail — relevant evidence
+    # may have low keyword overlap but still be the right evidence type
+    # Only org match and authenticity failures make evidence INADMISSIBLE
 
     fails = [t for t in tests if t.get("result") == "FAIL"]
-    if len(fails) >= 2:
-        return "INADMISSIBLE"
+    # Only hard fails cause INADMISSIBLE
     if fails:
         return "PARTIAL"
 

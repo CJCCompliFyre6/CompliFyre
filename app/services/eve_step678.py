@@ -219,8 +219,19 @@ SIGNAL RESOLUTION:
 SAMPLE TESTING:
 * IF within_audit_period = NO → validity LOW
 * IF exception_rate = 0 → HIGH validity → Supported
-* IF exception_rate > 0 AND ≤ 10% → Partially Supported
-* IF exception_rate > 10% → Unsupported
+* IF exception_rate > 0 AND ≤ 10% → Partially Supported with LOW severity finding
+* IF exception_rate > 10% AND ≤ 25% AND exceptions documented+escalated → Partially Supported with MEDIUM severity finding
+* IF exception_rate > 10% AND ≤ 25% AND exceptions NOT documented → Unsupported with HIGH severity finding
+* IF exception_rate > 25% → Unsupported with HIGH/CRITICAL severity finding
+
+OE SEVERITY CALIBRATION RULES (CRITICAL):
+* Control IS operating if: exceptions are DETECTED by the control itself AND escalated to management
+* Control IS NOT operating if: exceptions are detected externally OR not escalated
+* Detecting exceptions is EVIDENCE of control operation — do NOT mark as CRITICAL just because exceptions exist
+* CRITICAL severity only when: exception rate > 50% OR control completely non-functional
+* HIGH severity when: exception rate > 25% OR exceptions not escalated
+* MEDIUM severity when: exception rate 10-25% with documented escalation
+* LOW severity when: exception rate < 10% with documented escalation
 
 ---
 
@@ -896,6 +907,38 @@ def _build_evidence_results_for_step6(checklist_id: int) -> list:
     for ev in output:
         ev["cross_evidence_consolidation"] = checklist_cross_summary
 
+    # Pre-build oe_exception_summary from all evidence OE testing results
+    # Step 6 LLM often fails to extract exception instances from nested JSON
+    oe_exception_summary = []
+    seen_instances = set()
+    for ev in output:
+        oe = ev.get("oe_testing_results", {})
+        if not oe or not isinstance(oe, dict):
+            continue
+        instances = oe.get("exception_instances", [])
+        if not instances:
+            continue
+        for inst in instances:
+            if not isinstance(inst, dict):
+                continue
+            inst_key = inst.get("instance_id") or inst.get("loan_id") or str(inst.get("issue", ""))[:50]
+            if inst_key in seen_instances:
+                continue
+            seen_instances.add(inst_key)
+            oe_exception_summary.append({
+                "instance_id": inst.get("instance_id") or inst.get("loan_id") or f"EXC-{len(oe_exception_summary)+1:03d}",
+                "checklist_id": inst.get("checklist_id") or inst.get("attribute_tested", ""),
+                "failed_attribute": inst.get("failed_attribute") or inst.get("attribute_tested") or inst.get("issue", ""),
+                "exception_severity": inst.get("exception_severity") or inst.get("severity", "HIGH"),
+                "exception_status": inst.get("status") or "Open",
+                "description": inst.get("issue") or inst.get("description", ""),
+                "evidence_source": ev.get("evidence_type", ""),
+            })
+
+    # Attach pre-built oe_exception_summary to first evidence for Step 6 access
+    if output:
+        output[0]["pre_built_oe_exception_summary"] = oe_exception_summary
+
     return output
 
 
@@ -1124,7 +1167,11 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
                 assurance_state=assurance_state,
                 evidence_sufficiency_summary=step6_output.get("evidence_sufficiency_summary", []),
                 contradiction_inquiry_summary=step6_output.get("contradiction_inquiry_summary", []),
-                oe_exception_summary=step6_output.get("oe_exception_summary", []),
+                oe_exception_summary=(
+                    step6_output.get("oe_exception_summary", []) or
+                    # Fall back to pre-built summary if Step 6 LLM returned empty
+                    (evidence_results[0].get("pre_built_oe_exception_summary", []) if evidence_results else [])
+                ),
                 control_support_status=control_support_status,
                 checklist=checklist_items,
                 findings=findings,
