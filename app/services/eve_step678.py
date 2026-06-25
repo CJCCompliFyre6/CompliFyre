@@ -108,7 +108,7 @@ INPUT:
   {json.dumps(required_dimensions, indent=2)}
 
 * Checklist:
-  {json.dumps(checklist, indent=2)}
+  {_chk}
 
 * Evidence Results:
   {json.dumps(evidence_results, indent=2)}
@@ -317,6 +317,15 @@ def _build_step7_prompt(
     findings: list = None,
 ) -> str:
     """Build EVE Step 7 prompt — V3 with 13 principles."""
+    # Pre-serialize to avoid f-string brace interpretation errors
+    _csm = json.dumps(checklist_state_matrix, indent=2)
+    _as = json.dumps(assurance_state, indent=2)
+    _ess = json.dumps(evidence_sufficiency_summary, indent=2)
+    _cis = json.dumps(contradiction_inquiry_summary, indent=2)
+    _oes = json.dumps(oe_exception_summary, indent=2)
+    _css = json.dumps(control_support_status, indent=2)
+    _chk = json.dumps(checklist, indent=2)
+    _fin = json.dumps(findings or [], indent=2)
 
     return f"""You are an Audit Observation, Finding, Risk, and Recommendation Engine.
 
@@ -364,25 +373,25 @@ Return ONLY valid JSON. No explanation. No markdown.
 INPUT FROM STEP 6:
 
 * Checklist State Matrix:
-  {json.dumps(checklist_state_matrix, indent=2)}
+  {_csm}
 
 * Assurance State:
-  {json.dumps(assurance_state, indent=2)}
+  {_as}
 
 * Evidence Sufficiency Summary:
-  {json.dumps(evidence_sufficiency_summary, indent=2)}
+  {_ess}
 
 * Contradiction / Inquiry Summary:
-  {json.dumps(contradiction_inquiry_summary, indent=2)}
+  {_cis}
 
 * OE Exception Summary:
-  {json.dumps(oe_exception_summary, indent=2)}
+  {_oes}
 
 * Control Support Status:
-  {json.dumps(control_support_status, indent=2)}
+  {_css}
 
 * Checklist Items:
-  {json.dumps(checklist, indent=2)}
+  {_chk}
 
 ---
 
