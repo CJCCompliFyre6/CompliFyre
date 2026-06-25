@@ -388,11 +388,14 @@ INPUT FROM STEP 6:
 
 OE EXCEPTION REGISTER RULE (CRITICAL):
 The "OE Exception Summary" input above contains pre-identified exception instances from evidence.
-You MUST populate:
-1. "oe_exception_register" — copy ALL items from OE Exception Summary into this register
-2. "related_oe_exceptions" in each OE-related finding — list the instance_ids from OE Exception Summary
-Do NOT leave oe_exception_register empty if OE Exception Summary has data.
-Do NOT leave related_oe_exceptions empty in findings if oe_exception_summary has items.
+You MUST:
+1. Populate "oe_exception_register" with ALL items from OE Exception Summary
+2. In each finding that is about OE failures (finding_type = "OE") — populate "related_oe_exceptions" as a list of objects:
+   [{"instance_id": "AFL25009", "failed_attribute": "Gold ornament weight limit", "exception_description": "1.15 kg exceeds 1 kg limit"}]
+3. For findings NOT about OE (e.g. missing documentation, missing process steps) — set related_oe_exceptions = []
+4. finding_type must be "OE" for findings about weight limit breaches, "IE" for implementation/documentation gaps
+Do NOT add OE exceptions to non-OE findings.
+Do NOT use string format for related_oe_exceptions — always use object format with instance_id, failed_attribute, exception_description.
 
 PRINCIPLE 1 — FINDINGS MUST EMERGE ONLY FROM STRUCTURED FAILURES:
 Findings may ONLY be generated from:
