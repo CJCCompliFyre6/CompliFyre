@@ -386,6 +386,14 @@ INPUT FROM STEP 6:
 
 ---
 
+OE EXCEPTION REGISTER RULE (CRITICAL):
+The "OE Exception Summary" input above contains pre-identified exception instances from evidence.
+You MUST populate:
+1. "oe_exception_register" — copy ALL items from OE Exception Summary into this register
+2. "related_oe_exceptions" in each OE-related finding — list the instance_ids from OE Exception Summary
+Do NOT leave oe_exception_register empty if OE Exception Summary has data.
+Do NOT leave related_oe_exceptions empty in findings if oe_exception_summary has items.
+
 PRINCIPLE 1 — FINDINGS MUST EMERGE ONLY FROM STRUCTURED FAILURES:
 Findings may ONLY be generated from:
 * Unsupported checklist items
@@ -677,13 +685,25 @@ SUB-STEP-6 — CONSOLIDATE RECOMMENDATIONS
 * For NEEDS_REVIEW findings → recommendation should be: "Obtain auditor clarification before escalating as finding."
 * For CONTRADICTION findings → recommendation should address root cause resolution
 
+SUB-STEP-6B — OE FINDING SEVERITY CALIBRATION (apply BEFORE SUB-STEP-7):
+For OE exception findings — use these rules:
+* exception_rate <= 10% WITH escalation → severity = LOW
+* exception_rate 10-25% WITH documented escalation → severity = MEDIUM
+* exception_rate 10-25% WITHOUT escalation → severity = HIGH
+* exception_rate > 25% → severity = HIGH
+* exception_rate > 50% OR control non-functional → severity = CRITICAL
+* If exceptions DETECTED by control AND escalated to management → severity MAX = HIGH (not CRITICAL)
+* CRITICAL only if: control failed to detect exceptions OR exception_rate > 50%
+
 SUB-STEP-7 — DETERMINE CLAUSE SEVERITY
 Clause Severity = MAX(severity across all NORMAL + unresolved NEEDS_REVIEW + CONTRADICTION findings)
 
 SUB-STEP-8 — DETERMINE CLAUSE STATUS
 IF any finding severity = CRITICAL → clause_status = NON_COMPLIANT
 ELSE IF any finding severity = HIGH → clause_status = PARTIALLY_COMPLIANT
+ELSE IF any finding severity = MEDIUM → clause_status = PARTIALLY_COMPLIANT
 ELSE → clause_status = COMPLIANT
+
 
 SUB-STEP-9 — GENERATE CLAUSE SUMMARY
 Write a concise paragraph: what was assessed, key strengths (if any), key issues, overall conclusion.
@@ -1168,9 +1188,9 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
                 evidence_sufficiency_summary=step6_output.get("evidence_sufficiency_summary", []),
                 contradiction_inquiry_summary=step6_output.get("contradiction_inquiry_summary", []),
                 oe_exception_summary=(
-                    step6_output.get("oe_exception_summary", []) or
-                    # Fall back to pre-built summary if Step 6 LLM returned empty
+                    # Use pre-built summary if available (more reliable than LLM-generated)
                     (evidence_results[0].get("pre_built_oe_exception_summary", []) if evidence_results else [])
+                    or step6_output.get("oe_exception_summary", [])
                 ),
                 control_support_status=control_support_status,
                 checklist=checklist_items,

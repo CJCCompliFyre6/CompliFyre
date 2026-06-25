@@ -2385,6 +2385,20 @@ When evaluating checklist items:
         effective_date = evidence_meta.get("effective_date", "")
         review_frequency = evidence_meta.get("review_frequency", "")
 
+
+        # Fallback: if LLM did not extract entity_name, try regex from content
+        if not entity_name and evidence_content:
+            import re as _re
+            first_chunk = evidence_content[:500]
+            org_pat = _re.compile(
+                r"([A-Z][A-Z ]+(?:LIMITED|LTD|BANK|FINANCE|FINANCIAL|CORPORATION|SERVICES|SOLUTIONS))",
+                _re.IGNORECASE
+            )
+            m = org_pat.search(first_chunk)
+            if m:
+                entity_name = m.group(1).strip()
+                logger.info(f"[Module D] Entity name regex fallback: {entity_name!r}")
+
         org_result = check_org_match(
             entity_name, auditee_name,
             project_checklist_id, project_evidence_artifact_id
