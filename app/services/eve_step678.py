@@ -75,6 +75,7 @@ def _call_llm_json(system_msg: str, user_msg: str, retries: int = 3, backoff: fl
 # ─────────────────────────────────────────────────────────────
 
 def _build_step6_prompt(required_dimensions: dict, checklist: list, evidence_results: list) -> str:
+    _chk = json.dumps(checklist, indent=2)
     return f"""You are an Audit Assurance Consolidation Engine.
 
 TASK — STEP 6: ASSURANCE CONSOLIDATION AND CONTROL STATE SYNTHESIS
@@ -315,6 +316,9 @@ def _build_step7_prompt(
     control_support_status: dict,
     checklist: list,
     findings: list = None,
+    control_activity_name: str = "",
+    control_activity_description: str = "",
+    required_dimensions: dict = None,
 ) -> str:
     """Build EVE Step 7 prompt — V3 with 13 principles."""
     # Pre-serialize to avoid f-string brace interpretation errors
@@ -326,6 +330,7 @@ def _build_step7_prompt(
     _css = json.dumps(control_support_status, indent=2)
     _chk = json.dumps(checklist, indent=2)
     _fin = json.dumps(findings or [], indent=2)
+    _dims = json.dumps(required_dimensions or {}, indent=2)
 
     return f"""You are an Audit Observation, Finding, Risk, and Recommendation Engine.
 
@@ -370,6 +375,39 @@ Return ONLY valid JSON. No explanation. No markdown.
 
 ---
 
+CONTROL ACTIVITY CONTEXT:
+* Activity Name: {control_activity_name}
+* Activity Description: {control_activity_description}
+* Required Effectiveness Dimensions: {_dims}
+
+---
+
+ACTIVITY SCOPING AND EFFECTIVENESS DIMENSION RULES (CRITICAL):
+1. All findings and recommendations MUST be framed in terms of whether this specific
+   control activity is designed / implemented / operating effectively — as applicable.
+2. Only generate findings for dimensions where Required Effectiveness Dimensions = YES:
+   - DESIGN findings only if design = YES
+   - IMPLEMENTATION findings only if implementation = YES
+   - OPERATING findings only if operating = YES
+3. Do NOT generate a finding for a dimension just because it is applicable — only generate
+   if the checklist state matrix shows actual failures or unsupported items for that dimension.
+4. Multiple findings per dimension are allowed if distinct deficiencies exist.
+5. Finding titles MUST be framed as:
+   "The control '[activity name]' is not [designed/implemented/operating] effectively because [specific deficiency]"
+6. If a checklist item failure does not map to any applicable effectiveness dimension
+   for this activity, do NOT raise a standalone finding for it.
+7. OE exception instances remain as factual test results and must always be reported
+   under the relevant OPERATING finding regardless of framing.
+8. ACTIVITY BOUNDARY RULE (CRITICAL): Before raising a finding for any checklist item,
+   ask: "Does this checklist item test something that THIS specific control activity
+   is responsible for?" If the checklist item tests a requirement that belongs to a
+   DIFFERENT activity (e.g. periodic sampling/quarterly review when this activity operates
+   at the time of a transaction/event), you MUST NOT raise a finding for it.
+   The activity description is your boundary — if the checklist item requirement is
+   outside that boundary, SKIP it entirely. Do not raise, do not mention.
+
+---
+
 INPUT FROM STEP 6:
 
 * Checklist State Matrix:
@@ -400,7 +438,7 @@ The "OE Exception Summary" input above contains pre-identified exception instanc
 You MUST:
 1. Populate "oe_exception_register" with ALL items from OE Exception Summary
 2. In each finding that is about OE failures (finding_type = "OE") — populate "related_oe_exceptions" as a list of objects:
-   [{"instance_id": "AFL25009", "failed_attribute": "Gold ornament weight limit", "exception_description": "1.15 kg exceeds 1 kg limit"}]
+   [{{"instance_id": "AFL25009", "failed_attribute": "Gold ornament weight limit", "exception_description": "1.15 kg exceeds 1 kg limit"}}]
 3. For findings NOT about OE (e.g. missing documentation, missing process steps) — set related_oe_exceptions = []
 4. finding_type must be "OE" for findings about weight limit breaches, "IE" for implementation/documentation gaps
 Do NOT add OE exceptions to non-OE findings.
@@ -597,6 +635,8 @@ STRICT CONSTRAINTS:
 
 
 def _build_step8_prompt(clause_id: int, clause_text: str, control_outputs: list) -> str:
+    _ct = json.dumps(clause_text)
+    _co = json.dumps(control_outputs, indent=2)
     return f"""You are an Audit Clause Aggregation Engine.
 
 TASK:
@@ -624,8 +664,8 @@ DO NOT:
 INPUT:
 {{
   "clause_id": "{clause_id}",
-  "clause_text": {json.dumps(clause_text)},
-  "control_outputs": {json.dumps(control_outputs, indent=2)}
+  "clause_text": {_ct},
+  "control_outputs": {_co}
 }}
 
 ---
@@ -979,6 +1019,39 @@ def _build_evidence_results_for_step6(checklist_id: int) -> list:
 # EVE Steps 6+7 per project_control_activity
 # ─────────────────────────────────────────────────────────────
 
+def _filter_checklist_for_activity(checklist_state_matrix, checklist_items, activity_description, activity_name=""):
+    """Remove checklist items clearly outside the scope of a transactional activity."""
+    PERIODIC_KEYWORDS = [
+        "random sample", "quarterly", "periodic review",
+        "sample selection", "random selection", "sampling",
+        "random sample of", "selected and reviewed",
+    ]
+    TRANSACTIONAL_KEYWORDS = [
+        "at the time of", "per transaction", "each transaction",
+        "loan approval", "disbursement", "per instance", "per event",
+    ]
+    # Check both activity_name and activity_description
+    activity_lower = ((activity_name or "") + " " + (activity_description or "")).lower()
+    is_transactional = any(k in activity_lower for k in TRANSACTIONAL_KEYWORDS)
+    if not is_transactional:
+        return checklist_state_matrix, checklist_items
+    # Find checklist item IDs that are periodic in nature
+    filtered_ids = set()
+    for item in checklist_items:
+        req = (item.get("requirement") or "").lower()
+        if any(k in req for k in PERIODIC_KEYWORDS):
+            filtered_ids.add(item.get("id"))
+            logger.info(
+                f"[Module F] Filtering out-of-scope checklist item {item.get('id')} "
+                f"from Step 7 input (periodic keyword detected in transactional activity)"
+            )
+    if not filtered_ids:
+        return checklist_state_matrix, checklist_items
+    filtered_matrix = [i for i in checklist_state_matrix if i.get("checklist_id") not in filtered_ids]
+    filtered_items = [i for i in checklist_items if i.get("id") not in filtered_ids]
+    return filtered_matrix, filtered_items
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: int = None):
     """
@@ -1188,6 +1261,12 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             })
 
         # ── 7. Run Step 7 V3 (Observations + Findings + Risks + Recommendations) ──
+        # Filter out-of-scope checklist items before Step 7
+        checklist_state_matrix, checklist_items = _filter_checklist_for_activity(
+            checklist_state_matrix, checklist_items,
+            activity_description=pca.activity_description or "",
+            activity_name=pca.activity_name or "",
+        )
         logger.info(f"[Module F] Running Step 7 V3 for pca_id={project_control_activity_id}")
         step7_output = _call_llm_json(
             system_msg=(
@@ -1207,6 +1286,9 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
                 control_support_status=control_support_status,
                 checklist=checklist_items,
                 findings=findings,
+                control_activity_name=pca.activity_name or "",
+                control_activity_description=pca.activity_description or "",
+                required_dimensions=required_dimensions,
             ),
         )
         if not step7_output:

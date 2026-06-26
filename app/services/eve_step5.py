@@ -883,6 +883,7 @@ def check_period_alignment(
     review_frequency: str,
     audit_period_start: str,
     audit_period_end: str,
+    evidence_type: str = "",
 ) -> dict:
     """
     TEST 2 — Period alignment check (code-level, overrides LLM).
@@ -994,6 +995,19 @@ def check_period_alignment(
     if is_oe:
         ref_dt = effective_dt or approval_dt
         if not ref_dt:
+            # Periodic report types — period is implied by report title/context
+            PERIODIC_TYPES = {
+                "COMPLIANCE_REPORT", "MONITORING_REPORT", "VERIFICATION_REPORT",
+                "INCIDENT_REPORT", "EXCEPTION_REPORT", "COLLATERAL_REGISTER",
+            }
+            if (evidence_type or "").upper() in PERIODIC_TYPES:
+                return {
+                    "result": "PASS",
+                    "reason": (
+                        f"{evidence_type} is a periodic operational report — "
+                        "period alignment assumed from report context"
+                    ),
+                }
             return {
                 "result": "UNKNOWN",
                 "reason": "Document date not found — cannot verify period alignment",
@@ -2405,7 +2419,8 @@ When evaluating checklist items:
         )
         period_result = check_period_alignment(
             required_dimensions, approval_date, effective_date,
-            review_frequency, audit_period_start, audit_period_end
+            review_frequency, audit_period_start, audit_period_end,
+            evidence_type=evidence_type,
         )
         rel_result = check_relevance(evidence_content, checklist_items, evidence_type)
 
@@ -2432,7 +2447,7 @@ When evaluating checklist items:
         # POST-9: Recalculate admissibility from code test results
         admissibility = recalculate_admissibility(final_tests)
         admissibility_reason = "; ".join(
-            t["reason"] for t in final_tests if t["result"] == "FAIL"
+            t["reason"] for t in final_tests if t["result"] in ("FAIL", "UNKNOWN")
         ) or raw_output.get("admissibility_reason", "")
         raw_output["admissibility"] = admissibility
         raw_output["admissibility_reason"] = admissibility_reason
