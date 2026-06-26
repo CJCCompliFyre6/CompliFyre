@@ -3151,6 +3151,46 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
 
 
 
+
+def _split_large_clause(clause_text: str, max_chars: int = 3000) -> list:
+    """
+    For large clauses (>max_chars), use LLM to extract atomic obligations directly
+    without going through Call 1 gate. Returns list of obligation dicts.
+    """
+    import json
+    from app.services.model_response import _call_llm_json_raw
+    
+    CHUNK_SYSTEM = """You are a senior compliance analyst. Extract all distinct regulatory obligations from this clause.
+Return ONLY valid JSON. No explanation. No markdown."""
+
+    CHUNK_PROMPT = f"""Extract ALL distinct regulatory obligations from this regulatory clause.
+Each obligation must be something the listed entity (bank/NBFC/listed company) must DO.
+Exclude: definitions, explanations, regulator actions, third-party obligations.
+
+CLAUSE:
+{clause_text}
+
+Return this exact JSON:
+{{
+  "atomic_obligations": [
+    {{
+      "id": "OB-1",
+      "what": "exact mandatory action",
+      "when": "one_time | event_based | periodic | ongoing",
+      "period": "specific period or null",
+      "explicitly_requires_training": false,
+      "explicitly_requires_audit": false
+    }}
+  ],
+  "is_actionable": true,
+  "subject": "listed_entity"
+}}"""
+
+    result = _call_llm_json_raw(system_msg=CHUNK_SYSTEM, user_msg=CHUNK_PROMPT)
+    if result and result.get("atomic_obligations"):
+        return result.get("atomic_obligations", [])
+    return []
+
 def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
     """
     V2 2-call activity extraction pipeline.
@@ -3168,39 +3208,49 @@ def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
     )
     from app.services.model_response import _call_llm_json_raw
 
-    # ── CALL 1: Obligation Intelligence ───────────────────────
-    call1_prompt = call1_obligation_intelligence_prompt(clause_text)
-    call1_result = _call_llm_json_raw(system_msg=CALL1_SYSTEM, user_msg=call1_prompt)
+    # ── CALL 1: Obligation Intelligence (or chunked extraction for large clauses) ──
+    LARGE_CLAUSE_THRESHOLD = 3000
+    
+    if len(clause_text) > LARGE_CLAUSE_THRESHOLD:
+        logger.info(f"[V2] Large clause detected ({len(clause_text)} chars) — using chunked extraction")
+        atomic_obligations = _split_large_clause(clause_text)
+        if not atomic_obligations:
+            logger.warning("[V2] Chunked extraction returned no obligations")
+            return {"compliance_activities": []}
+        logger.info(f"[V2] Chunked extraction done: {len(atomic_obligations)} obligations")
+    else:
+        call1_prompt = call1_obligation_intelligence_prompt(clause_text)
+        call1_result = _call_llm_json_raw(system_msg=CALL1_SYSTEM, user_msg=call1_prompt)
 
-    if not call1_result:
-        logger.warning("[V2] Call 1 failed — falling back to empty")
-        return {"compliance_activities": []}
+        if not call1_result:
+            logger.warning("[V2] Call 1 failed — falling back to empty")
+            return {"compliance_activities": []}
 
-    # ── Python Gate Check ─────────────────────────────────────
-    subject = call1_result.get("subject", "listed_entity")
-    is_actionable = call1_result.get("is_actionable", True)
-    clause_type = call1_result.get("clause_type", "core_obligation")
-    atomic_obligations = call1_result.get("atomic_obligations", [])
-    stop_reason = call1_result.get("stop_reason")
+        # ── Python Gate Check ─────────────────────────────────────
+        subject = call1_result.get("subject", "listed_entity")
+        is_actionable = call1_result.get("is_actionable", True)
+        clause_type = call1_result.get("clause_type", "core_obligation")
+        atomic_obligations = call1_result.get("atomic_obligations", [])
+        stop_reason = call1_result.get("stop_reason")
 
-    # Stop conditions
-    if not is_actionable:
-        logger.info(f"[V2] Clause not actionable — {stop_reason}. Zero activities generated.")
-        return {"compliance_activities": []}
+        # Stop conditions
+        if not is_actionable:
+            logger.info(f"[V2] Clause not actionable — {stop_reason}. Zero activities generated.")
+            return {"compliance_activities": []}
 
-    if subject in ("regulator", "third_party"):
-        logger.info(f"[V2] Subject = {subject} — not listed_entity. Zero activities.")
-        return {"compliance_activities": []}
+        if subject in ("regulator", "third_party"):
+            logger.info(f"[V2] Subject = {subject} — not listed_entity. Zero activities.")
+            return {"compliance_activities": []}
 
-    if clause_type == "definition_explanation":
-        logger.info("[V2] Definition clause — zero activities.")
-        return {"compliance_activities": []}
+        if clause_type == "definition_explanation":
+            logger.info("[V2] Definition clause — zero activities.")
+            return {"compliance_activities": []}
 
-    if not atomic_obligations:
-        logger.warning("[V2] No atomic obligations extracted — zero activities.")
-        return {"compliance_activities": []}
+        if not atomic_obligations:
+            logger.warning("[V2] No atomic obligations extracted — zero activities.")
+            return {"compliance_activities": []}
 
-    logger.info(f"[V2] Call 1 done: {len(atomic_obligations)} obligations, type={clause_type}, subject={subject}")
+        logger.info(f"[V2] Call 1 done: {len(atomic_obligations)} obligations, type={clause_type}, subject={subject}")
 
     # ── CALL 2: Activity Generation ───────────────────────────
     call2_prompt = call2_activity_generation_prompt(clause_text, atomic_obligations, department_list)
