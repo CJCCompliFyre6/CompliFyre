@@ -3152,6 +3152,159 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
 
 
 
+
+def _split_clause_in_db(clause_id: int) -> list:
+    """
+    Split a large clause into sub-clauses in DB.
+    1. LLM splits clause text into logical sub-parts
+    2. Safe numbering (A, B, C suffixes, fallback to -1, -2, -3)
+    3. Delete original clause (cascade deletes activities)
+    4. Insert sub-clauses with same page_number
+    Returns: list of new clause IDs
+    """
+    import json
+    from app.services.model_response import _call_llm_json_raw
+    from app.models.ai import Clauses, Guidelines
+    from app import db
+
+    with session_scope() as session:
+        clause = session.query(Clauses).get(clause_id)
+        if not clause:
+            logger.error(f"[Split] Clause {clause_id} not found")
+            return []
+
+        clause_text = clause.clause_text
+        clause_no = clause.clause_no
+        page_number = clause.page_number
+        guideline_id = clause.guideline_id
+
+    logger.info(f"[Split] Splitting clause {clause_no} ({len(clause_text)} chars)")
+
+    # ── Step 1: LLM split ─────────────────────────────────────────────
+    SPLIT_SYSTEM = """You are a senior regulatory compliance expert. 
+Split regulatory clauses into logical sub-clauses. Return ONLY valid JSON."""
+
+    SPLIT_PROMPT = f"""Split this large regulatory clause into 2-5 logical sub-clauses.
+Each sub-clause must:
+- Cover a DISTINCT regulatory topic or obligation group
+- Be independently meaningful and testable
+- Together cover the FULL original clause without overlap
+- Be a complete, coherent regulatory statement on its own
+
+ORIGINAL CLAUSE ({clause_no}):
+{clause_text}
+
+Return this exact JSON:
+{{
+  "sub_clauses": [
+    {{
+      "suffix": "A",
+      "topic": "Brief topic name",
+      "text": "Full sub-clause text covering this topic completely"
+    }},
+    {{
+      "suffix": "B", 
+      "topic": "Brief topic name",
+      "text": "Full sub-clause text covering this topic completely"
+    }}
+  ]
+}}
+
+Rules:
+- Use suffixes A, B, C, D, E (max 5 sub-clauses)
+- Each sub-clause text must be self-contained
+- Do not summarize — use the actual regulatory language
+- Minimum 2, maximum 5 sub-clauses"""
+
+    result = _call_llm_json_raw(system_msg=SPLIT_SYSTEM, user_msg=SPLIT_PROMPT)
+    if not result or not result.get("sub_clauses"):
+        logger.error(f"[Split] LLM split failed for clause {clause_no}")
+        return []
+
+    sub_clauses = result["sub_clauses"]
+    logger.info(f"[Split] LLM returned {len(sub_clauses)} sub-clauses")
+
+    # ── Step 2: Safe numbering ────────────────────────────────────────
+    with session_scope() as session:
+        existing_nos = set(
+            r[0] for r in session.query(Clauses.clause_no)
+            .filter_by(guideline_id=guideline_id).all()
+        )
+
+    def get_safe_clause_no(base, suffix):
+        # Try base+suffix: CH II 4A
+        candidate = f"{base}{suffix}"
+        if candidate not in existing_nos:
+            return candidate
+        # Try base-N: CH II 4-1
+        n = ord(suffix) - ord('A') + 1
+        candidate2 = f"{base}-{n}"
+        if candidate2 not in existing_nos:
+            return candidate2
+        # Try base_PN: CH II 4_P1
+        candidate3 = f"{base}_P{n}"
+        return candidate3
+
+    numbered = []
+    for sc in sub_clauses:
+        safe_no = get_safe_clause_no(clause_no, sc["suffix"])
+        numbered.append({
+            "clause_no": safe_no,
+            "clause_text": sc["text"],
+            "topic": sc.get("topic", ""),
+            "page_number": page_number,
+        })
+        logger.info(f"[Split] Sub-clause: {safe_no} — {sc.get('topic', '')}")
+
+    # ── Step 3: Delete original clause ───────────────────────────────
+    with session_scope() as session:
+        orig = session.query(Clauses).get(clause_id)
+        if orig:
+            # Delete activities cascade
+            from app.models.ai import ComplianceActivities, ControlActivity, TestProcedures
+            from app.models.project_instance_models import ProjectComplianceActivity
+            from app.models.eve_models import ControlChecklist
+
+            activities = session.query(ComplianceActivities).filter_by(clause_id=clause_id).all()
+            for act in activities:
+                # Delete control checklists
+                cas = session.query(ControlActivity).filter_by(compliance_activity_id=act.id).all()
+                for ca in cas:
+                    session.query(ControlChecklist).filter_by(control_activity_id=ca.id).delete()
+                    session.flush()
+                    session.delete(ca)
+                # Delete test procedures
+                session.query(TestProcedures).filter_by(activity_id=act.id).delete()
+                # Delete project compliance activities
+                session.query(ProjectComplianceActivity).filter_by(original_activity_id=act.id).delete()
+                session.flush()
+                session.delete(act)
+            session.flush()
+            session.delete(orig)
+            session.commit()
+            logger.info(f"[Split] Original clause {clause_no} (id={clause_id}) deleted")
+
+    # ── Step 4: Insert sub-clauses ────────────────────────────────────
+    new_ids = []
+    with session_scope() as session:
+        for sc_data in numbered:
+            new_clause = Clauses(
+                clause_no=sc_data["clause_no"],
+                clause_text=sc_data["clause_text"],
+                guideline_id=guideline_id,
+                page_number=sc_data["page_number"],
+                clause_type="OBLIGATION",
+                extraction_status="EXTRACTED",
+            )
+            session.add(new_clause)
+            session.flush()
+            new_ids.append(new_clause.id)
+            logger.info(f"[Split] Inserted {sc_data['clause_no']} with id={new_clause.id}")
+        session.commit()
+
+    logger.info(f"[Split] Done — {len(new_ids)} sub-clauses created: {new_ids}")
+    return new_ids
+
 def _split_large_clause(clause_text: str, max_chars: int = 3000) -> list:
     """
     For large clauses (>max_chars), use LLM to extract atomic obligations directly

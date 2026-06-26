@@ -2370,9 +2370,13 @@ def clause():
 
         if guideline_id:
             session["clause_id"] = guideline_id
-            clauses = Clauses.query.filter_by(guideline_id=guideline_id).all()
+            clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(
+                Clauses.page_number, Clauses.clause_no
+            ).all()
         else:
-            clauses = Clauses.query.all()
+            clauses = Clauses.query.order_by(
+                Clauses.page_number, Clauses.clause_no
+            ).all()
 
         # Prepare data for rendering
         clause_data = [

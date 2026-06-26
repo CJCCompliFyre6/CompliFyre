@@ -210,7 +210,7 @@ STRICT RULES:
 5. DO NOT add internal audit activities unless explicitly_requires_audit = true in the obligation
 6. DO NOT apply a fixed Design→Implementation→Operating template — only generate what the obligation requires
 7. Merge activities if two obligations would result in the same activity
-8. Total activities: minimum 1, maximum 8
+8. Total activities: minimum 1, no maximum — generate as many as the obligations require, but never more
 
 COMPLIANCE LEVEL DECISION RULES (apply strictly):
 - Design: Creating a NEW policy/framework/charter/template that does not yet exist → frequency MUST be One-time
