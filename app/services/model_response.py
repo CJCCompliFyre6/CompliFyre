@@ -111,6 +111,41 @@ def delete_file(file_id: str) -> dict:
         return {"status": "failed", "error": str(e)}
 
 
+
+def _call_llm_json_raw(system_msg: str, user_msg: str, retries: int = 3, backoff: float = 2.0) -> dict | None:
+    """
+    Direct LLM call returning JSON dict — no vector store, no schema validation.
+    Used by V2 activity extraction pipeline.
+    """
+    import json
+    import time
+    from app import client
+    logger_local = logging.getLogger(__name__)
+    for attempt in range(retries):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_tokens=8000,
+                temperature=0,
+                top_p=0.1,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg},
+                ],
+            )
+            raw = response.choices[0].message.content
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            logger_local.warning(f"[LLM Raw] Attempt {attempt+1}: JSON decode error — {e}")
+        except Exception as e:
+            logger_local.warning(f"[LLM Raw] Attempt {attempt+1}: LLM call failed — {e}")
+        if attempt < retries - 1:
+            time.sleep(backoff ** (attempt + 1))
+    logger_local.error("[LLM Raw] All retries exhausted")
+    return None
+
+
 def extract_structured_info(
     query: str,
     vector_store_id: str,

@@ -2981,11 +2981,12 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                 clause_id_val,
             )
 
+            # LLM call OUTSIDE session_scope — prevents SSL EOF
+            # V2 pipeline: 2-call obligation intelligence + activity generation
+            compliance_data = _extract_activities_v2(
+                clause_text, list(department_list)
+            )
             with session_scope() as session:
-                # SIMPLIFIED: Direct extraction without vector store
-                compliance_data = _extract_compliance_activities_direct(
-                    clause_text, department_list
-                )
 
                 if (
                     not compliance_data
@@ -3147,6 +3148,94 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
         )
         raise
 
+
+
+
+def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
+    """
+    V2 2-call activity extraction pipeline.
+    Call 1: Obligation Intelligence (classify + extract atomic obligations)
+    Call 2: Activity Generation (generate activities from obligations only)
+    Step E1: Python-level validation + compliance level fix
+    """
+    import json
+    from app.services.prompt_templates.compliance_activity import (
+        call1_obligation_intelligence_prompt,
+        call2_activity_generation_prompt,
+        validate_and_fix_activities,
+        CALL1_SYSTEM,
+        CALL2_SYSTEM,
+    )
+    from app.services.model_response import _call_llm_json_raw
+
+    # ── CALL 1: Obligation Intelligence ───────────────────────
+    call1_prompt = call1_obligation_intelligence_prompt(clause_text)
+    call1_result = _call_llm_json_raw(system_msg=CALL1_SYSTEM, user_msg=call1_prompt)
+
+    if not call1_result:
+        logger.warning("[V2] Call 1 failed — falling back to empty")
+        return {"compliance_activities": []}
+
+    # ── Python Gate Check ─────────────────────────────────────
+    subject = call1_result.get("subject", "listed_entity")
+    is_actionable = call1_result.get("is_actionable", True)
+    clause_type = call1_result.get("clause_type", "core_obligation")
+    atomic_obligations = call1_result.get("atomic_obligations", [])
+    stop_reason = call1_result.get("stop_reason")
+
+    # Stop conditions
+    if not is_actionable:
+        logger.info(f"[V2] Clause not actionable — {stop_reason}. Zero activities generated.")
+        return {"compliance_activities": []}
+
+    if subject in ("regulator", "third_party"):
+        logger.info(f"[V2] Subject = {subject} — not listed_entity. Zero activities.")
+        return {"compliance_activities": []}
+
+    if clause_type == "definition_explanation":
+        logger.info("[V2] Definition clause — zero activities.")
+        return {"compliance_activities": []}
+
+    if not atomic_obligations:
+        logger.warning("[V2] No atomic obligations extracted — zero activities.")
+        return {"compliance_activities": []}
+
+    logger.info(f"[V2] Call 1 done: {len(atomic_obligations)} obligations, type={clause_type}, subject={subject}")
+
+    # ── CALL 2: Activity Generation ───────────────────────────
+    call2_prompt = call2_activity_generation_prompt(clause_text, atomic_obligations, department_list)
+    call2_result = _call_llm_json_raw(system_msg=CALL2_SYSTEM, user_msg=call2_prompt)
+
+    if not call2_result:
+        logger.warning("[V2] Call 2 failed — empty activities")
+        return {"compliance_activities": []}
+
+    activities = call2_result.get("activities", [])
+    logger.info(f"[V2] Call 2 done: {len(activities)} activities generated")
+
+    # ── Step E1: Python Validation + Fix ─────────────────────
+    activities = validate_and_fix_activities(activities)
+
+    # ── Map to ComplianceActivity schema fields ───────────────
+    mapped = []
+    for act in activities:
+        mapped.append({
+            "activity_id": act.get("activity_id", "1"),
+            "activity_description": act.get("activity_description", ""),
+            "compliance_level": act.get("compliance_level", "Operating Effectiveness"),
+            "relevant_departments": act.get("relevant_departments", "Compliance"),
+            "department_id": act.get("department_id", 0),
+            "process_name": act.get("process_name", ""),
+            "sub_process_name": act.get("sub_process_name", ""),
+            "responsible_party": act.get("responsible_party", ""),
+            "frequency": act.get("frequency", ""),
+            "evidence_required": act.get("evidence_required", ""),
+            "justification": act.get("justification", ""),
+            "clause": "",
+        })
+
+    logger.info(f"[V2] Final: {len(mapped)} activities after validation")
+    return {"compliance_activities": mapped}
 
 def _extract_compliance_activities_direct(
     clause_text: str, department_list: list
