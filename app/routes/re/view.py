@@ -2600,14 +2600,10 @@ def compliance_activities():
 
         vec_id = file_record.vector_store_id
 
-        file_url = File.query.filter_by(id=guideline.file_id).first()
-        url = file_url.path
-
-        text = pdf_service.extract_text_from_pdf(url)
-        compliance_data = pdf_service.retrive_regulatory_complience(
-            clauses.clause_text, text
-        )
-        claus_json = json.loads(f"""{compliance_data}""")
+        # V2 pipeline — LLM call outside session
+        from app.services.manual_task import _extract_activities_v2
+        compliance_data = _extract_activities_v2(clauses.clause_text, [])
+        claus_json = compliance_data
 
         compliance_activities = []
         comps_to_process = []  # Store activities that need test procedures
@@ -2753,13 +2749,24 @@ def regenerate_compliance_activities():
             for test_procedure in test_procedures:
                 db.session.delete(test_procedure)
 
-            # 3. Delete control_activities records (delete test_steps first)
+            # 3. Delete control_activities records (delete test_steps + control_checklist first)
             control_activities = ControlActivity.query.filter_by(
                 compliance_activity_id=activity.id
             ).all()
             for control_activity in control_activities:
-                # Delete test_steps first (foreign key constraint)
+                # Delete control_checklist first (foreign key constraint)
                 from app.models.ai import TestSteps
+                try:
+                    from app.models.eve_models import ControlChecklist
+                    control_checklists = ControlChecklist.query.filter_by(
+                        control_activity_id=control_activity.id
+                    ).all()
+                    for cc in control_checklists:
+                        db.session.delete(cc)
+                    db.session.flush()
+                except Exception as cc_err:
+                    current_app.logger.warning(f"control_checklist delete skipped: {cc_err}")
+                # Delete test_steps
                 test_steps = TestSteps.query.filter_by(
                     control_id=control_activity.id
                 ).all()
@@ -2782,15 +2789,10 @@ def regenerate_compliance_activities():
 
         db.session.commit()
 
-        # Now generate new activities
-        file_url = File.query.filter_by(id=guideline.file_id).first()
-        url = file_url.path
-
-        text = pdf_service.extract_text_from_pdf(url)
-        compliance_data = pdf_service.retrive_regulatory_complience(
-            clauses.clause_text, text
-        )
-        claus_json = json.loads(f"""{compliance_data}""")
+        # Now generate new activities using V2 pipeline
+        from app.services.manual_task import _extract_activities_v2
+        compliance_data = _extract_activities_v2(clauses.clause_text, [])
+        claus_json = compliance_data
 
         compliance_activities = []
         comps_to_process = []  # Store activities that need test procedures
@@ -2823,17 +2825,18 @@ def regenerate_compliance_activities():
             except (ValueError, TypeError):
                 activity_id = str(index)  # Use the loop index as fallback
 
+            dept_id = int(item.get("department_id") or 0)
             comp = ComplianceActivities(
                 clause_id=id,
-                relevant_departments_id=int(item["department_id"]),
-                relevant_departments=item["relevant_departments"],
-                process=item["process_name"],
-                sub_process=item["sub_process_name"],
-                activity_id=activity_id,  # Use the validated activity_id
-                activity_description=item["activity_description"],
-                responsible_party=item["responsible_party"],
-                frequency=item["frequency"],
-                evidence_required=item["evidence_required"],
+                relevant_departments_id=dept_id if dept_id > 0 else None,
+                relevant_departments=item.get("relevant_departments", "Compliance"),
+                process=item.get("process_name", item.get("process", "")),
+                sub_process=item.get("sub_process_name", item.get("sub_process", "")),
+                activity_id=activity_id,
+                activity_description=item.get("activity_description", ""),
+                responsible_party=item.get("responsible_party", ""),
+                frequency=item.get("frequency", ""),
+                evidence_required=item.get("evidence_required", ""),
                 compliance_level=compliance_level,
             )
             db.session.add(comp)
