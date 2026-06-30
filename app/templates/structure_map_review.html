@@ -174,13 +174,17 @@ async function confirmAndExtract() {
 
 async function resetMap() {
     if (!confirm('This will regenerate the structure map from scratch. Continue?')) return;
-    // Clear structure map and reload
-    const resp = await fetch(`/confirm-structure-map/${guidelineId}`, {
+    // Clear structure map (set to null) — page reload will trigger fresh LLM generation
+    const resp = await fetch(`/clear-structure-map/${guidelineId}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({sections: [], reset: true}),
     });
-    window.location.reload();
+    const data = await resp.json();
+    if (data.status === 'success') {
+        window.location.reload();
+    } else {
+        alert('Failed to clear structure map: ' + (data.message || 'Unknown error'));
+    }
 }
 </script>
 {% endblock %}

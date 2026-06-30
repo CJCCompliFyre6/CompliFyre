@@ -15,8 +15,8 @@ class DocumentDetails(BaseModel):
     ApplicableOrganizations: list[str] = Field(..., description="Categories of organizations it applies to (e.g., banks, NBFCs, fintechs, corporates, government entities)")
     ApplicableGeography: list[str] = Field(..., description="National or international applicability (only return the name of the country or region)")
     PurposeAndIntent: str = Field(..., description="Purpose and intent of the guideline")
-    IssuanceDate: date = Field(..., description="Date of issuance (YYYY-MM-DD format)")
-    ComplianceDeadline: date | None = Field(None, description="Effective compliance deadline (YYYY-MM-DD format)")
+    IssuanceDate: str | None = Field(None, description="Date of issuance (YYYY-MM-DD format)")
+    ComplianceDeadline: str | None = Field(None, description="Effective compliance deadline (YYYY-MM-DD format)")
 
 class RegulatoryAndComplianceAspects(BaseModel):
     LegalStatus: str = Field(..., description="Legally binding or best practice recommendation")
@@ -46,8 +46,8 @@ class ComparisonAndIndustryImpact(BaseModel):
     ImpactOnBusinessOperations: str = Field(..., description="Expected impact on business operations, risk management, and governance practices")
 
 class TypeOfOrgnization(BaseModel):
-    Category: str = Field(..., description="Category of orginization eg, Banking, non-banking etc")
-    OrgType : str = Field(..., description="Name of type of orginization")
+    Category: str | None = Field(None, description="Category of orginization eg, Banking, non-banking etc")
+    OrgType: str | None = Field(None, description="Name of type of orginization")
     
 class RegulatoryDocument(BaseModel):
     """

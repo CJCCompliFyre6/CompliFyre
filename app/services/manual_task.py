@@ -1736,8 +1736,8 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                 # AND the rest of line must be empty, a dash, colon, or ALL CAPS title
                 # NOT a comma followed by lowercase (that's a mid-sentence reference)
                 m = _re.match(
-                    r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)"
-                    r"\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?)"
+                    r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
+                    r"(\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?"
                     r"(\s*[-–:*]|\s*$|\s+[A-Z][A-Z\s]+$)",
                     clean
                 )
@@ -1768,7 +1768,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         import re as _re3
         # Only keep pages where heading is an actual chapter/schedule heading
         heading_pattern_filter = _re3.compile(
-            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)\s+',
+            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)(\s+|$)',
             _re3.IGNORECASE
         )
         heading_list = [
@@ -1789,13 +1789,13 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
             # Parse section type and id from heading
             import re as _re2
             m = _re2.match(
-                r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure)"
-                r"\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?)",
+                r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
+                r"(\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?",
                 heading_text, _re2.IGNORECASE
             )
             if m:
                 sec_type = m.group(1).lower()
-                sec_id = m.group(2).upper()
+                sec_id = (m.group(3) or "").upper() or str(idx + 1)
                 # Get label from rest of heading
                 label_part = heading_text[m.end():].strip().lstrip("-–: ")
                 # Strip footnote refs from label
@@ -2031,28 +2031,9 @@ def extract_clauses(self, guideline_id: int):
         )
 
         logger.info(f"Stage 3 complete: {summary}")
-
-        # Auto-trigger activities for OBLIGATION/PRINCIPLE/MIXED clauses only
-        try:
-            with session_scope() as session:
-                eligible_clauses = session.query(Clauses).filter(
-                    Clauses.guideline_id == guideline_id,
-                    Clauses.clause_type.in_(["OBLIGATION", "PRINCIPLE", "MIXED"]),
-                    Clauses.extraction_status != "FLAGGED",
-                ).all()
-                eligible_ids = [c.id for c in eligible_clauses]
-
-            triggered = 0
-            for clause_id in eligible_ids:
-                extract_activities.apply_async(
-                    args=[clause_id],
-                    queue="extract_activities"
-                )
-                triggered += 1
-            logger.info(f"Auto-triggered activities for {triggered} eligible clauses")
-        except Exception as trigger_err:
-            logger.warning(f"Could not auto-trigger activities: {trigger_err}")
-
+        # NOTE: Auto-trigger of activity extraction REMOVED intentionally.
+        # Activity extraction (V2 pipeline) must be MANUALLY triggered by the
+        # user AFTER reviewing extracted clauses — not automatically here.
         update_progress(
             guideline_id, "COMPLETED", 100,
             f"Extraction complete. Saved {summary['saved']} clauses, {summary['flagged']} flagged.",

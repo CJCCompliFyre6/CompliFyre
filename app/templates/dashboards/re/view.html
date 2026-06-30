@@ -1300,29 +1300,8 @@ Are you absolutely sure you want to continue?`;
 
         // Modified extract_clauses_route function to use progress tracking
         function extractClausesWithProgress(guidelineId) {
-            openProgressModal();
-
-            // Show initial progress
-            updateProgress('STARTING', 0, 'Starting clause extraction process...');
-
-            // Make the initial request to start extraction
-            fetch(`/extract-clauses/${guidelineId}`, {
-                method: 'GET'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Failed to start clause extraction');
-                    }
-                    return response.text();
-                })
-                .then(() => {
-                    // Start monitoring the task progress
-                    monitorClauseExtraction(guidelineId);
-                })
-                .catch(error => {
-                    updateProgress('ERROR', 100, `Failed to start extraction: ${error.message}`);
-                    console.error('Error starting clause extraction:', error);
-                });
+            // Redirect to server — server decides: structure map review or extraction
+            window.location.href = `/extract-clauses/${guidelineId}`;
         }
 
 

@@ -1157,6 +1157,20 @@ def structure_map_review(guideline_id):
         return redirect(request.referrer or "/")
 
 
+@main_bp.route("/clear-structure-map/<int:guideline_id>", methods=["POST"])
+def clear_structure_map(guideline_id):
+    """Clear structure map so it regenerates fresh via LLM on next review page load."""
+    try:
+        guideline = Guidelines.query.get(guideline_id)
+        if not guideline:
+            return jsonify({"status": "error", "message": "Guideline not found"}), 404
+        guideline.structure_map = None
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Structure map cleared. Reload to regenerate."}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error clearing structure map: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 @main_bp.route("/confirm-structure-map/<int:guideline_id>", methods=["POST"])
 def confirm_structure_map(guideline_id):
     """Save confirmed structure map and trigger extraction."""
