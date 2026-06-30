@@ -1723,15 +1723,24 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         import re as _re
         # Detect structural headings — handle footnote prefixes like "560[CHAPTER VA"
         def extract_heading(text):
-            """Find chapter/schedule heading on a page, handling footnote prefixes."""
+            """Find chapter/schedule heading on a page, handling footnote prefixes.
+            Returns (heading, title_line) — title_line is the next meaningful line
+            after the heading (often the section's descriptive title, e.g. for
+            'CHAPTER III' on its own line, the title 'Customer Acceptance Policy'
+            appears on the very next line)."""
             lines = [l.strip() for l in text.split("\n") if l.strip()]
-            for line in lines:
+            for idx_line, line in enumerate(lines):
                 if _re.match(r"^\d{1,4}$", line):
                     continue
                 if line in ("GAZETTE OF INDIA", "EXTRAORDINARY", "PUBLISHED BY AUTHORITY"):
                     continue
                 # Strip leading footnote reference: "560[CHAPTER VA" -> "CHAPTER VA"
+                # Also strip bare leading page-number prefix without bracket: "164Annex III" -> "Annex III"
                 clean = _re.sub(r"^\d+\[", "", line).strip()
+                clean = _re.sub(
+                    r"^\d{1,4}(?=(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix))",
+                    "", clean
+                ).strip()
                 # Must be a proper heading — CHAPTER/SCHEDULE followed by identifier
                 # AND the rest of line must be empty, a dash, colon, or ALL CAPS title
                 # NOT a comma followed by lowercase (that's a mid-sentence reference)
@@ -1742,20 +1751,35 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                     clean
                 )
                 if m:
-                    return clean[:80]
-            return ""
+                    # If the heading line itself carries no title text after the id
+                    # (common case: "CHAPTER  III" alone), look at the next line(s)
+                    # for a short descriptive title.
+                    title_line = ""
+                    trailing = clean[m.end():].strip().lstrip("-–: ")
+                    if trailing:
+                        title_line = trailing
+                    else:
+                        for next_line in lines[idx_line + 1: idx_line + 3]:
+                            if _re.match(r"^\d{1,4}$", next_line):
+                                continue
+                            # A real title is short-ish and not a numbered clause/sentence
+                            if len(next_line) <= 100 and not _re.match(r"^\d+\.", next_line):
+                                title_line = next_line
+                            break
+                    return clean[:80], title_line[:100]
+            return "", ""
 
         first_lines = []
         for page_num in range(total_pages):
             text = pdf[page_num].get_text()
-            heading = extract_heading(text)
+            heading, heading_title = extract_heading(text)
             if not heading:
                 # Fall back to first meaningful non-numeric line
                 for line in [l.strip() for l in text.split("\n") if l.strip()]:
                     if not _re.match(r"^\d{1,4}$", line):
                         heading = line[:80]
                         break
-            first_lines.append({"page": page_num + 1, "heading": heading})
+            first_lines.append({"page": page_num + 1, "heading": heading, "title": heading_title})
 
         # Full text of first 3 pages for TOC
         toc_text = ""
@@ -1795,11 +1819,25 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
             )
             if m:
                 sec_type = m.group(1).lower()
-                sec_id = (m.group(3) or "").upper() or str(idx + 1)
-                # Get label from rest of heading
+                # If no roman numeral/number follows the keyword (e.g. bare "Appendix"),
+                # use a clean numeric counter scoped to that section type instead of the
+                # global loop index (avoids nonsensical ids like "15" for a single Appendix).
+                raw_id = (m.group(3) or "").upper()
+                if raw_id:
+                    sec_id = raw_id
+                else:
+                    same_type_count = sum(
+                        1 for s in sections_with_pages if s["type"] == sec_type
+                    )
+                    sec_id = str(same_type_count + 1)
+                # Get label from rest of heading (e.g. "CHAPTER III - Customer Acceptance Policy")
                 label_part = heading_text[m.end():].strip().lstrip("-–: ")
                 # Strip footnote refs from label
                 label_part = _re2.sub(r"\d+\[", "", label_part).strip()
+                # If the heading line itself had no title text, fall back to the
+                # title captured from the next line during extract_heading()
+                if not label_part:
+                    label_part = item.get("title", "")
             else:
                 sec_type = "chapter"
                 sec_id = str(idx + 1)

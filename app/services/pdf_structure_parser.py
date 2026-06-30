@@ -23,6 +23,7 @@ PATTERNS = {
     'sub_clause':           re.compile(r'^\s{6,16}\(([ivxlcdm]+)\)\s+\S'),
     'capital':              re.compile(r'^\s{10,24}\(([A-Z])\)\s+\S'),
     'numbered_deep':        re.compile(r'^\s{14,28}\((\d+)\)\s+\S'),
+    'letter_para':          re.compile(r'^\s{0,4}([A-Z])\.\s+\S'),
     'proviso':              re.compile(r'^\s*Provided\s+(that|further\s+that)', re.IGNORECASE),
     'explanation':          re.compile(r'^\s*Explanation\s*[\(\d\-\u2013]', re.IGNORECASE),
     'footnote_ref_inline':  re.compile(r'\b\d+\[([^\]]+)\]'),
@@ -43,6 +44,7 @@ def empty_position():
         'sub_clause': None, 'capital': None, 'numbered_deep': None,
         'proviso_count': 0, 'explanation_count': 0,
         'current_section': None, 'pending_reg': None,
+        'letter_para': None,
     }
 
 
@@ -58,6 +60,9 @@ def build_clause_no(pos):
         parts.append(f"ANN {pos['annexure']}")
     else:
         return None
+    if pos['letter_para']:
+        parts.append(pos['letter_para'])
+        return ' '.join(parts)
     if pos['regulation']:
         parts.append(pos['regulation'])
     if pos['sub_reg']:
@@ -193,8 +198,10 @@ def build_prefix_from_section(section):
         return f"CH {sec_id}"
     elif sec_type == "schedule":
         return f"SCH {sec_id}"
-    elif sec_type == "annexure":
+    elif sec_type in ("annexure", "annex"):
         return f"ANN {sec_id}"
+    elif sec_type == "appendix":
+        return f"APP {sec_id}" if sec_id else "APP"
     return None
 
 
@@ -276,8 +283,11 @@ def parse_pdf_structure(file_path, structure_map=None):
                     elif sec_type == "schedule":
                         position["schedule"] = sec_id
                         position["current_section"] = "schedule"
-                    elif sec_type == "annexure":
+                    elif sec_type in ("annexure", "annex"):
                         position["annexure"] = sec_id
+                        position["current_section"] = "annexure"
+                    elif sec_type == "appendix":
+                        position["annexure"] = sec_id or "APP"
                         position["current_section"] = "annexure"
                     last_section_id = section_id
                     logger.debug(f"Stage 1: Page {page_num+1} → {section_id}")
@@ -326,6 +336,33 @@ def parse_pdf_structure(file_path, structure_map=None):
 
                 if not position['current_section']:
                     continue
+
+                # --- Annexure/Appendix lettered-paragraph format: "A. text", "B. text" ---
+                # These documents don't use the regulation-numbered hierarchy at all,
+                # so we treat each top-level letter as its own clause directly.
+                if position['current_section'] == 'annexure':
+                    m_lp = PATTERNS['letter_para'].match(line)
+                    if m_lp:
+                        letter = m_lp.group(1)
+                        position['letter_para'] = letter
+                        clause_no = build_clause_no(position)
+                        parent_base = []
+                        if position['chapter']:
+                            parent_base.append(f"CH {position['chapter']}")
+                        elif position['schedule']:
+                            parent_base.append(f"SCH {position['schedule']}")
+                        elif position['annexure']:
+                            parent_base.append(f"ANN {position['annexure']}")
+                        parent = ' '.join(parent_base) if parent_base else None
+                        idx = line.index(letter + '.')
+                        text_after = line[idx + len(letter) + 1:].strip()
+                        start_node(clause_no, 'letter_para', page_num + 1, parent, 1, text_after)
+                        continue
+                    elif position['letter_para'] and stripped:
+                        # Continuation of the current lettered paragraph (wrapped text)
+                        buf_text.append(stripped)
+                        continue
+
                 m = PATTERNS['regulation_solo'].match(line)
                 if m:
                     position['pending_reg'] = m.group(1); continue
