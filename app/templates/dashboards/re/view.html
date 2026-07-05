@@ -1425,4 +1425,14 @@ Are you absolutely sure you want to continue?`;
    
 
 
-    {% endblock %}
+    
+<!-- TEMP HIDE (Jul 5): Extraction Progress column for AUDITOR role only. Delete block to restore. -->
+{% if current_user.is_authenticated and current_user.role.name == "AUDITOR" %}
+<style>
+  #guidelinesTable th:nth-child(11),
+  #guidelinesTable td:nth-child(11) { display: none !important; }
+</style>
+{% endif %}
+<!-- END TEMP HIDE -->
+
+{% endblock %}

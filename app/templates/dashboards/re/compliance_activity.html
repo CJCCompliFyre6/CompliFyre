@@ -933,4 +933,14 @@
 </script>
 
 
+
+<!-- TEMP HIDE (Jul 5): export + consolidated evidence buttons for AUDITOR role only. Delete block to restore. -->
+{% if current_user.is_authenticated and current_user.role.name == "AUDITOR" %}
+<style>
+  #exportCSV { display: none !important; }
+  #get_consolidated_evidences { display: none !important; }
+</style>
+{% endif %}
+<!-- END TEMP HIDE -->
+
 {%endblock%}

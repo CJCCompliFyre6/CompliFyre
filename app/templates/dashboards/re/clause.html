@@ -2976,4 +2976,30 @@ Are you sure you want to continue?`;
     </script>
 
 
-    {%endblock%}
+    
+<!-- TEMP HIDE (Jul 5): export button + Status column for AUDITOR role only. Delete block to restore. -->
+{% if current_user.is_authenticated and current_user.role.name == "AUDITOR" %}
+<style>
+  #exportCSV { display: none !important; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var table = document.getElementById('guidelinesTable');
+  if (!table) return;
+  var headers = table.querySelectorAll('thead th');
+  var statusIdx = -1;
+  headers.forEach(function (th, i) {
+    if (th.textContent.trim() === 'Status') statusIdx = i;
+  });
+  if (statusIdx < 0) return;
+  headers[statusIdx].style.display = 'none';
+  table.querySelectorAll('tbody tr').forEach(function (tr) {
+    var cells = tr.querySelectorAll('td');
+    if (cells[statusIdx]) cells[statusIdx].style.display = 'none';
+  });
+});
+</script>
+{% endif %}
+<!-- END TEMP HIDE -->
+
+{%endblock%}
