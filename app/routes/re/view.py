@@ -2463,7 +2463,7 @@ def get_clause():
                 guideline_name = guideline.guideline_data.get(
                     "DocumentDetails", {}
                 ).get("DocumentName")
-            clauses = Clauses.query.filter_by(guideline_id=guideline_id).all()
+            clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.page_number.asc(), Clauses.id.asc()).all()
         else:
             clauses = Clauses.query.all()
 
@@ -2478,8 +2478,8 @@ def get_clause():
             ]
 
         # Sort clauses using natural sorting
-        sorted_clauses = sorted(clauses, key=natural_sort_key)
-        clause_data = sorted_clauses
+        # Sort: page_number ASC (document order), then natural sort on clause_no
+        clause_data = sorted(clauses, key=lambda c: (c.page_number or 9999, natural_sort_key(c)))
         clause_type_filter = request.args.get("clause_type_filter", "obligations")
 
         consolidated_evidence = None

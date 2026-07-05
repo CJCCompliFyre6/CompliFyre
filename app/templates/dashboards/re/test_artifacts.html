@@ -1875,7 +1875,7 @@
     </div>
     {% elif item.data.findings %}
     <div id="compliance_display_findings_{{ item_loop_idx }}" class="prose max-w-none text-gray-700">
-      {{ item.data.findings | markdown | safe }}
+      {{ item.data.findings }}
     </div>
     {% else %}
     <p class="text-gray-500 italic">No findings recorded</p>
@@ -1937,7 +1937,7 @@
     </div>
     {% elif item.data.recommendations %}
     <div class="prose max-w-none text-gray-700">
-      {{ item.data.recommendations | markdown | safe }}
+      {{ item.data.recommendations }}
     </div>
     {% else %}
     <p class="text-gray-500 italic">No recommendations recorded</p>
@@ -2041,21 +2041,21 @@
       </label>
       <div id="observation_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
       <textarea name="observation_content" class="hidden" autocomplete="on" autofocus
-        id="observation_hidden_{{item_loop_idx}}">{% if item.data.observation %}{{ item.data.observation | markdown | safe }}{% endif %}</textarea>
+        id="observation_hidden_{{item_loop_idx}}">{% if item.data.observation %}{{ item.data.observation }}{% endif %}</textarea>
 
       <label class="block mb-1 text-sm font-bold text-gray-700">
         Findings
       </label>
       <div id="findings_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
       <textarea name="findings_content" class="hidden" autocomplete="on" autofocus
-        id="findings_hidden_{{item_loop_idx}}">{% if item.data.findings %}{{ item.data.findings | markdown | safe }}{% endif %}</textarea>
+        id="findings_hidden_{{item_loop_idx}}">{% if item.data.findings %}{{ item.data.findings }}{% endif %}</textarea>
 
       <label class="block mb-1 text-sm font-bold text-gray-700">
         Recommendation
       </label>
       <div id="recommendation_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
       <textarea name="recommendation_content" class="hidden" autocomplete="on" autofocus
-        id="recommendation_hidden_{{item_loop_idx}}">{% if item.data.recommendations %}{{ item.data.recommendations | markdown | safe }}{% endif %}</textarea>
+        id="recommendation_hidden_{{item_loop_idx}}">{% if item.data.recommendations %}{{ item.data.recommendations }}{% endif %}</textarea>
     </div>
 
     <div class="flex justify-end space-x-2">
@@ -4291,24 +4291,17 @@ function downloadResults(idx) {
     if (!results) return;
 
     // Build CSV
-    let csv = 'Attribute Name,Population Tested,Passed,Exceptions,Exception Rate,Severity
-';
+    let csv = 'Attribute Name,Population Tested,Passed,Exceptions,Exception Rate,Severity\n';
     (results.test_results?.attribute_results || []).forEach(attr => {
-        csv += `"${attr.attribute_name}",${attr.population_tested},${attr.passed},${attr.exceptions},${attr.exception_rate}%,${attr.severity || 'N/A'}
-`;
+        csv += `"${attr.attribute_name}",${attr.population_tested},${attr.passed},${attr.exceptions},${attr.exception_rate}%,${attr.severity || 'N/A'}\n`;
     });
 
     // Exception details
-    csv += '
-
-EXCEPTION DETAILS
-';
-    csv += 'Attribute,Identifier,Actual Value,Expected Value
-';
+    csv += '\nEXCEPTION DETAILS\n';
+    csv += 'Attribute,Identifier,Actual Value,Expected Value\n';
     (results.test_results?.attribute_results || []).forEach(attr => {
         (attr.exception_list || []).forEach(exc => {
-            csv += `"${attr.attribute_name}","${exc.identifier}","${exc.actual_value}","${exc.expected_value}"
-`;
+            csv += `"${attr.attribute_name}","${exc.identifier}","${exc.actual_value}","${exc.expected_value}"\n`;
         });
     });
 

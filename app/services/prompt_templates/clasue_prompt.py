@@ -599,23 +599,46 @@ clause_text:
 {node.get('raw_text', '')}
 
 ---
-ANSWER THESE FOUR QUESTIONS:
+ANSWER THESE QUESTIONS IN ORDER:
+
+Q0 — UNDERSTAND INTENT (answer this FIRST, before classifying)
+Read the full clause text and describe in one or two sentences what this clause is
+actually DOING — its function, not its wording. Ask yourself:
+- Is it telling the regulated entity to DO or NOT DO something specific and new? 
+  → likely OBLIGATION or PRINCIPLE
+- Is it only describing WHO/WHAT the surrounding rules apply to, without adding 
+  any new required action of its own? → likely APPLICABILITY
+- Is it carving OUT certain entities, transactions, or deposit types from an 
+  otherwise-applicable requirement (narrowing scope, not adding a duty)? 
+  → likely EXEMPTION
+- Is it only defining what a term means? → likely DEFINITION
+- Is it only a list of circulars/references with no requirement of its own? 
+  → likely REFERENCE
+
+CRITICAL — do not classify based on keyword presence alone. The word "shall" 
+appears in OBLIGATION, APPLICABILITY, and EXEMPTION clauses alike:
+  "These directions SHALL APPLY to..."      → describes scope → APPLICABILITY
+  "Nothing contained...SHALL APPLY to..."   → carves out scope → EXEMPTION
+  "The company SHALL maintain a register..." → imposes a new duty → OBLIGATION
+Judge by what the clause DOES to the reader's obligations, not by which modal 
+verb it contains. Write your one-sentence intent summary before answering Q1 —
+your Q1 answer must be consistent with that summary.
 
 Q1 — CLAUSE TYPE
-What type of content is this clause?
+Based on the intent you just identified, what type of content is this clause?
 
 Choose ONE:
 - OBLIGATION: imposes a hard mandatory requirement using "shall", "must", "is required to"
 - PRINCIPLE: principles-based obligation using "shall endeavour", "shall seek to", "should" — testable but softer
 - MIXED: contains BOTH a definition/applicability condition AND an obligation in the same text
 - DEFINITION: only defines a term ("X means...", "For the purpose of...X shall mean...") — no obligation
-- APPLICABILITY: only specifies who a regulation applies to — no direct obligation imposed
-- EXEMPTION: specifies who is excluded from a requirement ("shall not apply to...")
+- APPLICABILITY: describes the scope of who/what the regulation applies to — no new independent action is demanded by THIS clause, even if it uses "shall apply to"
+- EXEMPTION: carves out entities, transactions, or categories that are excluded from an otherwise-applicable requirement — including patterns like "Nothing contained in...shall apply to...", "shall not apply to...", "is exempted from...", or a list of excluded deposit/entity types
 - REFERENCE: historical circular references, appendix rows, amendment lists, or any content that is purely a reference to another document/circular with no regulatory requirement of its own
 
 IMPORTANT — EMBEDDED OBLIGATION RULE:
 If a definition clause contains language like "shall ensure", "shall maintain", "is required to" — classify as MIXED, not DEFINITION.
-If an applicability clause says "shall comply with regulations X to Y" — classify as MIXED, not APPLICABILITY.
+If an applicability or exemption clause says "shall comply with regulations X to Y" as an ADDITIONAL standalone duty (not just describing scope) — classify as MIXED, not APPLICABILITY/EXEMPTION.
 If content is a list of historical circulars, amendment references, or rows from an appendix with circular numbers and dates — classify as REFERENCE regardless of any other content.
 
 CRITICAL — NEVER SKIP, ALWAYS EXTRACT AND FLAG:
@@ -667,6 +690,7 @@ OUTPUT FORMAT — return ONLY valid JSON, no explanation, no markdown:
 
 {{
   "clause_no": "{node.get('clause_no', '')}",
+  "intent_summary": "one-sentence description of what this clause actually does — write this first, consistent with your Q0 answer",
   "clause_type": "OBLIGATION|PRINCIPLE|MIXED|DEFINITION|APPLICABILITY|EXEMPTION|REFERENCE",
   "merge_decision": "STANDALONE|MERGE_PARENT",
   "merge_reason": "brief reason for merge decision",
