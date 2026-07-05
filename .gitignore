@@ -183,3 +183,4 @@ cython_debug/
 .pypirc
 *.bak
 .env.backup.*
+*.bak_*
