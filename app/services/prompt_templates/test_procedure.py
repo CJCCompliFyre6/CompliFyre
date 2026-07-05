@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from app.models.ai import AIPrompts
 
 class ControlType(str, Enum):
@@ -93,6 +93,30 @@ class ControlWorkpaper(BaseModel):
     owner: str = Field(..., description="Person or role responsible for the control.")
     control_type: ControlType = Field(..., description="Type of control.")
     frequency: Frequency = Field(..., description="Frequency of the control activity.")
+    @field_validator("frequency", mode="before")
+    @classmethod
+    def normalize_frequency(cls, v):
+        if isinstance(v, str):
+            synonym_map = {
+                "periodic": "As Needed",
+                "periodically": "As Needed",
+                "ongoing": "Continuous",
+                "regular": "As Needed",
+                "yearly": "Annually",
+                "annual": "Annually",
+                "half-yearly": "Semi-Annual",
+                "half yearly": "Semi-Annual",
+                "bi-annual": "Semi-Annual",
+                "biannual": "Semi-Annual",
+                "event driven": "Event-Driven",
+                "adhoc": "Ad-hoc",
+                "ad hoc": "Ad-hoc",
+                "one-time": "One Time",
+                "onetime": "One Time",
+            }
+            return synonym_map.get(v.strip().lower(), v)
+        return v
+
     assessment_objective: AssessmentObjectiveType = Field(..., description="Primary objective of this assessment — Design Effectiveness, Operating Effectiveness, or Substantive Testing.")
     assessment_objective_rationale: str = Field(..., description="Brief explanation of why this assessment objective was selected for this control activity.")
     test_attributes: list[TestAttribute] = Field(..., description="List of specific attributes to be tested for this control activity. Each attribute must have clear pass/fail criteria.")

@@ -16,8 +16,10 @@ PATTERNS = {
     'schedule':             re.compile(r'^(SCHEDULE|Schedule)\s+([IVXLCDM]+|\d+)\b'),
     'annexure':             re.compile(r'^(ANNEXURE|Annexure|ANNEX|Annex)\s+([A-Z]|\d+)\b'),
     'part':                 re.compile(r'^(PART|Part)\s+([A-Z])\b'),
-    'regulation_solo':      re.compile(r'^\s{0,4}(\d+[A-Z]?)\.\s*$'),
-    'regulation_inline':    re.compile(r'^\s{0,4}(\d+[A-Z]?)\.\s+\S'),
+    'regulation_solo':      re.compile(r'^\s{0,4}(\d{1,3}[A-Z]?)\.\s*$'),
+    'regulation_inline':    re.compile(r'^\s{0,4}(\d{1,3}[A-Z]?)\.\s+\S'),
+    'regulation_dotless':   re.compile(r'^(\d{1,3})\s+[A-Z\u2018\u201C(]'),
+    'regulation_solo_dotless': re.compile(r'^\s{0,4}(\d{1,3})\s*$'),
     'sub_reg':              re.compile(r'^\s{0,8}\((\d+[A-Z]{0,3})\)\s+\S'),
     'clause':               re.compile(r'^\s{3,12}\(([a-z]{1,3})\)\s+\S'),
     'sub_clause':           re.compile(r'^\s{6,16}\(([ivxlcdm]+)\)\s+\S'),
@@ -111,14 +113,22 @@ def _parent_clause_no(pos, current_level):
 
 def strip_page_noise(page_text):
     lines = page_text.split('\n')
+    non_empty = [i for i, l in enumerate(lines) if l.strip()]
+    first_ne = non_empty[0] if non_empty else -1
+    last_ne = non_empty[-1] if non_empty else -1
     cleaned = []
     in_footnote_block = False
-    for line in lines:
+    for idx, line in enumerate(lines):
         stripped = line.strip()
         if not stripped:
             cleaned.append('')
             continue
         if PATTERNS['page_number'].match(stripped):
+            # Header/footer position = page number, strip it.
+            # Mid-page solo number = dotless clause number (RBI 2025 format), keep it.
+            if idx == first_ne or idx == last_ne:
+                continue
+            cleaned.append(line)
             continue
         if PATTERNS['gazette_header'].match(stripped):
             continue
@@ -366,6 +376,9 @@ def parse_pdf_structure(file_path, structure_map=None):
                 m = PATTERNS['regulation_solo'].match(line)
                 if m:
                     position['pending_reg'] = m.group(1); continue
+                m = PATTERNS['regulation_solo_dotless'].match(line)
+                if m:
+                    position['pending_reg'] = m.group(1); continue
                 m = PATTERNS['regulation_inline'].match(line)
                 if m:
                     reg_no = m.group(1); position['regulation'] = reg_no
@@ -373,6 +386,15 @@ def parse_pdf_structure(file_path, structure_map=None):
                     clause_no = build_clause_no(position)
                     parent = _parent_clause_no(position, 'regulation')
                     text_after = line[line.index(reg_no + '.') + len(reg_no) + 1:].strip()
+                    start_node(clause_no, 'regulation', page_num + 1, parent, _depth_of(position), text_after)
+                    continue
+                m = PATTERNS['regulation_dotless'].match(line)
+                if m:
+                    reg_no = m.group(1); position['regulation'] = reg_no
+                    position = reset_below(position, 'regulation')
+                    clause_no = build_clause_no(position)
+                    parent = _parent_clause_no(position, 'regulation')
+                    text_after = line[m.end(1):].strip()
                     start_node(clause_no, 'regulation', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 if position.get('pending_reg') and stripped:

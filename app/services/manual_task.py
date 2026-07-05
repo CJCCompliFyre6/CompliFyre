@@ -11,7 +11,7 @@ import time
 
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import joinedload
 from flask import current_app
 from app import db
@@ -1722,64 +1722,94 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         # Send ALL chapter/schedule headings found + first meaningful line per page
         import re as _re
         # Detect structural headings — handle footnote prefixes like "560[CHAPTER VA"
-        def extract_heading(text):
-            """Find chapter/schedule heading on a page, handling footnote prefixes.
-            Returns (heading, title_line) — title_line is the next meaningful line
-            after the heading (often the section's descriptive title, e.g. for
-            'CHAPTER III' on its own line, the title 'Customer Acceptance Policy'
-            appears on the very next line)."""
+        def extract_headings(text):
+            """Find ALL chapter/schedule headings on a page, handling footnote prefixes.
+            A single page can contain multiple short chapters (e.g. Chapter VII and
+            Chapter VIII both appearing on the same physical page). Returns a list of
+            (heading, title_line) tuples in the order found on the page."""
             lines = [l.strip() for l in text.split("\n") if l.strip()]
-            for idx_line, line in enumerate(lines):
+            results = []
+            idx_line = 0
+            while idx_line < len(lines):
+                line = lines[idx_line]
                 if _re.match(r"^\d{1,4}$", line):
+                    idx_line += 1
                     continue
                 if line in ("GAZETTE OF INDIA", "EXTRAORDINARY", "PUBLISHED BY AUTHORITY"):
+                    idx_line += 1
                     continue
-                # Strip leading footnote reference: "560[CHAPTER VA" -> "CHAPTER VA"
-                # Also strip bare leading page-number prefix without bracket: "164Annex III" -> "Annex III"
                 clean = _re.sub(r"^\d+\[", "", line).strip()
                 clean = _re.sub(
                     r"^\d{1,4}(?=(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix))",
                     "", clean
                 ).strip()
-                # Must be a proper heading — CHAPTER/SCHEDULE followed by identifier
-                # AND the rest of line must be empty, a dash, colon, or ALL CAPS title
-                # NOT a comma followed by lowercase (that's a mid-sentence reference)
                 m = _re.match(
                     r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
-                    r"(\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?"
+                    r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?"
                     r"(\s*[-–:*]|\s*$|\s+[A-Z][A-Z\s]+$)",
                     clean
                 )
                 if m:
-                    # If the heading line itself carries no title text after the id
-                    # (common case: "CHAPTER  III" alone), look at the next line(s)
-                    # for a short descriptive title.
                     title_line = ""
                     trailing = clean[m.end():].strip().lstrip("-–: ")
                     if trailing:
                         title_line = trailing
+                        idx_line += 1
                     else:
-                        for next_line in lines[idx_line + 1: idx_line + 3]:
+                        for look_ahead in range(idx_line + 1, min(idx_line + 3, len(lines))):
+                            next_line = lines[look_ahead]
                             if _re.match(r"^\d{1,4}$", next_line):
                                 continue
-                            # A real title is short-ish and not a numbered clause/sentence
                             if len(next_line) <= 100 and not _re.match(r"^\d+\.", next_line):
                                 title_line = next_line
+                                idx_line = look_ahead + 1
                             break
-                    return clean[:80], title_line[:100]
-            return "", ""
+                        else:
+                            idx_line += 1
+                    results.append((clean[:80], title_line[:100]))
+                else:
+                    idx_line += 1
+            return results
+
+        def extract_heading(text):
+            """Backward-compat wrapper — returns only the FIRST heading on the page."""
+            all_h = extract_headings(text)
+            return all_h[0] if all_h else ("", "")
 
         first_lines = []
+        toc_reference = []  # chapter/schedule names seen on TOC/index pages — for validation only
+        TOC_HEADING_THRESHOLD = 3  # a page listing 3+ headings is an index/TOC page, not real content
         for page_num in range(total_pages):
             text = pdf[page_num].get_text()
-            heading, heading_title = extract_heading(text)
-            if not heading:
+            headings = extract_headings(text)
+            if not headings:
                 # Fall back to first meaningful non-numeric line
+                heading = ""
                 for line in [l.strip() for l in text.split("\n") if l.strip()]:
                     if not _re.match(r"^\d{1,4}$", line):
                         heading = line[:80]
                         break
-            first_lines.append({"page": page_num + 1, "heading": heading, "title": heading_title})
+                first_lines.append({"page": page_num + 1, "heading": heading, "title": ""})
+            elif len(headings) >= TOC_HEADING_THRESHOLD:
+                # This page is a Table of Contents / Index listing many chapters
+                # on one page — it is NOT real chapter content. Do not emit these
+                # as section headings (that would create duplicate/bogus sections
+                # with reversed page ranges). Instead, keep the list as a reference
+                # for later validation (detect chapters mentioned in the TOC that
+                # never got a real heading match elsewhere in the document).
+                logger.info(f"Stage 1A: Page {page_num + 1} looks like a TOC/Index ({len(headings)} headings) — using as reference only, not as sections")
+                for heading, heading_title in headings:
+                    toc_reference.append({"page": page_num + 1, "heading": heading, "title": heading_title})
+                # Still record the page itself with its first meaningful line so
+                # downstream code has *some* entry for this page.
+                first_lines.append({"page": page_num + 1, "heading": "", "title": ""})
+            else:
+                # Multiple headings can appear on the same physical page
+                # (e.g. short Chapter VII immediately followed by Chapter VIII).
+                # Emit one entry per heading, same page number, so downstream
+                # section-boundary logic sees each chapter separately.
+                for heading, heading_title in headings:
+                    first_lines.append({"page": page_num + 1, "heading": heading, "title": heading_title})
 
         # Full text of first 3 pages for TOC
         toc_text = ""
@@ -1814,7 +1844,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
             import re as _re2
             m = _re2.match(
                 r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
-                r"(\s+([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?",
+                r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?",
                 heading_text, _re2.IGNORECASE
             )
             if m:
@@ -1884,11 +1914,37 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                 "exclude_reason": decision.get("exclude_reason", None),
             })
 
+        # Validate against TOC reference: flag any chapter/schedule that the TOC
+        # lists but that never got a matching real heading in the document body.
+        # This catches cases where a chapter heading was missed by page-level
+        # detection (e.g. merged with an adjacent chapter, OCR noise, etc.)
+        toc_validation_warnings = []
+        if toc_reference:
+            detected_ids = {(sec["type"], sec["id"].upper()) for sec in sections}
+            seen_toc_ids = set()
+            for entry in toc_reference:
+                m = _re.match(
+                    r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
+                    r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?",
+                    entry["heading"]
+                )
+                if not m:
+                    continue
+                toc_type = m.group(1).lower()
+                toc_id = (m.group(3) or "").upper()
+                if not toc_id or (toc_type, toc_id) in seen_toc_ids:
+                    continue
+                seen_toc_ids.add((toc_type, toc_id))
+                if (toc_type, toc_id) not in detected_ids:
+                    toc_validation_warnings.append(f"{toc_type.title()} {toc_id} appears in TOC but no matching heading found in document body")
+            if toc_validation_warnings:
+                logger.warning(f"Stage 1A: TOC validation found {len(toc_validation_warnings)} discrepancies: {toc_validation_warnings}")
+
         structure_map = {
             "regulator": regulator_name,
             "reg_number_format": llm_output.get("reg_number_format", "numeric_alpha"),
             "confidence": llm_output.get("confidence", "high"),
-            "flags": llm_output.get("flags", []),
+            "flags": llm_output.get("flags", []) + toc_validation_warnings,
             "sections": sections,
             "total_pages": total_pages,
         }
@@ -2078,6 +2134,18 @@ def extract_clauses(self, guideline_id: int):
             summary["saved"],
         )
 
+        # ── Stage 4: Auto-split large clauses ──────────────────────────────
+        # Split any clause >1500 chars into logical sub-clauses
+        # Uses Gate 1 (script check) + Gate 2 (advisory LLM verify) + recursive split
+        logger.info(f"Stage 4: Auto-splitting large clauses for guideline {guideline_id}")
+        update_progress(guideline_id, "COMPLETED", 100, "Splitting large clauses...", summary["saved"])
+        try:
+            split_result = split_all_large_clauses(guideline_id=guideline_id, threshold=1500)
+            logger.info(f"Stage 4 complete: {split_result['split']} split, {split_result['queued_review']} queued for review, {split_result['failed']} errors")
+        except Exception as e:
+            logger.error(f"Stage 4 auto-split error for guideline {guideline_id}: {e}")
+            split_result = {"total": 0, "split": 0, "queued_review": 0, "failed": 0}
+
         return {
             "status": "success",
             "guideline_id": guideline_id,
@@ -2087,10 +2155,11 @@ def extract_clauses(self, guideline_id: int):
             "saved": summary["saved"],
             "flagged": summary["flagged"],
             "duplicate_issues": len(summary["duplicate_issues"]),
+            "stage4_split": split_result["split"],
+            "stage4_queued_review": split_result["queued_review"],
         }
 
     except Exception as e:
-        logger.exception(f"extract_clauses failed for guideline {guideline_id}")
         update_progress(guideline_id, "FAILED", 0, f"Extraction failed: {str(e)}")
         self.update_state(
             state="FAILURE",
@@ -2457,7 +2526,7 @@ def _delete_clause_data(clause_id: int):
         raise
 
 
-@shared_task(bind=True, max_retries=0)
+@shared_task(bind=True, autoretry_for=(OperationalError,), retry_kwargs={"max_retries": 3, "countdown": 30}, retry_backoff=True)
 def extract_all_activities_and_tests(self, guideline_id: int):
     """
     Batch extraction of clauses, compliance activities, and test procedures
@@ -3172,138 +3241,287 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
 
 
 
-def _split_clause_in_db(clause_id: int) -> list:
+import re as _re
+
+SPLIT_THRESHOLD = 1500
+
+_DANGLING_PATTERNS = [
+    # Only patterns that GENUINELY indicate broken cross-clause context
+    # Removed: 'the same', 'for this purpose', 'in such cases', 'such documents',
+    # 'the said', 'in this regard' — too common in Indian regulatory language,
+    # often self-contained within the sub-clause itself
+    r'\bthe above\b',
+    r'\bas mentioned above\b',
+    r'\bas specified above\b',
+    r'\bas stated above\b',
+    r'\breferred to above\b',
+    r'\baforesaid\b',
+    r'\bas per the above\b',
+]
+_ORPHAN_PRONOUNS = [
+    # 'it shall' removed — too common in Indian regulatory language,
+    # 'it' often refers to entity defined within same sub-clause
+    r'\bhe shall\b', r'\bshe shall\b', r'\bthey shall\b',
+]
+_CITATION_PATTERN = (
+    r'(Rule\s+\d+[\w()]*'
+    r'|Section\s+\d+[\w()]*'
+    r'|Paragraph\s+\d+[\w()]*'
+    r'|circular\s+[A-Z]+/\d+[\w/]*'
+    r'|Schedule\s+[IVX]+'
+    r'|Annex\s+[IVX]+'
+    r'|Regulation\s+\d+[\w()]*'
+    r'|clause\s+\d+[\w()]*)'
+)
+_REGULATORY_SUBJECTS = [
+    'RE', 'Bank', 'NBFC', 'Regulated Entity', 'nodal officer',
+    'reporting entity', 'authorised officer', 'authorized officer',
+    'RBI', 'Central Government', 'State Government', 'designated individual',
+    'Stock Exchange', 'Depository', 'Financial Institution',
+]
+
+
+def _get_split_guidance(char_len: int) -> int:
+    if char_len > 6000:
+        return 5
+    elif char_len > 3000:
+        return 4
+    elif char_len > 1500:
+        return 2
+    return 1
+
+
+def _script_check_subclause(sc_text: str, original_text: str) -> list:
+    """Gate 1 — mechanical script check. Returns list of issue strings (empty = pass)."""
+    issues = []
+    for pattern in _DANGLING_PATTERNS:
+        match = _re.search(pattern, sc_text, _re.IGNORECASE)
+        if match:
+            issues.append(f"DANGLING_REF: '{match.group()}' found — context may be lost after split")
+            break
+    for pattern in _ORPHAN_PRONOUNS:
+        match = _re.search(pattern, sc_text, _re.IGNORECASE)
+        if match:
+            issues.append(f"ORPHAN_PRONOUN: '{match.group()}' found without clear antecedent")
+            break
+    # MISSING_CITATIONS removed — Gate 2 (LLM verify) handles semantic completeness
+    # Citation patterns in Indian regulatory clauses are inconsistent;
+    # script cannot reliably determine if a citation is missing or just not applicable
+
+    # NO_SUBJECT check — only if obligation starts the sub-clause with no entity name
+    first_200 = sc_text[:200]
+    subject_found = any(s.lower() in first_200.lower() for s in _REGULATORY_SUBJECTS)
+    starts_with_obligation = bool(_re.search(r'\bshall\b', sc_text[:100], _re.IGNORECASE))
+    if starts_with_obligation and not subject_found:
+        issues.append("NO_SUBJECT: obligation found but regulatory entity not established")
+
+    # STILL_LARGE removed — handled by recursive split (Step 7), not Gate 1
+    # Retrying LLM fix for large sub-clauses wastes calls and never helps
+    return issues
+
+
+def _verify_subclauses_llm(original_text: str, sub_clauses: list) -> list:
+    """Gate 2 — LLM semantic verify. Returns list of failed dicts."""
+    from app.services.model_response import _call_llm_json_raw
+    VERIFY_SYSTEM = "You are a senior regulatory compliance expert reviewing clause splits.\nReturn ONLY valid JSON. No explanation. No markdown."
+    sc_formatted = "\n\n".join([f"SUB-CLAUSE {sc['suffix']}:\n{sc['text']}" for sc in sub_clauses])
+    VERIFY_PROMPT = (
+        f"An original regulatory clause was split into sub-clauses.\n"
+        f"Review EACH sub-clause as if you have NOT seen the others.\n\n"
+        f"ORIGINAL CLAUSE (for reference only):\n{original_text}\n\n"
+        f"SPLIT SUB-CLAUSES:\n{sc_formatted}\n\n"
+        f"For each sub-clause check:\n"
+        f"1. Does it make complete standalone sense without reading any other sub-clause?\n"
+        f"2. Are all regulatory references fully resolved?\n"
+        f"3. Is the regulatory obligation clear and independently actionable?\n"
+        f"4. Is there any lost context, broken meaning, or unresolved reference?\n\n"
+        f'Return ONLY this JSON:\n{{"results": [{{"suffix": "A", "passes": true, "issue": null}}, {{"suffix": "B", "passes": false, "issue": "Issue description"}}]}}'
+    )
+    result = _call_llm_json_raw(system_msg=VERIFY_SYSTEM, user_msg=VERIFY_PROMPT)
+    if not result or not result.get("results"):
+        logger.warning("[Split] Gate 2 LLM no results — assuming pass")
+        return []
+    return [r for r in result["results"] if not r.get("passes")]
+
+
+def _fix_subclause_llm(original_text: str, sc: dict, issues: list) -> dict:
+    """Targeted fix for one sub-clause. Returns fixed dict or original."""
+    from app.services.model_response import _call_llm_json_raw
+    FIX_SYSTEM = "You are a senior regulatory compliance expert.\nFix a regulatory sub-clause so it is fully self-contained. Return ONLY valid JSON."
+    issue_text = "\n".join(f"- {i}" for i in issues)
+    FIX_PROMPT = (
+        f"Fix this sub-clause so it stands completely on its own.\n\n"
+        f"ORIGINAL FULL CLAUSE (for context only):\n{original_text}\n\n"
+        f"SUB-CLAUSE {sc['suffix']} (NEEDS FIX):\n{sc['text']}\n\n"
+        f"SPECIFIC ISSUES:\n{issue_text}\n\n"
+        f"Fix instructions:\n"
+        f"- Replace 'the above', 'this', 'such', 'aforesaid' with actual referenced content\n"
+        f"- Replace pronouns (he/she/it/they) with the actual regulatory entity name\n"
+        f"- Carry forward relevant section/rule/circular references from original\n"
+        f"- Establish regulatory subject clearly in first sentence\n"
+        f"- Do NOT change substance or add new obligations\n"
+        f"- Do NOT summarize — preserve actual regulatory language\n\n"
+        f'Return ONLY: {{"suffix": "{sc["suffix"]}", "topic": "{sc.get("topic", "")}", "text": "Fixed text here"}}'
+    )
+    result = _call_llm_json_raw(system_msg=FIX_SYSTEM, user_msg=FIX_PROMPT)
+    if result and result.get("text"):
+        logger.info(f"[Split] Fixed sub-clause {sc['suffix']}")
+        return {"suffix": sc["suffix"], "topic": result.get("topic", sc.get("topic", "")), "text": result["text"]}
+    logger.warning(f"[Split] Fix LLM failed for {sc['suffix']} — keeping original")
+    return sc
+
+
+def _mark_needs_review(clause_id: int, reason: str):
+    """Flag clause for manual review — split failed all gates."""
+    try:
+        from app.models.ai import Clauses
+        with session_scope() as session:
+            clause = session.query(Clauses).get(clause_id)
+            if clause:
+                clause.flag_reason = f"[SPLIT_FAILED] {reason}"[:1000]
+                clause.extraction_status = "NEEDS_REVIEW"
+                session.commit()
+                logger.warning(f"[Split] Clause {clause_id} flagged NEEDS_REVIEW: {reason[:100]}")
+    except Exception as e:
+        logger.error(f"[Split] _mark_needs_review error: {e}")
+
+
+def _split_clause_in_db(clause_id: int, depth: int = 0, max_depth: int = 2) -> list:
     """
     Split a large clause into sub-clauses in DB.
-    1. LLM splits clause text into logical sub-parts
-    2. Safe numbering (A, B, C suffixes, fallback to -1, -2, -3)
-    3. Delete original clause (cascade deletes activities)
-    4. Insert sub-clauses with same page_number
-    Returns: list of new clause IDs
+    Gate 1: Script check (dangling refs, orphan pronouns, citations, subject, size)
+    Gate 2: LLM semantic verification
+    Recursive split for sub-clauses still >SPLIT_THRESHOLD.
+    Returns: list of new clause IDs (empty = failed/queued for review)
     """
-    import json
     from app.services.model_response import _call_llm_json_raw
-    from app.models.ai import Clauses, Guidelines
-    from app import db
+    from app.models.ai import Clauses
+
+    if depth >= max_depth:
+        logger.warning(f"[Split] Max depth {max_depth} reached for clause_id={clause_id} — stopping")
+        return []
 
     with session_scope() as session:
         clause = session.query(Clauses).get(clause_id)
         if not clause:
             logger.error(f"[Split] Clause {clause_id} not found")
             return []
-
         clause_text = clause.clause_text
         clause_no = clause.clause_no
         page_number = clause.page_number
         guideline_id = clause.guideline_id
+        original_clause_type = clause.clause_type or "OBLIGATION"
 
-    logger.info(f"[Split] Splitting clause {clause_no} ({len(clause_text)} chars)")
+    if len(clause_text) <= SPLIT_THRESHOLD:
+        logger.info(f"[Split] {clause_no} is {len(clause_text)} chars — no split needed")
+        return []
 
-    # ── Step 1: LLM split ─────────────────────────────────────────────
-    SPLIT_SYSTEM = """You are a senior regulatory compliance expert. 
-Split regulatory clauses into logical sub-clauses. Return ONLY valid JSON."""
+    logger.info(f"[Split] Splitting {clause_no} ({len(clause_text)} chars) depth={depth}")
+    max_parts = _get_split_guidance(len(clause_text))
 
-    SPLIT_PROMPT = f"""Split this large regulatory clause into 2-5 logical sub-clauses.
-Each sub-clause must:
-- Cover a DISTINCT regulatory topic or obligation group
-- Be independently meaningful and testable
-- Together cover the FULL original clause without overlap
-- Be a complete, coherent regulatory statement on its own
-
-ORIGINAL CLAUSE ({clause_no}):
-{clause_text}
-
-Return this exact JSON:
-{{
-  "sub_clauses": [
-    {{
-      "suffix": "A",
-      "topic": "Brief topic name",
-      "text": "Full sub-clause text covering this topic completely"
-    }},
-    {{
-      "suffix": "B", 
-      "topic": "Brief topic name",
-      "text": "Full sub-clause text covering this topic completely"
-    }}
-  ]
-}}
-
-Rules:
-- Use suffixes A, B, C, D, E (max 5 sub-clauses)
-- Each sub-clause text must be self-contained
-- Do not summarize — use the actual regulatory language
-- Minimum 2, maximum 5 sub-clauses"""
-
+    # Step 1: LLM split
+    SPLIT_SYSTEM = "You are a senior regulatory compliance expert.\nSplit regulatory clauses into logical sub-clauses. Return ONLY valid JSON. No markdown."
+    SPLIT_PROMPT = (
+        f"Split this large regulatory clause into 2-{max_parts} logical sub-clauses.\n\n"
+        f"CRITICAL — each sub-clause MUST:\n"
+        f"- Cover a DISTINCT regulatory topic or obligation group\n"
+        f"- Be FULLY SELF-CONTAINED — readable independently without any other sub-clause\n"
+        f"- Use actual regulatory entity names (RE/Bank/NBFC/nodal officer) — NOT pronouns\n"
+        f"- Include ALL relevant section/rule/circular references from original that apply to it\n"
+        f"- Replace vague references ('the above', 'this purpose', 'such documents') with actual content\n"
+        f"- Preserve full regulatory language — do NOT summarize\n"
+        f"- Together cover the COMPLETE original clause without overlap or gaps\n\n"
+        f"ORIGINAL CLAUSE ({clause_no}):\n{clause_text}\n\n"
+        f"Return ONLY this JSON:\n"
+        f'{{"sub_clauses": [{{"suffix": "A", "topic": "Brief topic 3-5 words", "text": "Full self-contained text"}}]}}\n\n'
+        f"Rules:\n"
+        f"- Suffixes A through {chr(64 + max_parts)} (max {max_parts})\n"
+        f"- Minimum 2 sub-clauses always\n"
+        f"- Target each sub-clause under 1500 characters\n"
+        f"- Never start with 'Further,' or 'Additionally,' without full context"
+    )
     result = _call_llm_json_raw(system_msg=SPLIT_SYSTEM, user_msg=SPLIT_PROMPT)
     if not result or not result.get("sub_clauses"):
-        logger.error(f"[Split] LLM split failed for clause {clause_no}")
+        logger.error(f"[Split] LLM split failed for {clause_no}")
+        _mark_needs_review(clause_id, "LLM split call returned no sub_clauses")
         return []
 
     sub_clauses = result["sub_clauses"]
-    logger.info(f"[Split] LLM returned {len(sub_clauses)} sub-clauses")
+    logger.info(f"[Split] LLM returned {len(sub_clauses)} sub-clauses for {clause_no}")
 
-    # ── Step 2: Safe numbering ────────────────────────────────────────
+    # Step 2: Gate 1 — script check + fix (max 2 retries)
+    for attempt in range(3):
+        script_issues = {}
+        for sc in sub_clauses:
+            issues = _script_check_subclause(sc["text"], clause_text)
+            if issues:
+                script_issues[sc["suffix"]] = issues
+        if not script_issues:
+            logger.info(f"[Split] Gate 1 PASSED for {clause_no} attempt={attempt}")
+            break
+        logger.warning(f"[Split] Gate 1 FAIL {clause_no} attempt={attempt}: {list(script_issues.keys())}")
+        if attempt >= 2:
+            _mark_needs_review(clause_id, f"Gate 1 failed after 3 attempts: {list(script_issues.keys())}")
+            return []
+        for i, sc in enumerate(sub_clauses):
+            if sc["suffix"] in script_issues:
+                sub_clauses[i] = _fix_subclause_llm(clause_text, sc, script_issues[sc["suffix"]])
+
+    # Step 3: Gate 2 — LLM semantic verify (WARNING ONLY — does not block)
+    # Fix loop removed: fix LLM was making sub-clauses worse
+    # Gate 1 (script) is the hard gate; Gate 2 is advisory only
+    failed_verify = _verify_subclauses_llm(clause_text, sub_clauses)
+    if failed_verify:
+        logger.warning(f"[Split] Gate 2 advisory {clause_no}: {[f['suffix'] for f in failed_verify]} — proceeding (Gate 1 passed)")
+        for f in failed_verify:
+            logger.warning(f"[Split]   {f['suffix']}: {f.get('issue', '')}")
+    else:
+        logger.info(f"[Split] Gate 2 PASSED for {clause_no}")
+
+    # Step 4: Safe numbering
     with session_scope() as session:
-        existing_nos = set(
-            r[0] for r in session.query(Clauses.clause_no)
-            .filter_by(guideline_id=guideline_id).all()
-        )
+        existing_nos = set(r[0] for r in session.query(Clauses.clause_no).filter_by(guideline_id=guideline_id).all())
 
     def get_safe_clause_no(base, suffix):
-        # Try base+suffix: CH II 4A
         candidate = f"{base}{suffix}"
         if candidate not in existing_nos:
             return candidate
-        # Try base-N: CH II 4-1
         n = ord(suffix) - ord('A') + 1
-        candidate2 = f"{base}-{n}"
-        if candidate2 not in existing_nos:
-            return candidate2
-        # Try base_PN: CH II 4_P1
-        candidate3 = f"{base}_P{n}"
-        return candidate3
+        c2 = f"{base}-{n}"
+        if c2 not in existing_nos:
+            return c2
+        return f"{base}_P{n}"
 
     numbered = []
     for sc in sub_clauses:
         safe_no = get_safe_clause_no(clause_no, sc["suffix"])
-        numbered.append({
-            "clause_no": safe_no,
-            "clause_text": sc["text"],
-            "topic": sc.get("topic", ""),
-            "page_number": page_number,
-        })
-        logger.info(f"[Split] Sub-clause: {safe_no} — {sc.get('topic', '')}")
+        numbered.append({"clause_no": safe_no, "clause_text": sc["text"], "topic": sc.get("topic", ""), "page_number": page_number})
+        logger.info(f"[Split] Numbered: {safe_no} — {sc.get('topic', '')}")
 
-    # ── Step 3: Delete original clause ───────────────────────────────
+    # Step 5: Delete original (cascade)
     with session_scope() as session:
         orig = session.query(Clauses).get(clause_id)
         if orig:
-            # Delete activities cascade
             from app.models.ai import ComplianceActivities, ControlActivity, TestProcedures
             from app.models.project_instance_models import ProjectComplianceActivity
             from app.models.eve_models import ControlChecklist
-
             activities = session.query(ComplianceActivities).filter_by(clause_id=clause_id).all()
             for act in activities:
-                # Delete control checklists
                 cas = session.query(ControlActivity).filter_by(compliance_activity_id=act.id).all()
                 for ca in cas:
                     session.query(ControlChecklist).filter_by(control_activity_id=ca.id).delete()
                     session.flush()
                     session.delete(ca)
-                # Delete test procedures
                 session.query(TestProcedures).filter_by(activity_id=act.id).delete()
-                # Delete project compliance activities
                 session.query(ProjectComplianceActivity).filter_by(original_activity_id=act.id).delete()
                 session.flush()
                 session.delete(act)
             session.flush()
             session.delete(orig)
             session.commit()
-            logger.info(f"[Split] Original clause {clause_no} (id={clause_id}) deleted")
+            logger.info(f"[Split] Deleted original {clause_no} (id={clause_id})")
 
-    # ── Step 4: Insert sub-clauses ────────────────────────────────────
+    # Step 6: Insert sub-clauses
     new_ids = []
     with session_scope() as session:
         for sc_data in numbered:
@@ -3312,17 +3530,61 @@ Rules:
                 clause_text=sc_data["clause_text"],
                 guideline_id=guideline_id,
                 page_number=sc_data["page_number"],
-                clause_type="OBLIGATION",
+                clause_type=original_clause_type,
                 extraction_status="EXTRACTED",
             )
             session.add(new_clause)
             session.flush()
             new_ids.append(new_clause.id)
-            logger.info(f"[Split] Inserted {sc_data['clause_no']} with id={new_clause.id}")
+            logger.info(f"[Split] Inserted {sc_data['clause_no']} id={new_clause.id} type={original_clause_type}")
         session.commit()
 
-    logger.info(f"[Split] Done — {len(new_ids)} sub-clauses created: {new_ids}")
+    logger.info(f"[Split] Complete — {len(new_ids)} sub-clauses from {clause_no}: {new_ids}")
+
+    # Step 7: Recursive split for still-large sub-clauses
+    for new_id in new_ids:
+        with session_scope() as session:
+            nc = session.query(Clauses).get(new_id)
+            if nc and len(nc.clause_text) > SPLIT_THRESHOLD:
+                logger.info(f"[Split] {nc.clause_no} still >{SPLIT_THRESHOLD} — recursive depth={depth+1}")
+                _split_clause_in_db(new_id, depth=depth + 1, max_depth=max_depth)
+
     return new_ids
+
+
+def split_all_large_clauses(guideline_id: int, threshold: int = SPLIT_THRESHOLD) -> dict:
+    """Bulk split all clauses >threshold for a guideline. Usage: split_all_large_clauses(197)"""
+    from app.models.ai import Clauses
+    from sqlalchemy import func
+    with session_scope() as session:
+        large_clauses = (
+            session.query(Clauses.id, Clauses.clause_no, func.length(Clauses.clause_text).label('len'))
+            .filter(Clauses.guideline_id == guideline_id)
+            .filter(func.length(Clauses.clause_text) > threshold)
+            .order_by(func.length(Clauses.clause_text).desc())
+            .all()
+        )
+    total = len(large_clauses)
+    logger.info(f"[BulkSplit] {total} clauses >{threshold} chars for guideline {guideline_id}")
+    results = {"total": total, "split": 0, "failed": 0, "queued_review": 0, "details": []}
+    for row in large_clauses:
+        clause_id, clause_no, char_len = row
+        logger.info(f"[BulkSplit] {clause_no} ({char_len} chars)")
+        try:
+            new_ids = _split_clause_in_db(clause_id)
+            if new_ids:
+                results["split"] += 1
+                results["details"].append({"clause_no": clause_no, "original_len": char_len, "status": "split", "new_count": len(new_ids)})
+            else:
+                results["queued_review"] += 1
+                results["details"].append({"clause_no": clause_no, "original_len": char_len, "status": "queued_for_review"})
+        except Exception as e:
+            logger.error(f"[BulkSplit] Error on {clause_no}: {e}")
+            results["failed"] += 1
+            results["details"].append({"clause_no": clause_no, "original_len": char_len, "status": "error", "error": str(e)})
+    logger.info(f"[BulkSplit] Done — split={results['split']}, review={results['queued_review']}, error={results['failed']}")
+    return results
+
 
 def _split_large_clause(clause_text: str, max_chars: int = 3000) -> list:
     """
@@ -3381,7 +3643,7 @@ def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
     from app.services.model_response import _call_llm_json_raw
 
     # ── CALL 1: Obligation Intelligence (or chunked extraction for large clauses) ──
-    LARGE_CLAUSE_THRESHOLD = 3000
+    LARGE_CLAUSE_THRESHOLD = 1500
     
     if len(clause_text) > LARGE_CLAUSE_THRESHOLD:
         logger.info(f"[V2] Large clause detected ({len(clause_text)} chars) — using chunked extraction")
