@@ -5408,14 +5408,17 @@ def clause_test_steps(clause_id):
     }
 
     # Count statuses from applicable activities
+    # Normalize both legacy ("Compliant") and EVE-pipeline ("COMPLIANT", "NON_COMPLIANT") formats,
+    # since EveControlResult.final_status uses the latter.
     for activity in applicable_control_activities:
         status = activity.get("compliant_status")
+        norm = (status or "").upper().replace(" ", "_").replace("-", "_")
 
-        if status == "Compliant":
+        if norm == "COMPLIANT":
             statistics["Compliant"] += 1
-        elif status == "Partially Compliant":
+        elif norm in ("PARTIALLY_COMPLIANT", "PARTIAL"):
             statistics["Partially Compliant"] += 1
-        elif status == "Non-Compliant":
+        elif norm == "NON_COMPLIANT":
             statistics["Non-Compliant"] += 1
         else:
             statistics["Not Assessed"] += 1
@@ -5502,6 +5505,22 @@ def clause_test_steps(clause_id):
                 activity_severity = 'No findings noted'
             else:
                 activity_severity = 'Not Classified'
+        
+        # Normalize raw severity values (e.g. EVE-style CRITICAL/HIGH/MEDIUM/LOW)
+        # to the standard labels used by severity_hierarchy / severity_counts below.
+        # Without this, unmapped raw values silently score 0 and never register
+        # as a finding on the Overall Severity Level badge.
+        if activity_severity:
+            _severity_norm_map = {
+                'CRITICAL': 'Critical',
+                'HIGH': 'Major', 'MAJOR': 'Major',
+                'MEDIUM': 'Significant', 'SIGNIFICANT': 'Significant',
+                'LOW': 'Minor', 'MINOR': 'Minor',
+                'NO_FINDINGS': 'No findings noted', 'NO FINDINGS NOTED': 'No findings noted',
+            }
+            _normalized = _severity_norm_map.get(activity_severity.upper())
+            if _normalized:
+                activity_severity = _normalized
         
         # Only count activities that have a severity classification
         if activity_severity and activity_severity != 'Not Classified':

@@ -92,7 +92,7 @@ class EveChecklistSchema(BaseModel):
 # temperature=0 for maximum determinism.
 # ============================================================
 
-def _call_llm_json(prompt: str, retries: int = 3, backoff: float = 2.0) -> dict | None:
+def _call_llm_json(prompt: str, retries: int = 2, backoff: float = 2.0) -> dict | None:
     """
     Call OpenAI with temperature=0 and expect a JSON response.
     Returns parsed dict or None on failure.
@@ -104,6 +104,7 @@ def _call_llm_json(prompt: str, retries: int = 3, backoff: float = 2.0) -> dict 
                 max_tokens=16000,
                 temperature=0,        # deterministic — same input = same output
                 top_p=0.1,
+                timeout=900,           # hard cap — data showed genuine calls up to 714s, cuts hung calls beyond that
                 response_format={"type": "json_object"},
                 messages=[
                     {

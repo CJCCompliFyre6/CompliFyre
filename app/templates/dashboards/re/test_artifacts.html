@@ -618,9 +618,13 @@
 
                         {# Check if evidence was inadmissible — show single banner instead of repeated gaps #}
                         {% set ns_adm = namespace(is_inadmissible=false, fail_reason='') %}
+                        {# Only ORGANIZATION_MATCH / DOCUMENT_AUTHENTICITY failing is a genuine hard-fail (evidence unusable).
+                           PERIOD_ALIGNMENT and RELEVANCE_TO_ACTIVITY failing on their own is a soft/PARTIAL case —
+                           evaluation still proceeds, so this banner should not show for those. #}
+                        {% set hard_fail_tests = ['ORGANIZATION_MATCH', 'DOCUMENT_AUTHENTICITY'] %}
                         {% if value.step5.admissibility_tests %}
                           {% for test in value.step5.admissibility_tests %}
-                            {% if test.result == 'FAIL' %}
+                            {% if test.result == 'FAIL' and test.test in hard_fail_tests %}
                               {% set ns_adm.is_inadmissible = true %}
                               {% if not ns_adm.fail_reason %}
                                 {% set ns_adm.fail_reason = test.test | replace('_', ' ') | title ~ ': ' ~ test.reason %}

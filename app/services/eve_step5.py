@@ -1071,38 +1071,41 @@ def check_relevance(
         if has_operating_items:
             type_match = True
 
-    # Option B: keyword match
-    keywords = set()
+    # Option B: keyword match — check each checklist item SEPARATELY,
+    # take the best single-item match. A document that clearly answers
+    # 1 of 16 items is relevant; it should not be judged against all 16 at once.
+    content_lower = content.lower()
+    best_match_rate = 0.0
+    best_item_label = ""
     for item in checklist_items:
         req = (
             (item.get("requirement", "") or "") + " " +
             (item.get("assertion", "") or "")
         ).lower()
-        keywords.update(w for w in req.split() if len(w) > 4)
-
-    content_lower = content.lower()
-    if keywords:
-        matched = sum(1 for kw in keywords if kw in content_lower)
-        match_rate = matched / len(keywords)
-    else:
-        match_rate = 0.0
-
+        item_keywords = set(w for w in req.split() if len(w) > 4)
+        if not item_keywords:
+            continue
+        matched = sum(1 for kw in item_keywords if kw in content_lower)
+        rate = matched / len(item_keywords)
+        if rate > best_match_rate:
+            best_match_rate = rate
+            best_item_label = item.get("checklist_id", "") or req[:40]
+    match_rate = best_match_rate
     keyword_match = match_rate >= 0.25
-
     if type_match or keyword_match:
         return {
             "result": "PASS",
             "reason": (
                 f"Type match: {type_match} | "
-                f"Keyword match: {int(match_rate * 100)}%"
+                f"Best single-item match: {int(match_rate * 100)}%"
+                + (f" (item: {best_item_label})" if best_item_label else "")
             ),
         }
-
     return {
         "result": "FAIL",
         "reason": (
             f"Evidence type {evidence_type} not expected for these checklist items | "
-            f"Only {int(match_rate * 100)}% keyword overlap"
+            f"Best single-item match only {int(match_rate * 100)}%"
         ),
     }
 

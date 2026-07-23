@@ -618,8 +618,7 @@
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                         <span class="text-sm text-gray-600">Compliance Rate:</span>
                         <span class="text-lg font-bold text-green-600">
-                            {% set compliant_total = clause_status_info.statistics.Compliant + clause_status_info.statistics['Partially Compliant'] %}
-                            {{ (compliant_total / clause_status_info.statistics.total * 100)|round|int if clause_status_info.statistics.total > 0 else 0 }}%
+                            {{ (clause_status_info.statistics.Compliant / clause_status_info.statistics.total * 100)|round|int if clause_status_info.statistics.total > 0 else 0 }}%
                         </span>
                     </div>
                     
@@ -627,7 +626,7 @@
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                         <span class="text-sm text-gray-600">Issues Found:</span>
                         <span class="text-lg font-bold text-red-600">
-                            {{ clause_status_info.statistics['Non-Compliant'] }}
+                            {{ clause_status_info.statistics['Non-Compliant'] + clause_status_info.statistics['Partially Compliant'] }}
                         </span>
                     </div>
                     

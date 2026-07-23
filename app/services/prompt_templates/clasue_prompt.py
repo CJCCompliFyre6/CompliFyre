@@ -834,12 +834,26 @@ YOUR ONLY TASK:
 
 For each section listed above, decide whether to EXTRACT clauses from it or not.
 
+IMPORTANT: Before deciding on any section whose page range falls within the
+TABLE OF CONTENTS / FIRST PAGES text above, actually READ that section's content
+in the text provided -- do not decide from the section label alone. A section
+labeled "Preliminary" or "Chapter I" is not automatically definitions-only:
+in Indian regulatory drafting this chapter very commonly also contains an
+Applicability sub-section (who must comply) and a Scope sub-section (what
+situations/transactions are covered) alongside Definitions. Applicability and
+Scope are substantive content, not definitions, regardless of which chapter
+they sit in.
+
 EXTRACT = true for:
 - Chapters with obligations, requirements, governance rules, disclosures, penalties
+- Applicability or Scope sub-sections, even when they appear inside a chapter
+  also titled or labeled "Preliminary" or "Definitions"
 - Schedules with compliance requirements, forms, procedures, tables of requirements
 
 EXTRACT = false for:
-- Sections with ONLY definitions and no obligations
+- Sections where EVERY part of the section's actual content (not just its
+  label) is pure definitions, with no applicability, scope, or obligations
+  content anywhere in the section
 - Lists of rescinded or repealed circulars
 - Sections amending OTHER regulations entirely
 - Omitted sections marked [***]

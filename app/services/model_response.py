@@ -146,12 +146,51 @@ def _call_llm_json_raw(system_msg: str, user_msg: str, retries: int = 3, backoff
     return None
 
 
+def _to_strict_json_schema(schema):
+    """
+    Convert a Pydantic model's JSON schema into an OpenAI-strict-mode-compliant
+    schema: every property forced into "required", additionalProperties: false
+    on every object, "default" keys stripped -- all required by OpenAI/Azure
+    structured-outputs strict mode. Walks $defs recursively.
+    """
+    import copy as _copy
+
+    def _fix_object(node):
+        if not isinstance(node, dict):
+            return
+        if "$ref" in node and len(node) > 1:
+            ref_val = node["$ref"]
+            node.clear()
+            node["$ref"] = ref_val
+            return
+        if node.get("type") == "object" and "properties" in node:
+            node["additionalProperties"] = False
+            node["required"] = list(node["properties"].keys())
+            for prop in node["properties"].values():
+                prop.pop("default", None)
+                _fix_object(prop)
+        for key in ("items", "anyOf", "allOf", "oneOf"):
+            val = node.get(key)
+            if isinstance(val, dict):
+                _fix_object(val)
+            elif isinstance(val, list):
+                for item in val:
+                    _fix_object(item)
+
+    raw = _copy.deepcopy(schema.model_json_schema())
+    _fix_object(raw)
+    for defn in raw.get("$defs", {}).values():
+        _fix_object(defn)
+    return raw
+
+
 def extract_structured_info(
     query: str,
     vector_store_id: str,
     schema: Any,
     retries: int = 2,
     backoff_factor: float = 1.5,
+    strict: bool = False,
 ) -> Any | None:
     """
     Extracts structured info using chat completions — provider agnostic.
@@ -176,13 +215,24 @@ def extract_structured_info(
                 "All required fields must be present. Return only the JSON object, no markdown."
             )
 
+            if strict:
+                response_format = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": schema.__name__,
+                        "schema": _to_strict_json_schema(schema),
+                        "strict": True,
+                    },
+                }
+            else:
+                response_format = {"type": "json_object"}
             response = client.chat.completions.create(
                 model=deployment,
                 messages=[
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": query},
                 ],
-                response_format={"type": "json_object"},
+                response_format=response_format,
                 temperature=0.0,
             )
             raw_json = response.choices[0].message.content

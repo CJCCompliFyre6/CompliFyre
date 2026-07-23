@@ -3288,6 +3288,13 @@ def activity(project_id):
         all_clauses_completed = True
         for clause_data in unique_clauses.values():
             clause = clause_data["clause"]
+            # Only consider clauses applicable to this project -- matches the
+            # filter used by the severity loop, evidence loop, and
+            # clause_statistics elsewhere in this function. Non-applicable
+            # clauses are never assessed and would otherwise always read as
+            # incomplete, incorrectly flipping this flag to False.
+            if not getattr(clause, 'applicability', False):
+                continue
             # Get assessment status from the clause or from your logic
             clause_assessment_status = getattr(clause, 'assessment_status', 'To Be Assessed')
             if clause_assessment_status != "Completed":
@@ -3719,6 +3726,22 @@ def activity(project_id):
                     else:
                         activity_severity = 'Not Classified'
                 
+                # Normalize raw severity values (e.g. EVE-style CRITICAL/HIGH/MEDIUM/LOW)
+                # to the standard labels used by severity_hierarchy / severity_counts below.
+                # Without this, unmapped raw values silently score 0 and the clause is
+                # miscounted as 'No findings noted' in the project dashboard.
+                if activity_severity:
+                    _severity_norm_map = {
+                        'CRITICAL': 'Critical',
+                        'HIGH': 'Major', 'MAJOR': 'Major',
+                        'MEDIUM': 'Significant', 'SIGNIFICANT': 'Significant',
+                        'LOW': 'Minor', 'MINOR': 'Minor',
+                        'NO_FINDINGS': 'No findings noted', 'NO FINDINGS NOTED': 'No findings noted',
+                    }
+                    _normalized = _severity_norm_map.get(activity_severity.upper())
+                    if _normalized:
+                        activity_severity = _normalized
+                
                 if activity_severity and activity_severity != 'Not Classified':
                     severity_score = severity_hierarchy.get(activity_severity, 0)
                     if severity_score > highest_score:
@@ -3790,10 +3813,15 @@ def activity(project_id):
                 # Check all control activities for this clause
                 all_findings = []
                 has_eve_results = False
-                for pca in clause_data.get('activities', []):
-                    if not pca.get('applicability'):
+                # NOTE: clause_data (from enriched_clauses) never carries an
+                # 'activities' key -- the real per-clause activities list lives
+                # in unique_clauses[clause_id]["activities"], with proper ORM
+                # objects (not dicts). The old .get('activities', []) always
+                # silently returned [], so this loop never ran for any clause.
+                for pca in unique_clauses.get(clause_id, {}).get('activities', []):
+                    if not pca.applicability:
                         continue
-                    ctrl_activities = pca.get('project_control_activities', [])
+                    ctrl_activities = pca.project_control_activities
                     for ctrl in ctrl_activities:
                         ecr = EveControlResult.query.filter_by(
                             project_control_activity_id=ctrl.id
@@ -3874,10 +3902,13 @@ def activity(project_id):
 
                 # Evidence quality per clause
                 quality_entries = []
-                for pca in clause_data.get('activities', []):
-                    if not pca.get('applicability'):
+                # NOTE: see matching fix above -- clause_data has no 'activities'
+                # key; use the real list from unique_clauses, with ORM attribute
+                # access since entries are ProjectComplianceActivity objects.
+                for pca in unique_clauses.get(clause_id, {}).get('activities', []):
+                    if not pca.applicability:
                         continue
-                    for ctrl in pca.get('project_control_activities', []):
+                    for ctrl in pca.project_control_activities:
                         ecr = EveControlResult.query.filter_by(
                             project_control_activity_id=ctrl.id
                         ).first()
@@ -3910,13 +3941,32 @@ def activity(project_id):
                                 })
 
                         # Evidence quality
-                        eas = EveAssuranceState.query.filter_by(
+                        # NOTE: EveAssuranceState has no project_control_activity_id
+                        # column -- it links via project_checklist_id ->
+                        # ProjectChecklist.project_control_activity_id. The old
+                        # direct filter_by always raised InvalidRequestError, which
+                        # was silently swallowed by the outer try/except, resetting
+                        # both chart datasets to empty on every request.
+                        from app.models.eve_models import ProjectChecklist
+                        _checklist = ProjectChecklist.query.filter_by(
                             project_control_activity_id=ctrl.id
                         ).first()
+                        eas = (
+                            EveAssuranceState.query.filter_by(
+                                project_checklist_id=_checklist.id
+                            ).first()
+                            if _checklist else None
+                        )
                         if eas:
+                            # NOTE: EveControlResult has no 'admissibility' column --
+                            # that field does not exist on this model. The old
+                            # reference to ecr.admissibility always raised
+                            # AttributeError here, silently swallowed by the outer
+                            # try/except. Defaulting to 'NOT_EVALUATED' until a real
+                            # admissibility signal is wired up for this model.
                             quality_entries.append({
                                 'score': eas.evidence_quality_score or 0,
-                                'admissibility': ecr.admissibility or 'NOT_EVALUATED',
+                                'admissibility': 'NOT_EVALUATED',
                             })
 
                 if quality_entries:
@@ -4004,7 +4054,10 @@ def activity(project_id):
             if ea_ids & _inadmissible_artifact_ids:
                 evidence_gap_count += 1
 
-        from datetime import datetime
+        # NOTE: datetime is already imported at module level (see top of file).
+        # A local re-import here previously shadowed it for this entire function,
+        # causing UnboundLocalError on earlier datetime.now() calls in this
+        # function (e.g. assessment_end_date calculation above).
         current_time = datetime.now()
         
         # ============== CALCULATE SEVERITY STATISTICS ==============

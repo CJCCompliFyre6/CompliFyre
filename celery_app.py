@@ -17,6 +17,7 @@ from celery import Celery, Task
 from config import Config
 
 redis_host = Config.REDIS_HOST
+redis_db = getattr(Config, "CELERY_REDIS_DB", 0)
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -27,8 +28,8 @@ def celery_init_app(app: Flask) -> Celery:
     celery_app = Celery(app.name, task_cls=FlaskTask)
     # Configure Celery with Redis and keep existing task_routes intact
     celery_app.config_from_object({
-        "broker_url": f'redis://{redis_host}:6379/0',
-        "result_backend": f'redis://{redis_host}:6379/0',
+        "broker_url": f'redis://{redis_host}:6379/{redis_db}',
+        "result_backend": f'redis://{redis_host}:6379/{redis_db}',
         "task_routes": {
             'app.services.eve_step678.run_eve_step6_and_7': {'queue': 'eve_evaluate'},
             'app.services.eve_step678.run_eve_step8_clause_rollup': {'queue': 'eve_evaluate'},
@@ -59,6 +60,7 @@ def celery_init_app(app: Flask) -> Celery:
         "task_acks_late": True,
         "worker_prefetch_multiplier": 1,
         "result_extended": True,  # Enable extended result features
+        "broker_transport_options": {"visibility_timeout": 21600},  # 6 hours — task_acks_late + long-running bulk tasks (e.g. activity-generation) need this longer than Redis's 1hr default, or the broker redelivers an in-progress task to another worker
         "beat_schedule": {
             "fix-pending-checklists-every-5-min": {
                 "task": "app.services.eve_tasks.fix_pending_checklists",

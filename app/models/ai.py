@@ -292,7 +292,7 @@ class Clauses(db.Model):
     Represents a specific clause within a Guideline. Deleting a Clause will also delete
     all of its associated ComplianceActivities.
 
-    clause_type: OBLIGATION / PRINCIPLE / MIXED / DEFINITION / APPLICABILITY / EXEMPTION
+    clause_type: OBLIGATION / PRINCIPLE / MIXED / DEFINITION / APPLICABILITY / EXEMPTION / REFERENCE
     extraction_status: EXTRACTED / APPROVED / FLAGGED
     flag_reason: UNKNOWN_APPLICABILITY / AMBIGUOUS_MERGE / UNKNOWN_LICENSE / CROSS_GUIDELINE_REF / EXTERNAL_REF
     """
@@ -311,6 +311,7 @@ class Clauses(db.Model):
     clause_references = db.Column(db.JSON, nullable=True)
     extraction_status = db.Column(db.String(50), nullable=True, default='EXTRACTED')
     flag_reason = db.Column(db.String(200), nullable=True)
+    activity_generation_claimed_at = db.Column(db.TIMESTAMP, nullable=True)  # atomic claim marker for race-safe activity generation
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
     updated_at = db.Column(
         db.TIMESTAMP,
