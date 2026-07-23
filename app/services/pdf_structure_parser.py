@@ -60,6 +60,8 @@ def build_clause_no(pos):
             parts.append(pos['part'])
     elif pos['current_section'] == 'annexure' and pos['annexure']:
         parts.append(f"ANN {pos['annexure']}")
+    elif pos['current_section'] == 'main_body':
+        pass  # no prefix — bare numbers stand alone
     else:
         return None
     if pos['letter_para']:
@@ -111,7 +113,56 @@ def _parent_clause_no(pos, current_level):
     return build_clause_no(pos_copy)
 
 
-def strip_page_noise(page_text):
+def collect_footnote_numbers(pdf):
+    """Scan all pages for footnote-definition lines (e.g. '8 Vide circulars...',
+    '3 Inserted by...') and return the set of genuinely-defined footnote numbers.
+    Used to gate superscript-stripping so it never touches a number unless it's
+    a confirmed real footnote — prevents legitimate inline values (e.g. '100 per
+    cent') from being silently deleted by the superscript-cleanup heuristic."""
+    footnote_numbers = set()
+    footnote_def_pattern = re.compile(
+        r'^\s{0,4}(\d{1,3})\.?\s+(Inserted|Substituted|Omitted|Added|Prior to|Deleted|Vide)\b',
+        re.IGNORECASE
+    )
+    for page in pdf.pages:
+        text = page.extract_text() or ''
+        for line in text.split('\n'):
+            m = footnote_def_pattern.match(line.strip())
+            if m:
+                footnote_numbers.add(m.group(1))
+    return footnote_numbers
+
+
+def get_body_font_size(plumber_page):
+    """Compute the page's dominant (body-text) font size from word-level data.
+    Returns None if font data is unavailable — callers must treat that as
+    'unknown, default to safe/preserve' rather than guessing."""
+    try:
+        words = plumber_page.extract_words(extra_attrs=["size"])
+    except Exception:
+        return None
+    from collections import Counter
+    sizes = [round(w['size'], 1) for w in words if w.get('size')]
+    if not sizes:
+        return None
+    return Counter(sizes).most_common(1)[0][0]
+
+
+def get_ordered_digit_words(plumber_page):
+    """Return, in reading order, (text, size) for every standalone 1-4 digit
+    word on the page — candidates for the superscript/content classifier."""
+    try:
+        words = plumber_page.extract_words(extra_attrs=["size"])
+    except Exception:
+        return []
+    return [(w['text'], round(w['size'], 1)) for w in words if re.match(r'^\d{1,4}$', w['text'])]
+
+
+def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, body_font_size=None):
+    footnote_numbers = footnote_numbers or set()
+    digit_word_queue = list(digit_word_queue or [])
+    _queue_idx = [0]
+    ambiguous_records = []
     lines = page_text.split('\n')
     non_empty = [i for i, l in enumerate(lines) if l.strip()]
     first_ne = non_empty[0] if non_empty else -1
@@ -140,9 +191,34 @@ def strip_page_noise(page_text):
     clean_text = '\n'.join(cleaned)
     clean_text = PATTERNS['footnote_ref_inline'].sub(r'\1', clean_text)
     clean_text = PATTERNS['cross_ref_tag'].sub('', clean_text)
-    clean_text = PATTERNS['superscript'].sub(' ', clean_text)
+    def _strip_superscript(m):
+        digit = m.group(0).strip()
+        size = None
+        idx = _queue_idx[0]
+        while idx < len(digit_word_queue):
+            wtext, wsize = digit_word_queue[idx]
+            if wtext == digit:
+                size = wsize
+                _queue_idx[0] = idx + 1
+                break
+            idx += 1
+        is_small_font = (body_font_size is not None and size is not None and size < body_font_size * 0.75)
+        is_registered_footnote = digit in footnote_numbers
+        if is_small_font and is_registered_footnote:
+            return ' '                  # both signals agree — confirmed footnote, strip
+        elif not is_small_font:
+            return m.group(0)           # normal-size — content, preserve regardless of registry
+        else:
+            # small font but not a known footnote: genuinely ambiguous (could be
+            # an exponent/formula, could be an undetected footnote). Text is
+            # NEVER altered here — just recorded for a separate, metadata-only
+            # flagging pass run after all node-building completes.
+            context = m.string[max(0, m.start()-25):m.end()+20].replace('\n', ' ')
+            ambiguous_records.append((digit, context))
+            return m.group(0)
+    clean_text = PATTERNS['superscript'].sub(_strip_superscript, clean_text)
     clean_text = PATTERNS['omitted'].sub('', clean_text)
-    return clean_text
+    return clean_text, ambiguous_records
 
 
 def extract_table_clauses(page, page_num, position):
@@ -212,6 +288,8 @@ def build_prefix_from_section(section):
         return f"ANN {sec_id}"
     elif sec_type == "appendix":
         return f"APP {sec_id}" if sec_id else "APP"
+    elif sec_type == "main_body":
+        return ""
     return None
 
 
@@ -225,6 +303,8 @@ def parse_pdf_structure(file_path, structure_map=None):
         pdf_fitz = fitz.open(file_path)
         total_pages = len(pdf_fitz)
         logger.info(f"Stage 1: {total_pages} pages")
+        footnote_numbers = collect_footnote_numbers(pdf_plumber)
+        logger.info(f"Stage 1: {len(footnote_numbers)} confirmed footnote markers detected: {sorted(footnote_numbers)}")
     except Exception as e:
         logger.error(f"Stage 1: Cannot open PDF: {e}")
         raise
@@ -235,6 +315,7 @@ def parse_pdf_structure(file_path, structure_map=None):
     buf_page = None
     buf_parent = None
     buf_depth = 0
+    all_ambiguous_matches = []
 
     def flush():
         nonlocal buf_text, buf_clause_no, buf_node_type, buf_page, buf_parent, buf_depth
@@ -299,6 +380,8 @@ def parse_pdf_structure(file_path, structure_map=None):
                     elif sec_type == "appendix":
                         position["annexure"] = sec_id or "APP"
                         position["current_section"] = "annexure"
+                    elif sec_type == "main_body":
+                        position["current_section"] = "main_body"
                     last_section_id = section_id
                     logger.debug(f"Stage 1: Page {page_num+1} → {section_id}")
 
@@ -310,8 +393,12 @@ def parse_pdf_structure(file_path, structure_map=None):
                     flush()
                     continue
 
-            clean_text = strip_page_noise(raw_text)
             plumber_page = pdf_plumber.pages[page_num]
+            body_font_size = get_body_font_size(plumber_page)
+            digit_word_queue = get_ordered_digit_words(plumber_page)
+            clean_text, page_ambiguous = strip_page_noise(raw_text, footnote_numbers, digit_word_queue, body_font_size)
+            for digit, ctx in page_ambiguous:
+                all_ambiguous_matches.append((page_num + 1, digit, ctx))
             has_tables = bool(plumber_page.extract_tables())
             table_nodes = []
             if has_tables:
@@ -477,6 +564,18 @@ def parse_pdf_structure(file_path, structure_map=None):
         pdf_fitz.close()
 
     nodes = _assign_parents(nodes)
+    if all_ambiguous_matches:
+        logger.warning(f"Stage 1: {len(all_ambiguous_matches)} ambiguous digit(s) found (not stripped, not deleted) - flagging matching nodes")
+        for pg, digit, ctx in all_ambiguous_matches:
+            snippet = ctx[:30].strip()
+            candidates = [n for n in nodes if n.get('page_number') == pg and snippet and snippet in n.get('raw_text', '')]
+            if not candidates:
+                candidates = [n for n in nodes if n.get('page_number') == pg]
+            for n in candidates:
+                n['extraction_status'] = 'FLAGGED'
+                existing = n.get('flag_reason') or ''
+                reason = f'AMBIGUOUS_TEXT_FORMAT: possible superscript/formula digit "{digit}" on page {pg} - verify (context: {ctx.strip()[:60]})'
+                n['flag_reason'] = (existing + '; ' + reason).strip('; ') if existing else reason
     logger.info(f"Stage 1: {len(nodes)} nodes extracted")
     return nodes
 

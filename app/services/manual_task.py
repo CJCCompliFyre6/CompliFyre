@@ -1779,9 +1779,11 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         first_lines = []
         toc_reference = []  # chapter/schedule names seen on TOC/index pages — for validation only
         TOC_HEADING_THRESHOLD = 3  # a page listing 3+ headings is an index/TOC page, not real content
+        _DOT_LEADER_RE = _re.compile(r"\.{3,}")  # 3+ periods = classic TOC dot-leader
         for page_num in range(total_pages):
             text = pdf[page_num].get_text()
             headings = extract_headings(text)
+            page_is_toc_by_label = "table of contents" in text.lower()
             if not headings:
                 # Fall back to first meaningful non-numeric line
                 heading = ""
@@ -1790,7 +1792,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                         heading = line[:80]
                         break
                 first_lines.append({"page": page_num + 1, "heading": heading, "title": ""})
-            elif len(headings) >= TOC_HEADING_THRESHOLD:
+            elif page_is_toc_by_label or len(headings) >= TOC_HEADING_THRESHOLD:
                 # This page is a Table of Contents / Index listing many chapters
                 # on one page — it is NOT real chapter content. Do not emit these
                 # as section headings (that would create duplicate/bogus sections
@@ -1809,6 +1811,9 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                 # Emit one entry per heading, same page number, so downstream
                 # section-boundary logic sees each chapter separately.
                 for heading, heading_title in headings:
+                    if _DOT_LEADER_RE.search(heading) or _DOT_LEADER_RE.search(heading_title):
+                        toc_reference.append({"page": page_num + 1, "heading": heading, "title": heading_title})
+                        continue
                     first_lines.append({"page": page_num + 1, "heading": heading, "title": heading_title})
 
         # Full text of first 3 pages for TOC
@@ -1822,7 +1827,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         import re as _re3
         # Only keep pages where heading is an actual chapter/schedule heading
         heading_pattern_filter = _re3.compile(
-            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)(\s+|$)',
+            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)(\s+|$|[-\u2013])',
             _re3.IGNORECASE
         )
         heading_list = [
@@ -1881,6 +1886,22 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                 "id": sec_id,
                 "label": label_part[:80],
                 "heading_raw": heading_text,
+            })
+
+        if not sections_with_pages:
+            logger.warning(
+                f"Stage 1A: No Chapter/Schedule/Annexure/Appendix headings found anywhere "
+                f"in {total_pages} pages -- falling back to a single main_body section "
+                f"spanning the whole document"
+            )
+            sections_with_pages.append({
+                "page": 1,
+                "start_page": 1,
+                "end_page": total_pages,
+                "type": "main_body",
+                "id": "",
+                "label": "Main Document Body (no Chapter/Schedule structure detected)",
+                "heading_raw": "MAIN BODY",
             })
 
         # Ask LLM only to decide extract:true/false for each section
@@ -1965,7 +1986,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         raise
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, autoretry_for=(OperationalError,), retry_kwargs={"max_retries": 3, "countdown": 30}, retry_backoff=True)
 def extract_clauses(self, guideline_id: int):
     """
     Step 2: Extract clauses using new 3-stage hybrid pipeline.
@@ -2248,6 +2269,7 @@ def extract_test_procedures(self, activity_id: int):
             query=test_procedure(clause.clause_text, _as_json(activity)),
             vector_store_id=vec_id,
             schema=ControlWorkpaper,
+            strict=True,
         )
         if not test_proc_response:
             return {"status": "warning", "message": "No test procedures extracted"}
@@ -4155,8 +4177,13 @@ def generate_missing_activities_for_guideline(self, guideline_id):
             raise ValueError(f"Guideline {guideline_id} not found")
 
         # Find clauses without activities
+        # Only OBLIGATION/PRINCIPLE/MIXED clauses carry an independent duty
+        # for the RE to act on — DEFINITION/APPLICABILITY/EXEMPTION/REFERENCE
+        # clauses should never reach activity-generation on their own.
+        ACTIVITY_ELIGIBLE_TYPES = ['OBLIGATION', 'PRINCIPLE', 'MIXED']
         clauses_without_activities = Clauses.query.filter(
             Clauses.guideline_id == guideline_id,
+            Clauses.clause_type.in_(ACTIVITY_ELIGIBLE_TYPES),
             ~Clauses.id.in_(
                 db.session.query(ComplianceActivities.clause_id).filter(
                     ComplianceActivities.clause_id.isnot(None)
@@ -4201,6 +4228,29 @@ def generate_missing_activities_for_guideline(self, guideline_id):
         for i, clause in enumerate(clauses_without_activities):
             try:
                 logger.info(f"Processing clause {clause.id} ({clause.clause_no})")
+
+                # Atomically claim this clause before processing - a single
+                # UPDATE...WHERE guarantees only one worker can succeed even
+                # under genuinely concurrent execution (a plain check-then-act
+                # guard is not safe against true parallelism).
+                from datetime import datetime, timedelta, timezone
+                _now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive - matches DB column storage
+                _stale_before = _now - timedelta(hours=2)
+                _claimed = db.session.execute(
+                    db.update(Clauses)
+                    .where(
+                        Clauses.id == clause.id,
+                        db.or_(
+                            Clauses.activity_generation_claimed_at.is_(None),
+                            Clauses.activity_generation_claimed_at < _stale_before
+                        )
+                    )
+                    .values(activity_generation_claimed_at=_now)
+                ).rowcount
+                db.session.commit()
+                if _claimed == 0:
+                    logger.info(f"Skipping clause {clause.id} ({clause.clause_no}) - already claimed by another worker")
+                    continue
 
                 # Extract compliance activities
                 activity_response = extract_structured_info(
@@ -4360,7 +4410,7 @@ def generate_missing_activities_for_guideline(self, guideline_id):
         return {"status": "error", "message": str(e), "guideline_id": guideline_id}
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, autoretry_for=(OperationalError,), retry_kwargs={"max_retries": 3, "countdown": 30}, retry_backoff=True)
 def generate_single_clause_activities(self, guideline_id: int, clause_id: int):
     """
     Generate activities for a single specific clause
