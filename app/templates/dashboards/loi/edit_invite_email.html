@@ -1,0 +1,18 @@
+{% extends "dashboards/re/re_base.html" %}
+{% block content %}
+<div style="max-width:800px; margin:24px auto; padding:0 16px;">
+  <h2>Edit invite email</h2>
+  <p style="color:#666; font-size:14px;">
+    Changes apply to every invite sent from now on. Available tokens:
+    <code>$contact_name</code>, <code>$entity_name</code>, <code>$guideline_count</code>,
+    <code>$activation_link</code>, <code>$expiry_date</code>, <code>$email</code>.
+  </p>
+  <form method="POST">
+    <label for="subject">Subject</label><br>
+    <input type="text" id="subject" name="subject" value="{{ current_subject }}" style="width:100%; padding:8px; margin:8px 0 20px;"><br>
+    <label for="body">Body (HTML)</label><br>
+    <textarea id="body" name="body" rows="24" style="width:100%; font-family:monospace; font-size:13px; padding:8px;">{{ current_body }}</textarea><br>
+    <button type="submit" style="margin-top:16px; padding:10px 24px; background:#f76b1c; color:#fff; border:none; border-radius:4px; cursor:pointer;">Save</button>
+  </form>
+</div>
+{% endblock %}

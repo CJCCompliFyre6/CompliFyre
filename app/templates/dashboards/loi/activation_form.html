@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complete Your Sign-Up</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <h1 class="text-2xl font-bold text-gray-800 mb-1">Complete Your Sign-Up</h1>
+    <p class="text-gray-500 mb-6">Welcome! Tell us a bit about your company to get started.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+        <div class="mb-4 p-3 rounded-lg bg-red-50 text-red-700 max-w-2xl">{{ msg }}</div>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('loi.activation_submit', token_hash=invite.token_hash) }}" class="bg-white rounded-lg shadow p-6 max-w-2xl">
+        <label class="block mb-1 text-sm font-medium text-gray-700">Email</label>
+        <input type="email" value="{{ invite.email }}" readonly class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Entity Legal Name *</label>
+        {% if invite.entity_name %}
+        <input type="text" name="legal_name" value="{{ invite.entity_name }}" readonly required class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+        {% else %}
+        <input type="text" name="legal_name" required class="w-full border rounded-lg p-2 mb-4">
+        {% endif %}
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Entity Type *</label>
+        {% if parent_org %}
+        <input type="text" value="{{ parent_org.entity_type }}" readonly class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+        {% else %}
+        <select name="entity_type" required class="w-full border rounded-lg p-2 mb-4">
+            <option value="">Select...</option>
+            {% for et in entity_types %}
+            <option value="{{ et }}">{{ et }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">CIN *</label>
+        {% if parent_org %}
+        <input type="text" name="cin" value="{{ parent_org.cin }}" readonly class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+        {% else %}
+        <input type="text" name="cin" required class="w-full border rounded-lg p-2 mb-4">
+        {% endif %}
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Kindly provide full office address *</label>
+        {% if parent_org %}
+        <textarea readonly class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">{{ parent_org.registered_address }}</textarea>
+        {% else %}
+        <textarea name="registered_address" required class="w-full border rounded-lg p-2 mb-4"></textarea>
+        {% endif %}
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block mb-1 text-sm font-medium text-gray-700">City *</label>
+                {% if parent_org %}
+                <input type="text" value="{{ parent_org.city }}" readonly class="w-full border rounded-lg p-2 bg-gray-100 text-gray-500">
+                {% else %}
+                <input type="text" name="city" required class="w-full border rounded-lg p-2">
+                {% endif %}
+            </div>
+            <div>
+                <label class="block mb-1 text-sm font-medium text-gray-700">State *</label>
+                {% if parent_org %}
+                <input type="text" value="{{ parent_org.state }}" readonly class="w-full border rounded-lg p-2 bg-gray-100 text-gray-500">
+                {% else %}
+                <input type="text" name="state" required class="w-full border rounded-lg p-2">
+                {% endif %}
+            </div>
+        </div>
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Your Name *</label>
+        {% if invite.contact_name %}
+        <input type="text" name="contact_name" value="{{ invite.contact_name }}" readonly required class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+        {% else %}
+        <input type="text" name="contact_name" required class="w-full border rounded-lg p-2 mb-4">
+        {% endif %}
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Your Role / Designation *</label>
+        {% if invite.designation %}
+        <input type="text" name="designation" value="{{ invite.designation }}" readonly required class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+        {% else %}
+        <input type="text" name="designation" required class="w-full border rounded-lg p-2 mb-4">
+        {% endif %}
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Phone *</label>
+        {% if invite.phone %}
+        <input type="text" name="phone" value="{{ invite.phone }}" readonly required class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
+        {% else %}
+        <input type="text" name="phone" required class="w-full border rounded-lg p-2 mb-4">
+        {% endif %}
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Set Password *</label>
+        <input type="password" name="password" required class="w-full border rounded-lg p-2 mb-4">
+
+        <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white font-medium px-5 py-2.5 rounded-lg">Continue to Two-Factor Setup</button>
+    </form>
+</body>
+</html>

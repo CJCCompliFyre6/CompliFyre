@@ -366,8 +366,16 @@
         </li>
 
         {%endif%}
+              <li class="submenu">
+          <a href="#" onclick="toggleSubmenu(event)">
+            <i class="bx bx-user-plus"></i> Invite New User <i class="bx bx-chevron-down"></i>
+          </a>
+          <ul class="submenu-items">
+            <li><a href="{{ url_for('loi.invite_new_user_form') }}">Send New Invite</a></li>
+            <li><a href="{{ url_for('loi.invite_list') }}">Invitations</a></li>
+          </ul>
+        </li>
       </ul>
-
       <div class="footer relative my-8">
         <a href="#"><i class="bx bx-bulb"></i> What's New</a>
         <a href="#"><i class="bx bx-support"></i> Support Center</a>

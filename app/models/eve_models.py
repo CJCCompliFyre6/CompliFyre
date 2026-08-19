@@ -347,9 +347,15 @@ class EveEvidenceResult(db.Model):
         # valid: "STRONG", "MODERATE", "WEAK"
     )
     evidence_role = db.Column(
-        db.String(20),
+        db.String(30),
         nullable=True,
-        # valid: "PRIMARY", "SUPPORTING"
+        # fix 2026-08-01: widened from 20 to 30 -- actual values written by
+        # EVIDENCE_ROLE_MAP in eve_step5.py are DESIGN_EVIDENCE (15),
+        # OPERATING_EVIDENCE (18), IMPLEMENTATION_EVIDENCE (23 -- overflowed
+        # VARCHAR(20), causing every TRAINING_RECORD/EMAIL_COMMUNICATION/
+        # CONFIGURATION_FILE/NETWORK_DIAGRAM/ARCHITECTURE_DIAGRAM evidence
+        # upload to fail and retry-exhaust. Comment above was stale --
+        # never actually PRIMARY/SUPPORTING in this code path.
     )
 
     # Signal — EVE Step 5 Sub-step 7
@@ -362,9 +368,15 @@ class EveEvidenceResult(db.Model):
 
     # Item-level status — EVE Step 5 Sub-step 8
     item_status = db.Column(
-        db.String(10),
+        db.String(20),
         nullable=False,
-        # valid: "PASS", "PARTIAL", "FAIL"
+        # fix 2026-08-01: widened from 10 to 20, and added NOT_APPLICABLE as a
+        # valid value -- previously any item_status outside PASS/PARTIAL/FAIL
+        # (including a correctly-computed NOT_APPLICABLE from evidence-type
+        # relevance filtering, #238) was silently forced to PARTIAL in
+        # eve_step5.py, creating a contradictory signal that likely confused
+        # Step 6's LLM into raising findings it was explicitly told not to.
+        # valid: "PASS", "PARTIAL", "FAIL", "NOT_APPLICABLE"
     )
 
     # Confidence — EVE Step 5 Sub-step 10
@@ -627,7 +639,18 @@ class EveInquiry(db.Model):
     checklist_item_id = db.Column(db.String(20), nullable=False)
 
     # Contradiction details
-    contradiction_type = db.Column(db.String(50))
+    contradiction_type = db.Column(
+        db.String(100),
+        # fix 2026-08-01: widened from 50 to 100 -- this field is populated
+        # directly from LLM output at 2 sites in eve_step5.py with no
+        # length validation on the Python side. First site's prompt at
+        # least enumerates options (longest is INSUFFICIENT_EVIDENCE, 21
+        # chars); second site's prompt gives zero enumeration guidance at
+        # all ("contradiction_type": ""), pure free text. Same risk shape
+        # as evidence_role's VARCHAR(20) overflow found and fixed the same
+        # day -- widening here proactively rather than waiting for a real
+        # occurrence, per Rules 18/19.
+    )
     severity = db.Column(db.String(20), default="MINOR")
 
     # Evidence references

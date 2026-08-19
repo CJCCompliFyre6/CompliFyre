@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import hashlib
 import os, re
+import socket
+import ipaddress
 from datetime import datetime, timezone
 import logging
 from app import db, client
@@ -26,6 +28,34 @@ class PDFService(PromptsText):
         self.cache_service = cache_service
         self.logger = logging.getLogger(__name__)
 
+    _BLOCKED_NETWORKS = [
+        ipaddress.ip_network("127.0.0.0/8"),
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.168.0.0/16"),
+        ipaddress.ip_network("169.254.0.0/16"),
+        ipaddress.ip_network("::1/128"),
+        ipaddress.ip_network("fc00::/7"),
+    ]
+
+    def _is_safe_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        try:
+            addrinfo = socket.getaddrinfo(parsed.hostname, None)
+        except socket.gaierror:
+            return False
+        for family, _, _, _, sockaddr in addrinfo:
+            try:
+                addr = ipaddress.ip_address(sockaddr[0])
+            except ValueError:
+                continue
+            if any(addr in net for net in self._BLOCKED_NETWORKS):
+                self.logger.warning(f"Blocked request to {url} -- resolved to internal address {addr}")
+                return False
+        return True
+
     def validate_url(self, url: str) -> bool:
         """
         Validate if the given URL is well-formed and accessible.
@@ -44,6 +74,9 @@ class PDFService(PromptsText):
             # print(result)
             if not all([result.scheme, result.netloc]):
                 raise ValueError("Invalid URL format")
+
+            if not self._is_safe_url(url):
+                return False
 
             # Check if URL is accessible
             response = self.session.head(url, allow_redirects=True, timeout=60)
@@ -68,6 +101,10 @@ class PDFService(PromptsText):
             requests.RequestException: If page cannot be accessed
         """
         pdf_links = []
+
+        if not self._is_safe_url(url):
+            self.logger.error(f"Refusing to scan unsafe URL: {url}")
+            raise ValueError(f"URL not permitted: {url}")
 
         try:
             # Get webpage content
@@ -148,6 +185,10 @@ class PDFService(PromptsText):
             requests.RequestException: If download fails
             ValueError: If file verification fails
         """
+        if not self._is_safe_url(url):
+            self.logger.error(f"Refusing to download from unsafe URL: {url}")
+            raise ValueError(f"URL not permitted: {url}")
+
         try:
             # Check cache first if cache service is available
             if self.cache_service and (cached_path := self.cache_service.get(url)):

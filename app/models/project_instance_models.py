@@ -1,5 +1,6 @@
 from app import db
 from sqlalchemy.sql import func
+from sqlalchemy import event
 from datetime import datetime
 
 
@@ -345,6 +346,19 @@ class ProjectEvidenceArtifact(db.Model):
     evidence_file_path = db.Column(db.String, nullable=True)
     is_compliant = db.Column(db.Boolean, default=False, nullable=True)
 
+    # S-51: denormalized tenant ownership, mirrors Projects.client / Projects.auditing_firm.
+    # Kept in sync automatically via the after_insert event listener below -- NOT set
+    # directly by application code, since 3 of 4 real creation sites never set
+    # project_control_activity_id explicitly (they use relationship .append(), resolved
+    # only during flush) -- after_insert is the only point where it's reliably populated
+    # regardless of which creation pattern was used.
+    client_organization_id = db.Column(
+        db.BigInteger, db.ForeignKey("Organizations.organization_id"), nullable=True
+    )
+    auditing_firm_id = db.Column(
+        db.BigInteger, db.ForeignKey("AuditOrganization.id"), nullable=True
+    )
+
     # Relationships
     project_control_activity = db.relationship(
         "ProjectControlActivity", back_populates="submitted_evidences"
@@ -358,6 +372,52 @@ class ProjectEvidenceArtifact(db.Model):
         cascade="all, delete-orphan",
         lazy="dynamic",
     )
+
+
+@event.listens_for(ProjectEvidenceArtifact, "after_insert")
+def _populate_tenant_ownership(mapper, connection, target):
+    """
+    S-51: automatically backfill client_organization_id / auditing_firm_id on every
+    new ProjectEvidenceArtifact, regardless of which of the (currently 4, possibly
+    more in future) creation call sites created it.
+
+    Runs after_insert, not before_insert: 3 of the 4 real creation sites never set
+    project_control_activity_id directly -- they use a parent-side relationship
+    .append(), and SQLAlchemy only resolves that FK during flush. By after_insert,
+    the row is already written with its FK fully resolved, so target.
+    project_control_activity_id is guaranteed correct here regardless of which
+    pattern created it. Uses the raw `connection` (not db.session) since we're
+    already inside a flush -- re-entering the ORM session recursively here is unsafe.
+    """
+    if target.project_control_activity_id is None:
+        return
+    result = connection.execute(
+        db.text(
+            "SELECT p.client, p.auditing_firm "
+            "FROM project_control_activities pca "
+            "JOIN project_compliance_activities pcma ON pca.project_compliance_activity_id = pcma.id "
+            "JOIN project_clauses pc ON pcma.project_clause_id = pc.id "
+            "JOIN project_guidelines pg ON pc.project_guideline_id = pg.id "
+            "JOIN projects p ON pg.project_id = p.id "
+            "WHERE pca.id = :pca_id"
+        ),
+        {"pca_id": target.project_control_activity_id},
+    ).fetchone()
+    if result:
+        connection.execute(
+            db.text(
+                "UPDATE project_evidence_artifacts "
+                "SET client_organization_id = :client_org, auditing_firm_id = :audit_firm "
+                "WHERE id = :artifact_id"
+            ),
+            {"client_org": result[0], "audit_firm": result[1], "artifact_id": target.id},
+        )
+        # Also set directly on the in-memory object -- the raw UPDATE above writes
+        # the real database row correctly, but SQLAlchemy has no way to know that
+        # happened, so without this the Python object would show stale None values
+        # to any code reading it within the same session before a fresh re-query.
+        target.client_organization_id = result[0]
+        target.auditing_firm_id = result[1]
 
 
 

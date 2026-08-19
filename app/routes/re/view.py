@@ -18,7 +18,7 @@ from app.services.pdf_service import PDFService
 from app.utils.exceptions import PDFServiceError, URLValidationError
 from marshmallow import Schema, fields, ValidationError
 import os
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy import delete, update
 from app.utils.extract_clause_helper import check_free_report_used
 
@@ -29,7 +29,11 @@ from app.models.user import *
 from app.models.download import *
 from app.models.ai import *
 from app.models.auditOrganization import *
-from datetime import datetime
+from app.models.re import RegulatoryBodies, RegulatoryDocuments
+from app.models.loi import InvitePreloadGuidelines
+from app.services.check_guidelines_service import check_regulator_for_new_guidelines
+
+from datetime import datetime, timezone
 import json
 from flask_login import login_user, logout_user, login_required, current_user
 from app import login_manager
@@ -47,6 +51,7 @@ from app.models.project_instance_models import *
 from app.services.prompt_service import *
 from app.utils.bread_crumb import add_to_breadcrumb
 from app.utils.input_security import validate_upload_file, sanitize_text_input
+from app.utils.evidence_access import check_evidence_artifact_access
 from app.helper.evidence_helper import *
 from app.utils.compliance_utils import (
     evaluate_single_activity_ai,
@@ -138,18 +143,35 @@ def guidelines():
 
         if user_role_id == AUDITOR_ROLE_ID:
             # Auditor view — show only ENABLED guidelines not yet downloaded by this auditor
+            # Fix 2026-08-01: self-signup (invite-based) auditors should only see the
+            # specific guidelines their admin preloaded for them, not the full enabled
+            # catalogue. Legacy auditors (invite_id is None) are unaffected -- they keep
+            # seeing the full enabled catalogue exactly as before.
+            preload_filter = None
+            if current_user.invite_id:
+                preload_subquery = select(InvitePreloadGuidelines.guideline_id).where(
+                    InvitePreloadGuidelines.invite_id == current_user.invite_id
+                )
+                preload_filter = Guidelines.id.in_(preload_subquery)
+
             if current_user.auditor_profile_id:
                 subquery = select(auditor_selected_guidelines.c.guideline_id).where(
                     auditor_selected_guidelines.c.audit_id
                     == current_user.auditor_profile_id
                 )
-                stmt = select(Guidelines).where(
+                conditions = [
                     ~Guidelines.id.in_(subquery),
                     Guidelines.enabled == True
-                )
+                ]
+                if preload_filter is not None:
+                    conditions.append(preload_filter)
+                stmt = select(Guidelines).where(*conditions)
             else:
                 # Auditor without auditor_profile — show enabled guidelines only (none downloaded yet)
-                stmt = select(Guidelines).where(Guidelines.enabled == True)
+                conditions = [Guidelines.enabled == True]
+                if preload_filter is not None:
+                    conditions.append(preload_filter)
+                stmt = select(Guidelines).where(*conditions)
 
             guidelines = db.session.execute(stmt).scalars().all()
             current_app.logger.info(f"Auditor view — showing {len(guidelines)} enabled + not downloaded guidelines")
@@ -236,6 +258,7 @@ def toggle_guideline_enabled(guideline_id):
         data = request.get_json(silent=True) or {}
         # optional: client may pass {"enabled": true/false}; otherwise toggle
         enabled_from_client = data.get("enabled", None)
+        reason_from_client = data.get("reason", None)
         guideline = Guidelines.query.get(guideline_id)
         if not guideline:
             return jsonify({"error": "Guideline not found"}), 404
@@ -247,15 +270,25 @@ def toggle_guideline_enabled(guideline_id):
             new_enabled = bool(enabled_from_client)
 
         guideline.enabled = new_enabled
+        if not new_enabled:
+            guideline.disabled_reason = reason_from_client or None
+            guideline.disabled_at = datetime.now(timezone.utc)
+        else:
+            guideline.disabled_reason = None
+            guideline.disabled_at = None
         db.session.add(guideline)
 
-        # If disabling, remove associations to auditor_selected_guidelines so auditors won't see it
-        if not new_enabled:
-            # Assuming auditor_selected_guidelines is a Table object available in scope
-            stmt = delete(auditor_selected_guidelines).where(
-                auditor_selected_guidelines.c.guideline_id == guideline_id
-            )
-            db.session.execute(stmt)
+        # Fix 2026-08-09 (item #171, real live bug, deliberately parked
+        # 2026-07-29 pending the LOI/login system which is now built):
+        # withdrawing/disabling a guideline must NOT remove an auditor's
+        # existing access to it. This used to hard-DELETE the
+        # auditor_selected_guidelines row, wiping out any auditor who
+        # already had it in their library. Now it only flips enabled/
+        # disabled_reason/disabled_at -- re/view.py's guidelines() list
+        # (what NEW downloads pull from) already filters on enabled=True,
+        # so a withdrawn guideline correctly stops being offered as a new
+        # download, while my_guidelines() (which never filtered on
+        # enabled) continues showing it for auditors who already have it.
 
         db.session.commit()
         # 🔑 Instead of flash(), return message in JSON
@@ -3288,6 +3321,13 @@ def activity(project_id):
         all_clauses_completed = True
         for clause_data in unique_clauses.values():
             clause = clause_data["clause"]
+            # Only consider clauses applicable to this project -- matches the
+            # filter used by the severity loop, evidence loop, and
+            # clause_statistics elsewhere in this function. Non-applicable
+            # clauses are never assessed and would otherwise always read as
+            # incomplete, incorrectly flipping this flag to False.
+            if not getattr(clause, 'applicability', False):
+                continue
             # Get assessment status from the clause or from your logic
             clause_assessment_status = getattr(clause, 'assessment_status', 'To Be Assessed')
             if clause_assessment_status != "Completed":
@@ -3719,6 +3759,22 @@ def activity(project_id):
                     else:
                         activity_severity = 'Not Classified'
                 
+                # Normalize raw severity values (e.g. EVE-style CRITICAL/HIGH/MEDIUM/LOW)
+                # to the standard labels used by severity_hierarchy / severity_counts below.
+                # Without this, unmapped raw values silently score 0 and the clause is
+                # miscounted as 'No findings noted' in the project dashboard.
+                if activity_severity:
+                    _severity_norm_map = {
+                        'CRITICAL': 'Critical',
+                        'HIGH': 'Major', 'MAJOR': 'Major',
+                        'MEDIUM': 'Significant', 'SIGNIFICANT': 'Significant',
+                        'LOW': 'Minor', 'MINOR': 'Minor',
+                        'NO_FINDINGS': 'No findings noted', 'NO FINDINGS NOTED': 'No findings noted',
+                    }
+                    _normalized = _severity_norm_map.get(activity_severity.upper())
+                    if _normalized:
+                        activity_severity = _normalized
+                
                 if activity_severity and activity_severity != 'Not Classified':
                     severity_score = severity_hierarchy.get(activity_severity, 0)
                     if severity_score > highest_score:
@@ -3790,10 +3846,15 @@ def activity(project_id):
                 # Check all control activities for this clause
                 all_findings = []
                 has_eve_results = False
-                for pca in clause_data.get('activities', []):
-                    if not pca.get('applicability'):
+                # NOTE: clause_data (from enriched_clauses) never carries an
+                # 'activities' key -- the real per-clause activities list lives
+                # in unique_clauses[clause_id]["activities"], with proper ORM
+                # objects (not dicts). The old .get('activities', []) always
+                # silently returned [], so this loop never ran for any clause.
+                for pca in unique_clauses.get(clause_id, {}).get('activities', []):
+                    if not pca.applicability:
                         continue
-                    ctrl_activities = pca.get('project_control_activities', [])
+                    ctrl_activities = pca.project_control_activities
                     for ctrl in ctrl_activities:
                         ecr = EveControlResult.query.filter_by(
                             project_control_activity_id=ctrl.id
@@ -3874,10 +3935,13 @@ def activity(project_id):
 
                 # Evidence quality per clause
                 quality_entries = []
-                for pca in clause_data.get('activities', []):
-                    if not pca.get('applicability'):
+                # NOTE: see matching fix above -- clause_data has no 'activities'
+                # key; use the real list from unique_clauses, with ORM attribute
+                # access since entries are ProjectComplianceActivity objects.
+                for pca in unique_clauses.get(clause_id, {}).get('activities', []):
+                    if not pca.applicability:
                         continue
-                    for ctrl in pca.get('project_control_activities', []):
+                    for ctrl in pca.project_control_activities:
                         ecr = EveControlResult.query.filter_by(
                             project_control_activity_id=ctrl.id
                         ).first()
@@ -3910,13 +3974,32 @@ def activity(project_id):
                                 })
 
                         # Evidence quality
-                        eas = EveAssuranceState.query.filter_by(
+                        # NOTE: EveAssuranceState has no project_control_activity_id
+                        # column -- it links via project_checklist_id ->
+                        # ProjectChecklist.project_control_activity_id. The old
+                        # direct filter_by always raised InvalidRequestError, which
+                        # was silently swallowed by the outer try/except, resetting
+                        # both chart datasets to empty on every request.
+                        from app.models.eve_models import ProjectChecklist
+                        _checklist = ProjectChecklist.query.filter_by(
                             project_control_activity_id=ctrl.id
                         ).first()
+                        eas = (
+                            EveAssuranceState.query.filter_by(
+                                project_checklist_id=_checklist.id
+                            ).first()
+                            if _checklist else None
+                        )
                         if eas:
+                            # NOTE: EveControlResult has no 'admissibility' column --
+                            # that field does not exist on this model. The old
+                            # reference to ecr.admissibility always raised
+                            # AttributeError here, silently swallowed by the outer
+                            # try/except. Defaulting to 'NOT_EVALUATED' until a real
+                            # admissibility signal is wired up for this model.
                             quality_entries.append({
                                 'score': eas.evidence_quality_score or 0,
-                                'admissibility': ecr.admissibility or 'NOT_EVALUATED',
+                                'admissibility': 'NOT_EVALUATED',
                             })
 
                 if quality_entries:
@@ -4004,7 +4087,10 @@ def activity(project_id):
             if ea_ids & _inadmissible_artifact_ids:
                 evidence_gap_count += 1
 
-        from datetime import datetime
+        # NOTE: datetime is already imported at module level (see top of file).
+        # A local re-import here previously shadowed it for this entire function,
+        # causing UnboundLocalError on earlier datetime.now() calls in this
+        # function (e.g. assessment_end_date calculation above).
         current_time = datetime.now()
         
         # ============== CALCULATE SEVERITY STATISTICS ==============
@@ -5737,6 +5823,7 @@ def uploaded_file(filename):
 
 
 @re_bp.route("/evidences", methods=["POST"])
+@login_required
 def evidences():
     try:
         project_evidence_id = request.form.get("evidence_id", "").strip()
@@ -5752,6 +5839,15 @@ def evidences():
 
         artifact = ProjectEvidenceArtifact.query.get(project_evidence_id)
         if not artifact:
+            flash(
+                f"Project evidence with ID {project_evidence_id} not found.", "danger"
+            )
+            return redirect(request.referrer)
+
+        if not check_evidence_artifact_access(artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to access evidence_id={project_evidence_id} belonging to a different tenant"
+            )
             flash(
                 f"Project evidence with ID {project_evidence_id} not found.", "danger"
             )
@@ -5878,6 +5974,12 @@ def re_evaluate_evidence(artifact_id):
 
         artifact = ProjectEvidenceArtifact.query.get(artifact_id)
         if not artifact:
+            return jsonify({"status": "error", "message": "Evidence artifact not found"}), 404
+
+        if not check_evidence_artifact_access(artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to re-evaluate evidence_id={artifact_id} belonging to a different tenant"
+            )
             return jsonify({"status": "error", "message": "Evidence artifact not found"}), 404
 
         # Get project_control_activity and checklist
@@ -7646,3 +7748,197 @@ def retry_pending_activities():
     except Exception as e:
         logger.exception(f"Error retrying pending activities: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================
+# Regulator source management (item #134) -- core team only,
+# NOT exposed to the AUDITOR role. Feeds the guideline-tracking
+# table and the "Check for new guidelines" button (item #133).
+# ============================================================
+
+@re_bp.route("/regulators", methods=["GET"])
+@role_required("COMPLIFYRE", "RE")
+def regulators():
+    """
+    Regulator source management (item #134) -- core team only, not
+    exposed to the AUDITOR role. Lists all regulator entries and their
+    listing-page links, feeding the guideline-tracking table and the
+    'Check for new guidelines' button (item #133). Now includes a
+    per-regulator count of tracked documents, clickable through to the
+    filtered Tracked Guidelines view.
+    """
+    add_to_breadcrumb(request.full_path, "Regulator Sources")
+    regulators = RegulatoryBodies.query.order_by(RegulatoryBodies.name).all()
+    doc_counts = dict(
+        db.session.query(RegulatoryDocuments.body_id, func.count(RegulatoryDocuments.document_id))
+        .group_by(RegulatoryDocuments.body_id)
+        .all()
+    )
+    return render_template("regulators.html", regulators=regulators, doc_counts=doc_counts)
+
+
+@re_bp.route("/regulators/add", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def add_regulator():
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    geography = request.form.get("geography", "").strip()
+    industry = request.form.get("industry", "").strip()
+    governed_institutions = request.form.get("governed_institutions", "").strip()
+    website_url = request.form.get("website_url", "").strip()
+
+    if not name or not website_url:
+        flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    existing = RegulatoryBodies.query.filter_by(website_url=website_url).first()
+    if existing:
+        flash(f"This URL is already tracked (under '{existing.name}') -- URLs must be unique. "
+              f"If this regulator has another page, use a different URL.", "error")
+        return redirect(url_for("re.regulators"))
+
+    regulator = RegulatoryBodies(
+        name=name,
+        description=description or None,
+        geography=geography or None,
+        industry=industry or None,
+        governed_institutions=governed_institutions or None,
+        website_url=website_url,
+    )
+    db.session.add(regulator)
+    db.session.commit()
+    flash(f"Added regulator page: {name}", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/<int:body_id>/edit", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def edit_regulator(body_id):
+    regulator = RegulatoryBodies.query.get_or_404(body_id)
+    name = request.form.get("name", "").strip()
+    website_url = request.form.get("website_url", "").strip()
+    if not name or not website_url:
+        flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    existing = RegulatoryBodies.query.filter(
+        RegulatoryBodies.website_url == website_url,
+        RegulatoryBodies.body_id != body_id,
+    ).first()
+    if existing:
+        flash(f"This URL is already tracked (under '{existing.name}') -- URLs must be unique.", "error")
+        return redirect(url_for("re.regulators"))
+
+    regulator.name = name
+    regulator.description = request.form.get("description", "").strip() or None
+    regulator.geography = request.form.get("geography", "").strip() or None
+    regulator.industry = request.form.get("industry", "").strip() or None
+    regulator.governed_institutions = request.form.get("governed_institutions", "").strip() or None
+    regulator.website_url = website_url
+    db.session.commit()
+    flash(f"Updated regulator page: {regulator.name}", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/<int:body_id>/delete", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def delete_regulator(body_id):
+    regulator = RegulatoryBodies.query.get_or_404(body_id)
+    name = regulator.name
+    db.session.delete(regulator)
+    db.session.commit()
+    flash(f"Deleted regulator: {name}", "success")
+    return redirect(url_for("re.regulators"))
+
+
+# ============================================================
+# Tracked Guidelines (item #133 UI, part 1) -- core team only,
+# NOT exposed to the AUDITOR role. Shows discovered documents
+# from "Check for new guidelines" across all regulators.
+# ============================================================
+
+@re_bp.route("/tracked-guidelines", methods=["GET"])
+@role_required("COMPLIFYRE", "RE")
+def tracked_guidelines():
+    """
+    Tracked Guidelines (item #133 UI, part 1) -- core team only, not
+    exposed to AUDITOR. Shows every document discovered by "Check for
+    new guidelines" across all regulators, with status and a direct
+    link to download it manually. Accepts an optional ?body_id= query
+    param to filter to a single regulator (used by the click-through
+    from the Regulator Sources page).
+    """
+    add_to_breadcrumb(request.full_path, "Tracked Guidelines")
+    body_id_filter = request.args.get("body_id", type=int)
+
+    query = (
+        RegulatoryDocuments.query
+        .join(RegulatoryBodies, RegulatoryDocuments.body_id == RegulatoryBodies.body_id)
+        .outerjoin(Guidelines, RegulatoryDocuments.guideline_id == Guidelines.id)
+        .add_columns(
+            RegulatoryBodies.name.label("regulator_name"),
+            Guidelines.enabled.label("linked_guideline_enabled"),
+            Guidelines.disabled_reason.label("linked_guideline_disabled_reason"),
+        )
+    )
+
+    filtered_regulator_name = None
+    if body_id_filter:
+        query = query.filter(RegulatoryDocuments.body_id == body_id_filter)
+        filtered_regulator = RegulatoryBodies.query.get(body_id_filter)
+        filtered_regulator_name = filtered_regulator.name if filtered_regulator else None
+
+    docs = query.order_by(RegulatoryDocuments.created_at.desc()).all()
+    return render_template(
+        "tracked_guidelines.html",
+        docs=docs,
+        filtered_regulator_name=filtered_regulator_name,
+        body_id_filter=body_id_filter,
+    )
+
+
+# ============================================================
+# "Check for new guidelines" triggers (item #133 UI, part 2) --
+# core team only, NOT exposed to the AUDITOR role. Both dispatch
+# as background Celery tasks, never run synchronously in the
+# request.
+# ============================================================
+
+@re_bp.route("/regulators/<int:body_id>/check", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def check_regulator(body_id):
+    """
+    Triggers a single regulator's "Check for new guidelines" as a
+    background Celery task -- never runs synchronously in the request,
+    since even a simple check can take real time (fetch + possible
+    Playwright rendering + LLM extraction; RBI's first real check found
+    226 documents and was not instant).
+    """
+    from app.services.check_guidelines_service import check_regulator_for_new_guidelines
+    regulator = RegulatoryBodies.query.get_or_404(body_id)
+    check_regulator_for_new_guidelines.delay(body_id)
+    flash(f"Check queued for {regulator.name}"
+          f"{' -- ' + regulator.description if regulator.description else ''}. "
+          f"Refresh in a moment to see results.", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/check-bulk", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def check_regulators_bulk():
+    """
+    Triggers "Check for new guidelines" for multiple selected regulators
+    at once, dispatched as separate background Celery tasks -- processed
+    one at a time by the worker, not run in parallel within this
+    request, matching the "not a sweep, still deliberate" principle
+    agreed on for this feature.
+    """
+    from app.services.check_guidelines_service import check_regulator_for_new_guidelines
+    body_ids = request.form.getlist("body_ids", type=int)
+    if not body_ids:
+        flash("No regulators selected.", "error")
+        return redirect(url_for("re.regulators"))
+    for bid in body_ids:
+        check_regulator_for_new_guidelines.delay(bid)
+    flash(f"Queued checks for {len(body_ids)} regulator(s). Refresh in a moment to see results.", "success")
+    return redirect(url_for("re.regulators"))

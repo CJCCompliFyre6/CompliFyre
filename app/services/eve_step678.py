@@ -147,7 +147,8 @@ For each checklist item, find its entry in cross_evidence_consolidation and appl
   consolidated_state = "UNSUPPORTED" AND suppress_finding = false
     → Final state = Unsupported. Raise finding at full severity.
   consolidated_state = "NOT_APPLICABLE"
-    → Do not raise a finding. Raise inquiry instead.
+    → Final state = Not Applicable. DO NOT raise a finding for this item. MANDATORY.
+    Raise inquiry only if clarification would genuinely help; otherwise leave as-is.
 
 EVIDENCE HIERARCHY (for reference only — consolidation already computed):
   TIER 1 — PRIMARY: Policy Documents, Board Minutes, Meeting Minutes, System Reports, Transaction Data, Audit Reports
@@ -195,6 +196,9 @@ Determine final control activity support state:
 * Partially Supported: Some gaps, ambiguities, or limited deficiencies
 * Weakly Supported: Significant deficiencies or unresolved issues
 * Unsupported: Control not adequately evidenced
+* Not Tested: ALL checklist items resolved to Not Applicable -- no relevant
+  evidence was submitted at all. This is NOT a compliance failure -- it means
+  the control could not be evaluated. DO NOT use Unsupported for this case.
 
 PRINCIPLE 11 — EVIDENCE INTEGRITY:
 Consolidate: unsupported inference detection, traceability, audit period alignment, cross-document consistency, version alignment.
@@ -243,7 +247,7 @@ OUTPUT FORMAT (return ONLY this JSON structure):
     {{{{
       "checklist_id": "",
       "requirement": "",
-      "final_state": "Supported | Partially Supported | Unsupported | Needs Further Inquiry",
+      "final_state": "Supported | Partially Supported | Unsupported | Needs Further Inquiry | Not Applicable",
       "supporting_evidence": ["evidence_id_1", "evidence_id_2"],
       "confidence": "HIGH | MEDIUM | LOW",
       "assurance_impact": "POSITIVE | NEUTRAL | NEGATIVE",
@@ -290,7 +294,7 @@ OUTPUT FORMAT (return ONLY this JSON structure):
     }}}}
   ],
   "control_support_status": {{{{
-    "final_status": "Fully Supported | Partially Supported | Weakly Supported | Unsupported",
+    "final_status": "Fully Supported | Partially Supported | Weakly Supported | Unsupported | Not Tested",
     "assurance_rationale": "",
     "key_gaps": [],
     "unresolved_items": []
@@ -302,8 +306,8 @@ STRICT CONSTRAINTS:
 * Do NOT generate findings, observations, or recommendations
 * Do NOT conclude compliance
 * All assurance scores must be between 0.0 and 1.0
-* final_state must use exact values: Supported / Partially Supported / Unsupported / Needs Further Inquiry
-* final_status must use exact values: Fully Supported / Partially Supported / Weakly Supported / Unsupported"""
+* final_state must use exact values: Supported / Partially Supported / Unsupported / Needs Further Inquiry / Not Applicable
+* final_status must use exact values: Fully Supported / Partially Supported / Weakly Supported / Unsupported / Not Tested"""
 
 
 
@@ -354,6 +358,23 @@ CRITICAL RULES FOR FINDINGS:
 * DO NOT say "roles are unclear" — say exactly WHICH roles are undefined and in WHICH document
 * Every finding must reference the specific checklist item(s) that failed and the specific evidence gap
 * Findings must be written from the perspective of an experienced auditor who has read the evidence
+* CRITERIA FIELD (mandatory): populate "criteria" with the actual regulatory/clause requirement being
+  tested, cited by paragraph or clause reference where available -- pull this from the "requirement"
+  field of the relevant checklist_state_matrix item(s). Example: "Paragraph 5 of the Master Direction
+  requires the KYC policy to include Monitoring of Transactions." This is the FIRST thing an experienced
+  auditor looks for in a finding -- it must never be left blank or vague.
+* FINDING_SUMMARY MUST BE PROSE, NOT A TEMPLATE: write finding_summary as connected auditor prose that
+  naturally weaves together the Condition (what was actually found, citing the specific source document
+  and section by name) and the Cause (why the gap exists). DO NOT use a fill-in-the-blank template such
+  as "X is inadequate — [root]. What was expected: [Y]. What was found: [Z]. If not remediated, [W]."
+  That scaffolding pattern is explicitly PROHIBITED -- it makes distinct findings read as interchangeable
+  boilerplate. Two findings with different root causes must read as genuinely different prose, not the
+  same sentence structure with different words substituted in.
+* DO NOT restate consequence/impact language inside finding_summary. Impact belongs ONLY in the separate
+  regulatory_impact and operational_impact fields -- repeating it in finding_summary as well (e.g. "If not
+  remediated, there is a risk of...") is a duplication error and is PROHIBITED.
+* Cite the source document and section BY NAME inside finding_summary itself (e.g. "the KYC/AML Policy
+  (D1) Section 4.2"), not only in evidence_basis or evidence_lineage.
 
 CRITICAL RULES FOR RECOMMENDATIONS:
 * Recommendations must be SPECIFIC and ACTIONABLE — not generic
@@ -560,6 +581,7 @@ OUTPUT FORMAT (return ONLY this JSON structure):
   "findings_register": [
     {{{{
       "finding_id": "F-001",
+      "criteria": "",
       "finding_summary": "",
       "finding_type": "D | IE | OE | Evidence Integrity | Inquiry",
       "related_checklist_ids": [],
@@ -1193,6 +1215,7 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             "Partially Supported": "PARTIAL",
             "Unsupported": "FAIL",
             "Needs Further Inquiry": "PARTIAL",
+            "Not Applicable": "NOT_APPLICABLE",
         }
         checklist_summary = []
         for item in checklist_state_matrix:
@@ -1235,6 +1258,19 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             logger.warning(f"[Module E] Could not update EveAssuranceState: {ae}")
 
         db.session.commit()
+        # fix 2026-08-01 (#224/#238): deterministic override -- if ALL checklist
+        # items are Not Applicable, control_support_status must never remain a
+        # graded value that triggers a false finding below. Don't trust the LLM
+        # alone for this, same pattern as the per-item final_state fix.
+        if checklist_state_matrix and all(
+            item.get("final_state") == "Not Applicable" for item in checklist_state_matrix
+        ):
+            control_support_status["final_status"] = "Not Tested"
+            control_support_status["assurance_rationale"] = (
+                "All checklist items resolved to Not Applicable -- no relevant "
+                "evidence was submitted to evaluate this control. Not a compliance failure."
+            )
+            control_support_status["key_gaps"] = []
         logger.info(
             f"[Module E] Step 6 V3 done: {len(checklist_state_matrix)} items, "
             f"control_support={control_support_status.get('final_status', 'Unknown')}"
@@ -1267,6 +1303,30 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             activity_description=pca.activity_description or "",
             activity_name=pca.activity_name or "",
         )
+        # fix 2026-08-01 (#224/#238): structural safeguard -- a checklist item
+        # correctly determined Not Applicable (per cross_evidence_consolidation)
+        # must never reach Step 7's finding-generation prompt, even if the LLM
+        # doesn't perfectly respect the Not Applicable final_state. Filtering
+        # here makes a false finding structurally impossible, not just
+        # instructed-against. Full explicit scope-statement surfacing for
+        # excluded items is #235's separate scope -- not built here.
+        _not_applicable_ids = {
+            item.get("checklist_id") for item in checklist_state_matrix
+            if item.get("final_state") == "Not Applicable"
+        }
+        if _not_applicable_ids:
+            logger.info(
+                f"[Module F] Excluding {len(_not_applicable_ids)} Not Applicable "
+                f"item(s) from Step 7 finding generation: {sorted(_not_applicable_ids)}"
+            )
+            checklist_state_matrix = [
+                i for i in checklist_state_matrix
+                if i.get("checklist_id") not in _not_applicable_ids
+            ]
+            checklist_items = [
+                i for i in checklist_items
+                if i.get("id") not in _not_applicable_ids
+            ]
         logger.info(f"[Module F] Running Step 7 V3 for pca_id={project_control_activity_id}")
         step7_output = _call_llm_json(
             system_msg=(
@@ -1306,6 +1366,21 @@ def run_eve_step6_and_7(self, project_control_activity_id: int, generated_by: in
             recommendations = step7_output.get("recommendation_register", [])
             oe_exception_register = step7_output.get("oe_exception_register", [])
             inquiry_contradiction_register = step7_output.get("inquiry_contradiction_register", [])
+
+        # fix 2026-08-02 (#224/#238): hard, unconditional safeguard -- if the
+        # checklist Step 7 was actually given was empty (every item filtered
+        # out as Not Applicable), it has nothing legitimate to raise a finding
+        # about. Discard any findings it generated anyway, rather than trust a
+        # prompt instruction to prevent this -- confirmed tonight that even an
+        # empty checklist + Not Tested control_support_status + empty seed
+        # findings wasn't enough to stop the LLM from fabricating one.
+        if not checklist_items and findings_v3:
+            logger.warning(
+                f"[Module F] Discarding {len(findings_v3)} finding(s) Step 7 "
+                f"generated with an empty checklist for pca_id={project_control_activity_id} "
+                f"-- checklist was fully Not Applicable, nothing to find."
+            )
+            findings_v3 = []
 
         # Store Step 7 V3 results
         control_result.observations_json = observations

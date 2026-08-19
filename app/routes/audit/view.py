@@ -17,6 +17,7 @@ from flask import (
 import redis
 from datetime import datetime
 from app.utils.extract_clause_helper import check_free_report_used
+from app.routes.loi.view import loi_gate_redirect_if_needed
 
 from datetime import datetime
 # from app import limiter
@@ -56,6 +57,7 @@ from app.services.evaluation_prompt import *
 from app.models.project_instance_models import *
 from app.utils.bread_crumb import add_to_breadcrumb
 from app.utils.input_security import validate_upload_file, sanitize_text_input
+from app.utils.evidence_access import check_evidence_artifact_access
 from app.utils.permission_handler import role_required
 from app.services.model_response import *
 from app.utils.email_service import (
@@ -370,6 +372,10 @@ def edit_profile():
             # Step 4: Certification upload
             cert_file = request.files.get("certifications")
             if cert_file and cert_file.filename != "":
+                _sec = validate_upload_file(cert_file.filename, context="document")
+                if not _sec["ok"]:
+                    flash(f"Certification upload rejected: {_sec['error']}", "danger")
+                    return redirect(request.referrer)
                 filename = secure_filename(cert_file.filename)
                 cert_path = os.path.join(
                     current_app.root_path, "static/uploads", filename
@@ -997,6 +1003,11 @@ def add_my_guidelines():
     This route add guidelines to my guidelines
     """
     if current_user.is_authenticated:
+        # LOI soft-gate (Group 8) added 2026-08-01: redirect to LOI signing
+        # if this trial user's gate state calls for it, before the download proceeds.
+        gate_response = loi_gate_redirect_if_needed("download_guideline")
+        if gate_response is not None:
+            return gate_response
         if current_user.auditor_profile_id:
             try:
                 audit_id = current_user.auditor_profile_id
@@ -5026,6 +5037,7 @@ def activity_reset(pca_id):
 
 
 @audit_bp.route("/delete-evidence", methods=["POST"])
+@login_required
 def delete_evidence():
     """
     Deletes a project-specific evidence artifact and provides user feedback.
@@ -5040,6 +5052,12 @@ def delete_evidence():
         evidence_id = int(evidence_id_str)
         # --- CORE CHANGE: Query the project-specific table ---
         artifact = ProjectEvidenceArtifact.query.get(evidence_id)
+
+        if artifact and not check_evidence_artifact_access(artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to delete evidence_id={evidence_id} belonging to a different tenant"
+            )
+            artifact = None  # same path as a genuinely missing artifact -- don't reveal existence
 
         if artifact:
             db.session.delete(artifact)

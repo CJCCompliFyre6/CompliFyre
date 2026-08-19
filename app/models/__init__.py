@@ -34,6 +34,21 @@ from .taskManagement import Tasks, TaskComments, TaskEscalations
 from .user import UserTypes, Roles, Users
 from .auditOrganization import *
 from .task_status import *
+from .argus import ArgusQueueItems, ArgusNotifications
+from .loi import (
+    SignupInvites,
+    InvitePreloadGuidelines,
+    LoiTemplates,
+    LoiSignatures,
+    UserJourneyEvents,
+    LoiForwardRequests,
+    ExtensionRequests,
+    EditableContent,
+    LoiTriggerConfig,
+    LoiGlobalConfig,
+    GuidelineBundles,
+    GuidelineBundleItems,
+)
 from .eve_models import (
     GuidelineEveContext,
     ControlChecklist,

@@ -6,7 +6,7 @@ load_dotenv()
 
 class Config:
     """Base configuration."""
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'a_default_secret_key')
+    SECRET_KEY = os.environ['SECRET_KEY']
     STATIC_FOLDER = 'static'
     TEMPLATES_FOLDER = 'templates'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -95,6 +95,18 @@ class Config:
         db=SESSION_REDIS_DB,
         password=REDIS_PASSWORD
     )
+
+    # --- S-18: session cookie security flags ---
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = 1800
+
+    # --- S-19: CSRF, opt-in mode. CSRFProtect() is initialized in __init__.py
+    # but WTF_CSRF_CHECK_DEFAULT=False means NO route is protected until it
+    # explicitly opts in via @csrf.protect. Nothing breaks by enabling this --
+    # it only unblocks incremental per-route hardening going forward.
+    WTF_CSRF_CHECK_DEFAULT = False
 
 
 class DevelopmentConfig(Config):

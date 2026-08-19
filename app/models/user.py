@@ -55,6 +55,8 @@ class Users(db.Model, UserMixin):
     phone_no_verified = db.Column(db.Boolean, default=False)
     free_report_used = db.Column(db.Boolean, default=False)
 
+    invite_id = db.Column(db.BigInteger, nullable=True)
+    designation = db.Column(db.String(100), nullable=True)
     # +++ ADDED FOR NEW FEATURES +++
     tfa_secret = db.Column(db.String(255), nullable=True)
     tfa_enabled = db.Column(db.Boolean, default=False)
