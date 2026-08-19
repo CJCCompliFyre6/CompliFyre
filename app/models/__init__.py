@@ -29,11 +29,27 @@ from .organization import (
     OrganizationType, Constitution,
 )
 from .policyManagement import Policies, PolicyApprovals
-from .re import RegulatoryBodies, DocumentCategories, RegulatoryDocuments, RegulationDependencies
+from .re import RegulatoryBodies, DocumentCategories, RegulatoryDocuments, RegulationDependencies, RegulatoryDocumentStatusHistory, DocumentPipelineStatus, set_document_pipeline_status
 from .taskManagement import Tasks, TaskComments, TaskEscalations
 from .user import UserTypes, Roles, Users
 from .auditOrganization import *
 from .task_status import *
+from .argus import ArgusQueueItems, ArgusNotifications
+from .licensing import GuidelineLicenseApplicability
+from .loi import (
+    SignupInvites,
+    InvitePreloadGuidelines,
+    LoiTemplates,
+    LoiSignatures,
+    UserJourneyEvents,
+    LoiForwardRequests,
+    ExtensionRequests,
+    EditableContent,
+    LoiTriggerConfig,
+    LoiGlobalConfig,
+    GuidelineBundles,
+    GuidelineBundleItems,
+)
 from .eve_models import (
     GuidelineEveContext,
     ControlChecklist,

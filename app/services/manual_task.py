@@ -578,9 +578,40 @@ def generate_consolidated_findings_summary(self, clause_id: int):
                 "activities": [],
             }
 
+            # fix 2026-08-02: read real findings from EveControlResult.findings_json
+            # instead of activity.findings, a field the EVE v3 pipeline never
+            # populates -- this consolidation was always silently working from
+            # empty/legacy data, completely disconnected from Steps 5-7's actual
+            # output (confirmed: activity.findings was None in the DB for a
+            # freshly-evaluated activity with real, stored findings_json).
+            def _format_eve_findings_for_activity(activity_id):
+                from app.models.eve_models import EveControlResult
+                control_result = (
+                    session.query(EveControlResult)
+                    .filter_by(project_control_activity_id=activity_id)
+                    .first()
+                )
+                if not control_result or not control_result.findings_json:
+                    return "No findings provided"
+                lines = []
+                for f in control_result.findings_json:
+                    parts = [f"Finding {f.get('finding_id', '')} [{f.get('severity', '')}]"]
+                    if f.get("criteria"):
+                        parts.append(f"Criteria: {f['criteria']}")
+                    if f.get("finding_summary"):
+                        parts.append(f"Summary: {f['finding_summary']}")
+                    if f.get("root_issue"):
+                        parts.append(f"Root Issue: {f['root_issue']}")
+                    if f.get("regulatory_impact"):
+                        parts.append(f"Regulatory Impact: {f['regulatory_impact']}")
+                    if f.get("operational_impact"):
+                        parts.append(f"Operational Impact: {f['operational_impact']}")
+                    lines.append(" | ".join(parts))
+                return "\n".join(lines) if lines else "No findings provided"
+
             activities_with_findings = 0
             for activity in clause_activities:
-                findings = activity.findings or "No findings provided"
+                findings = _format_eve_findings_for_activity(activity.id)
                 if findings != "No findings provided":
                     activities_with_findings += 1
 
@@ -1276,7 +1307,19 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
                         # Generate prompt and get AI response
                         prompt = evidences_consolidate(chunk_evidence_items, chunk_number)
                         logger.info(f"Calling AI for chunk {chunk_number}")
-                        res = generate_chat_output(prompt)
+                        res = generate_chat_output(
+                            prompt,
+                            override_system_prompt=(
+                                "You are a JSON-generating assistant for compliance evidence "
+                                "consolidation. Return ONLY valid JSON matching the exact schema "
+                                "requested in the user prompt. No markdown, no code fences, no "
+                                "explanations, no text outside the JSON object. Every key name in "
+                                "the JSON must be spelled exactly as specified in the schema -- do "
+                                "not abbreviate, alter, or insert characters into any key name."
+                            ),
+                            max_tokens=4000,
+                            frequency_penalty=0.0,
+                        )
 
                         update_evidence_progress(
                             task_id,
@@ -1288,10 +1331,14 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
                         # Parse and validate AI response
                         chunk_consolidated_data = json.loads(res)
 
-                        # Validate response structure
+                        # Validate response structure -- also reject a response that carries
+                        # an "error" key, since generate_chat_output's own internal fallback
+                        # returns a syntactically-valid-but-empty {"grouped_evidences": [], "error": ...}
+                        # on failure, which previously passed this check as a false success.
                         if (isinstance(chunk_consolidated_data, dict) and 
                             "grouped_evidences" in chunk_consolidated_data and 
-                            isinstance(chunk_consolidated_data["grouped_evidences"], list)):
+                            isinstance(chunk_consolidated_data["grouped_evidences"], list) and
+                            "error" not in chunk_consolidated_data):
                             
                             all_consolidated_evidence.extend(chunk_consolidated_data["grouped_evidences"])
                             logger.info(f"✅ Successfully processed chunk {chunk_number} with AI")
@@ -1451,6 +1498,93 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
 # ---------- Step 1: Extract Guidelines ----------
 
 
+def _build_guideline_filename(guideline_id, document_name, max_len=100):
+    """
+    Build a human-readable, filesystem-safe filename for a guideline PDF, e.g.
+    '223_Reserve_Bank_of_India_Commercial_Banks_Know_Your_Customer_Directions.pdf'.
+    Prefixed with guideline_id for guaranteed uniqueness even if two guidelines
+    share an identical DocumentName. Truncates at a word boundary, never mid-word.
+    """
+    from werkzeug.utils import secure_filename
+    safe_name = secure_filename(document_name) or "Untitled_Guideline"
+    prefix = f"{guideline_id}_"
+    budget = max_len - len(prefix) - len(".pdf")
+    if budget < 10:
+        budget = 10
+    if len(safe_name) > budget:
+        truncated = safe_name[:budget]
+        last_underscore = truncated.rfind("_")
+        if last_underscore > budget * 0.5:
+            truncated = truncated[:last_underscore]
+        safe_name = truncated.rstrip("_")
+    return f"{prefix}{safe_name}.pdf"
+
+
+@shared_task(bind=True)
+def scan_watch_folder(self):
+    """
+    Periodic task (see celery_app.py beat_schedule): scans the watch_intake/
+    folder tree for new PDF files and enqueues them into the ARGUS pipeline
+    (see app.models.argus.ArgusQueueItems / the ARGUS orchestrator) rather
+    than dispatching extract_guidelines() immediately -- the orchestrator
+    is solely responsible for deciding when each queued item actually
+    starts, enforcing one-guideline-at-a-time end to end. Uses SHA-256
+    hash comparison against File.hash (the same field already used for
+    upload deduplication) to avoid re-ingesting a file already in the
+    system, even across scan cycles or service restarts. Scanned files
+    (whether newly queued or already-ingested duplicates) are moved to
+    watch_intake/_processed/ so they aren't rescanned indefinitely.
+    """
+    import shutil as _shutil
+    from app.models.argus import ArgusQueueItems
+
+    watch_dir = "watch_intake"
+    if not os.path.isdir(watch_dir):
+        logger.info(f"[WatchFolder] {watch_dir} does not exist -- nothing to scan")
+        return {"scanned": 0, "queued": 0}
+    processed_dir = os.path.join(watch_dir, "_processed")
+    os.makedirs(processed_dir, exist_ok=True)
+    scanned = 0
+    queued = 0
+    for root, dirs, files in os.walk(watch_dir):
+        if os.path.abspath(root).startswith(os.path.abspath(processed_dir)):
+            continue
+        for fname in files:
+            if not fname.lower().endswith(".pdf"):
+                continue
+            scanned += 1
+            full_path = os.path.join(root, fname)
+            with open(full_path, "rb") as f:
+                content = f.read()
+            file_hash = hashlib.sha256(content).hexdigest()
+
+            dest_path = os.path.join(processed_dir, fname)
+            if os.path.exists(dest_path):
+                base, ext = os.path.splitext(fname)
+                dest_path = os.path.join(processed_dir, f"{base}_{file_hash[:8]}{ext}")
+
+            existing = File.query.filter_by(hash=file_hash).first()
+            if existing:
+                logger.info(f"[WatchFolder] {fname} already ingested (hash match, file_id={existing.id}) -- skipping")
+            else:
+                max_pos = db.session.query(db.func.max(ArgusQueueItems.queue_position)).scalar()
+                next_pos = (max_pos or 0) + 1.0
+                queue_item = ArgusQueueItems(
+                    source_filename=fname,
+                    queued_file_path=dest_path,
+                    stage="QUEUED",
+                    queue_position=next_pos,
+                )
+                db.session.add(queue_item)
+                db.session.commit()
+                logger.info(f"[WatchFolder] Queued {fname} for ARGUS pipeline (queue_item_id={queue_item.id})")
+                queued += 1
+
+            _shutil.move(full_path, dest_path)
+    logger.info(f"[WatchFolder] Scan complete: {scanned} PDFs found, {queued} newly queued")
+    return {"scanned": scanned, "queued": queued}
+
+
 @shared_task(bind=True)
 def extract_guidelines(
     self, filename: str, file_content_bytes: bytes, user_id: int = None
@@ -1536,6 +1670,30 @@ def extract_guidelines(
 
             file_id = file_record.id
             guideline_id = guideline_record.id
+
+            # Rename the saved PDF from its random hash name to a human-readable
+            # name derived from guideline_id + DocumentName, so files on disk map
+            # 1:1 to guidelines just by looking at the filename. Non-fatal on
+            # failure -- the guideline still saves successfully either way.
+            doc_name = (
+                guidelines_result_json.get("DocumentDetails", {}).get("DocumentName")
+                if guidelines_result_json else None
+            ) or "Untitled_Guideline"
+            try:
+                from app.services.check_guidelines_service import try_link_tracked_guideline
+                linked = try_link_tracked_guideline(guideline_id, doc_name)
+                if linked:
+                    logger.info(f"[TrackedGuidelines] Linked guideline_id={guideline_id} to tracked document_id={linked.document_id}")
+            except Exception as link_err:
+                logger.warning(f"[TrackedGuidelines] Could not attempt auto-link: {link_err}")
+            new_filename = _build_guideline_filename(guideline_id, doc_name)
+            new_path_rel = os.path.join(os.path.dirname(save_path), new_filename)
+            try:
+                os.rename(save_path, new_path_rel)
+                file_record.path = new_path_rel
+                logger.info(f"Renamed guideline PDF to: {new_filename}")
+            except OSError as e:
+                logger.warning(f"Could not rename PDF file (keeping original hash name): {e}")
 
         update_guideline_progress(
             task_id,
@@ -1744,7 +1902,8 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                     "", clean
                 ).strip()
                 m = _re.match(
-                    r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
+                    r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix|MODULE|Module)"
+                    r"(?:\s*NO\.?)?"
                     r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?"
                     r"(\s*[-–:*]|\s*$|\s+[A-Z][A-Z\s]+$)",
                     clean
@@ -1827,7 +1986,7 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
         import re as _re3
         # Only keep pages where heading is an actual chapter/schedule heading
         heading_pattern_filter = _re3.compile(
-            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)(\s+|$|[-\u2013])',
+            r'^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix|MODULE|Module)(\s+|$|[-\u2013])',
             _re3.IGNORECASE
         )
         heading_list = [
@@ -1848,7 +2007,8 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
             # Parse section type and id from heading
             import re as _re2
             m = _re2.match(
-                r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix)"
+                r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix|MODULE|Module)"
+                r"(?:\s*NO\.?)?"
                 r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?",
                 heading_text, _re2.IGNORECASE
             )

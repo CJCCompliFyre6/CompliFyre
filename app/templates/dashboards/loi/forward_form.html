@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Forward to the Right Person</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <h1 class="text-2xl font-bold text-gray-800 mb-1">Forward to the Right Person</h1>
+    <p class="text-gray-500 mb-6">Your own access is unaffected -- this just sends a fresh invite to your colleague.</p>
+
+    <form method="POST" action="{{ url_for('loi.loi_forward_submit') }}" class="bg-white rounded-lg shadow p-6 max-w-xl">
+        <label class="block mb-1 text-sm font-medium text-gray-700">Full Name *</label>
+        <input type="text" name="forwarded_name" required class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Designation *</label>
+        <input type="text" name="forwarded_designation" required class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Official Email *</label>
+        <input type="email" name="forwarded_email" required class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Phone *</label>
+        <input type="text" name="forwarded_phone" required class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Relationship (optional)</label>
+        <input type="text" name="relationship_note" class="w-full border rounded-lg p-2 mb-4" placeholder="e.g. Our Head of Compliance">
+
+        <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white font-medium px-5 py-2.5 rounded-lg">Send Invite</button>
+    </form>
+</body>
+</html>

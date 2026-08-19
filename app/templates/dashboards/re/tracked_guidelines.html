@@ -1,0 +1,192 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="assets/css/view.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+
+<div class="p-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-1">Tracked Guidelines</h1>
+    <p class="text-gray-500 mb-4">Documents discovered by "Check for new guidelines" across all regulators.</p>
+
+    {% if filtered_regulator_name %}
+    <div class="mb-4 flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 w-fit">
+        <span class="text-blue-800 text-sm">Filtered by regulator: <strong>{{ filtered_regulator_name }}</strong></span>
+        <a href="{{ url_for('re.tracked_guidelines') }}" class="text-blue-600 hover:underline text-sm">Clear filter</a>
+    </div>
+    {% endif %}
+
+    <div class="mb-4 flex items-center gap-3">
+        <input type="text" id="searchInput" oninput="filterTrackedTable()"
+            placeholder="Search by title or regulator..."
+            class="border rounded-lg px-4 py-2.5 w-full max-w-md">
+        <button id="selectPendingBtn" onclick="selectNext15Pending()"
+            class="bg-blue-100 text-blue-700 hover:bg-blue-200 font-medium px-5 py-2.5 rounded-lg whitespace-nowrap">
+            Select Next 15 Pending
+        </button>
+        <button id="openSelectedBtn" onclick="openSelectedTracked()" disabled
+            class="bg-gray-300 text-gray-500 font-medium px-5 py-2.5 rounded-lg whitespace-nowrap cursor-not-allowed">
+            Open Selected (<span id="trackedSelectedCount">0</span>) in New Tabs
+        </button>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="w-full text-left" id="trackedTable">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="p-3 font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-100" onclick="sortTrackedTable(0, 'text')">
+                        Regulator <span id="sort-icon-0"></span>
+                    </th>
+                    <th class="p-3 font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-100" onclick="sortTrackedTable(1, 'text')">
+                        Title <span id="sort-icon-1"></span>
+                    </th>
+                    <th class="p-3 font-bold text-gray-700">Status</th>
+                    <th class="p-3 font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-100" onclick="sortTrackedTable(3, 'date')">
+                        Discovered <span id="sort-icon-3"></span>
+                    </th>
+                    <th class="p-3 font-bold text-gray-700">Link</th>
+                    <th class="p-3">Select</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc, regulator_name, linked_guideline_enabled, linked_guideline_disabled_reason in docs %}
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3 text-gray-600">{{ regulator_name }}</td>
+                    <td class="p-3 text-gray-800">{{ doc.title }}</td>
+                    <td class="p-3">
+                        {% if doc.pipeline_status == 'PENDING_DOWNLOAD' %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                            <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                            Pending to be downloaded
+                        </span>
+                        {% elif doc.pipeline_status == 'IMPORTED' %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Imported</span>
+                        {% elif doc.pipeline_status == 'EXTRACTION_COMPLETE' %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Extraction Complete</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{{ doc.pipeline_status }}</span>
+                        {% endif %}
+                        {% if doc.guideline_id %}
+                        <div class="mt-1 flex items-center gap-2 flex-wrap">
+                            <a href="{{ url_for('re.guidelines') }}" class="text-xs text-blue-600 hover:underline">View in Guidelines &rarr;</a>
+                            {% if linked_guideline_enabled == false %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600"
+                                title="{{ linked_guideline_disabled_reason or 'No reason recorded' }}">
+                                Withdrawn
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-gray-500 text-sm" data-sort-value="{{ doc.created_at.isoformat() if doc.created_at else '' }}">
+                        {{ doc.created_at.strftime('%d %b %Y, %H:%M') if doc.created_at else '—' }}
+                    </td>
+                    <td class="p-3">
+                        <a href="{{ doc.source_url }}" target="_blank" class="text-blue-600 hover:underline text-sm">Open</a>
+                    </td>
+                    <td class="p-3">
+                        <input type="checkbox" class="tracked-row-checkbox" value="{{ doc.source_url }}" onclick="updateTrackedSelectedCount()">
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="p-6 text-center text-gray-500">
+                        No documents tracked yet. Use "Check for new guidelines" on the Regulator Sources page.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let sortDirections = {};
+function sortTrackedTable(colIndex, dataType) {
+    const table = document.getElementById('trackedTable');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.children.length > 1);
+    const dir = sortDirections[colIndex] = !sortDirections[colIndex];
+
+    ['0', '1', '3'].forEach(i => document.getElementById('sort-icon-' + i).textContent = '');
+    document.getElementById('sort-icon-' + colIndex).textContent = dir ? '▲' : '▼';
+
+    rows.sort((a, b) => {
+        let aCell = a.children[colIndex];
+        let bCell = b.children[colIndex];
+        let aVal = aCell.dataset.sortValue || aCell.innerText.trim().toLowerCase();
+        let bVal = bCell.dataset.sortValue || bCell.innerText.trim().toLowerCase();
+        if (dataType === 'date') {
+            aVal = new Date(aVal || 0);
+            bVal = new Date(bVal || 0);
+        }
+        if (aVal < bVal) return dir ? -1 : 1;
+        if (aVal > bVal) return dir ? 1 : -1;
+        return 0;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+function filterTrackedTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#trackedTable tbody tr');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(input) ? '' : 'none';
+    });
+}
+
+function selectNext15Pending() {
+    document.querySelectorAll('.tracked-row-checkbox').forEach(cb => cb.checked = false);
+    const rows = document.querySelectorAll('#trackedTable tbody tr');
+    let selected = 0;
+    for (const row of rows) {
+        if (selected >= 15) break;
+        if (row.style.display === 'none') continue;
+        const statusCell = row.querySelector('td:nth-child(3)');
+        const isPending = statusCell && statusCell.textContent.trim().includes('Pending to be downloaded');
+        if (isPending) {
+            const checkbox = row.querySelector('.tracked-row-checkbox');
+            if (checkbox) {
+                checkbox.checked = true;
+                selected++;
+            }
+        }
+    }
+    updateTrackedSelectedCount();
+}
+
+function updateTrackedSelectedCount() {
+    const count = document.querySelectorAll('.tracked-row-checkbox:checked').length;
+    document.getElementById('trackedSelectedCount').textContent = count;
+    const btn = document.getElementById('openSelectedBtn');
+    if (count > 0) {
+        btn.disabled = false;
+        btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+        btn.classList.add('bg-orange-500', 'hover:bg-orange-600', 'text-white');
+    } else {
+        btn.disabled = true;
+        btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+        btn.classList.remove('bg-orange-500', 'hover:bg-orange-600', 'text-white');
+    }
+}
+
+// Hard cap, not a soft confirm-to-override warning -- opening dozens
+// or hundreds of tabs at once can genuinely freeze or crash a browser,
+// so this refuses outright rather than tempting a quick "OK" click
+// past a risk that's easy to underestimate in the moment.
+const MAX_TABS_AT_ONCE = 15;
+
+function openSelectedTracked() {
+    const checked = document.querySelectorAll('.tracked-row-checkbox:checked');
+    if (checked.length === 0) return;
+    if (checked.length > MAX_TABS_AT_ONCE) {
+        alert(`You've selected ${checked.length} documents. To keep your browser responsive, please select ${MAX_TABS_AT_ONCE} or fewer at a time -- use the search box to narrow the list, or uncheck some rows.`);
+        return;
+    }
+    // Fire every window.open() synchronously within this single click
+    // handler -- browsers generally only block popups triggered
+    // asynchronously after the initiating user gesture, so this is the
+    // pattern most likely to open all of them successfully.
+    checked.forEach(cb => window.open(cb.value, '_blank'));
+}
+</script>
+{% endblock %}

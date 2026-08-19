@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
-# from app import limiter
+from flask_login import login_required
+from app import limiter
 from app.services.pdf_service import PDFService
 from app.utils.exceptions import PDFServiceError, URLValidationError
 from marshmallow import Schema, fields, ValidationError
@@ -13,7 +14,8 @@ class URLSchema(Schema):
 
 
 @download_bp.route("/scan", methods=["POST"])
-# @limiter.limit("100 per minute")
+@login_required
+@limiter.limit("100 per minute")
 def scan_pdfs():
     schema = URLSchema()
     try:
@@ -48,7 +50,8 @@ def scan_pdfs():
 
 
 @download_bp.route("/download", methods=["POST"])
-# @limiter.limit("5 per minute")
+@login_required
+@limiter.limit("5 per minute")
 def download_pdf():
     if not request.json:
         return jsonify({"error": "No data provided"}), 400

@@ -185,3 +185,7 @@ cython_debug/
 .env.backup.*
 *.bak_*
 .vscode/
+*.bak-*
+*.pyc
+__pycache__/
+watch_intake/

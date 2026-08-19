@@ -289,3 +289,224 @@ def send_guideline_request_email(guideline_request):
     except Exception as e:
         logger.error(f"Failed to send guideline request email: {str(e)}")
         return False
+
+
+def send_loi_signed_pdf_email(recipient_email, subject, body_text, pdf_bytes, pdf_filename):
+    """
+    Send a signed LOI PDF as an attachment to a single recipient.
+    Added 2026-08-01. Call this twice -- once for the CompliFyre internal
+    copy, once for the signer's own copy -- each wrapped in its own
+    try/except at the call site so one failing never blocks the other.
+
+    Fix 2026-08-09: switched from raw smtplib (crackerjacktech.com relay,
+    permanent MailChannels [ESA] abuse block found the previous night) to
+    Azure Communication Services via the shared send_via_azure_email()
+    helper in this same file, using Azure's attachments format
+    (base64-encoded content, no import needed since both functions
+    already live in email_service.py).
+    """
+    import base64
+    encoded_pdf = base64.b64encode(pdf_bytes).decode()
+    attachments = [{
+        "name": pdf_filename,
+        "contentType": "application/pdf",
+        "contentInBase64": encoded_pdf,
+    }]
+    return send_via_azure_email(
+        recipient_email=recipient_email,
+        subject=subject,
+        html_body=f"<p>{body_text}</p>",
+        plain_text=body_text,
+        attachments=attachments,
+    )
+
+
+from string import Template
+import re
+from app.models.loi import EditableContent
+
+DEFAULT_INVITE_SUBJECT = "$entity_name, your CompliFyre workspace is ready \u2014 start your 14-day free trial"
+
+DEFAULT_INVITE_BODY = """<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:0; background-color:#f4f4f2; font-family:Arial, Helvetica, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f2; padding:32px 16px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; background-color:#ffffff; border-radius:8px; overflow:hidden;">
+        <tr>
+          <td style="background-color:#1c1c1c; padding:28px 40px;">
+            <span style="color:#ffffff; font-size:20px; font-weight:bold; letter-spacing:0.5px;">CompliFyre</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px;">
+            <p style="margin:0 0 20px; font-size:15px; color:#1c1c1c;">Hi $contact_name,</p>
+            <h1 style="margin:0 0 24px; font-size:23px; line-height:1.35; color:#1c1c1c; font-weight:bold;">
+              $entity_name, your compliance workspace is ready.
+            </h1>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px; background-color:#fff4ea; border-left:4px solid #f76b1c; border-radius:4px;">
+              <tr>
+                <td style="padding:16px 20px;">
+                  <p style="margin:0; font-size:14px; line-height:1.6; color:#7a3a12;">
+                    We&#39;ve already pre-loaded <strong>$guideline_count regulatory guideline(s)</strong> for $entity_name &mdash;
+                    ready to explore the moment you activate your account.
+                  </p>
+                </td>
+              </tr>
+            </table>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+              <tr>
+                <td style="background-color:#ffa62b; border-radius:20px; padding:7px 16px;">
+                  <span style="font-size:13px; font-weight:bold; color:#5c3200;">14 days free &middot; no credit card required</span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 28px; font-size:15px; line-height:1.6; color:#3a3a3a;">
+              CompliFyre turns regulatory guidelines into structured obligations and control activities automatically,
+              then evaluates your evidence against them &mdash; with a human review at every step. Activate your account to
+              start your 14-day trial.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+              <tr>
+                <td style="background-color:#f76b1c; border-radius:6px;">
+                  <a href="$activation_link" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:bold; color:#ffffff; text-decoration:none;">
+                    Activate my account &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 28px; font-size:12px; color:#8a8a8a;">
+              Button not working? Copy this link into your browser:<br>
+              <span style="color:#f76b1c; word-break:break-all;">$activation_link</span>
+            </p>
+            <p style="margin:0; font-size:12px; color:#8a8a8a;">
+              This invitation link expires on <strong>$expiry_date</strong>.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 40px; border-top:1px solid #ececec;">
+            <p style="margin:0; font-size:12px; color:#a0a0a0;">
+              Sent to $email &middot; CompliFyre by CAIL Pvt Ltd
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"""
+
+
+def render_invite_email_content(**tokens):
+    content = EditableContent.query.get("invite_email")
+    subject_template = content.subject if content and content.subject else DEFAULT_INVITE_SUBJECT
+    body_template = content.body if content and content.body else DEFAULT_INVITE_BODY
+    subject = Template(subject_template).safe_substitute(**tokens)
+    body = Template(body_template).safe_substitute(**tokens)
+    return subject, body
+
+
+AZURE_INVITE_SENDER_ADDRESS = "DoNotReply@81e374c8-c1f6-4ca1-bf01-f50362e6b216.azurecomm.net"
+
+
+def send_via_azure_email(recipient_email, subject, html_body, plain_text=None, attachments=None):
+    """
+    Generic Azure Communication Services sender, added 2026-08-09 while
+    migrating login OTP, password reset, and signed-LOI-PDF emails off
+    the crackerjacktech.com relay (permanent MailChannels [ESA] abuse
+    block found the previous night, confirmed via raw SMTP debug tests
+    and hundreds of unread bounce notices). send_invite_email() has its
+    own separate, already-proven implementation and is deliberately
+    left untouched rather than refactored to share this helper.
+    attachments, if given, must already be a list of dicts matching
+    Azure's format: {"name": ..., "contentType": ..., "contentInBase64": ...}
+    """
+    from azure.communication.email import EmailClient
+    from azure.core.exceptions import HttpResponseError
+
+    connection_string = os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING")
+    if not connection_string:
+        logger.error("AZURE_COMMUNICATION_CONNECTION_STRING not set -- cannot send email")
+        return False
+
+    if plain_text is None:
+        plain_text = re.sub("<[^<]+?>", "", html_body)
+        plain_text = re.sub(r"\n\s*\n+", "\n\n", plain_text).strip()
+
+    message = {
+        "content": {"subject": subject, "plainText": plain_text, "html": html_body},
+        "recipients": {"to": [{"address": recipient_email}]},
+        "senderAddress": AZURE_INVITE_SENDER_ADDRESS,
+    }
+    if attachments:
+        message["attachments"] = attachments
+
+    try:
+        client = EmailClient.from_connection_string(connection_string)
+        poller = client.begin_send(message)
+        result = poller.result()
+        if result["status"] == "Succeeded":
+            logger.info(f"Email sent via Azure to {recipient_email} (id: {result['id']})")
+            return True
+        logger.error(f"Azure email send did not succeed for {recipient_email}: {result.get('error')}")
+        return False
+    except HttpResponseError as e:
+        logger.error(f"Azure HttpResponseError sending email to {recipient_email}: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error sending email via Azure to {recipient_email}: {str(e)}")
+        return False
+
+
+def send_invite_email(recipient_email, subject, html_body):
+    """
+    Fix 2026-08-08: switched from the crackerjacktech.com SMTP relay to
+    Azure Communication Services Email, after that relay was found to
+    have a PERMANENT MailChannels abuse block (550 5.7.1 [ESA] Sender
+    blocked) silently killing delivery -- confirmed via raw SMTP debug
+    tests showing clean acceptance by the relay itself (250 OK with a
+    real queue ID) while nothing ever arrived at Gmail or YopMail, and
+    via hundreds of unread bounce notices sitting in the sending
+    mailbox. Same function name/signature as before, so create_invite(),
+    loi_forward_submit(), and resend_invite_link() all needed zero
+    changes. Login OTP, password reset, and signed-LOI-PDF emails are
+    DELIBERATELY NOT migrated yet -- still on the old relay until this
+    path proves stable over real use.
+    """
+    from azure.communication.email import EmailClient
+    from azure.core.exceptions import HttpResponseError
+
+    connection_string = os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING")
+    if not connection_string:
+        logger.error("AZURE_COMMUNICATION_CONNECTION_STRING not set -- cannot send invite email")
+        return False
+
+    plain_fallback = re.sub("<[^<]+?>", "", html_body)
+    plain_fallback = re.sub(r"\n\s*\n+", "\n\n", plain_fallback).strip()
+
+    message = {
+        "content": {"subject": subject, "plainText": plain_fallback, "html": html_body},
+        "recipients": {"to": [{"address": recipient_email}]},
+        "senderAddress": AZURE_INVITE_SENDER_ADDRESS,
+    }
+
+    try:
+        client = EmailClient.from_connection_string(connection_string)
+        poller = client.begin_send(message)
+        result = poller.result()
+        if result["status"] == "Succeeded":
+            logger.info(f"Invite email sent via Azure to {recipient_email} (id: {result['id']})")
+            return True
+        logger.error(f"Azure email send did not succeed for {recipient_email}: {result.get('error')}")
+        return False
+    except HttpResponseError as e:
+        logger.error(f"Azure HttpResponseError sending invite email to {recipient_email}: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error sending invite email via Azure to {recipient_email}: {str(e)}")
+        return False
+
+

@@ -13,6 +13,7 @@ from flask import (
 from app.models.user import *
 from app.models.ai import *
 from werkzeug.security import generate_password_hash, check_password_hash
+from app.utils.input_security import validate_upload_file
 from app import db, mail
 from sqlalchemy.exc import IntegrityError
 from app.services.automate_task import *
@@ -629,7 +630,15 @@ def verify_user_login(user):
     """
     Generate a 6-digit OTP, store it in the database (or session),
     and send it via email.
+
+    Fix 2026-08-09: switched the actual send from Flask-Mail's
+    mail.send() (crackerjacktech.com relay, permanent MailChannels
+    [ESA] abuse block found the previous night) to Azure Communication
+    Services via the shared send_via_azure_email() helper. OTP
+    generation and storage logic is unchanged.
     """
+    from app.utils.email_service import send_via_azure_email
+
     # Generate a 6-digit OTP
     otp = str(random.randint(100000, 999999))
 
@@ -638,27 +647,33 @@ def verify_user_login(user):
     db.session.commit()
 
     # Send OTP email
-    msg = Message(
+    send_via_azure_email(
+        recipient_email=user.email,
         subject="Complifyre - Your Login OTP",
-        recipients=[user.email],
-        html=f"<p>Welcome back!</p><p>Your OTP code is: <b>{otp}</b></p>",
+        html_body=f"<p>Welcome back!</p><p>Your OTP code is: <b>{otp}</b></p>",
     )
-    mail.send(msg)
 
 
 def send_password_reset_email(user_email):
+    """
+    Fix 2026-08-09: switched the actual send from Flask-Mail's
+    mail.send() (crackerjacktech.com relay, permanent MailChannels
+    [ESA] abuse block found the previous night) to Azure Communication
+    Services via the shared send_via_azure_email() helper. Token
+    generation logic is unchanged.
+    """
+    from app.utils.email_service import send_via_azure_email
+
     serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
     token = serializer.dumps(user_email, salt="password-reset-salt")
     reset_url = url_for("main.reset_password_token", token=token, _external=True)
-    msg = Message(
+    send_via_azure_email(
+        recipient_email=user_email,
         subject="Complifyre - Password Reset Request",
-        recipients=[user_email],
-        html=f"<p>Click the link to reset your password:</p><p><a href='{reset_url}'>Reset Password</a></p>",
+        html_body=f"<p>Click the link to reset your password:</p><p><a href='{reset_url}'>Reset Password</a></p>",
     )
-    mail.send(msg)
 
 
-# ++++++++++++++++++++++++++++++++
 def validate_password_complexity(password):
     """
     Validate password complexity requirements
@@ -882,9 +897,13 @@ def verify_tfa_login():
             db.session.commit()
             login_user(user)
             session["session_token"] = new_token
-            if current_user.role.name == "COMPLIFYRE":
+            # Defensive guard added 2026-07-31: role_id was found missing
+            # on some self-signup users, causing a 500 here. Root cause
+            # fixed in loi/view.py activation_submit; this guard just
+            # prevents a repeat 500 if a role is ever missing again.
+            if current_user.role and current_user.role.name == "COMPLIFYRE":
                 return redirect(url_for("main.comp_dash"))
-            elif current_user.role.name == "AUDITOR":
+            elif current_user.role and current_user.role.name == "AUDITOR":
                 return redirect(url_for("audit.dashboard"))
             return redirect(url_for("main.home"))
         else:
@@ -894,6 +913,7 @@ def verify_tfa_login():
 
 
 @main_bp.route("/upload-and-process", methods=["POST"])
+@login_required
 def upload_file_and_start_processing():
     """
     Receives a file and schedules the processing task.
@@ -915,6 +935,10 @@ def upload_file_and_start_processing():
     # If the user does not select a file, the browser submits an empty part without a filename
     if filename == "":
         return jsonify({"status": "error", "message": "No selected file"}), 400
+
+    _sec = validate_upload_file(filename, context="guideline")
+    if not _sec["ok"]:
+        return jsonify({"status": "error", "message": _sec["error"]}), 400
 
     if file:
         # Pass the file directly to the Celery task.
@@ -994,6 +1018,7 @@ def guideline_extraction_progress(task_id):
 
 
 @main_bp.route("/upload-guidelines", methods=["POST"])
+@login_required
 def upload_file_and_extract_guidelines():
     """
     Receives a file and schedules guideline extraction.
@@ -1010,6 +1035,10 @@ def upload_file_and_extract_guidelines():
         file_content = file.read()
         if not file_content:
             return _json_response("error", "Uploaded file is empty", 400)
+
+        _sec = validate_upload_file(filename, context="guideline")
+        if not _sec["ok"]:
+            return _json_response("error", _sec["error"], 400)
 
         # Get the current user's ID
         user_id = current_user.id

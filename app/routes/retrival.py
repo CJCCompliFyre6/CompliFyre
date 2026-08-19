@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+from flask_login import login_required
 # from app import limiter
 from app.services.pdf_service import PDFService
 from app.utils.exceptions import PDFServiceError, URLValidationError
@@ -14,6 +15,7 @@ class URLSchema(Schema):
 
 
 @retrival_bp.route("/retrive_pdf", methods=["POST"])
+@login_required
 def pdf_retrive():
     if "file" not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
@@ -52,6 +54,7 @@ def pdf_retrive():
 
 
 @retrival_bp.route("/retrive_clause_guidlines", methods=["POST"])
+@login_required
 def clause_guidlines_retrive():
     if "file" not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
@@ -89,6 +92,7 @@ def clause_guidlines_retrive():
 
 
 @retrival_bp.route("/retrive_regulatory_complience", methods=["POST"])
+@login_required
 def regulatory_complience_retrive():
     if "file" not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
@@ -126,6 +130,7 @@ def regulatory_complience_retrive():
 
 
 @retrival_bp.route("/activity_redundancy", methods=["POST"])
+@login_required
 def activity_redundancy():
     if "file" not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
@@ -163,6 +168,7 @@ def activity_redundancy():
 
 
 @retrival_bp.route("/get_clause/<int:id>", methods=["POST"])
+@login_required
 def get_clause(id):
     try:
         pdf_service = PDFService()
@@ -179,6 +185,7 @@ def get_clause(id):
 
 
 @retrival_bp.route("/get_clause_data/<int:id>", methods=["GET"])
+@login_required
 def get_clause_data(id):
     try:
         pdf_service = PDFService()
@@ -199,6 +206,7 @@ def get_clause_data(id):
 
 
 @retrival_bp.route("/analyze_pdf", methods=["POST"])
+@login_required
 def analyze_retrive():
     if not request.json:
         return jsonify({"error": "No data provided"}), 400
@@ -237,6 +245,7 @@ def analyze_retrive():
 
 
 @retrival_bp.route("/get_all_files", methods=["GET"])
+@login_required
 def get_all_files():
     try:
         files = File.query.all()

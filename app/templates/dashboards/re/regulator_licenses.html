@@ -1,0 +1,250 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="assets/css/view.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    .modal-content1 {
+        padding: 30px;
+        background: white;
+        border-radius: 16px;
+        max-width: 600px;
+        margin: auto;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+</style>
+
+<div class="p-6">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="mb-4 p-3 rounded {{ 'bg-red-100 text-red-700' if category == 'error' else 'bg-green-100 text-green-700' }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <p class="text-sm text-gray-500 mb-4">
+        The license master list GRACE uses to tag guideline and clause applicability. This is separate from
+        <a href="{{ url_for('re.regulators') }}" class="text-blue-600 hover:underline">Regulator Sources</a>,
+        which tracks scraper pages -- this page tracks the actual licenses those regulators issue.
+    </p>
+
+    <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <button onclick="openAddModal()"
+            class="bg-orange-500 hover:bg-orange-600 text-white font-medium px-5 py-2.5 rounded-lg whitespace-nowrap">
+            + Add New License
+        </button>
+        <div class="flex items-center gap-3 flex-wrap">
+            <select id="countryFilter" onchange="filterLicenseTable()"
+                class="border rounded-lg px-4 py-2.5">
+                <option value="">All countries ({{ licenses|length }})</option>
+                {% for c in countries %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" id="searchInput" oninput="filterLicenseTable()"
+                placeholder="Search license name, code, regulator..."
+                class="border rounded-lg px-4 py-2.5 w-full max-w-md">
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="w-full text-left" id="licenseTable">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="p-3 font-bold text-gray-700">Country</th>
+                    <th class="p-3 font-bold text-gray-700">Regulator</th>
+                    <th class="p-3 font-bold text-gray-700">License Name</th>
+                    <th class="p-3 font-bold text-gray-700">Code</th>
+                    <th class="p-3 font-bold text-gray-700">Dimension</th>
+                    <th class="p-3 font-bold text-gray-700">EEA Passportable</th>
+                    <th class="p-3 font-bold text-gray-700">Status</th>
+                    <th class="p-3 font-bold text-gray-700">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in licenses %}
+                <tr class="border-b hover:bg-gray-50" id="row-{{ l.id }}" data-country="{{ l.regulator_country }}">
+                    <td class="p-3 text-gray-600">{{ l.regulator_country }}</td>
+                    <td class="p-3 text-gray-600">{{ l.regulator_name }}</td>
+                    <td class="p-3 text-gray-800 font-medium">{{ l.license_name }}</td>
+                    <td class="p-3 text-gray-600 font-mono text-sm">{{ l.license_code }}</td>
+                    <td class="p-3 text-gray-500 text-sm">{{ l.classification_dimension or '—' }}</td>
+                    <td class="p-3">
+                        {% if l.is_eea_passportable == true %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Yes</span>
+                        {% elif l.is_eea_passportable == false %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">No</span>
+                        {% else %}
+                        <span class="text-gray-400 text-sm">n/a</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3">
+                        {% if l.is_active %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 whitespace-nowrap">
+                        <button onclick="openEditModal({{ l.id }}, '{{ l.regulator_name|e }}', '{{ l.regulator_country|e }}', '{{ l.license_name|e }}', '{{ l.license_code|e }}', '{{ (l.classification_dimension or '')|e }}', '{{ (l.effective_from or '')|e }}', '{{ (l.effective_to or '')|e }}', {{ 'true' if l.is_eea_passportable == true else ('false' if l.is_eea_passportable == false else 'null') }}, {{ 'true' if l.is_active else 'false' }})"
+                        class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
+                        <form method="POST" action="/re/regulator-licenses/{{ l.id }}/delete" class="inline"
+                            onsubmit="return confirm('Delete {{ l.license_name|e }} ({{ l.license_code|e }})? This cannot be undone.');">
+                        <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="p-6 text-center text-gray-500">
+                        No licenses added yet. Click "Add New License" to get started.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div id="addModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="modal-content1">
+        <h2 class="text-xl font-bold mb-4">Add New License</h2>
+        <form method="POST" action="/re/regulator-licenses/add">
+            <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
+            <input type="text" name="regulator_name" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. Reserve Bank of India">
+            <label class="block mb-1 text-sm font-medium text-gray-700">Country *</label>
+            <input type="text" name="regulator_country" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. India">
+            <label class="block mb-1 text-sm font-medium text-gray-700">License Name *</label>
+            <input type="text" name="license_name" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. NBFC - Investment and Credit Company">
+            <label class="block mb-1 text-sm font-medium text-gray-700">License Code * (must be unique)</label>
+            <input type="text" name="license_code" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. RBI_NBFC_ICC">
+            <label class="block mb-1 text-sm font-medium text-gray-700">Classification Dimension</label>
+            <select name="classification_dimension" class="w-full border rounded-lg p-2 mb-3">
+                <option value="">— none —</option>
+                <option value="entity_type">entity_type</option>
+                <option value="activity_type">activity_type</option>
+                <option value="scale_tier">scale_tier</option>
+                <option value="religious_framework">religious_framework</option>
+                <option value="entity_structure">entity_structure</option>
+            </select>
+            <p class="text-xs text-gray-400 mb-3">Only set this when the regulator classifies along more than one independent axis (e.g. RBI's type + scale-tier) -- each axis gets its own license row under the same dimension.</p>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-700">Effective From</label>
+                    <input type="date" name="effective_from" class="w-full border rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-700">Effective To</label>
+                    <input type="date" name="effective_to" class="w-full border rounded-lg p-2">
+                </div>
+            </div>
+            <label class="block mb-1 text-sm font-medium text-gray-700">EEA Passportable</label>
+            <select name="is_eea_passportable" class="w-full border rounded-lg p-2 mb-4">
+                <option value="">— n/a (outside the EEA) —</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+            </select>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeAddModal()" class="px-4 py-2 rounded-lg border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white">Add License</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="modal-content1">
+        <h2 class="text-xl font-bold mb-4">Edit License</h2>
+        <form method="POST" id="editForm">
+            <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
+            <input type="text" name="regulator_name" id="edit_regulator_name" required class="w-full border rounded-lg p-2 mb-3">
+            <label class="block mb-1 text-sm font-medium text-gray-700">Country *</label>
+            <input type="text" name="regulator_country" id="edit_regulator_country" required class="w-full border rounded-lg p-2 mb-3">
+            <label class="block mb-1 text-sm font-medium text-gray-700">License Name *</label>
+            <input type="text" name="license_name" id="edit_license_name" required class="w-full border rounded-lg p-2 mb-3">
+            <label class="block mb-1 text-sm font-medium text-gray-700">License Code * (must be unique)</label>
+            <input type="text" name="license_code" id="edit_license_code" required class="w-full border rounded-lg p-2 mb-3">
+            <label class="block mb-1 text-sm font-medium text-gray-700">Classification Dimension</label>
+            <select name="classification_dimension" id="edit_classification_dimension" class="w-full border rounded-lg p-2 mb-3">
+                <option value="">— none —</option>
+                <option value="entity_type">entity_type</option>
+                <option value="activity_type">activity_type</option>
+                <option value="scale_tier">scale_tier</option>
+                <option value="religious_framework">religious_framework</option>
+                <option value="entity_structure">entity_structure</option>
+            </select>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-700">Effective From</label>
+                    <input type="date" name="effective_from" id="edit_effective_from" class="w-full border rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-700">Effective To</label>
+                    <input type="date" name="effective_to" id="edit_effective_to" class="w-full border rounded-lg p-2">
+                </div>
+            </div>
+            <label class="block mb-1 text-sm font-medium text-gray-700">EEA Passportable</label>
+            <select name="is_eea_passportable" id="edit_is_eea_passportable" class="w-full border rounded-lg p-2 mb-3">
+                <option value="">— n/a (outside the EEA) —</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+            </select>
+            <label class="block mb-1 text-sm font-medium text-gray-700">Status</label>
+            <select name="is_active" id="edit_is_active" class="w-full border rounded-lg p-2 mb-4">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+            </select>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeEditModal()" class="px-4 py-2 rounded-lg border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openAddModal() {
+    document.getElementById('addModal').classList.remove('hidden');
+    document.getElementById('addModal').classList.add('flex');
+}
+function closeAddModal() {
+    document.getElementById('addModal').classList.add('hidden');
+    document.getElementById('addModal').classList.remove('flex');
+}
+function openEditModal(id, regulatorName, regulatorCountry, licenseName, licenseCode, classificationDimension, effectiveFrom, effectiveTo, isEeaPassportable, isActive) {
+    document.getElementById('edit_regulator_name').value = regulatorName;
+    document.getElementById('edit_regulator_country').value = regulatorCountry;
+    document.getElementById('edit_license_name').value = licenseName;
+    document.getElementById('edit_license_code').value = licenseCode;
+    document.getElementById('edit_classification_dimension').value = classificationDimension;
+    document.getElementById('edit_effective_from').value = effectiveFrom;
+    document.getElementById('edit_effective_to').value = effectiveTo;
+    document.getElementById('edit_is_eea_passportable').value = (isEeaPassportable === true ? 'true' : (isEeaPassportable === false ? 'false' : ''));
+    document.getElementById('edit_is_active').value = isActive ? 'true' : 'false';
+    document.getElementById('editForm').action = '/re/regulator-licenses/' + id + '/edit';
+    document.getElementById('editModal').classList.remove('hidden');
+    document.getElementById('editModal').classList.add('flex');
+}
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+    document.getElementById('editModal').classList.remove('flex');
+}
+function filterLicenseTable() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    const country = document.getElementById('countryFilter').value;
+    const rows = document.querySelectorAll('#licenseTable tbody tr[data-country]');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        const matchesSearch = text.includes(searchText);
+        const matchesCountry = !country || row.dataset.country === country;
+        row.style.display = (matchesSearch && matchesCountry) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

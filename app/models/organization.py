@@ -50,6 +50,18 @@ class Organizations(db.Model):
         default=func.current_timestamp(),
         onupdate=func.current_timestamp(),
     )
+    # +++ ADDED FOR LOI CAPTURE SUBSYSTEM +++
+    entity_type = db.Column(db.String(100), nullable=True)
+    cin = db.Column(db.String(50), nullable=True)
+    registered_address = db.Column(db.Text, nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    state = db.Column(db.String(100), nullable=True)
+    contact_phone = db.Column(db.String(20), nullable=True)
+    loi_required = db.Column(db.Boolean, nullable=False, default=True)
+    loi_status = db.Column(db.String(50), nullable=False, default="NOT_REQUIRED")
+    loi_signed_at = db.Column(db.TIMESTAMP, nullable=True)
+    loi_signature_id = db.Column(db.BigInteger, nullable=True)
+    temp_access_expires_at = db.Column(db.TIMESTAMP, nullable=True)
 
     projects = db.relationship(
         "Projects", back_populates="client_rel", cascade="all, delete-orphan"
@@ -218,6 +230,7 @@ class OrganizationLicenses(db.Model):
     )
     license_type = db.Column(db.String(100), nullable=False)
     license_number = db.Column(db.String(100), nullable=False)
+    regulator_license_id = db.Column(db.Integer, db.ForeignKey("regulator_licenses.id"), nullable=True)
     issuing_authority = db.Column(db.String(255), nullable=False)
     issue_date = db.Column(db.Date, nullable=False)
     expiry_date = db.Column(db.Date)

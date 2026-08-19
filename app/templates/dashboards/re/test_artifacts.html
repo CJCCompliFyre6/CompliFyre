@@ -1800,6 +1800,12 @@
         </div>
         <!-- Finding Body -->
         <div class="finding-body px-4 py-3 space-y-3 {% if finding.auditor_status == 'CLOSED' %}opacity-50{% endif %}">
+          {% if finding.criteria %}
+          <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase">Criteria</p>
+            <p class="text-sm text-gray-700 mt-0.5">{{ finding.criteria }}</p>
+          </div>
+          {% endif %}
           {% if finding.root_issue %}
           <div>
             <p class="text-xs font-semibold text-gray-500 uppercase">Root Issue</p>

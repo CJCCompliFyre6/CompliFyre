@@ -18,8 +18,14 @@ class TaskStatus:
                 pass
 
     def init_app(self, app):
-        self.redis = redis.Redis.from_url(
-            app.config.get("REDIS_URL", "redis://localhost:6379/0")
+        redis_host = app.config.get("REDIS_HOST", "127.0.0.1")
+        redis_port = app.config.get("REDIS_PORT", 6379)
+        redis_password = app.config.get("REDIS_PASSWORD")
+        self.redis = redis.Redis(
+            host=redis_host,
+            port=redis_port,
+            password=redis_password,
+            db=0,
         )
 
     def set_status(self, task_id, user_id, task_name, status, progress=0, message=""):

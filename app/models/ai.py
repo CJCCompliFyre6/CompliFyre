@@ -184,6 +184,9 @@ class Guidelines(db.Model):
     enabled = db.Column(
         db.Boolean, nullable=False, default=True, server_default=sa.true()
     )
+    disabled_reason = db.Column(db.Text, nullable=True)
+    disabled_at = db.Column(db.TIMESTAMP, nullable=True)
+    catalogue_enabled = db.Column(db.Boolean, nullable=False, default=False)
     applicable_licenses = db.Column(db.JSON, nullable=True)
     structure_map = db.Column(db.JSON, nullable=True)
     regulator_body_id = db.Column(
@@ -312,6 +315,13 @@ class Clauses(db.Model):
     extraction_status = db.Column(db.String(50), nullable=True, default='EXTRACTED')
     flag_reason = db.Column(db.String(200), nullable=True)
     activity_generation_claimed_at = db.Column(db.TIMESTAMP, nullable=True)  # atomic claim marker for race-safe activity generation
+
+    # -- Added 2026-08-18: preserve AI reasoning + support human review/correction tracking --
+    intent_summary = db.Column(db.Text, nullable=True)  # AI's one-sentence "what this clause does" (Stage 2 Q0)
+    ai_assigned_clause_type = db.Column(db.String(50), nullable=True)  # original AI label, set once, never overwritten
+    clause_type_reviewed_at = db.Column(db.TIMESTAMP, nullable=True)  # NULL = never reviewed by a human
+    clause_type_reviewed_by = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
+    clause_type_review_notes = db.Column(db.Text, nullable=True)  # human reviewer's reasoning, if any
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
     updated_at = db.Column(
         db.TIMESTAMP,

@@ -10,6 +10,12 @@ class RegulatoryBodies(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     website_url = db.Column(db.String(255))
+    geography = db.Column(db.String(255))
+    industry = db.Column(db.String(255))
+    governed_institutions = db.Column(db.Text)
+    last_check_status = db.Column(db.String(50), nullable=False, default="NEVER_CHECKED")
+    last_checked_at = db.Column(db.TIMESTAMP)
+    last_check_notes = db.Column(db.Text)
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
     updated_at = db.Column(
         db.TIMESTAMP,
@@ -49,6 +55,9 @@ class RegulatoryDocuments(db.Model):
     )
     source_url = db.Column(db.String(255))
     document_path = db.Column(db.String(255))
+    file_hash = db.Column(db.String(64))
+    guideline_id = db.Column(db.BigInteger, db.ForeignKey("guidelines.id", ondelete="SET NULL"))
+    pipeline_status = db.Column(db.String(50), nullable=False, default="PENDING_DOWNLOAD")
     published_date = db.Column(db.Date)
     content = db.Column(db.Text)
     status = db.Column(
@@ -120,6 +129,23 @@ class RegulatorLicenses(db.Model):
     license_name = db.Column(db.String(200), nullable=False)
     license_code = db.Column(db.String(50), nullable=False, unique=True)
     is_active = db.Column(db.Boolean, default=True)
+
+    # Added 2026-08-12 after validating this table's design against 13 real
+    # jurisdictions (India/US/EU/UK/UAE/SEA/others). Two founding principles
+    # confirmed to hold throughout: one row per independent classification
+    # dimension (never merge e.g. RBI's type + scale-tier into one value),
+    # and an org can hold multiple simultaneous licenses -- no forced single
+    # hierarchy. All four fields below are deliberately nullable; most
+    # regulators in most markets need none of them populated.
+    classification_dimension = db.Column(db.String(50), nullable=True)
+    parent_license_id = db.Column(db.Integer, db.ForeignKey("regulator_licenses.id"), nullable=True)
+    effective_from = db.Column(db.Date, nullable=True)
+    effective_to = db.Column(db.Date, nullable=True)
+    # No default (stays NULL, not False) for license types outside the EEA --
+    # False would wrongly imply "considered and does not passport"; NULL
+    # honestly means "this concept doesn't apply here at all."
+    is_eea_passportable = db.Column(db.Boolean, nullable=True)
+
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
     updated_at = db.Column(
         db.TIMESTAMP,
@@ -136,3 +162,71 @@ class RegulatorLicenses(db.Model):
             'license_code': self.license_code,
             'is_active': self.is_active,
         }
+
+
+class RegulatoryDocumentStatusHistory(db.Model):
+    """
+    Every pipeline_status transition on a RegulatoryDocuments row gets its
+    own timestamped entry here -- Ankita's explicit requirement for a real
+    timestamp per status change, not just a single 'last updated' field.
+    """
+    __tablename__ = "regulatory_document_status_history"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    document_id = db.Column(
+        db.BigInteger, db.ForeignKey("RegulatoryDocuments.document_id", ondelete="CASCADE"), nullable=False
+    )
+    status = db.Column(db.String(50), nullable=False)
+    occurred_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+    notes = db.Column(db.Text)
+
+    document = db.relationship("RegulatoryDocuments", backref="status_history")
+
+
+class DocumentPipelineStatus:
+    """
+    Status constants for RegulatoryDocuments.pipeline_status, matching the
+    REAL pipeline stages observed live during testing (Stage 1A structure
+    map, Stage 1B/2 extraction, Stage 4 Split = "decomposition" in
+    Ankita's terminology). PAUSED states are placeholders only -- no pause
+    capability exists yet in the pipeline (see Build Sequence item #100,
+    not started). These values exist in the data model now so the UI/table
+    can be built, but nothing currently sets them to a PAUSED value.
+    """
+    PENDING_DOWNLOAD = "PENDING_DOWNLOAD"
+    IMPORTED = "IMPORTED"
+    STRUCTURE_MAP_CREATED = "STRUCTURE_MAP_CREATED"
+    EXTRACTION_IN_PROGRESS = "EXTRACTION_IN_PROGRESS"
+    EXTRACTION_PAUSED = "EXTRACTION_PAUSED"
+    EXTRACTION_COMPLETE = "EXTRACTION_COMPLETE"
+    DECOMPOSITION_IN_PROGRESS = "DECOMPOSITION_IN_PROGRESS"
+    DECOMPOSITION_PAUSED = "DECOMPOSITION_PAUSED"
+    DECOMPOSITION_COMPLETE = "DECOMPOSITION_COMPLETE"
+
+    ALL = [
+        PENDING_DOWNLOAD, IMPORTED, STRUCTURE_MAP_CREATED,
+        EXTRACTION_IN_PROGRESS, EXTRACTION_PAUSED, EXTRACTION_COMPLETE,
+        DECOMPOSITION_IN_PROGRESS, DECOMPOSITION_PAUSED, DECOMPOSITION_COMPLETE,
+    ]
+
+    PLACEHOLDER_ONLY = [EXTRACTION_PAUSED, DECOMPOSITION_PAUSED]
+
+
+def set_document_pipeline_status(document, new_status, notes=None):
+    """
+    The ONLY sanctioned way to change a RegulatoryDocuments row's
+    pipeline_status. Updates the column AND inserts a matching
+    status_history row in the same call, so a transition can never be
+    logged without its timestamp. Does not commit -- caller controls the
+    transaction, consistent with the rest of this codebase.
+    """
+    if new_status not in DocumentPipelineStatus.ALL:
+        raise ValueError(f"Unknown pipeline status: {new_status!r}")
+    document.pipeline_status = new_status
+    history_row = RegulatoryDocumentStatusHistory(
+        document_id=document.document_id,
+        status=new_status,
+        notes=notes,
+    )
+    db.session.add(history_row)
+    return history_row

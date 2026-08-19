@@ -1,0 +1,59 @@
+{% extends "re_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('re.static', filename='css/dash.css') }}" />
+<div class="p-8">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Invite New User</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+        <div class="mb-4 p-3 rounded-lg {{ 'bg-green-50 text-green-700' if category == 'success' else 'bg-red-50 text-red-700' }}">{{ msg }}</div>
+        {% endfor %}
+    {% endwith %}
+    <form method="POST" action="{{ url_for('loi.create_invite') }}" class="bg-white rounded-lg shadow p-6 max-w-2xl">
+        <label class="block mb-1 text-sm font-medium text-gray-700">Work Email *</label>
+        <input type="email" name="email" required class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Entity Name</label>
+        <input type="text" name="entity_name" class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Contact Name</label>
+        <input type="text" name="contact_name" class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Designation</label>
+        <input type="text" name="designation" class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-1 text-sm font-medium text-gray-700">Phone</label>
+        <input type="text" name="phone" class="w-full border rounded-lg p-2 mb-4">
+
+        <label class="block mb-2 text-sm font-medium text-gray-700">Guidelines to Preload (catalogue-enabled only)</label>
+        <input type="text" id="guidelineSearch" placeholder="Search by regulator or keyword, e.g. sebi libor, dpdpa, rbi commercial bank credit facility" class="w-full border rounded-lg p-2 mb-2 text-sm" onkeyup="filterGuidelines()">
+        <div class="border rounded-lg p-3 mb-4 max-h-64 overflow-y-auto" id="guidelineList">
+            {% for g in catalogue_guidelines %}
+            <label class="flex items-center gap-2 py-1 guideline-row" data-search-text="{{ ((g.guideline_data.DocumentDetails.IssuingAuthority if g.guideline_data and g.guideline_data.DocumentDetails.IssuingAuthority else '') ~ ' ' ~ (g.guideline_data.DocumentDetails.DocumentName if g.guideline_data else 'Guideline #' ~ g.id|string)) | lower }}">
+                <input type="checkbox" name="guideline_ids" value="{{ g.id }}">
+                <span class="text-sm text-gray-700">{{ g.guideline_data.DocumentDetails.DocumentName if g.guideline_data else 'Guideline #' ~ g.id }}</span>
+            </label>
+            {% else %}
+            <p class="text-sm text-gray-400">No catalogue-enabled guidelines available yet.</p>
+            {% endfor %}
+            <p class="text-sm text-gray-400 hidden" id="noResultsMsg">No guidelines match your search.</p>
+        </div>
+        <script>
+        function filterGuidelines() {
+            const query = document.getElementById('guidelineSearch').value.toLowerCase().trim();
+            const terms = query.split(/\s+/).filter(t => t.length > 0);
+            const rows = document.querySelectorAll('.guideline-row');
+            let visibleCount = 0;
+            rows.forEach(row => {
+                const text = row.getAttribute('data-search-text') || '';
+                const matches = terms.every(term => text.includes(term));
+                row.style.display = matches ? '' : 'none';
+                if (matches) visibleCount++;
+            });
+            document.getElementById('noResultsMsg').classList.toggle('hidden', visibleCount > 0 || rows.length === 0);
+        }
+        </script>
+
+        <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white font-medium px-5 py-2.5 rounded-lg">Send Invite</button>
+    </form>
+</div>
+{% endblock %}

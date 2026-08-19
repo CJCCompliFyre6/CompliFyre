@@ -252,13 +252,23 @@ def consolidated_findings_prompt(findings_data: dict) -> str:
     - **FINDINGS SECTION RULES (MANDATORY):**
       Only gaps are allowed in the findings section. No exceptions.
       
-      Each finding MUST include all three of the following components in this exact order:
-      - Description of the gap
+      Each finding MUST include all FOUR of the following components in this exact order, woven
+      together as connected auditor prose (NOT a fill-in-the-blank template):
+      - Criteria: the specific regulatory/clause requirement being tested, cited by paragraph or
+        clause reference where available (pull this from the individual finding's "Criteria" field
+        already present in the input data)
+      - Description of the gap (the Condition -- what was actually found -- and the Cause -- why the
+        gap exists)
       - Impact of the gap
       - Severity rating in brackets at the end
       
+      PROHIBITED PATTERN (do NOT use, regardless of how the individual input findings are structured):
+      "X is inadequate — [root]. What was expected: [Y]. What was found: [Z]. If not remediated, [W]."
+      This fill-in-the-blank scaffolding makes distinct findings read as interchangeable boilerplate.
+      Write each bullet as genuine, connected prose specific to that finding's own facts.
+      
       Required format for every bullet point:
-      Gap description. Impact explanation. (Severity: Critical/Major/Significant/Minor)
+      Criteria clause, then Gap description woven together in prose. Impact explanation. (Severity: Critical/Major/Significant/Minor)
       
       **SEVERITY CALIBRATION:**
       
@@ -323,6 +333,22 @@ def consolidated_findings_prompt(findings_data: dict) -> str:
     ✅ Training records not maintained. Staff unable to demonstrate risk awareness. (Severity: High)
     ✅ No evidence of feedback mechanism for training programs. This may result in ineffective risk awareness. (Severity: Medium)
 
+    **FINANCIAL IMPACT ESTIMATION (added 2026-08-02 -- first version, will evolve):**
+    
+    After listing all finding bullet points, scan the input data for any quantifiable financial
+    figures, monetary amounts, potential penalty exposure, or financial risk values explicitly
+    mentioned in the evidence text, root issue, or impact fields of the findings.
+    
+    - If one or more quantifiable financial amounts are found, sum them and add ONE FINAL bullet
+      point stating the estimated total financial impact across all non-compliant findings in this
+      clause, in the format:
+      "Estimated Total Financial Impact Across Non-Compliant Findings: [currency and amount]. Based on: [brief list of which findings contributed]."
+    - If NO quantifiable financial amount is stated anywhere in the input data, add ONE FINAL bullet
+      point stating exactly:
+      "Estimated Total Financial Impact Across Non-Compliant Findings: Not quantifiable from available evidence."
+    - Do NOT estimate, guess, or fabricate a financial figure that is not explicitly present in the
+      input data. This is a factual extraction and summation task, not an estimation task.
+    - This financial impact bullet point must always be the LAST entry in the bullet point list.
     """
 
     return consolidated_prompt

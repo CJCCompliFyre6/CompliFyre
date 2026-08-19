@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Letter of Intent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">Letter of Intent</h1>
+
+    <div class="bg-white rounded-lg shadow p-4 mb-4 max-w-2xl">
+        <iframe src="{{ url_for('loi.loi_preview_pdf') }}" class="w-full" style="height: 400px; border: 1px solid #e5e7eb;"></iframe>
+    </div>
+
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 max-w-2xl">
+        <p class="text-sm text-yellow-800 font-medium">This carries no immediate financial obligation, and is only a signal of intent.</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('loi.loi_sign') }}" class="bg-white rounded-lg shadow p-6 max-w-2xl">
+        <label class="flex items-start gap-2 mb-4">
+            <input type="checkbox" name="authority_confirmed" required class="mt-1">
+            <span class="text-sm text-gray-700">I confirm I am authorized to sign this Letter of Intent on behalf of my organization.</span>
+        </label>
+        <label class="block mb-1 text-sm font-medium text-gray-700">Type your full name to sign *</label>
+        <input type="text" name="signer_name" value="{{ current_user.name }}" readonly required class="w-full border rounded-lg p-2 mb-4 bg-gray-100 cursor-not-allowed">
+
+        <div class="flex gap-3">
+            <button type="submit" name="action" value="sign" class="bg-orange-500 hover:bg-orange-600 text-white font-medium px-5 py-2.5 rounded-lg">Sign Now</button>
+            <a href="{{ url_for('loi.loi_forward_form') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-5 py-2.5 rounded-lg inline-block">Not the right person -- forward</a>
+            <button type="submit" name="action" value="remind_later" formnovalidate class="bg-white border hover:bg-gray-50 text-gray-700 font-medium px-5 py-2.5 rounded-lg">Remind me later</button>
+        </div>
+    </form>
+</body>
+</html>

@@ -42,6 +42,7 @@ PATTERNS = {
 def empty_position():
     return {
         'chapter': None, 'schedule': None, 'annexure': None, 'part': None,
+        'module': None,
         'regulation': None, 'sub_reg': None, 'clause': None,
         'sub_clause': None, 'capital': None, 'numbered_deep': None,
         'proviso_count': 0, 'explanation_count': 0,
@@ -60,6 +61,8 @@ def build_clause_no(pos):
             parts.append(pos['part'])
     elif pos['current_section'] == 'annexure' and pos['annexure']:
         parts.append(f"ANN {pos['annexure']}")
+    elif pos['current_section'] == 'module' and pos['module']:
+        parts.append(f"MOD {pos['module']}")
     elif pos['current_section'] == 'main_body':
         pass  # no prefix — bare numbers stand alone
     else:
@@ -286,6 +289,8 @@ def build_prefix_from_section(section):
         return f"SCH {sec_id}"
     elif sec_type in ("annexure", "annex"):
         return f"ANN {sec_id}"
+    elif sec_type == "module":
+        return f"MOD {sec_id}"
     elif sec_type == "appendix":
         return f"APP {sec_id}" if sec_id else "APP"
     elif sec_type == "main_body":
@@ -377,6 +382,9 @@ def parse_pdf_structure(file_path, structure_map=None):
                     elif sec_type in ("annexure", "annex"):
                         position["annexure"] = sec_id
                         position["current_section"] = "annexure"
+                    elif sec_type == "module":
+                        position["module"] = sec_id
+                        position["current_section"] = "module"
                     elif sec_type == "appendix":
                         position["annexure"] = sec_id or "APP"
                         position["current_section"] = "annexure"

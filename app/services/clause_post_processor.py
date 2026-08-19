@@ -281,6 +281,7 @@ def save_to_db(nodes: list, stage2_results: dict, guideline_id: int) -> dict:
         
         s2 = stage2_results.get(clause_no, {})
         clause_type = s2.get('clause_type', 'OBLIGATION')
+        intent_summary = s2.get('intent_summary')
         extraction_status = node.get('extraction_status', 'EXTRACTED')
         flag_reason = node.get('flag_reason')
         
@@ -301,6 +302,8 @@ def save_to_db(nodes: list, stage2_results: dict, guideline_id: int) -> dict:
                 clause_references=node.get('clause_references'),
                 extraction_status=extraction_status,
                 flag_reason=flag_reason,
+                intent_summary=intent_summary,
+                ai_assigned_clause_type=clause_type,  # original AI label -- never overwritten after this point
             )
             db.session.add(clause)
             saved += 1

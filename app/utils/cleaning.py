@@ -1233,7 +1233,7 @@ def extract_from_docx(path):
     )
 
 
-def generate_chat_output(prompt):
+def generate_chat_output(prompt, override_system_prompt=None, max_tokens=1200, frequency_penalty=0.6):
     try:
         # Define the comprehensive system prompt
         system_prompt = """You are a compliance reviewer generating structured evidence assessments for enterprise audit software.
@@ -1295,6 +1295,12 @@ ENTITY MATCHING:
 
 DO NOT summarize entire document. Only map evidence relevant to activity objective."""
         
+        # Allow callers doing a genuinely different task (e.g. JSON-only output)
+        # to override this default -- added 2026-08-15 for evidence consolidation,
+        # which was incorrectly inheriting this markdown-report prompt before.
+        if override_system_prompt:
+            system_prompt = override_system_prompt
+
         # Log the system prompt being sent
         current_app.logger.info("=" * 80)
         current_app.logger.info("SYSTEM PROMPT BEING SENT TO AI:")
@@ -1315,9 +1321,9 @@ DO NOT summarize entire document. Only map evidence relevant to activity objecti
             ],
             temperature=0.15,
             top_p=0.2,
-            frequency_penalty=0.6,
+            frequency_penalty=frequency_penalty,
             presence_penalty=0.0,
-            max_tokens=1200,
+            max_tokens=max_tokens,
         )
         
         result = response.choices[0].message.content.strip()

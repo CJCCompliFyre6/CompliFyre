@@ -6,7 +6,10 @@ from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
 from openai import AzureOpenAI
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager, current_user, login_required
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_admin import Admin, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
 from flask_misaka import Misaka
@@ -25,6 +28,13 @@ md = Misaka()
 login_manager = LoginManager()
 mail = Mail()
 sess = Session()
+csrf = CSRFProtect()
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=None,
+    strategy="fixed-window",
+    default_limits=[],
+)
 
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
@@ -121,6 +131,9 @@ def create_app(config_name=None):
     md.init_app(app)
     mail.init_app(app)
     sess.init_app(app)
+    csrf.init_app(app)
+    app.config["RATELIMIT_STORAGE_URI"] = app.config.get("CELERY", {}).get("broker_url") or "redis://127.0.0.1:6379/0"
+    limiter.init_app(app)
 
     # --- Initialize Celery ---
     celery_app = celery_init_app(app)
@@ -135,6 +148,7 @@ def create_app(config_name=None):
 
     # --- Static File Route ---
     @app.route('/files/<path:filename>')
+    @login_required
     def uploaded_file(filename):
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         app.config['UPLOAD_FOLDER_EVIDENCE'] = os.path.join(BASE_DIR, "../uploads")
@@ -235,6 +249,8 @@ def create_app(config_name=None):
     app.register_blueprint(retrival_bp, url_prefix="/api/retrive")
     app.register_blueprint(prompt_bp, url_prefix="/api/prompt")
     app.register_blueprint(re_bp, url_prefix="/re")
+    from app.routes.loi.view import loi_bp
+    app.register_blueprint(loi_bp, url_prefix="/loi")
     app.register_blueprint(eve_re_bp)
     app.register_blueprint(audit_bp, url_prefix="/audit")
     app.register_blueprint(eve_audit_bp)

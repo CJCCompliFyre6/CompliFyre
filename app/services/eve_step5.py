@@ -2369,6 +2369,96 @@ When evaluating checklist items:
                 "admissibility_reason": "",
             })
 
+        # POST-4B: Deterministic evidence-type relevance check (fix #224/#229's
+        # shared root cause -- no mapping layer existed between the classifier's
+        # evidence_type vocabulary and checklist expected_evidence_types phrases,
+        # so a single LLM misclassification could poison an entire checklist item
+        # to a false FAIL. Must run before POST-10 (INADMISSIBLE cascade), which
+        # skips NOT_APPLICABLE entries. Overrides checklist_evaluation, item_signals,
+        # AND results together -- all three describe the same LLM judgment in
+        # different shapes; a partial override would leave inconsistent data in
+        # whichever list downstream code reads first.
+        _EVIDENCE_TYPE_KEYWORD_MAP = {
+            "policy": "POLICY_DOCUMENT", "framework": "POLICY_DOCUMENT",
+            "procedure": "PROCEDURE_MANUAL", "manual": "PROCEDURE_MANUAL",
+            "board": "BOARD_MINUTES", "resolution": "BOARD_MINUTES",
+            "minutes": "MEETING_MINUTES",
+            "audit": "AUDIT_REPORT", "trail": "AUDIT_REPORT", "schedule": "AUDIT_REPORT",
+            "training": "TRAINING_RECORD", "attendance": "TRAINING_RECORD",
+            "email": "EMAIL_COMMUNICATION", "communication": "EMAIL_COMMUNICATION",
+            "notice": "REGULATORY_FILING", "circular": "REGULATORY_FILING",
+            "transaction": "TRANSACTION_DATA", "register": "TRANSACTION_DATA",
+            "excel": "TRANSACTION_DATA", "spreadsheet": "TRANSACTION_DATA",
+            "log": "ACCESS_LOG", "system": "ACCESS_LOG",
+            "configuration": "CONFIGURATION_FILE", "config": "CONFIGURATION_FILE",
+            "agreement": "CONTRACTUAL_AGREEMENT", "signed": "CONTRACTUAL_AGREEMENT",
+            "monitoring": "COMPLIANCE_REPORT", "compliance": "COMPLIANCE_REPORT",
+            "reconciliation": "RECONCILIATION_REPORT",
+            "risk": "RISK_ASSESSMENT",
+            "financial": "FINANCIAL_STATEMENT",
+            "certificate": "CERTIFICATE",
+            "screenshot": "SYSTEM_SCREENSHOT",
+            "interview": "INTERVIEW_RESPONSE",
+            "walkthrough": "WALKTHROUGH_DOCUMENTATION",
+            "exception": "EXCEPTION_REPORT",
+            "organizational": "ORGANIZATIONAL_CHART", "org chart": "ORGANIZATIONAL_CHART",
+            "job description": "JOB_DESCRIPTION",
+            "process flow": "PROCESS_FLOW_DIAGRAM",
+            "network diagram": "NETWORK_DIAGRAM",
+            "architecture": "ARCHITECTURE_DIAGRAM",
+        }
+
+        def _map_expected_types_to_classifier_types(expected_types):
+            """Best-effort keyword mapping -- see #238 for accepted limitations, #239/#240 for follow-ups."""
+            allowed = set()
+            for phrase in (expected_types or []):
+                phrase_lower = str(phrase).lower()
+                for keyword, classifier_type in _EVIDENCE_TYPE_KEYWORD_MAP.items():
+                    if keyword in phrase_lower:
+                        allowed.add(classifier_type)
+            return allowed
+
+        _checklist_id_to_expected = {
+            item.get("id", ""): item.get("expected_evidence_types", [])
+            for item in checklist_items
+        }
+
+        _force_not_applicable_cids = set()
+        for entry in raw_output.get("checklist_evaluation", []):
+            cid = entry.get("checklist_id")
+            if not cid or entry.get("found") == "NOT_APPLICABLE":
+                continue
+            expected_types = _checklist_id_to_expected.get(cid, [])
+            if not expected_types:
+                continue  # no expected types defined -- can't judge relevance, leave as-is
+            allowed_classifier_types = _map_expected_types_to_classifier_types(expected_types)
+            if allowed_classifier_types and evidence_type not in allowed_classifier_types:
+                _force_not_applicable_cids.add(cid)
+
+        if _force_not_applicable_cids:
+            for cid in _force_not_applicable_cids:
+                expected_types = _checklist_id_to_expected.get(cid, [])
+                gap_note = (
+                    f"Evidence type {evidence_type} does not match expected evidence "
+                    f"types {expected_types} for this item (deterministic override, #238)"
+                )
+                for entry in raw_output.get("checklist_evaluation", []):
+                    if entry.get("checklist_id") == cid:
+                        entry["found"] = "NOT_APPLICABLE"
+                        entry["gap"] = gap_note
+                        entry["basis"] = "Filtered by system -- evidence type mismatch"
+                for sig in raw_output.get("item_signals", []):
+                    if sig.get("checklist_id") == cid:
+                        sig["signal"] = "INSUFFICIENT"
+                        sig["basis"] = "Not applicable -- evidence type mismatch (deterministic override, #238)"
+                for res in raw_output.get("results", []):
+                    if res.get("checklist_id") == cid:
+                        res["status"] = "NOT_APPLICABLE"
+            logger.info(
+                f"[Module D] POST-4B: forced {len(_force_not_applicable_cids)} item(s) to "
+                f"NOT_APPLICABLE due to evidence-type mismatch: {sorted(_force_not_applicable_cids)}"
+            )
+
         # POST-5: Override explicit exclusion signals (SS7 Type 2)
         for cid, excl in exclusions.items():
             for entry in raw_output.get("checklist_evaluation", []):
@@ -2600,7 +2690,12 @@ When evaluating checklist items:
             # Normalize YES/NO to PASS/FAIL
             status_normalize = {"YES": "PASS", "NO": "FAIL", "NEEDS_REVIEW": "PARTIAL"}
             item_status = status_normalize.get(item_status, item_status)
-            if item_status not in ("PASS", "PARTIAL", "FAIL"):
+            # fix 2026-08-01: NOT_APPLICABLE must survive this normalization --
+            # previously it silently collapsed to PARTIAL here, creating a
+            # contradictory signal alongside the correct found=NOT_APPLICABLE
+            # already sitting in raw_output_json, which likely confused Step 6's
+            # LLM into raising findings it was explicitly told not to (#238).
+            if item_status not in ("PASS", "PARTIAL", "FAIL", "NOT_APPLICABLE"):
                 item_status = "PARTIAL"
             # Normalize admissibility values
             admissibility_map = {"VALID": "ADMISSIBLE", "PROVIDED_INVALID": "INADMISSIBLE", "NOT_PROVIDED": "INADMISSIBLE", "PROVIDED_INSUFFICIENT": "PARTIAL", "CONTRADICTORY": "PARTIAL"}
@@ -3461,6 +3556,11 @@ def run_eve_step5b_cross_evidence(
             contradiction_detected = item_analysis.get("contradiction_detected", "NO") == "YES"
             inquiry_trigger = item_analysis.get("inquiry_trigger", "NO") == "YES"
             severity = item_analysis.get("severity", "MINOR")
+            # fix 2026-08-01: same defensive clamp already applied at the
+            # first EveInquiry call site in this file -- don't trust the
+            # LLM to always follow the "MATERIAL | MINOR" prompt instruction.
+            if severity not in ("MATERIAL", "MINOR"):
+                severity = "MINOR"
             inquiry_question = item_analysis.get("inquiry_question", "")
 
             if not checklist_item_id:

@@ -17,6 +17,7 @@ from celery import Celery, Task
 from config import Config
 
 redis_host = Config.REDIS_HOST
+redis_password = getattr(Config, "REDIS_PASSWORD", None)
 redis_db = getattr(Config, "CELERY_REDIS_DB", 0)
 
 def celery_init_app(app: Flask) -> Celery:
@@ -28,8 +29,8 @@ def celery_init_app(app: Flask) -> Celery:
     celery_app = Celery(app.name, task_cls=FlaskTask)
     # Configure Celery with Redis and keep existing task_routes intact
     celery_app.config_from_object({
-        "broker_url": f'redis://{redis_host}:6379/{redis_db}',
-        "result_backend": f'redis://{redis_host}:6379/{redis_db}',
+        "broker_url": f'redis://:{redis_password}@{redis_host}:6379/{redis_db}' if redis_password else f'redis://{redis_host}:6379/{redis_db}',
+        "result_backend": f'redis://:{redis_password}@{redis_host}:6379/{redis_db}' if redis_password else f'redis://{redis_host}:6379/{redis_db}',
         "task_routes": {
             'app.services.eve_step678.run_eve_step6_and_7': {'queue': 'eve_evaluate'},
             'app.services.eve_step678.run_eve_step8_clause_rollup': {'queue': 'eve_evaluate'},
@@ -53,11 +54,17 @@ def celery_init_app(app: Flask) -> Celery:
             'app.services.eve_tasks.generate_guideline_eve_context': {'queue': 'eve_context'},
             'app.services.eve_tasks.generate_control_checklist': {'queue': 'eve_checklist'},
             'app.services.eve_tasks.copy_checklist_to_project': {'queue': 'eve_checklist'},     
+            'app.services.manual_task.scan_watch_folder': {'queue': 'extract_guidelines'},
+            'app.services.argus_orchestrator.argus_orchestrator': {'queue': 'extract_guidelines'},
         },
-        "imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5"),"imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5", "app.services.eve_step678"),
+        "imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5"),"imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5", "app.services.eve_step678", "app.services.argus_orchestrator"),
         "task_track_started": True,
         "task_time_limit": 24 * 60 * 60,  # 24 hours
         "task_acks_late": True,
+        "task_reject_on_worker_lost": True,  # fix 2026-08-01: without this, a task whose worker
+        # dies mid-execution (restart, OOM-kill, crash) doesn't get promptly requeued -- it can
+        # sit until the broker's visibility_timeout before automatic recovery. This makes lost
+        # tasks requeue immediately instead. Root cause of today's stuck-chord incident.
         "worker_prefetch_multiplier": 1,
         "result_extended": True,  # Enable extended result features
         "broker_transport_options": {"visibility_timeout": 21600},  # 6 hours — task_acks_late + long-running bulk tasks (e.g. activity-generation) need this longer than Redis's 1hr default, or the broker redelivers an in-progress task to another worker
@@ -65,6 +72,14 @@ def celery_init_app(app: Flask) -> Celery:
             "fix-pending-checklists-every-5-min": {
                 "task": "app.services.eve_tasks.fix_pending_checklists",
                 "schedule": 300.0,
+            },
+            "scan-watch-folder-every-5-min": {
+                "task": "app.services.manual_task.scan_watch_folder",
+                "schedule": 300.0,
+            },
+            "argus-orchestrator-every-1-min": {
+                "task": "app.services.argus_orchestrator.argus_orchestrator",
+                "schedule": 60.0,
             },
         },
     })

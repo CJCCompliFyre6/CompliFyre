@@ -18,7 +18,7 @@ from app.services.pdf_service import PDFService
 from app.utils.exceptions import PDFServiceError, URLValidationError
 from marshmallow import Schema, fields, ValidationError
 import os
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy import delete, update
 from app.utils.extract_clause_helper import check_free_report_used
 
@@ -29,7 +29,11 @@ from app.models.user import *
 from app.models.download import *
 from app.models.ai import *
 from app.models.auditOrganization import *
-from datetime import datetime
+from app.models.re import RegulatoryBodies, RegulatoryDocuments, RegulatorLicenses
+from app.models.loi import InvitePreloadGuidelines
+from app.services.check_guidelines_service import check_regulator_for_new_guidelines
+
+from datetime import datetime, timezone
 import json
 from flask_login import login_user, logout_user, login_required, current_user
 from app import login_manager
@@ -47,6 +51,7 @@ from app.models.project_instance_models import *
 from app.services.prompt_service import *
 from app.utils.bread_crumb import add_to_breadcrumb
 from app.utils.input_security import validate_upload_file, sanitize_text_input
+from app.utils.evidence_access import check_evidence_artifact_access
 from app.helper.evidence_helper import *
 from app.utils.compliance_utils import (
     evaluate_single_activity_ai,
@@ -138,18 +143,35 @@ def guidelines():
 
         if user_role_id == AUDITOR_ROLE_ID:
             # Auditor view — show only ENABLED guidelines not yet downloaded by this auditor
+            # Fix 2026-08-01: self-signup (invite-based) auditors should only see the
+            # specific guidelines their admin preloaded for them, not the full enabled
+            # catalogue. Legacy auditors (invite_id is None) are unaffected -- they keep
+            # seeing the full enabled catalogue exactly as before.
+            preload_filter = None
+            if current_user.invite_id:
+                preload_subquery = select(InvitePreloadGuidelines.guideline_id).where(
+                    InvitePreloadGuidelines.invite_id == current_user.invite_id
+                )
+                preload_filter = Guidelines.id.in_(preload_subquery)
+
             if current_user.auditor_profile_id:
                 subquery = select(auditor_selected_guidelines.c.guideline_id).where(
                     auditor_selected_guidelines.c.audit_id
                     == current_user.auditor_profile_id
                 )
-                stmt = select(Guidelines).where(
+                conditions = [
                     ~Guidelines.id.in_(subquery),
                     Guidelines.enabled == True
-                )
+                ]
+                if preload_filter is not None:
+                    conditions.append(preload_filter)
+                stmt = select(Guidelines).where(*conditions)
             else:
                 # Auditor without auditor_profile — show enabled guidelines only (none downloaded yet)
-                stmt = select(Guidelines).where(Guidelines.enabled == True)
+                conditions = [Guidelines.enabled == True]
+                if preload_filter is not None:
+                    conditions.append(preload_filter)
+                stmt = select(Guidelines).where(*conditions)
 
             guidelines = db.session.execute(stmt).scalars().all()
             current_app.logger.info(f"Auditor view — showing {len(guidelines)} enabled + not downloaded guidelines")
@@ -236,6 +258,7 @@ def toggle_guideline_enabled(guideline_id):
         data = request.get_json(silent=True) or {}
         # optional: client may pass {"enabled": true/false}; otherwise toggle
         enabled_from_client = data.get("enabled", None)
+        reason_from_client = data.get("reason", None)
         guideline = Guidelines.query.get(guideline_id)
         if not guideline:
             return jsonify({"error": "Guideline not found"}), 404
@@ -247,15 +270,25 @@ def toggle_guideline_enabled(guideline_id):
             new_enabled = bool(enabled_from_client)
 
         guideline.enabled = new_enabled
+        if not new_enabled:
+            guideline.disabled_reason = reason_from_client or None
+            guideline.disabled_at = datetime.now(timezone.utc)
+        else:
+            guideline.disabled_reason = None
+            guideline.disabled_at = None
         db.session.add(guideline)
 
-        # If disabling, remove associations to auditor_selected_guidelines so auditors won't see it
-        if not new_enabled:
-            # Assuming auditor_selected_guidelines is a Table object available in scope
-            stmt = delete(auditor_selected_guidelines).where(
-                auditor_selected_guidelines.c.guideline_id == guideline_id
-            )
-            db.session.execute(stmt)
+        # Fix 2026-08-09 (item #171, real live bug, deliberately parked
+        # 2026-07-29 pending the LOI/login system which is now built):
+        # withdrawing/disabling a guideline must NOT remove an auditor's
+        # existing access to it. This used to hard-DELETE the
+        # auditor_selected_guidelines row, wiping out any auditor who
+        # already had it in their library. Now it only flips enabled/
+        # disabled_reason/disabled_at -- re/view.py's guidelines() list
+        # (what NEW downloads pull from) already filters on enabled=True,
+        # so a withdrawn guideline correctly stops being offered as a new
+        # download, while my_guidelines() (which never filtered on
+        # enabled) continues showing it for auditors who already have it.
 
         db.session.commit()
         # 🔑 Instead of flash(), return message in JSON
@@ -2444,6 +2477,155 @@ def clause():
     except Exception as err:
         current_app.logger.error(f"Unexpected error: {str(err)}")
         return jsonify({"error": f"Internal server error {err}"}), 500
+
+
+
+# ============================================================
+# Clause classification review -- human oversight/recategorization
+# Added 2026-08-18. Separate from the existing edit_clause flow,
+# which does not handle clause_type at all.
+# ============================================================
+
+@re_bp.route("/clause-review", methods=["GET"])
+@login_required
+def clause_review():
+    """List all clauses for a guideline with their AI classification,
+    reasoning, and review status -- lets a human confirm or correct."""
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.id).all()
+
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    valid_types = ["OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"]
+
+    return render_template(
+        "clause_review.html",
+        guideline=guideline,
+        guideline_name=guideline_name,
+        guideline_id=guideline_id,
+        clauses=clauses,
+        valid_types=valid_types,
+    )
+
+
+@re_bp.route("/clause-review/save", methods=["POST"])
+@login_required
+def clause_review_save():
+    """Save a human correction/confirmation for one clause's classification.
+    ai_assigned_clause_type is never touched here -- only clause_type (the
+    current, authoritative value) and the review audit fields."""
+    data = request.get_json(silent=True) or {}
+    clause_id = data.get("clause_id")
+    new_clause_type = (data.get("clause_type") or "").strip().upper()
+    review_notes = data.get("review_notes", "").strip()
+
+    valid_types = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"}
+    if not clause_id or new_clause_type not in valid_types:
+        return jsonify({"status": "error", "message": "Invalid clause_id or clause_type"}), 400
+
+    clause = Clauses.query.get(clause_id)
+    if not clause:
+        return jsonify({"status": "error", "message": "Clause not found"}), 404
+
+    clause.clause_type = new_clause_type
+    clause.clause_type_reviewed_at = datetime.now(timezone.utc)
+    clause.clause_type_reviewed_by = current_user.id
+    clause.clause_type_review_notes = review_notes or None
+    db.session.commit()
+
+    return jsonify({
+        "status": "success",
+        "clause_id": clause_id,
+        "clause_type": new_clause_type,
+        "reviewed_at": clause.clause_type_reviewed_at.strftime("%Y-%m-%d %H:%M"),
+        "reviewed_by": current_user.name,
+    })
+
+
+@re_bp.route("/clause-review/export", methods=["GET"])
+@login_required
+def clause_review_export():
+    """Server-side Excel export of the full review dataset -- pulls directly
+    from the database, not from whatever happens to be rendered on screen."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.id).all()
+
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Clause Classification Review"
+
+    header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="FF2E5C8A", end_color="FF2E5C8A", fill_type="solid")
+    normal_font = Font(name="Arial", size=10)
+    wrap = Alignment(wrap_text=True, vertical="top")
+
+    headers = ["Clause No.", "Clause Text", "AI's Original Label", "Current Label",
+               "AI Reasoning", "Reviewed?", "Reviewed By", "Reviewed At", "Review Notes"]
+    for i, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=i, value=h)
+        c.font = header_font
+        c.fill = header_fill
+    ws.freeze_panes = "A2"
+
+    col_widths = [16, 60, 18, 18, 45, 12, 18, 18, 40]
+    for i, w in enumerate(col_widths, start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    for r, clause in enumerate(clauses, start=2):
+        reviewer_name = ""
+        if clause.clause_type_reviewed_by:
+            reviewer = Users.query.get(clause.clause_type_reviewed_by)
+            reviewer_name = reviewer.name if reviewer else f"User #{clause.clause_type_reviewed_by}"
+
+        row_values = [
+            clause.clause_no,
+            clause.clause_text,
+            clause.ai_assigned_clause_type or "",
+            clause.clause_type or "",
+            clause.intent_summary or "(not captured -- predates reasoning capture)",
+            "YES" if clause.clause_type_reviewed_at else "NO",
+            reviewer_name,
+            clause.clause_type_reviewed_at.strftime("%Y-%m-%d %H:%M") if clause.clause_type_reviewed_at else "",
+            clause.clause_type_review_notes or "",
+        ]
+        for c_idx, val in enumerate(row_values, start=1):
+            cell = ws.cell(row=r, column=c_idx, value=val)
+            cell.font = normal_font
+            cell.alignment = wrap
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in guideline_name)[:60]
+    filename = f"Clause_Review_{safe_name}_{guideline_id}.xlsx"
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @re_bp.route("/clause", methods=["GET"])
@@ -5790,6 +5972,7 @@ def uploaded_file(filename):
 
 
 @re_bp.route("/evidences", methods=["POST"])
+@login_required
 def evidences():
     try:
         project_evidence_id = request.form.get("evidence_id", "").strip()
@@ -5805,6 +5988,15 @@ def evidences():
 
         artifact = ProjectEvidenceArtifact.query.get(project_evidence_id)
         if not artifact:
+            flash(
+                f"Project evidence with ID {project_evidence_id} not found.", "danger"
+            )
+            return redirect(request.referrer)
+
+        if not check_evidence_artifact_access(artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to access evidence_id={project_evidence_id} belonging to a different tenant"
+            )
             flash(
                 f"Project evidence with ID {project_evidence_id} not found.", "danger"
             )
@@ -5931,6 +6123,12 @@ def re_evaluate_evidence(artifact_id):
 
         artifact = ProjectEvidenceArtifact.query.get(artifact_id)
         if not artifact:
+            return jsonify({"status": "error", "message": "Evidence artifact not found"}), 404
+
+        if not check_evidence_artifact_access(artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to re-evaluate evidence_id={artifact_id} belonging to a different tenant"
+            )
             return jsonify({"status": "error", "message": "Evidence artifact not found"}), 404
 
         # Get project_control_activity and checklist
@@ -7699,3 +7897,368 @@ def retry_pending_activities():
     except Exception as e:
         logger.exception(f"Error retrying pending activities: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================
+# Regulator source management (item #134) -- core team only,
+# NOT exposed to the AUDITOR role. Feeds the guideline-tracking
+# table and the "Check for new guidelines" button (item #133).
+# ============================================================
+
+@re_bp.route("/regulators", methods=["GET"])
+@role_required("COMPLIFYRE", "RE")
+def regulators():
+    """
+    Regulator source management (item #134) -- core team only, not
+    exposed to the AUDITOR role. Lists all regulator entries and their
+    listing-page links, feeding the guideline-tracking table and the
+    'Check for new guidelines' button (item #133). Now includes a
+    per-regulator count of tracked documents, clickable through to the
+    filtered Tracked Guidelines view.
+    """
+    add_to_breadcrumb(request.full_path, "Regulator Sources")
+    regulators = RegulatoryBodies.query.order_by(RegulatoryBodies.name).all()
+    doc_counts = dict(
+        db.session.query(RegulatoryDocuments.body_id, func.count(RegulatoryDocuments.document_id))
+        .group_by(RegulatoryDocuments.body_id)
+        .all()
+    )
+    return render_template("regulators.html", regulators=regulators, doc_counts=doc_counts)
+
+
+@re_bp.route("/regulators/add", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def add_regulator():
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    geography = request.form.get("geography", "").strip()
+    industry = request.form.get("industry", "").strip()
+    governed_institutions = request.form.get("governed_institutions", "").strip()
+    website_url = request.form.get("website_url", "").strip()
+
+    if not name or not website_url:
+        flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    existing = RegulatoryBodies.query.filter_by(website_url=website_url).first()
+    if existing:
+        flash(f"This URL is already tracked (under '{existing.name}') -- URLs must be unique. "
+              f"If this regulator has another page, use a different URL.", "error")
+        return redirect(url_for("re.regulators"))
+
+    regulator = RegulatoryBodies(
+        name=name,
+        description=description or None,
+        geography=geography or None,
+        industry=industry or None,
+        governed_institutions=governed_institutions or None,
+        website_url=website_url,
+    )
+    db.session.add(regulator)
+    db.session.commit()
+    flash(f"Added regulator page: {name}", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/<int:body_id>/edit", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def edit_regulator(body_id):
+    regulator = RegulatoryBodies.query.get_or_404(body_id)
+    name = request.form.get("name", "").strip()
+    website_url = request.form.get("website_url", "").strip()
+    if not name or not website_url:
+        flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    existing = RegulatoryBodies.query.filter(
+        RegulatoryBodies.website_url == website_url,
+        RegulatoryBodies.body_id != body_id,
+    ).first()
+    if existing:
+        flash(f"This URL is already tracked (under '{existing.name}') -- URLs must be unique.", "error")
+        return redirect(url_for("re.regulators"))
+
+    regulator.name = name
+    regulator.description = request.form.get("description", "").strip() or None
+    regulator.geography = request.form.get("geography", "").strip() or None
+    regulator.industry = request.form.get("industry", "").strip() or None
+    regulator.governed_institutions = request.form.get("governed_institutions", "").strip() or None
+    regulator.website_url = website_url
+    db.session.commit()
+    flash(f"Updated regulator page: {regulator.name}", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/<int:body_id>/delete", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def delete_regulator(body_id):
+    regulator = RegulatoryBodies.query.get_or_404(body_id)
+    name = regulator.name
+    db.session.delete(regulator)
+    db.session.commit()
+    flash(f"Deleted regulator: {name}", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulator-licenses", methods=["GET"])
+@role_required("COMPLIFYRE", "RE")
+def regulator_licenses():
+    """
+    License master list management -- core team only, not exposed to the
+    AUDITOR role. Lists every regulator_licenses entry, the canonical
+    per-license-type reference GRACE uses to tag guideline and clause
+    applicability (see app/services/clause_post_processor.py). This is
+    a genuinely separate system from Regulator Sources above -- that
+    page tracks scraper source pages (RegulatoryBodies); this page
+    tracks the actual licenses those regulators issue.
+    """
+    add_to_breadcrumb(request.full_path, "License Master List")
+    licenses = RegulatorLicenses.query.order_by(
+        RegulatorLicenses.regulator_country, RegulatorLicenses.regulator_name, RegulatorLicenses.license_name
+    ).all()
+    countries = sorted(set(l.regulator_country for l in licenses))
+    return render_template("regulator_licenses.html", licenses=licenses, countries=countries)
+
+
+@re_bp.route("/regulator-licenses/add", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def add_regulator_license():
+    regulator_name = request.form.get("regulator_name", "").strip()
+    regulator_country = request.form.get("regulator_country", "").strip()
+    license_name = request.form.get("license_name", "").strip()
+    license_code = request.form.get("license_code", "").strip()
+    classification_dimension = request.form.get("classification_dimension", "").strip()
+    effective_from = request.form.get("effective_from", "").strip()
+    effective_to = request.form.get("effective_to", "").strip()
+    is_eea_passportable_raw = request.form.get("is_eea_passportable", "").strip()
+
+    if not regulator_name or not regulator_country or not license_name or not license_code:
+        flash("Regulator name, country, license name, and license code are all required.", "error")
+        return redirect(url_for("re.regulator_licenses"))
+
+    existing = RegulatorLicenses.query.filter_by(license_code=license_code).first()
+    if existing:
+        flash(f"License code '{license_code}' is already in use (by '{existing.license_name}' under "
+              f"{existing.regulator_name}) -- codes must be unique.", "error")
+        return redirect(url_for("re.regulator_licenses"))
+
+    # is_eea_passportable is deliberately three-state: True / False / left
+    # NULL if the dropdown's blank "n/a" option is chosen -- NULL means
+    # "this concept doesn't apply here," distinct from a real False.
+    is_eea_passportable = None
+    if is_eea_passportable_raw == "true":
+        is_eea_passportable = True
+    elif is_eea_passportable_raw == "false":
+        is_eea_passportable = False
+
+    new_license = RegulatorLicenses(
+        regulator_name=regulator_name,
+        regulator_country=regulator_country,
+        license_name=license_name,
+        license_code=license_code,
+        classification_dimension=classification_dimension or None,
+        effective_from=effective_from or None,
+        effective_to=effective_to or None,
+        is_eea_passportable=is_eea_passportable,
+        is_active=True,
+    )
+    db.session.add(new_license)
+    db.session.commit()
+    flash(f"Added license: {license_name} ({license_code})", "success")
+    return redirect(url_for("re.regulator_licenses"))
+
+
+@re_bp.route("/regulator-licenses/<int:license_id>/edit", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def edit_regulator_license(license_id):
+    lic = RegulatorLicenses.query.get_or_404(license_id)
+    regulator_name = request.form.get("regulator_name", "").strip()
+    regulator_country = request.form.get("regulator_country", "").strip()
+    license_name = request.form.get("license_name", "").strip()
+    license_code = request.form.get("license_code", "").strip()
+
+    if not regulator_name or not regulator_country or not license_name or not license_code:
+        flash("Regulator name, country, license name, and license code are all required.", "error")
+        return redirect(url_for("re.regulator_licenses"))
+
+    existing = RegulatorLicenses.query.filter(
+        RegulatorLicenses.license_code == license_code,
+        RegulatorLicenses.id != license_id,
+    ).first()
+    if existing:
+        flash(f"License code '{license_code}' is already in use (by '{existing.license_name}' under "
+              f"{existing.regulator_name}) -- codes must be unique.", "error")
+        return redirect(url_for("re.regulator_licenses"))
+
+    is_eea_passportable_raw = request.form.get("is_eea_passportable", "").strip()
+    is_eea_passportable = None
+    if is_eea_passportable_raw == "true":
+        is_eea_passportable = True
+    elif is_eea_passportable_raw == "false":
+        is_eea_passportable = False
+
+    lic.regulator_name = regulator_name
+    lic.regulator_country = regulator_country
+    lic.license_name = license_name
+    lic.license_code = license_code
+    lic.classification_dimension = request.form.get("classification_dimension", "").strip() or None
+    lic.effective_from = request.form.get("effective_from", "").strip() or None
+    lic.effective_to = request.form.get("effective_to", "").strip() or None
+    lic.is_eea_passportable = is_eea_passportable
+    lic.is_active = request.form.get("is_active") == "true"
+    db.session.commit()
+    flash(f"Updated license: {lic.license_name} ({lic.license_code})", "success")
+    return redirect(url_for("re.regulator_licenses"))
+
+
+@re_bp.route("/regulator-licenses/<int:license_id>/delete", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def delete_regulator_license(license_id):
+    lic = RegulatorLicenses.query.get_or_404(license_id)
+    name = f"{lic.license_name} ({lic.license_code})"
+    db.session.delete(lic)
+    db.session.commit()
+    flash(f"Deleted license: {name}", "success")
+    return redirect(url_for("re.regulator_licenses"))
+
+
+# ============================================================
+# Tracked Guidelines (item #133 UI, part 1) -- core team only,
+# NOT exposed to the AUDITOR role. Shows discovered documents
+# from "Check for new guidelines" across all regulators.
+# ============================================================
+
+@re_bp.route("/tracked-guidelines", methods=["GET"])
+@role_required("COMPLIFYRE", "RE")
+def tracked_guidelines():
+    """
+    Tracked Guidelines (item #133 UI, part 1) -- core team only, not
+    exposed to AUDITOR. Shows every document discovered by "Check for
+    new guidelines" across all regulators, with status and a direct
+    link to download it manually. Accepts an optional ?body_id= query
+    param to filter to a single regulator (used by the click-through
+    from the Regulator Sources page).
+    """
+    add_to_breadcrumb(request.full_path, "Tracked Guidelines")
+    body_id_filter = request.args.get("body_id", type=int)
+
+    query = (
+        RegulatoryDocuments.query
+        .join(RegulatoryBodies, RegulatoryDocuments.body_id == RegulatoryBodies.body_id)
+        .outerjoin(Guidelines, RegulatoryDocuments.guideline_id == Guidelines.id)
+        .add_columns(
+            RegulatoryBodies.name.label("regulator_name"),
+            Guidelines.enabled.label("linked_guideline_enabled"),
+            Guidelines.disabled_reason.label("linked_guideline_disabled_reason"),
+        )
+    )
+
+    filtered_regulator_name = None
+    if body_id_filter:
+        query = query.filter(RegulatoryDocuments.body_id == body_id_filter)
+        filtered_regulator = RegulatoryBodies.query.get(body_id_filter)
+        filtered_regulator_name = filtered_regulator.name if filtered_regulator else None
+
+    docs = query.order_by(RegulatoryDocuments.created_at.desc()).all()
+    return render_template(
+        "tracked_guidelines.html",
+        docs=docs,
+        filtered_regulator_name=filtered_regulator_name,
+        body_id_filter=body_id_filter,
+    )
+
+
+# ============================================================
+# "Check for new guidelines" triggers (item #133 UI, part 2) --
+# core team only, NOT exposed to the AUDITOR role. Both dispatch
+# as background Celery tasks, never run synchronously in the
+# request.
+# ============================================================
+
+@re_bp.route("/regulators/<int:body_id>/check", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def check_regulator(body_id):
+    """
+    Triggers a single regulator's "Check for new guidelines" as a
+    background Celery task -- never runs synchronously in the request,
+    since even a simple check can take real time (fetch + possible
+    Playwright rendering + LLM extraction; RBI's first real check found
+    226 documents and was not instant).
+    """
+    from app.services.check_guidelines_service import check_regulator_for_new_guidelines
+    regulator = RegulatoryBodies.query.get_or_404(body_id)
+    check_regulator_for_new_guidelines.delay(body_id)
+    flash(f"Check queued for {regulator.name}"
+          f"{' -- ' + regulator.description if regulator.description else ''}. "
+          f"Refresh in a moment to see results.", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/check-bulk", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")
+def check_regulators_bulk():
+    """
+    Triggers "Check for new guidelines" for multiple selected regulators
+    at once, dispatched as separate background Celery tasks -- processed
+    one at a time by the worker, not run in parallel within this
+    request, matching the "not a sweep, still deliberate" principle
+    agreed on for this feature.
+    """
+    from app.services.check_guidelines_service import check_regulator_for_new_guidelines
+    body_ids = request.form.getlist("body_ids", type=int)
+    if not body_ids:
+        flash("No regulators selected.", "error")
+        return redirect(url_for("re.regulators"))
+    started_at = datetime.now(timezone.utc)
+    for bid in body_ids:
+        check_regulator_for_new_guidelines.delay(bid)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({
+            "body_ids": body_ids,
+            "started_at": started_at.isoformat(),
+            "total": len(body_ids),
+        })
+    flash(f"Queued checks for {len(body_ids)} regulator(s). Refresh in a moment to see results.", "success")
+    return redirect(url_for("re.regulators"))
+
+
+@re_bp.route("/regulators/check-bulk-status", methods=["GET"])
+@role_required("COMPLIFYRE", "RE")
+def check_regulators_bulk_status():
+    """
+    Live progress endpoint for a bulk "Check Selected" batch -- polled by
+    the frontend every few seconds. Uses last_checked_at as the real
+    completion signal: check_regulator_for_new_guidelines always updates
+    it on every code path (SUCCESS, FAILED, BLOCKED, URL_NOT_FOUND), so
+    "checked since the batch started" is a reliable, real progress
+    signal without needing to track individual Celery task IDs.
+    """
+    body_ids = request.args.getlist("body_ids", type=int)
+    since_raw = request.args.get("since", "")
+    if not body_ids or not since_raw:
+        return jsonify({"error": "body_ids and since are required"}), 400
+
+    try:
+        since = datetime.fromisoformat(since_raw)
+    except ValueError:
+        return jsonify({"error": "since must be a valid ISO timestamp"}), 400
+
+    regulators = RegulatoryBodies.query.filter(RegulatoryBodies.body_id.in_(body_ids)).all()
+    results = []
+    completed = 0
+    for r in regulators:
+        is_done = r.last_checked_at is not None and r.last_checked_at.replace(tzinfo=timezone.utc) >= since
+        if is_done:
+            completed += 1
+        results.append({
+            "body_id": r.body_id,
+            "name": r.name,
+            "done": is_done,
+            "status": r.last_check_status if is_done else "PENDING",
+        })
+
+    return jsonify({
+        "total": len(body_ids),
+        "completed": completed,
+        "results": results,
+    })
