@@ -67,6 +67,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('loi.admin_reauthorize_action', invite_id=invite.id) }}" class="flex gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" name="decision" value="reauthorize" class="bg-orange-500 hover:bg-orange-600 text-white font-medium px-5 py-2.5 rounded-lg">
             Re-authorize for 14 More Days
         </button>

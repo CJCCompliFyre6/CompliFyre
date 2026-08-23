@@ -2505,6 +2505,14 @@ def clause_review():
 
     valid_types = ["OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"]
 
+    reviewed_count = sum(1 for c in clauses if c.clause_type_reviewed_at)
+    total_count = len(clauses)
+
+    completed_by_name = None
+    if guideline.clause_review_completed_by:
+        completer = Users.query.get(guideline.clause_review_completed_by)
+        completed_by_name = completer.name if completer else f"User #{guideline.clause_review_completed_by}"
+
     return render_template(
         "clause_review.html",
         guideline=guideline,
@@ -2512,6 +2520,9 @@ def clause_review():
         guideline_id=guideline_id,
         clauses=clauses,
         valid_types=valid_types,
+        reviewed_count=reviewed_count,
+        total_count=total_count,
+        completed_by_name=completed_by_name,
     )
 
 
@@ -2546,6 +2557,32 @@ def clause_review_save():
         "clause_type": new_clause_type,
         "reviewed_at": clause.clause_type_reviewed_at.strftime("%Y-%m-%d %H:%M"),
         "reviewed_by": current_user.name,
+    })
+
+
+@re_bp.route("/clause-review/mark-complete", methods=["POST"])
+@login_required
+def clause_review_mark_complete():
+    """Explicit human sign-off that clause classification review is sufficient
+    to proceed -- not tied to reviewing every single clause (Build Sequence #337).
+    Unlocks activity generation for this guideline."""
+    data = request.get_json(silent=True) or {}
+    guideline_id = data.get("guideline_id")
+    if not guideline_id:
+        return jsonify({"status": "error", "message": "guideline_id required"}), 400
+
+    guideline = Guidelines.query.get(guideline_id)
+    if not guideline:
+        return jsonify({"status": "error", "message": "Guideline not found"}), 404
+
+    guideline.clause_review_completed_at = datetime.now(timezone.utc)
+    guideline.clause_review_completed_by = current_user.id
+    db.session.commit()
+
+    return jsonify({
+        "status": "success",
+        "completed_at": guideline.clause_review_completed_at.strftime("%Y-%m-%d %H:%M"),
+        "completed_by": current_user.name,
     })
 
 
@@ -2909,6 +2946,10 @@ def regenerate_compliance_activities():
         if not guideline:
             raise ValueError("Guideline not found")
 
+        if not guideline.clause_review_completed_at:
+            return jsonify({
+                "error": "Clause classification review must be marked complete before generating activities. Visit the Clause Review page first."
+            }), 403
         file_record = File.query.filter_by(id=guideline.file_id).first()
         if not file_record:
             raise ValueError("File record not found for guideline")

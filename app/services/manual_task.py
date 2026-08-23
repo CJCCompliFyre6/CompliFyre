@@ -3240,6 +3240,23 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                 )
                 _delete_clause_data(clause_id_val)
 
+            # clause_type gating (#330/#341): only genuinely actionable clause types get
+            # activities. DEFINITION/APPLICABILITY/EXEMPTION/pure-REFERENCE clauses have
+            # nothing independently testable by definition -- generating activities for them
+            # was the root cause of #325/#327's over-generation. MIXED gets full treatment as
+            # a pragmatic interim rule until #331's refinement exists -- a false positive here
+            # is safer than silently dropping a real obligation buried in a MIXED clause.
+            NON_ACTIONABLE_TYPES = {"DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"}
+            if clause.clause_type in NON_ACTIONABLE_TYPES:
+                logger.info(
+                    "Skipping clause %s (id=%s) — clause_type=%s is not independently actionable",
+                    clause_number, clause_id_val, clause.clause_type,
+                )
+                results["skipped"].append(clause_id_val)
+                skipped_clauses += 1
+                processed_clauses += 1
+                continue
+
             # Update progress with current clause info
             update_compliance_progress(
                 self.request.id,

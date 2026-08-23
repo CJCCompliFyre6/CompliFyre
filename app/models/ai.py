@@ -189,6 +189,14 @@ class Guidelines(db.Model):
     catalogue_enabled = db.Column(db.Boolean, nullable=False, default=False)
     applicable_licenses = db.Column(db.JSON, nullable=True)
     structure_map = db.Column(db.JSON, nullable=True)
+
+    # -- Added 2026-08-20: guideline-level clause-review sign-off gate --
+    # NULL = review not yet marked complete; activity generation should be blocked.
+    # Not tied to reviewing every single clause -- an explicit human decision that
+    # review is sufficient to proceed (Build Sequence #332/#337).
+    clause_review_completed_at = db.Column(db.TIMESTAMP, nullable=True)
+    clause_review_completed_by = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
+
     regulator_body_id = db.Column(
         db.BigInteger,
         nullable=True

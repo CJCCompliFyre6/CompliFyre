@@ -562,6 +562,7 @@ function updatePrompt(id) {
     if (newText) {
         const myHeaders = new Headers();
         myHeaders.append("Content-Type", "application/json");
+        myHeaders.append("X-CSRFToken", getCsrfToken());
 
         const raw = JSON.stringify({ "prompt": newText });
 
@@ -589,6 +590,7 @@ function updatePrompt(id) {
     function deletePrompt(id) {
     const requestOptions = {
         method: 'DELETE',
+        headers: { 'X-CSRFToken': getCsrfToken() },
         redirect: 'follow'
     };
 
@@ -640,6 +642,7 @@ function updatePrompt(id) {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
+                      'X-CSRFToken': getCsrfToken(),
                   },
                   body: JSON.stringify(activity_data),
               });

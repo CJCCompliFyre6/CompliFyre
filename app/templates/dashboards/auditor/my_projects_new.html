@@ -2387,7 +2387,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const response = await fetch("{{ url_for('audit.test_procedures') }}", {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({ activities })
       });
@@ -2869,6 +2870,7 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              'X-CSRFToken': getCsrfToken(),
             },
             body: JSON.stringify({ clause_id: parseInt(clauseId, 10) })
           });
@@ -3021,6 +3023,7 @@ document.addEventListener('DOMContentLoaded', function() {
         body: formData,
         headers: {
           'Accept': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
         }
       })
         .then(response => {
@@ -3814,7 +3817,8 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({
           clause_ids: clauseIds,

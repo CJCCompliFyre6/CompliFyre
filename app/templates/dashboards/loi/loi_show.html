@@ -16,6 +16,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('loi.loi_sign') }}" class="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="flex items-start gap-2 mb-4">
             <input type="checkbox" name="authority_confirmed" required class="mt-1">
             <span class="text-sm text-gray-700">I confirm I am authorized to sign this Letter of Intent on behalf of my organization.</span>

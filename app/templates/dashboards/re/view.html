@@ -358,6 +358,7 @@
         try {
             const response = await fetch("{{ url_for('main.upload_file_and_extract_guidelines') }}", {
                 method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
                 body: formData,
             });
             if (response.status === 202) {
@@ -676,6 +677,7 @@
                                         <li>
                                             <form action="{{url_for('audit.add_my_guidelines')}}" method="POST"
                                                 class="w-full">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <input name="guideline_id" value="{{item.id}}" hidden />
                                                 <button type="submit"
                                                     class="w-full text-left block px-4 py-2 hover:bg-gray-100">Download</button>
@@ -866,6 +868,7 @@
             if (newText) {
                 const myHeaders = new Headers();
                 myHeaders.append("Content-Type", "application/json");
+                myHeaders.append("X-CSRFToken", getCsrfToken());
 
                 const raw = JSON.stringify({ "prompt": newText });
 
@@ -893,6 +896,7 @@
         function deletePrompt(id) {
             const requestOptions = {
                 method: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrfToken() },
                 redirect: 'follow'
             };
             const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
@@ -915,7 +919,8 @@
             fetch("{{ url_for('re.clause') }}", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
                 },
                 body: JSON.stringify({ id: id })
             })
@@ -959,7 +964,8 @@ Are you absolutely sure you want to continue?`;
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCsrfToken()
                     }
                 })
                     .then(response => {
@@ -1081,6 +1087,7 @@ Are you absolutely sure you want to continue?`;
             try {
                 const response = await fetch("{{url_for('main.upload_file_and_extract_guidelines')}}", {
                     method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() },
                     body: formData
                 });
 

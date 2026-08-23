@@ -188,6 +188,7 @@ function toggleSidebar() {
   
           fetch("/upload-endpoint", {
               method: "POST",
+              headers: { "X-CSRFToken": getCsrfToken() },
               body: formData
           }).then(response => response.json())
             .then(data => alert("File uploaded successfully!"))

@@ -41,6 +41,7 @@
                 + Add New Regulator
             </button>
             <form method="POST" action="/re/regulators/check-bulk" id="bulkCheckForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" id="bulkCheckBtn" disabled
                     class="bg-gray-300 text-gray-500 font-medium px-5 py-2.5 rounded-lg whitespace-nowrap cursor-not-allowed">
                     Check Selected (<span id="selectedCount">0</span>)
@@ -114,12 +115,14 @@
                     </td>
                     <td class="p-3 whitespace-nowrap">
                         <form method="POST" action="/re/regulators/{{ r.body_id }}/check" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="text-green-600 hover:text-green-800 mr-3">Check</button>
                         </form>
                         <button onclick="openEditModal({{ r.body_id }}, '{{ r.name|e }}', '{{ (r.description or '')|e }}', '{{ (r.geography or '')|e }}', '{{ (r.industry or '')|e }}', '{{ (r.governed_institutions or '')|e }}', '{{ r.website_url|e }}')"
                             class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
                         <form method="POST" action="/re/regulators/{{ r.body_id }}/delete" class="inline"
                             onsubmit="return confirm('Delete {{ r.name|e }}? This cannot be undone.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
                         </form>
                     </td>
@@ -142,6 +145,7 @@
         <h2 class="text-xl font-bold mb-4">Add New Regulator Page</h2>
         <p class="text-sm text-gray-500 mb-4">One regulator can have several listing pages (e.g. Master Directions, Draft Notifications) -- add each as its own entry with a unique URL.</p>
         <form method="POST" action="/re/regulators/add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
             <input type="text" name="name" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. Reserve Bank of India">
             <label class="block mb-1 text-sm font-medium text-gray-700">Page / Purpose Description</label>
@@ -167,6 +171,7 @@
     <div class="modal-content1">
         <h2 class="text-xl font-bold mb-4">Edit Regulator Page</h2>
         <form method="POST" id="editForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
             <input type="text" name="name" id="edit_name" required class="w-full border rounded-lg p-2 mb-3">
             <label class="block mb-1 text-sm font-medium text-gray-700">Page / Purpose Description</label>
@@ -257,7 +262,7 @@ document.getElementById('bulkCheckForm').addEventListener('submit', function(e) 
 
     fetch('/re/regulators/check-bulk', {
         method: 'POST',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCsrfToken() },
         body: formData
     })
     .then(response => response.json())

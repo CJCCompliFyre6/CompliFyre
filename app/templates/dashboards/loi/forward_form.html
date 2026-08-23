@@ -9,6 +9,7 @@
     <p class="text-gray-500 mb-6">Your own access is unaffected -- this just sends a fresh invite to your colleague.</p>
 
     <form method="POST" action="{{ url_for('loi.loi_forward_submit') }}" class="bg-white rounded-lg shadow p-6 max-w-xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="block mb-1 text-sm font-medium text-gray-700">Full Name *</label>
         <input type="text" name="forwarded_name" required class="w-full border rounded-lg p-2 mb-4">
 

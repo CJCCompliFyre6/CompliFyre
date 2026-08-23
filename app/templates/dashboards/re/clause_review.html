@@ -12,6 +12,46 @@
     <strong>Guideline:</strong> {{ guideline_name }} &nbsp;|&nbsp; <strong>{{ clauses|length }}</strong> clauses
 </div>
 
+<div id="markCompleteSection" style="background:#fff8e6; border:1px solid #e8b923; padding:15px; border-radius:8px; margin-bottom:20px;">
+{% if guideline.clause_review_completed_at %}
+    <span style="color:#1a7a1a; font-weight:600;">&check; Review marked complete</span>
+    by {{ completed_by_name }} on {{ guideline.clause_review_completed_at.strftime('%Y-%m-%d %H:%M') }}.
+    Activity generation is unlocked for this guideline.
+{% else %}
+    <strong>{{ reviewed_count }} of {{ total_count }}</strong> clauses individually reviewed.
+    Review does not need to be 100% complete -- mark complete when you judge it sufficient to proceed.
+    <br><br>
+    <button onclick="markReviewComplete()"
+            style="background:#e8720c; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:600;">
+        Mark Review Complete
+    </button>
+{% endif %}
+</div>
+
+<script>
+function markReviewComplete() {
+    if (!confirm('Mark clause classification review complete for this guideline?\n\nThis unlocks activity generation. This does not require every clause to be individually reviewed -- it is your judgment call that review is sufficient.')) return;
+
+    fetch("{{ url_for('re.clause_review_mark_complete') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+        body: JSON.stringify({guideline_id: {{ guideline_id }}})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('markCompleteSection').innerHTML =
+                '<span style="color:#1a7a1a; font-weight:600;">&check; Review marked complete</span> by ' +
+                data.completed_by + ' on ' + data.completed_at + '. Activity generation is unlocked for this guideline.';
+        } else {
+            alert('Failed: ' + data.message);
+        }
+    })
+    .catch(err => alert('Failed: ' + err));
+}
+</script>
+
+
 <table style="width:100%; border-collapse:collapse;">
     <thead>
         <tr style="background:#2E5C8A; color:white; text-align:left;">
@@ -74,7 +114,7 @@ function saveReview(clauseId) {
 
     fetch("{{ url_for('re.clause_review_save') }}", {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
         body: JSON.stringify({clause_id: clauseId, clause_type: clauseType, review_notes: notes})
     })
     .then(response => response.json())

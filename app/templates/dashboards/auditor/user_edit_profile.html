@@ -87,6 +87,7 @@
 
       <!-- FORM -->
       <form id="profile-form" method="POST" action="{{ url_for('main.edit_profile') }}" class="min-h-[300px]">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
 
         <!-- Step 1: Personal Information -->

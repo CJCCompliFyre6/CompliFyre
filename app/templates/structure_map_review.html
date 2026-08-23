@@ -151,7 +151,7 @@ async function confirmAndExtract() {
     try {
         const resp = await fetch(`/confirm-structure-map/${guidelineId}`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
             body: JSON.stringify(map),
         });
         const data = await resp.json();
@@ -177,7 +177,7 @@ async function resetMap() {
     // Clear structure map (set to null) — page reload will trigger fresh LLM generation
     const resp = await fetch(`/clear-structure-map/${guidelineId}`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
     });
     const data = await resp.json();
     if (data.status === 'success') {

@@ -83,6 +83,7 @@
         <p class="text-sm text-gray-600 font-serif mb-6 text-center">Enter your email to receive a password reset link.</p>
         
         <form method="POST" action="{{ url_for('main.request_password_reset') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="email" class="form-label font-serif text-default">Email</label>
                 <input type="email" class="w-full mt-1 px-4 py-2 border border-black rounded-md" id="email" name="email" placeholder="Enter Email" required>

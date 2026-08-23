@@ -202,7 +202,7 @@
                 try {
                     const response = await fetch("{{ url_for('main.update_guideline', guideline_id=guideline_id) }}", {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
                         body: JSON.stringify({ guideline_data: updatedData }),
                     });
 

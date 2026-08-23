@@ -59,6 +59,7 @@
       </a>
     </div>
     <form id="orgProfileForm" action="{{url_for('audit.create_organization_post')}}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-row">
         <div class="form-group">
           <label>Firm Name</label>

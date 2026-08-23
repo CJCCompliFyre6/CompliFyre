@@ -800,8 +800,7 @@
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            // Add CSRF token if needed
-            // 'X-CSRFToken': getCSRFToken()
+            'X-CSRFToken': getCsrfToken(),
           }
         });
 

@@ -15,6 +15,7 @@
     <div class="flex w-auto mx-8 p-8 my-4 bg-orange-100 z-1 rounded-xl justify-center items-center">
         <form id="projectForm" action="{{url_for('audit.update_project', project_id=project.id)}}" method="POST"
             class="p-8 bg-orange-200 rounded-xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <h2 class="text-2xl font-bold mb-6 text-center">Edit Project: {{ project.project_name }}</h2>
 
             <div class="form-row">

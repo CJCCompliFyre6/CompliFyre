@@ -378,6 +378,7 @@
                   <form id="evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
                     enctype="multipart/form-data" method="POST" action="{{url_for('re.evidences')}}"
                     class="{% if value.evidence_ans or value.files %}hidden-form{% endif %}" hidden disabled>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="evidence_id" value="{{ value.id }}" />
                     <input type="hidden" name="evidence_item" value="{{ value.item }}" />
                     <label class="block text-gray-700 text-sm font-bold mb-1">
@@ -431,6 +432,7 @@
                   <div class="flex justify-between items-start mb-2">
                     <form enctype="multipart/form-data" method="POST" action="{{url_for('audit.new_evidances')}}"
                       class="max-w-md mx-auto bg-white shadow-md rounded-lg p-6 space-y-4" hidden disabled>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <h2 class="text-xl font-bold mb-4 text-gray-700">Submit New Evidence Artifact</h2>
                       <input type="hidden" name="control_id" value="{{ item.data.activity_id }}">
                       <!-- Category Input -->
@@ -525,6 +527,7 @@
                         action="{{ url_for('audit.submit_interview_answer') }}"
                         class="{% if q.answer and not request.args.get('new_question_id') == q.id|string %}hidden-form{% endif %}"
                         hidden disabled>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="question_id" value="{{ q.id }}" />
 
                         <div id="interview_q_editor_{{ item_loop_idx }}_{{ loop.index0 }}"
@@ -559,6 +562,7 @@
                       class="hidden p-6 bg-white rounded-lg shadow-md">
                       <h3 class="text-xl font-bold mb-4">Add a New Question</h3>
                       <form method="POST" action="{{ url_for('audit.add_interview_question') }}" hidden disabled>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="activity_id" value="{{ item.data.activity_id }}">
                         <div class="mb-4">
                           <label for="new_question_{{ item_loop_idx }}"
@@ -583,6 +587,7 @@
               <div>
                 <form id="mom_upload_{{ item_loop_idx }}" method="POST"
                   action="{{url_for('audit.answer_question_from_mom')}}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <label for="minute_of_meeting_{{ item_loop_idx }}"
                     class="block text-gray-700 text-sm font-bold mr-2">Upload Minute of The Meetings:
                   </label>
@@ -686,6 +691,7 @@
                     action="{{url_for('re.evidences')}}"
                     class="{% if value.evidence_ans or value.files %}hidden-form{% endif %}"
                   >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input
                       type="hidden"
                       name="evidence_id"
@@ -799,6 +805,7 @@
           action="{{url_for('audit.update_control_activity')}}"
           class="{% if item.data.control_finding or item.data.control_recomend %}hidden-form{% endif %}" hidden
           disabled>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="activity_id" value="{{item.data.activity_id}}" />
 
           <label class="block mb-2 text-sm font-medium text-gray-700">

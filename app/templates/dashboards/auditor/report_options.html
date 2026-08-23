@@ -60,6 +60,7 @@
 
         <form id="reportOptionsForm"
             action="{{ url_for('re.generate_audit_report', project_id=project.id) }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Question 1: Report Format -->
             <div class="bg-white p-6 rounded-lg shadow-md mb-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">1. Select Report Format</h3>

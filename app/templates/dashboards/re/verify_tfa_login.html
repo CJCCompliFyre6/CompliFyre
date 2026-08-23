@@ -84,6 +84,7 @@
         <p class="text-sm text-gray-600 font-serif mb-6 text-center">Enter the code from your authenticator app.</p>
         
         <form method="POST" action="{{ url_for('main.verify_tfa_login') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="token" class="form-label font-serif text-default">6-Digit Code</label>
                 <input type="text" class="w-full mt-1 px-4 py-2 border border-black rounded-md text-center" id="token" name="token" required pattern="\d{6}" maxlength="6" autofocus>

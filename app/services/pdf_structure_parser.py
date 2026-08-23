@@ -226,9 +226,10 @@ def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, bo
 
 def extract_table_clauses(page, page_num, position):
     nodes = []
+    cell_texts = set()
     tables = page.extract_tables()
     if not tables:
-        return nodes
+        return nodes, cell_texts
     page_text = page.extract_text() or ''
     lines_above = [l.strip() for l in page_text.split('\n') if l.strip()]
     table_title = ' | '.join(lines_above[-3:]) if lines_above else f'Table on page {page_num}'
@@ -243,6 +244,8 @@ def extract_table_clauses(page, page_num, position):
             row_parts = []
             for col_idx, cell in enumerate(row):
                 cell_text = str(cell).strip() if cell else ''
+                if cell_text:
+                    cell_texts.add(cell_text)
                 if cell_text and col_idx < len(headers) and headers[col_idx]:
                     row_parts.append(f"{headers[col_idx]}: {cell_text}")
                 elif cell_text:
@@ -261,7 +264,7 @@ def extract_table_clauses(page, page_num, position):
                 'children': [],
                 'is_table_row': True,
             })
-    return nodes
+    return nodes, cell_texts
 
 
 
@@ -409,12 +412,18 @@ def parse_pdf_structure(file_path, structure_map=None):
                 all_ambiguous_matches.append((page_num + 1, digit, ctx))
             has_tables = bool(plumber_page.extract_tables())
             table_nodes = []
+            table_cell_texts = set()
             if has_tables:
-                table_nodes = extract_table_clauses(plumber_page, page_num + 1, position)
+                table_nodes, table_cell_texts = extract_table_clauses(plumber_page, page_num + 1, position)
             lines = clean_text.split('\n')
             for line in lines:
                 stripped = line.strip()
                 if not stripped:
+                    continue
+                # Skip lines already correctly captured as a complete table row above --
+                # prevents the same table content being duplicated as a broken,
+                # context-free fragment clause (Build Sequence #344).
+                if stripped in table_cell_texts:
                     continue
 
                 # Section detection — only in regex fallback mode

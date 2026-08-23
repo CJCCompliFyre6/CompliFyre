@@ -39,6 +39,7 @@
         <div class="max-w-8xl mx-auto my-8">
           <h2 class="text-2xl font-bold mb-6">Branch Office Locations</h2>
           <form action="/submit-locations" method="POST" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <!-- Dynamic Locations -->
           <div id="locations-container" class="space-y-6">
             <!-- Locations will be appended here -->
@@ -101,6 +102,7 @@
     <h2 class="text-2xl font-bold mb-6">Certificates</h2>
 
     <form action="/submit-certificates" method="POST" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div id="certificates-container" class="space-y-6">
         <!-- Certificate blocks will appear here -->
       </div>
@@ -135,6 +137,7 @@
     <h2 class="text-2xl font-bold mb-6">Audit Focus Areas</h2>
 
     <form action="/submit-focus-areas" method="POST" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div id="focus-areas-container" class="space-y-6">
         <!-- Focus area blocks will appear here -->
       </div>
@@ -169,6 +172,7 @@
     <h2 class="text-2xl font-bold mb-6">Organizational Hierarchy</h2>
 
     <form action="/submit-hierarchy" method="POST" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div id="hierarchy-container" class="space-y-6">
         <!-- Position blocks go here -->
       </div>
@@ -210,6 +214,7 @@
     <h2 class="text-2xl font-bold mb-6">Primary Contact Person</h2>
 
     <form action="/submit-contacts" method="POST" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div id="contact-container" class="space-y-6">
         <!-- Contact blocks get added here -->
       </div>

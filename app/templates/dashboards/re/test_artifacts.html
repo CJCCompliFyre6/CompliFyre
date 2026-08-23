@@ -351,6 +351,7 @@
       </div>
       <!--<div class="flex">
           <form action="{{url_for('audit.reevaluate_activity')}}" enctype="multipart/form-data" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input name="activity_code" value="{{item.data.id}}" hidden/>
             <textarea name="user_input" placeholder="Additional user input"></textarea>
             <button
@@ -488,6 +489,7 @@
                     <div class="flex items-center space-x-2">
                       <form id="evidence_delete_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
                         enctype="multipart/form-data" method="POST" action="{{url_for('audit.delete_evidence')}}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="evidence_id" value="{{ value.id }}" />
                         <button class="edit-btn">
                           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -831,6 +833,7 @@
                 <form id="evidence_form_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
                   enctype="multipart/form-data" method="POST" action="{{url_for('re.evidences')}}"
                   class="{% if value.evidence_ans or value.files %}hidden-form{% endif %}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="evidence_clause_description"
                     value="{{ item.data.activity_description  }}" />
                   <input type="hidden" name="evidence_id" value="{{ value.id }}" />
@@ -886,6 +889,7 @@
                 <div class="flex justify-between items-start mb-2">
                   <form enctype="multipart/form-data" method="POST" action="{{url_for('audit.new_evidances')}}"
                     class="max-w-md mx-auto bg-white shadow-md rounded-lg p-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <h2 class="text-xl font-bold mb-4 text-gray-700">Submit New Evidence Artifact</h2>
                     <input type="hidden" name="control_id" value="{{ item.data.activity_id }}">
                     <div>
@@ -955,6 +959,7 @@
                     <div class="flex items-center space-x-2">
                       <form id="question_delete_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
                         enctype="multipart/form-data" method="POST" action="{{url_for('audit.delete_question')}}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="question_id" value="{{ q.id }}" />
                         <button class="del-btn">
                           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -992,6 +997,7 @@
                     <form id="interview_form_{{ item_loop_idx }}_{{ loop.index0 }}" method="POST"
                       action="{{ url_for('audit.submit_interview_answer') }}" class="{% if q.answer | safe != " None"
                       %}hidden-form{% endif %}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <input type="hidden" name="question_id" value="{{ q.id }}" />
 
                       <div id="interview_editor_{{ item_loop_idx }}_{{ loop.index0 }}"
@@ -1026,6 +1032,7 @@
                     class="hidden p-6 bg-white rounded-lg shadow-md">
                     <h3 class="text-xl font-bold mb-4">Add a New Question</h3>
                     <form method="POST" action="{{ url_for('audit.add_interview_question') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <input type="hidden" name="activity_id" value="{{ item.data.activity_id }}">
                       <div class="mb-4">
                         <label for="new_question_{{ item_loop_idx }}"
@@ -1050,6 +1057,7 @@
             <div>
               <form id="mom_upload_{{ item_loop_idx }}" method="POST"
                 action="{{url_for('audit.answer_question_from_mom')}}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label for="minute_of_meeting_{{ item_loop_idx }}"
                   class="block text-gray-700 text-sm font-bold mr-2">Upload Minute of The Meetings:
                 </label>
@@ -2023,6 +2031,7 @@
   <form method="POST" id="complianceForm_{{ item_loop_idx }}" action="{{url_for('audit.update_control_activity')}}"
     class="{% if item.data.findings or item.data.recommendations or item.data.observation %}hidden-form{% endif %}"
     style="display:none !important">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="activity_id" value="{{item.data.activity_id}}" />
 
     <label class="block mb-2 text-sm font-medium text-gray-700">
@@ -2540,7 +2549,7 @@
 
     fetch('/audit/reevaluate_activity', {
       method: 'POST',
-      headers: {'Accept': 'application/json'},
+      headers: {'Accept': 'application/json', 'X-CSRFToken': getCsrfToken()},
       body: formData,
     })
     .then(() => {
@@ -2617,7 +2626,7 @@
   function acceptFinding(pcaId, findingId, idx) {
     fetch('/audit/finding/review', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
       body: JSON.stringify({pca_id: pcaId, finding_id: findingId, action: 'CONFIRMED'})
     })
     .then(r => r.json())
@@ -2660,7 +2669,7 @@
 
     fetch('/audit/finding/review', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
       body: JSON.stringify({pca_id: pcaId, finding_id: findingId, action: 'CLOSED', rationale: rationale})
     })
     .then(r => r.json())
@@ -2803,7 +2812,7 @@
   }
 
   function confirmReevaluate(idx, pcaId) {
-    fetch('/audit/activity/reset/' + pcaId, {method: 'POST'})
+    fetch('/audit/activity/reset/' + pcaId, {method: 'POST', headers: {'X-CSRFToken': getCsrfToken()}})
     .then(r => r.json())
     .then(data => {
       if (data.success) {
@@ -2926,6 +2935,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
           },
           body: JSON.stringify({
             activity_id: activityId,
@@ -3083,6 +3093,7 @@
 
     fetch('/re/upload_test_procedure_files', {
       method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
       body: formData
     })
       .then(response => response.json())
@@ -3263,6 +3274,7 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
       },
       body: JSON.stringify({
         file_id: parseInt(fileId),
@@ -3987,7 +3999,7 @@ function deleteMainContent(target, itemId, field, activityId, deleteBtn) {
     
     fetch('/re/delete_test_procedure_main_content', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({
             activity_id: parseInt(activityId),
             field: target  // 'walkthrough' or 'sampling'
@@ -4032,7 +4044,7 @@ function deleteAdditionalContent(target, itemId, field, activityId, deleteBtn) {
     
     fetch('/re/delete_test_procedure_content', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({
             activity_id: parseInt(activityId),
             field: field  // 'additional_walkthrough' or 'additional_sampling'
@@ -4114,6 +4126,7 @@ function runAttributeTest(idx, activityId) {
 
     fetch('/audit/upload_test_data', {
         method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
         body: formData
     })
     .then(response => response.json())

@@ -143,6 +143,7 @@
       <main>
         <!-- Step 1: Organization Information -->
         <form class="form-step" data-step="0" novalidate method="POST" action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="0">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Organization Information</h2>
@@ -285,6 +286,7 @@
         <!-- Step 2: Other Key Locations -->
         <form class="form-step hidden" data-step="1" novalidate method="POST"
           action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="1">
           <input type="hidden" id="locations_data" name="locations_data" value="">
 
@@ -340,6 +342,7 @@
         <!-- Step 3: Departments -->
         <form class="form-step hidden" data-step="2" novalidate method="POST"
           action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="2">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Departments</h2>
@@ -390,6 +393,7 @@
         <!-- Step 4: Business Overview -->
         <form class="form-step hidden" data-step="3" novalidate method="POST"
           action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="3">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Business Overview</h2>
@@ -441,6 +445,7 @@
         <!-- Step 5: Organization Structure -->
         <form class="form-step hidden" data-step="4" novalidate method="POST"
           action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="4">
           <input type="hidden" id="positions_data" name="positions_data" value="">
 
@@ -475,6 +480,7 @@
         <!-- Step 6: Financial Overview -->
         <form class="form-step hidden" data-step="5" novalidate method="POST"
           action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="5">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Financial Overview</h2>
@@ -565,6 +571,7 @@
         <!-- Step 7: Directors -->
         <form class="form-step hidden" data-step="6" novalidate method="POST"
           action="{{ url_for('re.add_new_client') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="6">
           <input type="hidden" id="directors_data" name="directors_data" value="" />
 

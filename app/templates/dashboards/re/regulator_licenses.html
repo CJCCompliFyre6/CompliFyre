@@ -94,6 +94,7 @@
                         class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
                         <form method="POST" action="/re/regulator-licenses/{{ l.id }}/delete" class="inline"
                             onsubmit="return confirm('Delete {{ l.license_name|e }} ({{ l.license_code|e }})? This cannot be undone.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
                         </form>
                     </td>
@@ -115,6 +116,7 @@
     <div class="modal-content1">
         <h2 class="text-xl font-bold mb-4">Add New License</h2>
         <form method="POST" action="/re/regulator-licenses/add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
             <input type="text" name="regulator_name" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. Reserve Bank of India">
             <label class="block mb-1 text-sm font-medium text-gray-700">Country *</label>
@@ -162,6 +164,7 @@
     <div class="modal-content1">
         <h2 class="text-xl font-bold mb-4">Edit License</h2>
         <form method="POST" id="editForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
             <input type="text" name="regulator_name" id="edit_regulator_name" required class="w-full border rounded-lg p-2 mb-3">
             <label class="block mb-1 text-sm font-medium text-gray-700">Country *</label>

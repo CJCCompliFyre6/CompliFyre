@@ -356,6 +356,7 @@
           </div>
 
           <form action="{{url_for('main.create_user')}}" method="POST" class="space-y-6 text text-black">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
               <label for="role" class="block text-sm font-medium text-gray-800 mb-1">Account Type</label>
               <select id="role" name="role"
