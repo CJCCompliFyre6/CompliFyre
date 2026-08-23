@@ -260,7 +260,7 @@
   document.querySelectorAll('.toggle-active-btn').forEach(btn => {
   btn.addEventListener('click', function() {
     const promptId = this.dataset.index;
-    fetch(`/toggle_prompt/${promptId}`, { method: 'POST' })
+    fetch(`/toggle_prompt/${promptId}`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
       .then(res => res.json())
       .then(data => {
         if (data.status === 'success') location.reload();

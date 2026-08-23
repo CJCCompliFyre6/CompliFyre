@@ -756,6 +756,7 @@
         </div>
 
         <button id="exportCSV" onclick="exportAllClausesCSV()">Export All Clauses to CSV</button>
+        <a href="/re/clause-review?guideline_id={{ guideline_id }}" style="background:#2E5C8A; color:white; padding:8px 16px; border-radius:6px; text-decoration:none; margin-left:10px; display:inline-block;">📋 Review Classifications{% if guideline.clause_review_completed_at %} ✓{% endif %}</a>
     </div>
 
     <!-- Progress Modal for Compliance Activities Extraction -->
@@ -895,6 +896,7 @@
 </div>
 
 <script>
+        const clauseReviewCompleted = {{ 'true' if guideline.clause_review_completed_at else 'false' }};
 async function retryPendingActivities(guidelineId) {
     const btn = document.getElementById('retryBtn');
     if (btn) {
@@ -905,7 +907,7 @@ async function retryPendingActivities(guidelineId) {
     try {
         const res = await fetch(`/re/retry-pending-activities`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
             body: JSON.stringify({ guideline_id: guidelineId })
         });
         const data = await res.json();
@@ -1476,6 +1478,7 @@ Activities will be generated in background.`);
             if (newText) {
                 const myHeaders = new Headers();
                 myHeaders.append("Content-Type", "application/json");
+                myHeaders.append("X-CSRFToken", getCsrfToken());
                 const raw = JSON.stringify({ "prompt": newText });
                 const requestOptions = {
                     method: 'PUT',
@@ -1500,6 +1503,7 @@ Activities will be generated in background.`);
         } function deletePrompt(id) {
             const requestOptions = {
                 method: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrfToken() },
                 redirect: 'follow'
             };
             const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
@@ -1610,6 +1614,7 @@ Activities will be generated in background.`);
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     },
                     body: JSON.stringify({ id: clauseid }),
                 });
@@ -1631,6 +1636,11 @@ Activities will be generated in background.`);
 
 
         async function regenerateComplianceActivity(clauseid) {
+            if (!clauseReviewCompleted) {
+                alert('Clause classification review must be marked complete before generating activities.\n\nRedirecting to the Clause Review page...');
+                window.location.href = '/re/clause-review?guideline_id={{ guideline_id }}';
+                return;
+            }
             try {
                 if (!confirm('This will delete existing compliance activities and generate new ones. Do you want to continue?')) {
                     return;
@@ -1641,6 +1651,7 @@ Activities will be generated in background.`);
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     },
                     body: JSON.stringify({ id: clauseid }),
                 });
@@ -1667,6 +1678,7 @@ Activities will be generated in background.`);
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     },
                     body: JSON.stringify({ id: clauseid }),
                 });
@@ -1742,7 +1754,8 @@ Activities will be generated in background.`);
                 const response = await fetch(generateAllComplianceUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
                     },
                     body: JSON.stringify({ clause_ids: clauseIds })
                 });
@@ -1791,7 +1804,7 @@ Activities will be generated in background.`);
             // POST to store session (optional), then redirect to GET with guideline_id
             fetch("{{ url_for('re.clause') }}", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
                 body: JSON.stringify({ id: id })
             })
                 .then(response => {
@@ -1913,6 +1926,7 @@ Activities will be generated in background.`);
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     },
                     body: JSON.stringify({
                         clause_number: newClauseNumber
@@ -2050,6 +2064,7 @@ Are you sure you want to continue?`;
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     }
                 })
                     .then(response => {
@@ -2241,6 +2256,7 @@ Are you sure you want to continue?`;
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     },
                     body: JSON.stringify({
                         clause_ids: clauseIds,
@@ -2350,6 +2366,11 @@ Are you sure you want to continue?`;
     <script>
         // Function to generate compliance activities for selected clauses only
         async function generateSelectedComplianceActivities() {
+            if (!clauseReviewCompleted) {
+                alert('Clause classification review must be marked complete before generating activities.\n\nRedirecting to the Clause Review page...');
+                window.location.href = '/re/clause-review?guideline_id={{ guideline_id }}';
+                return;
+            }
             if (selectedClauses.size === 0) {
                 alert('Please select at least one clause to generate compliance activities.');
                 return;
@@ -2373,6 +2394,7 @@ Are you sure you want to continue?`;
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
                     },
                     body: JSON.stringify({
                         clause_ids: clauseIds,
@@ -2574,6 +2596,7 @@ Are you sure you want to continue?`;
 
             fetch("{{ url_for('audit.complifyre_consolidate_evidence') }}", {
                 method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
                 body: formData
             })
                 .then(response => response.json())
@@ -2864,6 +2887,11 @@ Are you sure you want to continue?`;
             URL.revokeObjectURL(url);
         }
         function extractAllActivities() {
+            if (!clauseReviewCompleted) {
+                alert('Clause classification review must be marked complete before generating activities.\n\nRedirecting to the Clause Review page...');
+                window.location.href = '/re/clause-review?guideline_id={{ guideline_id }}';
+                return;
+            }
             const guidelineId = {{ guideline_id }};
             const btn = document.getElementById('extractAllBtn');
 
@@ -2877,7 +2905,7 @@ Are you sure you want to continue?`;
 
             fetch(`/extract-all/${guidelineId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() }
             })
             .then(res => res.json())
             .then(data => {

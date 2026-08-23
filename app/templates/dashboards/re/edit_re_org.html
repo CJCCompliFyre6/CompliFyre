@@ -145,6 +145,7 @@
         <!-- organization information -->
         <form class="form-step" data-step="0" novalidate method="POST"
           action="{{ url_for('re.edit_re_profile', org_id=organization.organization_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="current_step" value="0">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Orginization Information</h2>
@@ -299,6 +300,7 @@
 
         <form class="form-step hidden" data-step="1" novalidate method="POST"
           action="{{ url_for('re.edit_organization_locations', org_id=organization.organization_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="locations_data" name="locations_data" value="">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Other Key Locations</h2>
@@ -370,6 +372,7 @@
         <!-- Step 2: Departments -->
         <form class="form-step hidden" data-step="2" novalidate method="POST"
           action="{{url_for('re.manage_departments', organization_id=organization.organization_id)}}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Departments</h2>
           <div class="space-y-4 max-w-xl">
@@ -424,6 +427,7 @@
 
         <form class="form-step hidden" data-step="3" novalidate method="POST"
           action="{{ url_for('re.edit_organization_business_overview', org_id=organization.organization_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Business Overview</h2>
           <div class="space-y-4 max-w-xl">
@@ -479,6 +483,7 @@
         <!-- step 4: org structure -->
         <form class="form-step hidden" data-step="4" novalidate method="POST"
           action="{{ url_for('re.edit_organization_structure', org_id=organization.organization_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
           <!-- Hidden field to store positions data -->
           <input type="hidden" id="positions_data" name="positions_data" value="">
@@ -530,6 +535,7 @@
         <!-- step 5 : Financial Overview -->
         <form class="form-step hidden" data-step="5" novalidate method="POST"
           action="{{ url_for('re.save_financial_overview', organization_id=organization.organization_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Financial Overview</h2>
 
           <div class="space-y-4 max-w-xl">
@@ -630,6 +636,7 @@
         <!-- step 6 : Directors -->
         <form class="form-step hidden" data-step="6" novalidate method="POST"
           action="{{ url_for('re.save_directors', organization_id=organization.organization_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <h2 class="text-2xl font-semibold mb-6 text-orange-800">Director Details</h2>
 
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end max-w-6xl mb-4">

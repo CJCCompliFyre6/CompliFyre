@@ -102,11 +102,12 @@ class Config:
     SESSION_COOKIE_SAMESITE = "Lax"
     PERMANENT_SESSION_LIFETIME = 1800
 
-    # --- S-19: CSRF, opt-in mode. CSRFProtect() is initialized in __init__.py
-    # but WTF_CSRF_CHECK_DEFAULT=False means NO route is protected until it
-    # explicitly opts in via @csrf.protect. Nothing breaks by enabling this --
-    # it only unblocks incremental per-route hardening going forward.
-    WTF_CSRF_CHECK_DEFAULT = False
+    # --- S-53: CSRF enforcement fully active (2026-08-21). All 41 POST-form
+    # templates have hidden csrf_token fields; all 89+ mutating fetch() calls
+    # send X-CSRFToken headers via the shared getCsrfToken() helper deployed
+    # to both base templates. Both form-field and header token paths verified
+    # via flask_wtf's WTF_CSRF_HEADERS = ['X-CSRFToken', 'X-CSRF-Token'].
+    WTF_CSRF_CHECK_DEFAULT = True
 
 
 class DevelopmentConfig(Config):

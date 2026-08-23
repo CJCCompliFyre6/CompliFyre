@@ -24,6 +24,16 @@
         {% endif %}
     {% endwith %}
 
+    <div id="bulkCheckProgress" class="hidden mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
+        <div class="flex items-center justify-between mb-2">
+            <span id="bulkCheckProgressText" class="text-sm font-medium text-blue-800">Checking regulators for new guidelines...</span>
+            <span id="bulkCheckProgressCount" class="text-sm text-blue-600 font-medium">0 / 0</span>
+        </div>
+        <div class="w-full bg-blue-200 rounded-full h-2.5">
+            <div id="bulkCheckProgressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+    </div>
+
     <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div class="flex items-center gap-3">
             <button onclick="openAddModal()"
@@ -31,9 +41,9 @@
                 + Add New Regulator
             </button>
             <form method="POST" action="/re/regulators/check-bulk" id="bulkCheckForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" id="bulkCheckBtn" disabled
-                    class="bg-gray-300 text-gray-500 font-medium px-5 py-2.5 rounded-lg whitespace-nowrap cursor-not-allowed"
-                    onclick="return confirm('Check ' + document.querySelectorAll('.row-checkbox:checked').length + ' selected regulator(s) for new guidelines?');">
+                    class="bg-gray-300 text-gray-500 font-medium px-5 py-2.5 rounded-lg whitespace-nowrap cursor-not-allowed">
                     Check Selected (<span id="selectedCount">0</span>)
                 </button>
             </form>
@@ -105,12 +115,14 @@
                     </td>
                     <td class="p-3 whitespace-nowrap">
                         <form method="POST" action="/re/regulators/{{ r.body_id }}/check" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="text-green-600 hover:text-green-800 mr-3">Check</button>
                         </form>
                         <button onclick="openEditModal({{ r.body_id }}, '{{ r.name|e }}', '{{ (r.description or '')|e }}', '{{ (r.geography or '')|e }}', '{{ (r.industry or '')|e }}', '{{ (r.governed_institutions or '')|e }}', '{{ r.website_url|e }}')"
                             class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
                         <form method="POST" action="/re/regulators/{{ r.body_id }}/delete" class="inline"
                             onsubmit="return confirm('Delete {{ r.name|e }}? This cannot be undone.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
                         </form>
                     </td>
@@ -133,6 +145,7 @@
         <h2 class="text-xl font-bold mb-4">Add New Regulator Page</h2>
         <p class="text-sm text-gray-500 mb-4">One regulator can have several listing pages (e.g. Master Directions, Draft Notifications) -- add each as its own entry with a unique URL.</p>
         <form method="POST" action="/re/regulators/add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
             <input type="text" name="name" required class="w-full border rounded-lg p-2 mb-3" placeholder="e.g. Reserve Bank of India">
             <label class="block mb-1 text-sm font-medium text-gray-700">Page / Purpose Description</label>
@@ -158,6 +171,7 @@
     <div class="modal-content1">
         <h2 class="text-xl font-bold mb-4">Edit Regulator Page</h2>
         <form method="POST" id="editForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block mb-1 text-sm font-medium text-gray-700">Regulator Name *</label>
             <input type="text" name="name" id="edit_name" required class="w-full border rounded-lg p-2 mb-3">
             <label class="block mb-1 text-sm font-medium text-gray-700">Page / Purpose Description</label>
@@ -234,6 +248,72 @@ function updateSelectedCount() {
         btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
         btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'text-white');
     }
+}
+
+document.getElementById('bulkCheckForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+    const bodyIds = Array.from(checkedBoxes).map(cb => cb.value);
+    if (bodyIds.length === 0) return;
+    if (!confirm('Check ' + bodyIds.length + ' selected regulator(s) for new guidelines?')) return;
+
+    const formData = new FormData();
+    bodyIds.forEach(id => formData.append('body_ids', id));
+
+    fetch('/re/regulators/check-bulk', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCsrfToken() },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        startBulkCheckPolling(data.body_ids, data.started_at, data.total);
+    })
+    .catch(error => {
+        alert('Failed to start the bulk check: ' + error);
+    });
+});
+
+function startBulkCheckPolling(bodyIds, startedAt, total) {
+    const progressDiv = document.getElementById('bulkCheckProgress');
+    const progressText = document.getElementById('bulkCheckProgressText');
+    const progressCount = document.getElementById('bulkCheckProgressCount');
+    const progressBar = document.getElementById('bulkCheckProgressBar');
+
+    progressDiv.classList.remove('hidden');
+    progressText.textContent = 'Checking regulators for new guidelines...';
+    progressCount.textContent = '0 / ' + total;
+    progressBar.style.width = '0%';
+
+    const params = new URLSearchParams();
+    bodyIds.forEach(id => params.append('body_ids', id));
+    params.append('since', startedAt);
+
+    let elapsedPolls = 0;
+    const maxPolls = 200; // ~10 minutes at 3s intervals -- safety net, not an expected duration
+
+    const pollInterval = setInterval(() => {
+        elapsedPolls++;
+        fetch('/re/regulators/check-bulk-status?' + params.toString())
+            .then(response => response.json())
+            .then(data => {
+                const pct = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 100;
+                progressCount.textContent = data.completed + ' / ' + data.total;
+                progressBar.style.width = pct + '%';
+                if (data.completed >= data.total) {
+                    clearInterval(pollInterval);
+                    progressText.textContent = 'Done — refreshing...';
+                    setTimeout(() => window.location.reload(), 1000);
+                } else if (elapsedPolls >= maxPolls) {
+                    clearInterval(pollInterval);
+                    progressText.textContent = 'Still running in the background — refresh the page later to see full results.';
+                }
+            })
+            .catch(error => {
+                clearInterval(pollInterval);
+                progressText.textContent = 'Progress check failed — the checks may still be running in the background.';
+            });
+    }, 3000);
 }
 </script>
 {% endblock %}

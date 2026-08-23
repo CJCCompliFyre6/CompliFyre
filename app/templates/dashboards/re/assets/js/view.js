@@ -108,6 +108,7 @@ function uploadFile() {
 
     fetch("/upload-endpoint", {
       method: "POST",
+      headers: { "X-CSRFToken": getCsrfToken() },
       body: formData,
     })
       .then((response) => response.json())
@@ -226,6 +227,7 @@ async function submitLink(event) {
 
   var myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
+  myHeaders.append("X-CSRFToken", getCsrfToken());
 
   var raw = JSON.stringify({ url: linkValue });
 
@@ -296,6 +298,7 @@ function fetchPDFs(event) {
   // API request
   const myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
+  myHeaders.append("X-CSRFToken", getCsrfToken());
 
   const raw = JSON.stringify({ url: userUrl });
 

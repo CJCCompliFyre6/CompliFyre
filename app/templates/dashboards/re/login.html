@@ -293,6 +293,7 @@ body {
 
       <!-- Login Form -->
       <form method="POST" action="{{ url_for('main.login_user_route') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row gy-3">
                   <div class="col-xl-12">
                     <label for="email" class="form-label font-serif text-default">Email</label>

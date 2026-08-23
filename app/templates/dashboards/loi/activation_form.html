@@ -15,6 +15,7 @@
     {% endwith %}
 
     <form method="POST" action="{{ url_for('loi.activation_submit', token_hash=invite.token_hash) }}" class="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="block mb-1 text-sm font-medium text-gray-700">Email</label>
         <input type="email" value="{{ invite.email }}" readonly class="w-full border rounded-lg p-2 mb-4 bg-gray-100 text-gray-500">
 

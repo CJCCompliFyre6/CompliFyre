@@ -102,6 +102,7 @@
             <div class="bg-orange-200 max-w-5xl w-full rounded-3xl shadow-lg p-6 md:p-10 relative">
                 
                     <form action="{{url_for('main.create_prompt')}}" method="POST" id="ai-prompt-form" class="form-step flex flex-col items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <h2 class="text-2xl font-semibold mb-6 text-orange-800">AI Prompt Information</h2>
                         <div class="space-y-4 max-w-xl">
                             

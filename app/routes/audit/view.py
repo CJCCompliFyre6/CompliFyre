@@ -191,37 +191,6 @@ def create_organization():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@audit_bp.route("/test_email_delivery")
-def test_email_delivery():
-    """Test if emails are actually being delivered"""
-    try:
-        success = send_contact_credentials_email(
-            contact_email="shruzzekbote@gmail.com",
-            contact_name="Test User",
-            organization_name="Test Organization",
-            login_url="http://127.0.0.1:5000/login",
-            temp_password="TestPass123",
-        )
-
-        if success:
-            return """
-            <h1>✅ Email Sent Successfully!</h1>
-            <p>The email was sent successfully from the SMTP server.</p>
-            <p><strong>Next steps:</strong></p>
-            <ol>
-                <li>Check the spam/junk folder in Gmail</li>
-                <li>Wait 5-10 minutes for delivery</li>
-                <li>Check email headers for delivery status</li>
-            </ol>
-            <p>If still not received, there might be delivery issues with the receiving server.</p>
-            """
-        else:
-            return "<h1>❌ Email Failed to Send</h1><p>Check the server logs for details.</p>"
-
-    except Exception as e:
-        return f"<h1>Error</h1><p>{str(e)}</p>"
-
-
 @audit_bp.route("/edit_profile", methods=["GET", "POST"])
 @login_required
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
@@ -3215,37 +3184,6 @@ def fetch_complifyre_evidence_for_guideline(guideline_id, applicable_clause_nos)
         return []
 
 
-@audit_bp.route("/debug-redis")
-def debug_redis():
-    """Debug Redis connection"""
-    try:
-        redis_conn = get_redis_connection()
-        # Test basic operations
-        test_key = f"debug_test_{datetime.now().timestamp()}"
-        redis_conn.setex(test_key, 30, "test_value")
-        value = redis_conn.get(test_key)
-        redis_conn.delete(test_key)
-
-        if value == "test_value":
-            return jsonify(
-                {
-                    "status": "SUCCESS",
-                    "message": "Redis connection is working correctly",
-                }
-            )
-        else:
-            return jsonify(
-                {"status": "FAILED", "message": f"Redis returned wrong value: {value}"}
-            )
-    except Exception as e:
-        return (
-            jsonify(
-                {"status": "ERROR", "message": f"Redis connection failed: {str(e)}"}
-            ),
-            500,
-        )
-
-
 @audit_bp.route("/evidence-consolidation-progress/<task_id>")
 def evidence_consolidation_progress(task_id):
     """SSE endpoint for evidence consolidation progress."""
@@ -3336,19 +3274,6 @@ def api_task_progress(task_id):
             ),
             500,
         )
-
-
-@audit_bp.route("/debug-config")
-def debug_config():
-    """Debug configuration settings."""
-    config = {
-        "REDIS_HOST": current_app.config.get("REDIS_HOST"),
-        "REDIS_PORT": current_app.config.get("REDIS_PORT"),
-        "REDIS_PASSWORD": "***" if current_app.config.get("REDIS_PASSWORD") else None,
-        "CELERY_REDIS_DB": current_app.config.get("CELERY_REDIS_DB"),
-        "DEBUG": current_app.config.get("DEBUG"),
-    }
-    return jsonify(config)
 
 
 @audit_bp.route("/complifyre_consolidate_evidence", methods=["POST"])

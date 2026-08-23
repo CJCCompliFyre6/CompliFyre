@@ -135,9 +135,11 @@
             {% if project %}
             <form method="POST" enctype="multipart/form-data"
                 action="{{ url_for('audit.project_documentation', project_id=project.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% else %}
                 <!-- Fallback in case project is not defined -->
                 <form method="POST" enctype="multipart/form-data" action="#">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                         <strong>Warning:</strong> Project context is missing. Please access documentation through the
                         projects page.

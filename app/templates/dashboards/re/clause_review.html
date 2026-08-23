@@ -1,0 +1,133 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<div class="top-buttons" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2>Clause Classification Review</h2>
+    <a href="{{ url_for('re.clause_review_export', guideline_id=guideline_id) }}"
+       style="background:#2E5C8A; color:white; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
+       ⬇ Download as Excel
+    </a>
+</div>
+
+<div style="background:#f0f4f8; padding:15px; border-radius:8px; margin-bottom:20px;">
+    <strong>Guideline:</strong> {{ guideline_name }} &nbsp;|&nbsp; <strong>{{ clauses|length }}</strong> clauses
+</div>
+
+<div id="markCompleteSection" style="background:#fff8e6; border:1px solid #e8b923; padding:15px; border-radius:8px; margin-bottom:20px;">
+{% if guideline.clause_review_completed_at %}
+    <span style="color:#1a7a1a; font-weight:600;">&check; Review marked complete</span>
+    by {{ completed_by_name }} on {{ guideline.clause_review_completed_at.strftime('%Y-%m-%d %H:%M') }}.
+    Activity generation is unlocked for this guideline.
+{% else %}
+    <strong>{{ reviewed_count }} of {{ total_count }}</strong> clauses individually reviewed.
+    Review does not need to be 100% complete -- mark complete when you judge it sufficient to proceed.
+    <br><br>
+    <button onclick="markReviewComplete()"
+            style="background:#e8720c; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:600;">
+        Mark Review Complete
+    </button>
+{% endif %}
+</div>
+
+<script>
+function markReviewComplete() {
+    if (!confirm('Mark clause classification review complete for this guideline?\n\nThis unlocks activity generation. This does not require every clause to be individually reviewed -- it is your judgment call that review is sufficient.')) return;
+
+    fetch("{{ url_for('re.clause_review_mark_complete') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+        body: JSON.stringify({guideline_id: {{ guideline_id }}})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('markCompleteSection').innerHTML =
+                '<span style="color:#1a7a1a; font-weight:600;">&check; Review marked complete</span> by ' +
+                data.completed_by + ' on ' + data.completed_at + '. Activity generation is unlocked for this guideline.';
+        } else {
+            alert('Failed: ' + data.message);
+        }
+    })
+    .catch(err => alert('Failed: ' + err));
+}
+</script>
+
+
+<table style="width:100%; border-collapse:collapse;">
+    <thead>
+        <tr style="background:#2E5C8A; color:white; text-align:left;">
+            <th style="padding:10px;">Clause No.</th>
+            <th style="padding:10px; width:30%;">Clause Text</th>
+            <th style="padding:10px;">AI's Label</th>
+            <th style="padding:10px; width:20%;">AI Reasoning</th>
+            <th style="padding:10px;">Current Label</th>
+            <th style="padding:10px;">Reviewed?</th>
+            <th style="padding:10px; width:15%;">Correct / Confirm</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for clause in clauses %}
+        <tr id="row-{{ clause.id }}" style="border-bottom:1px solid #ddd;">
+            <td style="padding:8px; vertical-align:top;">{{ clause.clause_no }}</td>
+            <td style="padding:8px; vertical-align:top;">{{ clause.clause_text[:300] }}{% if clause.clause_text|length > 300 %}...{% endif %}</td>
+            <td style="padding:8px; vertical-align:top;">
+                <span style="background:#e6e6e6; padding:3px 8px; border-radius:4px; font-size:0.85em;">
+                    {{ clause.ai_assigned_clause_type or clause.clause_type }}
+                </span>
+            </td>
+            <td style="padding:8px; vertical-align:top; font-style:italic; color:#555; font-size:0.9em;">
+                {{ clause.intent_summary or "(not captured -- predates reasoning capture)" }}
+            </td>
+            <td style="padding:8px; vertical-align:top;" id="current-label-{{ clause.id }}">
+                <strong>{{ clause.clause_type }}</strong>
+            </td>
+            <td style="padding:8px; vertical-align:top;" id="reviewed-status-{{ clause.id }}">
+                {% if clause.clause_type_reviewed_at %}
+                    <span style="color:green;">✓ Reviewed</span><br>
+                    <small>{{ clause.clause_type_reviewed_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                {% else %}
+                    <span style="color:#c00;">Not reviewed</span>
+                {% endif %}
+            </td>
+            <td style="padding:8px; vertical-align:top;">
+                <select id="select-{{ clause.id }}" style="width:100%; margin-bottom:5px;">
+                    {% for t in valid_types %}
+                    <option value="{{ t }}" {% if t == clause.clause_type %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" id="notes-{{ clause.id }}" placeholder="Notes (optional)"
+                       value="{{ clause.clause_type_review_notes or '' }}"
+                       style="width:100%; margin-bottom:5px; font-size:0.85em;">
+                <button onclick="saveReview({{ clause.id }})"
+                        style="width:100%; background:#e8720c; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer;">
+                    Save
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+function saveReview(clauseId) {
+    const clauseType = document.getElementById('select-' + clauseId).value;
+    const notes = document.getElementById('notes-' + clauseId).value;
+
+    fetch("{{ url_for('re.clause_review_save') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+        body: JSON.stringify({clause_id: clauseId, clause_type: clauseType, review_notes: notes})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('current-label-' + clauseId).innerHTML = '<strong>' + data.clause_type + '</strong>';
+            document.getElementById('reviewed-status-' + clauseId).innerHTML =
+                '<span style="color:green;">✓ Reviewed</span><br><small>' + data.reviewed_at + ' by ' + data.reviewed_by + '</small>';
+        } else {
+            alert('Save failed: ' + data.message);
+        }
+    })
+    .catch(err => alert('Save failed: ' + err));
+}
+</script>
+{% endblock %}

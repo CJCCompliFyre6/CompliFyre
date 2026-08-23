@@ -1705,7 +1705,7 @@
             ('Applicable Clauses', applicable, 'Applicable to this entity', '#7C3AED', (applicable/total_clauses*100)|int if total_clauses > 0 else 0),
             ('Evidence Received', with_evidence, 'Evidence submitted for review', '#EA580C', (with_evidence/applicable*100)|int if applicable > 0 else 0),
             ('Assessed', assessed, 'Clauses assessed by EVE/Auditor', '#16A34A', (assessed/applicable*100)|int if applicable > 0 else 0),
-            ('Findings', findings_count, 'Total findings raised', '#DC2626', 0),
+            ('Findings', findings_count, 'Total findings raised', '#DC2626', (findings_count/applicable*100)|int if applicable > 0 else 0),
           ] %}
           {% for label, value, desc, color, width in funnel %}
           <div>
@@ -2387,7 +2387,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const response = await fetch("{{ url_for('audit.test_procedures') }}", {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({ activities })
       });
@@ -2869,6 +2870,7 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              'X-CSRFToken': getCsrfToken(),
             },
             body: JSON.stringify({ clause_id: parseInt(clauseId, 10) })
           });
@@ -3021,6 +3023,7 @@ document.addEventListener('DOMContentLoaded', function() {
         body: formData,
         headers: {
           'Accept': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
         }
       })
         .then(response => {
@@ -3814,7 +3817,8 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({
           clause_ids: clauseIds,

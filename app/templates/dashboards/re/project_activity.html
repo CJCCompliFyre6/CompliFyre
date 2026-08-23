@@ -293,6 +293,7 @@
       #}
       
       <form action="{{url_for('audit.evaluate_all_projects')}}" method='POST'>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
          <input name='project_name' value="{{project_name}}" hidden/>
         <button id="evalauate"
         class="mb-4 px-6 py-3 bg-orange-600 text-white hover:bg-orenge-700 transition-all rounded">
@@ -302,6 +303,7 @@
       data {{consolidated_evidence}}
       {% if not consolidated_evidence %}
       <form action="{{url_for('audit.consolidate_evidence')}}" method='POST'>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input name='consolidated_evidence' value="{{evidence_result}}" hidden/>
          <input name='project_name' value="{{project_name}}" hidden/>
         <button id="get_consolidated_evidences"
@@ -406,6 +408,7 @@
 
                           <td class="px-6 py-4 text-sm text-gray-500">
                             <form action="{{url_for('audit.upload_to_multiple_evidences')}}" method="POST" enctype="multipart/form-data" id="evidence-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                               
                               <input name="evidence_ids" value="{{ (evidence.required_by.evidence | map(attribute='evidence_id') | list) | join(',')}}" type="hidden" />
                               
@@ -781,6 +784,7 @@ function updatePrompt(id) {
     if (newText) {
         const myHeaders = new Headers();
         myHeaders.append("Content-Type", "application/json");
+        myHeaders.append("X-CSRFToken", getCsrfToken());
 
         const raw = JSON.stringify({ "prompt": newText });
 
@@ -808,6 +812,7 @@ function updatePrompt(id) {
     function deletePrompt(id) {
     const requestOptions = {
         method: 'DELETE',
+        headers: { 'X-CSRFToken': getCsrfToken() },
         redirect: 'follow'
     };
 
@@ -859,6 +864,7 @@ function updatePrompt(id) {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
+                      'X-CSRFToken': getCsrfToken(),
                   },
                   body: JSON.stringify(activity_data),
               });
@@ -921,7 +927,8 @@ document.getElementById('generateAllActivitiesBtn').addEventListener('click', as
         const response = await fetch(all_activity, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({ activities })
         });

@@ -5,6 +5,7 @@
 
     <!-- Form to add or edit a role -->
     <form action="{{ url_for('re.edit_role', role_id=role.role_id) if role else url_for('re.add_user_permissions') }}" method="POST" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 w-full max-w-lg">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="mb-4">
             <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Role Name:</label>
             <input type="text" id="name" name="name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" {% if role %}value="{{ role.name }}" readonly{% endif %}>
@@ -73,6 +74,7 @@
                 <td class="border border-gray-300 px-4 py-2">
                     <a href="{{ url_for('re.edit_role', role_id=role.role_id) }}" class="text-blue-500 hover:text-blue-700">Edit</a> |
                     <form action="{{ url_for('re.delete_role', role_id=role.role_id) }}" method="POST" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="text-red-500 hover:text-red-700" onclick="return confirm('Are you sure you want to delete this role?');">Delete</button>
                     </form>
                 </td>

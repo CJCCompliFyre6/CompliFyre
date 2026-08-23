@@ -156,6 +156,7 @@
                   <!-- Refetch Form and Button (Initially Hidden) -->
                   <form action="{{ url_for('audit.refetch_project_test_procedure') }}" method="POST"
                     class="refetch-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="project_control_activity_id" value="{{ control.id }}">
                     <input type="hidden" name="master_control_activity_id" value="{{ control.original_control_id }}">
                     <input type="hidden" name="parent_compliance_activity_id" value="{{ control.parent_activity_id }}">

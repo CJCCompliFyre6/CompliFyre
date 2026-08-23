@@ -274,6 +274,7 @@
 
       {% if not consolidated_evidence %}
       <form action="{{url_for('audit.consolidate_evidence')}}" method='POST'>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input name='consolidated_evidence' value="{{evidence_result}}" hidden />
         <input name='project_name' value="{{project_name}}" hidden />
         <button id="get_consolidated_evidences"
@@ -710,6 +711,7 @@
     if (newText) {
       const myHeaders = new Headers();
       myHeaders.append("Content-Type", "application/json");
+      myHeaders.append("X-CSRFToken", getCsrfToken());
 
       const raw = JSON.stringify({ "prompt": newText });
 
@@ -737,6 +739,7 @@
   function deletePrompt(id) {
     const requestOptions = {
       method: 'DELETE',
+      headers: { 'X-CSRFToken': getCsrfToken() },
       redirect: 'follow'
     };
 
@@ -788,6 +791,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
         },
         body: JSON.stringify(activity_data),
       });
@@ -851,7 +855,8 @@
       const response = await fetch(all_activity, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({ activities })
       });

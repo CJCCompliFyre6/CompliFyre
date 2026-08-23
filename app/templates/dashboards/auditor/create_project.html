@@ -74,6 +74,7 @@
   <div class="flex  w-auto mx-8 p-8 my-4 bg-orange-100 z-1 rounded-xl justify-center  items-center">
     <form id="projectForm" action="{{url_for('audit.create_new_project')}}" method="POST"
       class="p-8 bg-orange-200 rounded-xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-row">
         <div class="form-group">
           <label class="required-field">Client Name<span class="text-red-500 ml-1">*</span></label>

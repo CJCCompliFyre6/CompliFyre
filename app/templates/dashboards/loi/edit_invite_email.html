@@ -8,6 +8,7 @@
     <code>$activation_link</code>, <code>$expiry_date</code>, <code>$email</code>.
   </p>
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="subject">Subject</label><br>
     <input type="text" id="subject" name="subject" value="{{ current_subject }}" style="width:100%; padding:8px; margin:8px 0 20px;"><br>
     <label for="body">Body (HTML)</label><br>

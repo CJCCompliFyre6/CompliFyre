@@ -58,6 +58,7 @@
             <!-- Form 1: Add a Single Clause -->
             <form action="{{ url_for('main.add_clause', guideline_id=guideline_id) }}" method="POST"
                 id="add-clause-form" class="form-step flex flex-col items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <h2 class="text-2xl font-semibold mb-6 text-orange-800">Add New Clause</h2>
                 <div class="space-y-4 w-full max-w-xl">
                     <!-- This would be passed from the parent guideline page context -->
@@ -90,6 +91,7 @@
             <!-- Form 2: Bulk Upload Clauses -->
             <form action="{{ url_for('main.upload_clauses',guideline_id=guideline_id) }}" method="POST"
                 enctype="multipart/form-data" id="upload-form" class="form-step flex flex-col items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <h2 class="text-2xl font-semibold mb-6 text-orange-800">Bulk Upload Clauses</h2>
                 <div class="space-y-4 w-full max-w-xl">
                     <input type="hidden" name="guideline_id" value="{{ guideline_id }}">

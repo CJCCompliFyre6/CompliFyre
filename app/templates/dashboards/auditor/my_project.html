@@ -852,6 +852,7 @@
             if (newText) {
                 const myHeaders = new Headers();
                 myHeaders.append("Content-Type", "application/json");
+                myHeaders.append("X-CSRFToken", getCsrfToken());
 
                 const raw = JSON.stringify({ "prompt": newText });
 
@@ -879,6 +880,7 @@
         function deletePrompt(id) {
             const requestOptions = {
                 method: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrfToken() },
                 redirect: 'follow'
             };
             const updatePromptBaseUrl = "{{ url_for('prompt.delete_prompt', prompt_id=0).replace('0', '') }}";
@@ -901,7 +903,8 @@
             fetch("{{ url_for('re.clause') }}", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
                 },
                 body: JSON.stringify({ id: id })
             })

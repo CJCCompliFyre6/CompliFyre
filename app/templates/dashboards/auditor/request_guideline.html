@@ -136,6 +136,7 @@
         </div>
         
         <form method="POST" enctype="multipart/form-data" id="guidelineRequestForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {{ form.hidden_tag() }}
             
             <div class="form-group">

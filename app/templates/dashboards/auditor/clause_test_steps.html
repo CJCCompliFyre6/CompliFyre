@@ -618,8 +618,7 @@
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                         <span class="text-sm text-gray-600">Compliance Rate:</span>
                         <span class="text-lg font-bold text-green-600">
-                            {% set compliant_total = clause_status_info.statistics.Compliant + clause_status_info.statistics['Partially Compliant'] %}
-                            {{ (compliant_total / clause_status_info.statistics.total * 100)|round|int if clause_status_info.statistics.total > 0 else 0 }}%
+                            {{ (clause_status_info.statistics.Compliant / clause_status_info.statistics.total * 100)|round|int if clause_status_info.statistics.total > 0 else 0 }}%
                         </span>
                     </div>
                     
@@ -627,7 +626,7 @@
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                         <span class="text-sm text-gray-600">Issues Found:</span>
                         <span class="text-lg font-bold text-red-600">
-                            {{ clause_status_info.statistics['Non-Compliant'] }}
+                            {{ clause_status_info.statistics['Non-Compliant'] + clause_status_info.statistics['Partially Compliant'] }}
                         </span>
                     </div>
                     
@@ -711,6 +710,7 @@
         
         <form id="bulkEvaluateForm" method="POST" action="{{ url_for('re.evaluate_clause_activities') }}"
               class="w-full max-w-md">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="clause_id" value="{{ clause.id }}">
             <input type="hidden" name="project_id" value="{{ project.id }}">
 
@@ -1780,6 +1780,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <!-- Refetch Button (Hidden by default) -->
                             <form action="{{ url_for('audit.refetch_project_test_procedure') }}" method="POST"
                                 class="refetch-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="project_control_activity_id"
                                     value="{{ control.id }}">
                                 <button type="submit"
@@ -1971,6 +1972,7 @@ document.addEventListener('DOMContentLoaded', function() {
         {% else %}
         <!-- Case 3: All activities evaluated - Fully enabled -->
         <form action="{{ url_for('audit.generate_all_consolidated_summaries_route') }}" method="POST" class="inline" id="generateAllSummariesForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="clause_id" value="{{ clause.id }}">
             <button type="submit" id="generateAllSummariesBtn"
                 class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors flex items-center shadow-sm hover:shadow">

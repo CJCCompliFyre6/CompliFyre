@@ -9,6 +9,7 @@
         {% endfor %}
     {% endwith %}
     <form method="POST" action="{{ url_for('loi.create_invite') }}" class="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="block mb-1 text-sm font-medium text-gray-700">Work Email *</label>
         <input type="email" name="email" required class="w-full border rounded-lg p-2 mb-4">
 
