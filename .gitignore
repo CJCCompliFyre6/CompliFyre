@@ -189,3 +189,25 @@ cython_debug/
 *.pyc
 __pycache__/
 watch_intake/
+
+# One-off ops/patch/backfill scripts -- not application code
+patch_*.py
+apply_*.py
+backfill_*.py
+check_*.py
+create_*.py
+fix_*.py
+load_*.py
+run_*.py
+seed_*.py
+test_send*.py
+test_piece*.py
+compare_*.py
+raw_text_*.py
+watch_*.py
+temp_*.py
+*.b64
+*.rollback.json
+add_status_columns.sql
+create_tracking_tables.sql
+master\ circular\ ALM.pdf
