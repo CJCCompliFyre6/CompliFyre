@@ -57,6 +57,8 @@ class Users(db.Model, UserMixin):
     invite_id = db.Column(db.BigInteger, nullable=True)
     designation = db.Column(db.String(100), nullable=True)
 
+    invite_id = db.Column(db.BigInteger, nullable=True)
+    designation = db.Column(db.String(100), nullable=True)
     # +++ ADDED FOR NEW FEATURES +++
     tfa_secret = db.Column(db.String(255), nullable=True)
     tfa_enabled = db.Column(db.Boolean, default=False)
