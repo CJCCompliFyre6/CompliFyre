@@ -152,7 +152,7 @@ def create_app(config_name=None):
     def uploaded_file(filename):
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         app.config['UPLOAD_FOLDER_EVIDENCE'] = os.path.join(BASE_DIR, "../uploads")
-        return send_from_directory(app.config['UPLOAD_FOLDER_EVIDENCE'], filename)
+        return send_from_directory(app.config['UPLOAD_FOLDER_EVIDENCE'], filename, as_attachment=True)  # S-63: force download, prevent inline PDF JS execution
     
 
     

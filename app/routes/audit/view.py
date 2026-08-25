@@ -770,6 +770,11 @@ def request_guideline():
             # Handle file upload if present
             attachment_path = None
             if form.attachment.data:
+                # S-62: validate file type before saving
+                _sec = validate_upload_file(form.attachment.data.filename, context="document")
+                if not _sec["ok"]:
+                    flash(f"Attachment rejected: {_sec['error']}", "danger")
+                    return render_template("request_guideline.html", form=form)
                 filename = secure_filename(form.attachment.data.filename)
                 # Create unique filename
                 unique_filename = f"{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}"
