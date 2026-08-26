@@ -74,6 +74,7 @@ def generate_invite_token():
 
 @loi_bp.route("/admin/invite-new-user")
 @login_required
+@role_required("COMPLIFYRE")
 def invite_new_user_form():
     catalogue_guidelines = Guidelines.query.filter_by(catalogue_enabled=True).all()
     return render_template(
@@ -137,6 +138,7 @@ def create_invite():
 
 @loi_bp.route("/admin/invites")
 @login_required
+@role_required("COMPLIFYRE")
 def invite_list():
     invites = SignupInvites.query.order_by(SignupInvites.created_at.desc()).all()
     return render_template("dashboards/loi/invite_list.html", invites=invites)
