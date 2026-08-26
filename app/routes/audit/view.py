@@ -9,7 +9,6 @@ from flask import (
     redirect,
     flash,
     send_from_directory,
-    abort,
     session,
     Response,
 )
@@ -57,7 +56,7 @@ from app.services.evaluation_prompt import *
 from app.models.project_instance_models import *
 from app.utils.bread_crumb import add_to_breadcrumb
 from app.utils.input_security import validate_upload_file, sanitize_text_input
-from app.utils.evidence_access import check_evidence_artifact_access
+from app.utils.evidence_access import check_evidence_artifact_access, user_can_access_project
 from app.utils.permission_handler import role_required
 from app.services.model_response import *
 from app.utils.email_service import (
@@ -3019,6 +3018,15 @@ def consolidate_evidence():
             return redirect(request.referrer)
 
         project = Projects.query.filter_by(project_name=project_name).first()
+        # S-65: IDOR check — project_name is user-supplied; verify tenant ownership
+        # COMPLIFYRE role bypasses tenant check (internal admin)
+        if project and getattr(current_user, "role", None) != "COMPLIFYRE":
+            if not user_can_access_project(project, current_user):
+                current_app.logger.warning(
+                    f"[IDOR] user={current_user.id} attempted to access project '{project_name}' belonging to a different tenant"
+                )
+                flash("Project not found.", "danger")
+                return redirect(request.referrer)
         if not project:
             flash(f"Project with name {project_name} not found.", "danger")
             return redirect(request.referrer)
@@ -3539,6 +3547,73 @@ def merge_evidence_groups(evidence_groups):
             continue
 
     return list(merged_evidence.values())
+
+
+def _reconstruct_consolidated_groups(raw_items, ai_groups):
+    """
+    Mechanically rebuild grouped_evidences-shaped output from the AI's index-only
+    grouping decision, plus the original raw items -- the AI's output is NEVER
+    trusted for activity/clause/guideline linkage, only for WHICH item indices
+    belong together and a clean canonical name (Build Sequence #361). This closes
+    the wrong-activity-attribution gap found via real sampling (#357/#358/#359):
+    linkage is always deterministically reconstructed here, never AI-generated.
+    """
+    grouped_evidences = []
+    covered_indices = set()
+
+    for group in (ai_groups or []):
+        if not isinstance(group, dict):
+            continue
+        canonical_name = (group.get("canonical_name") or "").strip()
+        indices = group.get("item_indices") or []
+        valid_items = []
+        for idx in indices:
+            if not isinstance(idx, int) or idx < 0 or idx >= len(raw_items):
+                continue  # defensive: skip invalid/out-of-range indices from the AI
+            valid_items.append(raw_items[idx])
+            covered_indices.add(idx)
+
+        if not valid_items:
+            continue  # skip groups the AI proposed with no valid indices
+
+        if not canonical_name:
+            canonical_name = valid_items[0].get("evidence_item") or "Unnamed evidence group"
+
+        guideline_ids = sorted({str(it.get("guideline_id")) for it in valid_items if it.get("guideline_id")})
+        clause_nos = sorted({str(it.get("clause_no")) for it in valid_items if it.get("clause_no")})
+        activity_ids = sorted({str(it.get("activity_id")) for it in valid_items if it.get("activity_id")})
+        evidence_list = [
+            {"evidence_id": it.get("evidence_id"), "evidence_item": it.get("evidence_item")}
+            for it in valid_items
+        ]
+
+        grouped_evidences.append({
+            "evidence_item_name": canonical_name,
+            "required_by": {
+                "guideline_ids": guideline_ids,
+                "clause_nos": clause_nos,
+                "activity_ids": activity_ids,
+                "evidence": evidence_list,
+            },
+        })
+
+    # Fallback: any index the AI never mentioned in any group still gets its own
+    # individual group -- preserves the original intent that every item must be
+    # accounted for, never silently dropped.
+    for idx, raw_item in enumerate(raw_items):
+        if idx in covered_indices:
+            continue
+        grouped_evidences.append({
+            "evidence_item_name": raw_item.get("evidence_item") or f"Evidence item {idx}",
+            "required_by": {
+                "guideline_ids": [str(raw_item["guideline_id"])] if raw_item.get("guideline_id") else [],
+                "clause_nos": [str(raw_item["clause_no"])] if raw_item.get("clause_no") else [],
+                "activity_ids": [str(raw_item["activity_id"])] if raw_item.get("activity_id") else [],
+                "evidence": [{"evidence_id": raw_item.get("evidence_id"), "evidence_item": raw_item.get("evidence_item")}],
+            },
+        })
+
+    return grouped_evidences
 
 
 def count_clauses_with_evidence(consolidated_evidence, all_clauses):
@@ -4441,7 +4516,14 @@ def get_uploaded_files():
 def delete_uploaded_evidence(file_id):
     file_row = EvidenceFile.query.get_or_404(file_id)
     # authorization checks: ensure current_user can delete this artifact's files
-    # if not current_user_can_edit(file_row.artifact): abort(403)
+    # COMPLIFYRE role = internal admin, can access all tenants
+    if getattr(current_user, "role", None) != "COMPLIFYRE":
+        # S-64a: IDOR check — ensure user belongs to this evidence file's tenant
+        if not check_evidence_artifact_access(file_row.artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to delete EvidenceFile id={file_id} belonging to a different tenant"
+            )
+            abort(404)
 
     file_path = os.path.join(
         UPLOAD_FOLDER_1, file_row.stored_filename
@@ -4469,7 +4551,14 @@ def delete_uploaded_evidence(file_id):
 def download_evidence_file(file_id):
     file_row = EvidenceFile.query.get_or_404(file_id)
     # check permission:
-    # if not current_user_can_view(file_row.artifact): abort(403)
+    # COMPLIFYRE role = internal admin, can access all tenants
+    if getattr(current_user, "role", None) != "COMPLIFYRE":
+        # S-64b: IDOR check — ensure user belongs to this evidence file's tenant
+        if not check_evidence_artifact_access(file_row.artifact, current_user):
+            current_app.logger.warning(
+                f"[IDOR] user={current_user.id} attempted to download EvidenceFile id={file_id} belonging to a different tenant"
+            )
+            abort(404)
 
     stored_filename = file_row.stored_filename
     full_dir = os.path.abspath(UPLOAD_FOLDER_1)
