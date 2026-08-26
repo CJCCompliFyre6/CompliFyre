@@ -133,5 +133,27 @@
       </div>
     </div>
     {% block content %} {% endblock %}
-  </body>
+  
+<script>
+// S-69: toggleSidebar defined in re_base so all child pages have it
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("open");
+    const menuIcon = document.querySelector(".menu-icon i");
+    if (menuIcon.classList.contains("bx-menu")) {
+        menuIcon.classList.replace("bx-menu", "bx-x");
+    } else {
+        menuIcon.classList.replace("bx-x", "bx-menu");
+    }
+}
+document.addEventListener("click", function(event) {
+    const sidebar = document.getElementById("sidebar");
+    const menuIcon = document.querySelector(".menu-icon");
+    if (sidebar && menuIcon && !sidebar.contains(event.target) && !menuIcon.contains(event.target)) {
+        sidebar.classList.remove("open");
+        const icon = document.querySelector(".menu-icon i");
+        if (icon) { icon.classList.replace("bx-x", "bx-menu"); }
+    }
+});
+</script>
+</body>
 </html>
