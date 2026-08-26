@@ -319,7 +319,7 @@
 
         </li>
         {%endif%}
-        {%if current_user.auditor_profile_id%}
+        {%if current_user.auditor_profile_id and current_user.role.name != "COMPLIFYRE"%}
         <li class="submenu">
           <a href="#" onclick="toggleSubmenu(event)">
             <i class="bx bx-book"></i> Guidelines <i class="bx bx-chevron-down"></i>
