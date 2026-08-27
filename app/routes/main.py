@@ -193,6 +193,14 @@ def login_user_route():
                 session["user_type"] = "admin"
                 return redirect(url_for("admin.dashboard"))
                 
+            elif user.role_id == 9:  # COMPLIFYRE role
+                session["user_type"] = "complifyre"
+                return redirect(url_for("re.guidelines"))
+
+            elif user.role_id == 10:  # RE role
+                session["user_type"] = "re"
+                return redirect(url_for("re.guidelines"))
+
             else:
                 session["user_type"] = "regular_user"
                 return redirect(url_for("main.home"))
