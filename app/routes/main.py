@@ -124,6 +124,7 @@ def login():
 
 # +++ ADDED LOGIN AND LOGOUT ROUTES +++
 @main_bp.route("/login_user_route", methods=["POST"])
+@limiter.limit("5 per minute")  # S-71: prevent ACS flood + brute force
 def login_user_route():
     email = request.form.get("email")
     password = request.form.get("password")
@@ -561,6 +562,7 @@ def verify_tfa_setup():
 
 
 @main_bp.route("/verify-tfa-login", methods=["GET", "POST"])
+@limiter.limit("5 per minute")  # S-71: prevent OTP brute force
 def verify_tfa_login():
     if "user_id_for_tfa" not in session:
         return redirect(url_for("main.login"))

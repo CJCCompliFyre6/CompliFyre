@@ -1,5 +1,6 @@
 # backend/app/__init__.py
-from flask import Flask, send_from_directory, redirect, url_for, current_app
+from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix, send_from_directory, redirect, url_for, current_app
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -134,6 +135,7 @@ def create_app(config_name=None):
     csrf.init_app(app)
     app.config["RATELIMIT_STORAGE_URI"] = app.config.get("CELERY", {}).get("broker_url") or "redis://127.0.0.1:6379/0"
     limiter.init_app(app)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # S-71: trust Nginx X-Real-IP
 
     # --- Initialize Celery ---
     celery_app = celery_init_app(app)
