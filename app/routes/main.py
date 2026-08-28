@@ -14,7 +14,7 @@ from app.models.user import *
 from app.models.ai import *
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.utils.input_security import validate_upload_file
-from app import db, mail
+from app import db, mail, limiter
 from sqlalchemy.exc import IntegrityError
 from app.services.automate_task import *
 from app.services.manual_task import *

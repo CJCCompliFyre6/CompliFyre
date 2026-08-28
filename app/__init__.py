@@ -1,6 +1,7 @@
 # backend/app/__init__.py
 from flask import Flask
-from werkzeug.middleware.proxy_fix import ProxyFix, send_from_directory, redirect, url_for, current_app
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import send_from_directory, redirect, url_for, current_app
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
