@@ -549,6 +549,7 @@ def setup_tfa():
     )
 
 
+@limiter.limit("5 per minute")  # S-73: prevent TFA setup brute force
 @main_bp.route("/verify-tfa-setup", methods=["POST"])
 @login_required
 def verify_tfa_setup():

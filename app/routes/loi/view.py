@@ -34,7 +34,7 @@ from flask_login import login_required, current_user, login_user
 from werkzeug.security import generate_password_hash
 from app.utils.permission_handler import role_required
 
-from app import db
+from app import db, limiter
 from app.models.loi import EditableContent
 from app.utils.email_service import send_invite_email, render_invite_email_content, DEFAULT_INVITE_SUBJECT, DEFAULT_INVITE_BODY
 from app.models import (
@@ -83,6 +83,7 @@ def invite_new_user_form():
     )
 
 
+@limiter.limit("5 per minute")  # S-73: prevent invite email flooding
 @loi_bp.route("/admin/create-invite", methods=["POST"])
 @login_required
 def create_invite():
@@ -142,6 +143,7 @@ def create_invite():
 def invite_list():
     invites = SignupInvites.query.order_by(SignupInvites.created_at.desc()).all()
     return render_template("dashboards/loi/invite_list.html", invites=invites)
+@limiter.limit("3 per minute")  # S-73: prevent invite resend flooding
 @loi_bp.route("/admin/invites/<int:invite_id>/resend", methods=["POST"])
 @login_required
 def resend_invite_link(invite_id):
@@ -507,6 +509,7 @@ def mfa_setup():
     )
 
 
+@limiter.limit("5 per minute")  # S-73: prevent MFA brute force
 @loi_bp.route("/activate/verify-mfa", methods=["POST"])
 @login_required
 def verify_mfa():
