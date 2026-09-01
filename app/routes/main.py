@@ -483,6 +483,7 @@ def verify_email(token):
 
 
 # 2. Password Reset
+@limiter.limit("3 per minute")  # S-72: prevent email flooding on password reset
 @main_bp.route("/request-reset", methods=["GET", "POST"])
 def request_password_reset():
     if request.method == "POST":
@@ -497,6 +498,7 @@ def request_password_reset():
     return render_template("dashboards/re/request_reset.html")
 
 
+@limiter.limit("5 per minute")  # S-72: prevent token brute force
 @main_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password_token(token):
     serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
