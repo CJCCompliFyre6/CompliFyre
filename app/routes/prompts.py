@@ -1,4 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
+from flask_login import login_required
+from app.utils.decorators import role_required
 # from app import limiter
 from app.services.prompts import PromptService
 from app.utils.exceptions import PDFServiceError, URLValidationError
@@ -35,6 +37,8 @@ def get_prompt(prompt_id):
 
 
 @prompt_bp.route("/create_prompt", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE")  # S-67: only COMPLIFYRE can create prompts
 def create_prompt():
 
     if not request.json:
@@ -57,6 +61,8 @@ def create_prompt():
 
 
 @prompt_bp.route("/delete_prompt/<int:prompt_id>", methods=["DELETE"])
+@login_required
+@role_required("COMPLIFYRE")  # S-67: only COMPLIFYRE can delete prompts
 def delete_prompt(prompt_id):
     prompt_service = PromptService()
     try:
@@ -68,6 +74,8 @@ def delete_prompt(prompt_id):
 
 
 @prompt_bp.route("/update_prompt/<int:prompt_id>", methods=["PUT"])
+@login_required
+@role_required("COMPLIFYRE")  # S-67: only COMPLIFYRE can update prompts
 def update_prompt(prompt_id):
     if not request.json:
         return jsonify({"error": "No data provided"}), 400
