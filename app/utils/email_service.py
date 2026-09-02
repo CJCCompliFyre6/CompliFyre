@@ -187,17 +187,14 @@ The Complifyre Team
 
 
 def send_guideline_request_email(guideline_request):
-    """Send email notification for new guideline request"""
-    
+    """Send email notification for new guideline request via ACS (migrated from blocked SMTP relay)"""
+
     user = guideline_request.user
     if not user:
         logger.error("No user found for guideline request")
         return False
-    
-    # Use system SMTP credentials
-    sender_email = current_app.config['MAIL_USERNAME']  # System email
-    sender_password = current_app.config['MAIL_PASSWORD']  # System password
-    recipient_email = "complifyre2fa@crackerjacktech.com"  # Send to ComplifyRe
+
+    recipient_email = "complifyre2fa@gmail.com"  # Internal team notification
     
     # Create message
     msg = MIMEMultipart()
@@ -260,34 +257,32 @@ def send_guideline_request_email(guideline_request):
             )
             msg.attach(part)
     
-    # Send email
-    try:
-        # Configure based on .env settings
-        use_tls = current_app.config.get('MAIL_USE_TLS', False)
-        use_ssl = current_app.config.get('MAIL_USE_SSL', False)
-        
-        if use_ssl:
-            server = smtplib.SMTP_SSL(
-                current_app.config['MAIL_SERVER'], 
-                current_app.config['MAIL_PORT']
-            )
-        else:
-            server = smtplib.SMTP(
-                current_app.config['MAIL_SERVER'], 
-                current_app.config['MAIL_PORT']
-            )
-            if use_tls:
-                server.starttls()
-        
-        server.login(sender_email, sender_password)
-        server.send_message(msg)
-        server.quit()
-        
-        logger.info(f"Guideline request email sent to ComplifyRe for request ID: {guideline_request.id}")
+    # Send via ACS (SMTP relay permanently blocked — migrated to ACS)
+    html_body = f"""
+    <h2>Guideline Request Submitted</h2>
+    <h3>Request Details</h3>
+    <p><b>Guideline Name:</b> {guideline_request.guideline_name}</p>
+    <p><b>Regulator/Authority:</b> {guideline_request.regulator_name}</p>
+    <p><b>Web Link:</b> {guideline_request.web_link or 'Not provided'}</p>
+    <h3>Requested By</h3>
+    <p><b>Name:</b> {user.name}</p>
+    <p><b>Email:</b> {user.email}</p>
+    <p><b>Phone:</b> {getattr(user, 'phone_no', 'Not provided')}</p>
+    <h3>Technical Details</h3>
+    <p><b>Submitted:</b> {guideline_request.created_at.strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <p><b>Attachment:</b> {'Attached' if guideline_request.attachment_path else 'None'}</p>
+    <p><i>Please review and add the guideline to the system if available.</i></p>
+    """
+    result = send_via_azure_email(
+        recipient_email=recipient_email,
+        subject=f"Guideline Request from {user.name}",
+        html_body=html_body,
+    )
+    if result:
+        logger.info(f"Guideline request email sent via ACS for request ID: {guideline_request.id}")
         return True
-        
-    except Exception as e:
-        logger.error(f"Failed to send guideline request email: {str(e)}")
+    else:
+        logger.error(f"ACS failed to send guideline request email for request ID: {guideline_request.id}")
         return False
 
 
