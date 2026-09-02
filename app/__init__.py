@@ -127,7 +127,7 @@ def create_app(config_name=None):
     login_manager.login_message = "Please log in to access this page."
     login_manager.login_message_category = "info"
 
-    CORS(app, origins=["https://complifyre.in", "https://staging.complifyre.in"], supports_credentials=True)  # S-74: restrict CORS to own domains only
+    CORS(app, origins=["https://complifyre.in", "https://staging.complifyre.in"], supports_credentials=False)  # S-74: restrict CORS to own domains only
     db.init_app(app)
     migrate.init_app(app, db)
     md.init_app(app)
