@@ -144,10 +144,10 @@ The Complifyre Team
         logger.info(f"Connecting to SMTP server: {smtp_server}:{smtp_port}")
 
         if use_ssl:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=5)
             logger.info("Using SSL connection")
         else:
-            server = smtplib.SMTP(smtp_server, smtp_port)
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=5)
             server.set_debuglevel(1)
 
             if use_tls:
@@ -447,7 +447,7 @@ def send_via_azure_email(recipient_email, subject, html_body, plain_text=None, a
     try:
         client = EmailClient.from_connection_string(connection_string)
         poller = client.begin_send(message)
-        result = poller.result()
+        result = poller.result(timeout=10)
         if result["status"] == "Succeeded":
             logger.info(f"Email sent via Azure to {recipient_email} (id: {result['id']})")
             return True
@@ -496,7 +496,7 @@ def send_invite_email(recipient_email, subject, html_body):
     try:
         client = EmailClient.from_connection_string(connection_string)
         poller = client.begin_send(message)
-        result = poller.result()
+        result = poller.result(timeout=10)
         if result["status"] == "Succeeded":
             logger.info(f"Invite email sent via Azure to {recipient_email} (id: {result['id']})")
             return True
