@@ -77,6 +77,7 @@ audit_bp = Blueprint(
     __name__,
     template_folder="../../templates/dashboards/auditor",
     static_folder="../../templates/dashboards/auditor/assets",
+    static_url_path="/audit/assets",  # S-77: fix static URL so url_for generates /audit/assets/ not /audit/static/
 )
 UPLOAD_FOLDER_MOM = "uploads/minute_of_meeting"
 os.makedirs(UPLOAD_FOLDER_MOM, exist_ok=True)
