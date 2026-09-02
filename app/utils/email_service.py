@@ -196,67 +196,6 @@ def send_guideline_request_email(guideline_request):
 
     recipient_email = "complifyre2fa@gmail.com"  # Internal team notification
     
-    # Create message
-    msg = MIMEMultipart()
-    msg['From'] = f"ComplifyRe System <{sender_email}>"
-    msg['Reply-To'] = user.email  # Important: replies go to auditor
-    msg['To'] = recipient_email
-    msg['Subject'] = f"Guideline Request from {user.name} "
-    
-    # Email body with clear auditor contact info
-    body = f"""
-    GUIDELINE REQUEST SUBMITTED
-    
-    ====================================
-    REQUEST DETAILS
-    ====================================
-    Guideline Name: {guideline_request.guideline_name}
-    Regulator/Authority: {guideline_request.regulator_name}
-    Web Link: {guideline_request.web_link or 'Not provided'}
-    
-    ====================================
-    REQUESTED BY (AUDITOR)
-    ====================================
-    Name: {user.name}
-    Email: {user.email}
-    Phone: {getattr(user, 'phone_no', 'Not provided')}
-    
-    
-    ====================================
-    TECHNICAL DETAILS
-    ====================================
-    
-    Submitted: {guideline_request.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-    Attachment: {'Attached' if guideline_request.attachment_path else 'None'}
-    
-    ====================================
-    ACTION REQUIRED
-    ====================================
-    Please review this guideline request and:
-    1. Add the guideline to the system if available
-    2. Contact the auditor if more information is needed
-    3. Update the request status in the system
-    
-    ---
-    This is an automated message from ComplifyRe System.
-    """
-    
-    msg.attach(MIMEText(body, 'plain'))
-    
-    # Attach file if exists
-    if guideline_request.attachment_path and os.path.exists(guideline_request.attachment_path):
-        with open(guideline_request.attachment_path, "rb") as attachment:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            
-            filename = os.path.basename(guideline_request.attachment_path)
-            part.add_header(
-                "Content-Disposition",
-                f"attachment; filename={filename}",
-            )
-            msg.attach(part)
-    
     # Send via ACS (SMTP relay permanently blocked — migrated to ACS)
     html_body = f"""
     <h2>Guideline Request Submitted</h2>
