@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required
-from app.utils.decorators import role_required
+from app.utils.permission_handler import role_required
+
 # from app import limiter
 from app.services.prompts import PromptService
 from app.utils.exceptions import PDFServiceError, URLValidationError
