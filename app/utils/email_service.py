@@ -194,7 +194,7 @@ def send_guideline_request_email(guideline_request):
         logger.error("No user found for guideline request")
         return False
 
-    recipient_email = "complifyre2fa@gmail.com"  # Internal team notification
+    recipient_email = "ceo@complifyre.ai"  # Internal team notification
     
     # Send via ACS (SMTP relay permanently blocked — migrated to ACS)
     html_body = f"""
