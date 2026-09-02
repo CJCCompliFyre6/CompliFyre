@@ -80,8 +80,10 @@ def home():
 @role_required("COMPLIFYRE")
 def comp_dash():
     """
-    Dashboard route for the RE application.
+    Redirect to re.guidelines which has the full sidebar.
+    S-70: complifyre_main.html has no sidebar — redirect to proper page.
     """
+    return redirect(url_for("re.guidelines"))
     try:
         # pdf_service = PDFService()
         # guidelines = pdf_service.get_guidelines()
