@@ -826,3 +826,65 @@ class EvidenceArtifact(db.Model):
     controls = db.relationship(
         "ControlActivity", secondary=control_evidences, back_populates="evidences"
     )
+
+
+class RiskCategory(db.Model):
+    """
+    Top-level risk category (e.g. Financial Risk, Financial Crime Risk) --
+    seeded, not user-created. Each RiskArea belongs to exactly one category.
+    Two-level taxonomy confirmed with Ankita, Build Sequence #372.
+    """
+    __tablename__ = "risk_categories"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(150), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    display_order = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    risk_areas = db.relationship("RiskArea", back_populates="category")
+
+
+class RiskArea(db.Model):
+    """
+    Standard library of specific risks a bank typically monitors and measures --
+    seeded, not user-created. Each belongs to one RiskCategory. Each
+    ControlActivity can map to multiple risk areas via ControlRiskMapping.
+    Foundation for the RCM (Risk Control Matrix). Build Sequence #372.
+    """
+    __tablename__ = "risk_areas"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(150), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey("risk_categories.id"), nullable=True)
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    category = db.relationship("RiskCategory", back_populates="risk_areas")
+
+
+class ControlRiskMapping(db.Model):
+    """
+    Many-to-many mapping between a ControlActivity and a RiskArea, generated
+    by an LLM classification call from the control's existing description and
+    objective. Stores the LLM's rationale for each mapping, not just the bare
+    link -- so an auditor reviewing the RCM can see WHY a control was mapped
+    to a given risk area. Build Sequence #372.
+    """
+    __tablename__ = "control_risk_mappings"
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    control_activity_id = db.Column(
+        db.BigInteger, db.ForeignKey("control_activities.id"), nullable=False
+    )
+    risk_area_id = db.Column(
+        db.Integer, db.ForeignKey("risk_areas.id"), nullable=False
+    )
+    rationale = db.Column(db.Text, nullable=True)
+    generated_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    control_activity = db.relationship("ControlActivity", backref="risk_mappings")
+    risk_area = db.relationship("RiskArea", backref="control_mappings")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "control_activity_id", "risk_area_id", name="uq_control_risk_mapping"
+        ),
+    )

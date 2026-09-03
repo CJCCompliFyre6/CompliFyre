@@ -306,7 +306,22 @@ INSTRUCTIONS:
 5. EVIDENCE AND GUIDANCE:
    - evidences_artifacts_needed: List of objects, each with:
        - category: e.g. "System Logs", "Reports"
-       - items: list of specific evidence items
+       - items: list of specific evidence items. Where an item is a formal document that would
+         typically go through drafting and approval (a policy, procedure, SOP, or similar governance
+         document), it must always refer to the FINAL, approved/signed-off version -- never "draft,"
+         "preliminary," or "pending approval." This does not apply to items without a draft/final
+         distinction, such as logs, records, screenshots, or system reports.
+         Where the activity involves staff training or awareness sessions, evidence must include a
+         post-training assessment score demonstrating comprehension -- never attendance records alone,
+         since attendance does not prove understanding. Specify a minimum passing score of 70% as the
+         acceptance criterion for the assessment.
+         Where the activity describes creating, building, configuring, or deploying a specific, named
+         technical deliverable (a flowchart, a system integration, a technical configuration, a
+         dashboard, a tool), evidence must include the deliverable itself or direct proof of its
+         existence and functioning -- e.g. the actual flowchart document, screenshots of the configured
+         system, or validation results confirming it works -- never governance-style documentation
+         alone (roles, approvals, policy documents) about the deliverable, since that proves who
+         authorized it, not that it actually exists or functions.
    - sampling_guidance: IMPORTANT — Only provide sampling guidance for "Operating Effectiveness" activities. For "Design" or "Implementation", set to "Not applicable."
 
 6. NULL FIELDS (post-audit only — do NOT generate content for these):

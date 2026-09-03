@@ -33,7 +33,6 @@ frontend
 venv
 cache
 instance
-migrations
 alembic.ini
 # PyInstaller
 #  Usually these files are written by a python script from a template

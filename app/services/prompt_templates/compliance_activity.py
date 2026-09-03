@@ -278,3 +278,43 @@ def validate_and_fix_activities(activities: list) -> list:
         act["activity_id"] = str(idx)
 
     return fixed
+
+
+# ─────────────────────────────────────────────────────────────
+# Call 3: Reasonable Assurance Validation (Build Sequence #367)
+# Separate, dedicated check -- NOT bundled into Call 2's own prompt.
+# An LLM critiquing its own just-generated output in the same breath
+# tends to be a weaker critic than one given real distance (same
+# reasoning as the evidence-consolidation redesign, #361).
+# ────────────────────────────────────────────────────────────
+CALL3_SYSTEM = """You are a senior BFSI regulatory auditor performing quality review of generated compliance activities.
+Your task is to assess whether a set of compliance activities genuinely provides reasonable assurance for a specific regulatory clause.
+Return ONLY valid JSON. No explanation. No markdown."""
+
+
+def reasonable_assurance_prompt(clause_text: str, activities: list) -> str:
+    activities_text = "\n".join(
+        f"{i+1}. {act.get('activity_description', '')}" for i, act in enumerate(activities)
+    )
+    return f"""Assess whether this set of compliance activities provides REASONABLE ASSURANCE for the regulatory clause below.
+
+CLAUSE TEXT:
+{clause_text}
+
+GENERATED ACTIVITIES:
+{activities_text}
+
+Evaluate against ALL of these dimensions:
+1. GROUNDING: Is each activity genuinely derived from what THIS SPECIFIC clause requires -- not a generic topic-area activity that happens to relate to the same subject but isn't actually mandated by this clause's own text?
+2. RISK MITIGATION: Do the activities, collectively, help mitigate the actual risk the regulator intends to address through this clause?
+3. OBJECTIVE ACHIEVEMENT: If all activities were fully implemented, would the clause's real regulatory objective actually be met?
+4. NO DUPLICATION: Are any two activities substantially the same requirement worded differently (e.g. "Develop an Access Management Policy" and "Develop an Access Control Policy" for the same underlying requirement)?
+
+Be a genuinely critical reviewer, not a rubber stamp -- your job is to catch real gaps and over-generation, not to approve by default.
+
+Return ONLY valid JSON with this exact structure:
+{{
+    "passes": true or false,
+    "feedback": "If passes is false, specific, actionable feedback on exactly what is wrong and what should change. If passes is true, empty string."
+}}
+"""

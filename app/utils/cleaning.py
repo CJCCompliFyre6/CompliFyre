@@ -1233,7 +1233,13 @@ def extract_from_docx(path):
     )
 
 
-def generate_chat_output(prompt, override_system_prompt=None, max_tokens=1200, frequency_penalty=0.6):
+def generate_chat_output(prompt, override_system_prompt=None, max_tokens=1200, frequency_penalty=0.6, timeout=None):
+    # timeout=None preserves the existing behavior for all current callers (the shared
+    # global client's own default, 120s). Callers using a much larger max_tokens (Build
+    # Sequence #355/#356) should pass an explicit, proportionally larger timeout -- a
+    # real 'Request timed out' failure mode was confirmed live once max_tokens=12000
+    # gave the model enough room to generate content that sometimes took longer than
+    # the original 120s budget to finish.
     try:
         # Define the comprehensive system prompt
         system_prompt = """You are a compliance reviewer generating structured evidence assessments for enterprise audit software.
@@ -1310,7 +1316,8 @@ DO NOT summarize entire document. Only map evidence relevant to activity objecti
         current_app.logger.info(prompt[:1000])
         current_app.logger.info("=" * 80)
         
-        response = client.chat.completions.create(
+        request_client = client.with_options(timeout=timeout) if timeout is not None else client
+        response = request_client.chat.completions.create(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
             messages=[
                 {

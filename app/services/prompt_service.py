@@ -429,49 +429,48 @@ Rules: Max 400 words. No narrative. No recommendations. No hallucinated referenc
 
 
 def evidences_consolidate(item: list, chunk_number: int):
+    # Build an index-referenced, context-enriched view of the raw items so the AI
+    # groups by index only -- it never generates activity/clause linkage itself.
+    # (Build Sequence #361: safeguard against wrong-activity attribution found via
+    # real sampling, see #357/#358/#359 -- linkage is always mechanically reconstructed
+    # downstream from these indices, never trusted from the AI's own output.)
+    indexed_items = []
+    for idx, raw in enumerate(item):
+        indexed_items.append({
+            "index": idx,
+            "clause_no": raw.get("clause_no"),
+            "activity_context": raw.get("activity_context", ""),
+            "evidence_item": raw.get("evidence_item"),
+        })
+
     prompt = f"""
-You are an expert in regulatory compliance evidence consolidation. Analyze the compliance activities and group similar evidence requirements.
-
+You are an expert in regulatory compliance evidence consolidation. Analyze the evidence items below and group items that refer to the SAME real-world document or artifact -- even if worded differently.
 INPUT DATA (Chunk {chunk_number}):
-{json.dumps(item, indent=2)}
-
+{json.dumps(indexed_items, indent=2)}
 INSTRUCTIONS:
-1. Analyze ALL evidence items in this chunk
-2. Group similar evidence requirements by their purpose and type
-3. Include EVERY clause from the input data in the output
-4. For clauses without actual evidence, still include them but mark appropriately
-5. Return ONLY valid JSON format
-
+1. Each item has an "index" number, a "clause_no" and "activity_context" for reference, and the raw "evidence_item" text.
+2. Group items ONLY when they refer to the SAME real document/artifact, worded differently (e.g. "Draft Policy X" and "Policy X document" are the same; "KYC training records" and "AML training records" are DIFFERENT -- do not merge items that serve genuinely different, distinct requirements just because the wording looks similar).
+3. Use the clause_no and activity_context to judge whether two similar-sounding items are actually the same requirement or a different one.
+4. Every index from the input MUST appear in exactly one group's item_indices list -- if an item has no duplicate, it still needs its own group containing just that one index.
+5. Propose ONE clean, human-readable canonical_name per group.
+6. Return ONLY valid JSON. Do NOT include activity IDs, clause numbers, or guideline IDs in your output -- only index references.
 CRITICAL: You MUST return valid JSON with this exact structure. No other text.
-
 REQUIRED JSON STRUCTURE:
 {{
-    "grouped_evidences": [
+    "groups": [
         {{
-            "evidence_item_name": "Descriptive name for this evidence group",
-            "required_by": {{
-                "guideline_ids": ["list", "of", "guideline", "ids"],
-                "clause_nos": ["list", "of", "clause", "numbers"],
-                "activity_ids": ["list", "of", "activity", "ids"],
-                "evidence": [
-                    {{
-                        "evidence_id": "actual_evidence_id_or_null",
-                        "evidence_item": "description of evidence"
-                    }}
-                ]
-            }}
+            "canonical_name": "Descriptive name for this evidence group",
+            "item_indices": [0, 1, 2]
         }}
     ]
 }}
-
-EXAMPLES OF EVIDENCE ITEM NAMES:
+EXAMPLES OF GOOD canonical_name VALUES:
 - "Access Control Policy Documentation"
-- "User Access Review Reports" 
+- "User Access Review Reports"
 - "System Configuration Documentation"
 - "Security Training Records"
 - "Incident Response Procedures"
-
-Remember: Return ONLY the JSON object. No explanations, no code blocks, just pure JSON.
+Remember: Return ONLY the JSON object. No explanations, no code blocks, just pure JSON. Never include activity_ids, clause_nos, or guideline_ids in your output.
 """
     return prompt
 

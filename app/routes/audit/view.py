@@ -82,6 +82,55 @@ UPLOAD_FOLDER_MOM = "uploads/minute_of_meeting"
 os.makedirs(UPLOAD_FOLDER_MOM, exist_ok=True)
 
 
+def _build_project_control_activity_fields(control_template):
+    """
+    Single, shared source of truth for copying a master ControlActivity's
+    template data into a new ProjectControlActivity. Used by all three
+    project-instantiation code paths in this file (create project, add/
+    refresh clause, regenerate test procedure) to prevent field-copy drift
+    between them -- one of the three was previously missing fields the other
+    two already had, found and consolidated here. Build Sequence #375.
+
+    Also derives required_effectiveness_design/implementation/operating from
+    the master's compliance_level, since nothing else in the codebase ever
+    set these three columns -- they were permanently stuck blank/"no" for
+    every activity in every project regardless of actual compliance level.
+    """
+    compliance_level = None
+    if control_template.compliance_activity:
+        compliance_level = control_template.compliance_activity.compliance_level
+
+    design = implementation = operating = "no"
+    if compliance_level == "Design":
+        design = "yes"
+    elif compliance_level == "Implementation":
+        implementation = "yes"
+    elif compliance_level in ("Operating Effectiveness", "Operating"):
+        operating = "yes"
+    # Any other/unrecognized value (stray "Per event", "One-time",
+    # "Improvement" data found in the compliance_level column) intentionally
+    # leaves all three as "no" rather than guessing which dimension applies.
+
+    return {
+        "original_control_id": control_template.id,
+        "activity_code": control_template.activity_code,
+        "activity_name": control_template.activity_name,
+        "activity_description": control_template.activity_description,
+        "objective": control_template.objective,
+        "owner": control_template.owner,
+        "control_type": control_template.control_type,
+        "frequency": control_template.frequency,
+        "sampling_guidance": control_template.sampling_guidance,
+        "explain_test_procedure": control_template.explain_test_procedure,
+        "assessment_objective": control_template.assessment_objective,
+        "assessment_objective_rationale": control_template.assessment_objective_rationale,
+        "test_attributes": control_template.test_attributes,
+        "required_effectiveness_design": design,
+        "required_effectiveness_implementation": implementation,
+        "required_effectiveness_operating": operating,
+    }
+
+
 class TaskStatus:
     """
     Minimal helper to record Celery task status into Redis so the SSE progress
@@ -1930,16 +1979,7 @@ def create_new_project():
 
                     for control_template in activity_template.control_activities:
                         project_control = ProjectControlActivity(
-                            original_control_id=control_template.id,
-                            activity_code=control_template.activity_code,
-                            activity_name=control_template.activity_name,
-                            activity_description=control_template.activity_description,
-                            objective=control_template.objective,
-                            owner=control_template.owner,
-                            control_type=control_template.control_type,
-                            frequency=control_template.frequency,
-                            sampling_guidance=control_template.sampling_guidance,
-                            explain_test_procedure=control_template.explain_test_procedure,
+                            **_build_project_control_activity_fields(control_template)
                         )
                         project_activity.project_control_activities.append(project_control)
                         db.session.add(project_control)
@@ -2145,19 +2185,7 @@ def refetch_project_activities():
 
             for control_template in activity_template.control_activities:
                 project_control = ProjectControlActivity(
-                    original_control_id=control_template.id,
-                    activity_code=control_template.activity_code,
-                    activity_name=control_template.activity_name,
-                    activity_description=control_template.activity_description,
-                    objective=control_template.objective,
-                    owner=control_template.owner,
-                    control_type=control_template.control_type,
-                    frequency=control_template.frequency,
-                    sampling_guidance=control_template.sampling_guidance,
-                    explain_test_procedure=control_template.explain_test_procedure,
-                assessment_objective=control_template.assessment_objective,
-                assessment_objective_rationale=control_template.assessment_objective_rationale,
-                test_attributes=control_template.test_attributes,
+                    **_build_project_control_activity_fields(control_template)
                 )
 
                 # Rebuild the Test Procedure if it exists
@@ -2307,19 +2335,7 @@ def refetch_project_test_procedure():
         # --- 4. Rebuild the ProjectControlActivity ---
         new_project_control = ProjectControlActivity(
             project_compliance_activity_id=parent_compliance_activity_id,
-            original_control_id=control_template.id,
-            activity_code=control_template.activity_code,
-            activity_name=control_template.activity_name,
-            activity_description=control_template.activity_description,
-            objective=control_template.objective,
-            owner=control_template.owner,
-            control_type=control_template.control_type,
-            frequency=control_template.frequency,
-            sampling_guidance=control_template.sampling_guidance,
-            explain_test_procedure=control_template.explain_test_procedure,
-            assessment_objective=control_template.assessment_objective,
-            assessment_objective_rationale=control_template.assessment_objective_rationale,
-            test_attributes=control_template.test_attributes,
+            **_build_project_control_activity_fields(control_template)
         )
 
         # --- 4a. Rebuild Test Procedure ---

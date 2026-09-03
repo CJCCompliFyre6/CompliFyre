@@ -2486,6 +2486,322 @@ def clause():
 # which does not handle clause_type at all.
 # ============================================================
 
+# ============================================================
+# Full decomposition view -- clause -> activity -> test procedure ->
+# evidence -> checklist, for CompliFyre (admin) profile review.
+# Build Sequence #363. Read-only.
+# ============================================================
+@re_bp.route("/decomposition-view", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE")
+def decomposition_view():
+    """Show the full chain of what's been generated for a guideline, for
+    internal QA -- every clause, its activities, each activity's test
+    procedure, evidence, and checklist, all on one page."""
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.id).all()
+
+    # Batch-fetch all checklists for this guideline's control activities in one
+    # query, keyed by control_activity_id -- avoids one query per activity on
+    # a large guideline.
+    from app.models.eve_models import ControlChecklist
+    all_control_ids = [
+        ca.id
+        for c in clauses
+        for act in c.compliance_activities
+        for ca in act.control_activities
+    ]
+    checklists_by_control_id = {}
+    if all_control_ids:
+        checklist_rows = ControlChecklist.query.filter(
+            ControlChecklist.control_activity_id.in_(all_control_ids)
+        ).all()
+        checklists_by_control_id = {cl.control_activity_id: cl for cl in checklist_rows}
+
+    total_activities = sum(len(c.compliance_activities) for c in clauses)
+    total_with_evidence = sum(
+        1 for c in clauses for act in c.compliance_activities
+        for ca in act.control_activities if ca.evidences
+    )
+    total_with_checklist = sum(
+        1 for cid in checklists_by_control_id
+    )
+
+    return render_template(
+        "decomposition_view.html",
+        guideline=guideline,
+        guideline_name=guideline_name,
+        guideline_id=guideline_id,
+        clauses=clauses,
+        checklists_by_control_id=checklists_by_control_id,
+        total_clauses=len(clauses),
+        total_activities=total_activities,
+        total_with_evidence=total_with_evidence,
+        total_with_checklist=total_with_checklist,
+    )
+
+
+@re_bp.route("/decomposition-view/export", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE")
+def decomposition_view_export():
+    """Server-side Excel export of the full decomposition -- two sheets, since
+    evidence and checklist are both independent multi-valued lists per activity
+    (combining them into one flat table would cartesian-explode row counts)."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+    from app.models.eve_models import ControlChecklist
+
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.id).all()
+
+    all_control_ids = [
+        ca.id for c in clauses for act in c.compliance_activities for ca in act.control_activities
+    ]
+    checklists_by_control_id = {}
+    if all_control_ids:
+        checklist_rows = ControlChecklist.query.filter(
+            ControlChecklist.control_activity_id.in_(all_control_ids)
+        ).all()
+        checklists_by_control_id = {cl.control_activity_id: cl for cl in checklist_rows}
+
+    wb = openpyxl.Workbook()
+    header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="FF2E5C8A", end_color="FF2E5C8A", fill_type="solid")
+    normal_font = Font(name="Arial", size=10)
+    wrap = Alignment(wrap_text=True, vertical="top")
+
+    # ── Sheet 1: Activities & Evidence ─────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Activities & Evidence"
+    headers1 = ["Clause No.", "Clause Type", "Activity", "Compliance Level",
+                "Test Objective", "Walkthrough", "Evidence Category", "Evidence Item"]
+    for i, h in enumerate(headers1, start=1):
+        c = ws1.cell(row=1, column=i, value=h)
+        c.font = header_font
+        c.fill = header_fill
+    ws1.freeze_panes = "A2"
+    col_widths1 = [16, 16, 45, 16, 40, 45, 22, 45]
+    for i, w in enumerate(col_widths1, start=1):
+        ws1.column_dimensions[chr(64 + i)].width = w
+
+    r = 2
+    for clause in clauses:
+        for act in clause.compliance_activities:
+            for control in act.control_activities:
+                rows_for_activity = control.evidences or [None]
+                for ev in rows_for_activity:
+                    row_values = [
+                        clause.clause_no,
+                        clause.clause_type or "",
+                        act.activity_description or "",
+                        act.compliance_level or "",
+                        control.objective or "",
+                        control.test_procedure.walkthrough if control.test_procedure else "",
+                        ev.category if ev else "",
+                        ev.item if ev else "(no evidence generated)",
+                    ]
+                    for c_idx, val in enumerate(row_values, start=1):
+                        cell = ws1.cell(row=r, column=c_idx, value=val)
+                        cell.font = normal_font
+                        cell.alignment = wrap
+                    r += 1
+
+    # ── Sheet 2: Checklists ──────────────────────────────────────────
+    ws2 = wb.create_sheet("Checklists")
+    headers2 = ["Clause No.", "Activity", "Checklist ID", "Requirement", "Family"]
+    for i, h in enumerate(headers2, start=1):
+        c = ws2.cell(row=1, column=i, value=h)
+        c.font = header_font
+        c.fill = header_fill
+    ws2.freeze_panes = "A2"
+    col_widths2 = [16, 45, 14, 60, 20]
+    for i, w in enumerate(col_widths2, start=1):
+        ws2.column_dimensions[chr(64 + i)].width = w
+
+    r2 = 2
+    for clause in clauses:
+        for act in clause.compliance_activities:
+            for control in act.control_activities:
+                checklist = checklists_by_control_id.get(control.id)
+                items = (checklist.checklist_json or []) if checklist else []
+                for item in (items or [{}]):
+                    row_values = [
+                        clause.clause_no,
+                        act.activity_description or "",
+                        item.get("id", ""),
+                        item.get("requirement", "(no checklist generated)" if not items else ""),
+                        item.get("checklist_family", ""),
+                    ]
+                    for c_idx, val in enumerate(row_values, start=1):
+                        cell = ws2.cell(row=r2, column=c_idx, value=val)
+                        cell.font = normal_font
+                        cell.alignment = wrap
+                    r2 += 1
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in guideline_name)[:60]
+    filename = f"Decomposition_{safe_name}_{guideline_id}.xlsx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+# ============================================================
+# RCM (Risk Control Matrix) view -- maps every control to the risk area(s)
+# it mitigates. Build Sequence #372/#373. Read-only view; generation is
+# triggered via a separate POST endpoint (async, Celery-backed).
+# ============================================================
+@re_bp.route("/rcm-view", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE")
+def rcm_view():
+    """Show the Risk Control Matrix for a guideline -- every control mapped
+    to the risk area(s) it mitigates, with rationale. Offers a trigger to
+    generate mappings for any controls not yet mapped."""
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.id).all()
+
+    total_controls = sum(
+        len(act.control_activities) for c in clauses for act in c.compliance_activities
+    )
+    total_mapped = sum(
+        1 for c in clauses for act in c.compliance_activities
+        for ca in act.control_activities if ca.risk_mappings
+    )
+
+    return render_template(
+        "rcm_view.html",
+        guideline=guideline,
+        guideline_name=guideline_name,
+        guideline_id=guideline_id,
+        clauses=clauses,
+        total_controls=total_controls,
+        total_mapped=total_mapped,
+    )
+
+
+@re_bp.route("/rcm-view/generate", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE")
+def rcm_view_generate():
+    """Dispatch the bulk RCM generation task for a guideline (async)."""
+    data = request.get_json(silent=True) or {}
+    guideline_id = data.get("guideline_id")
+    if not guideline_id:
+        return jsonify({"status": "error", "message": "No guideline_id provided"}), 400
+
+    from app.services.risk_mapping_service import generate_rcm_for_guideline
+    task = generate_rcm_for_guideline.delay(guideline_id, current_user.id)
+    return jsonify({"status": "success", "task_id": task.id})
+
+
+@re_bp.route("/rcm-view/export", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE")
+def rcm_view_export():
+    """Server-side Excel export of the Risk Control Matrix -- one row per
+    (control, risk mapping) combination, since a control can map to more
+    than one risk area."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    clauses = Clauses.query.filter_by(guideline_id=guideline_id).order_by(Clauses.id).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Risk Control Matrix"
+    header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="FF2E5C8A", end_color="FF2E5C8A", fill_type="solid")
+    normal_font = Font(name="Arial", size=10)
+    wrap = Alignment(wrap_text=True, vertical="top")
+
+    headers = ["Clause No.", "Control", "Risk Category", "Risk Area", "Rationale"]
+    for i, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=i, value=h)
+        c.font = header_font
+        c.fill = header_fill
+    ws.freeze_panes = "A2"
+    col_widths = [16, 45, 22, 30, 55]
+    for i, w in enumerate(col_widths, start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    r = 2
+    for clause in clauses:
+        for act in clause.compliance_activities:
+            for control in act.control_activities:
+                rows_for_control = control.risk_mappings or [None]
+                for rm in rows_for_control:
+                    row_values = [
+                        clause.clause_no,
+                        control.activity_description or act.activity_description or "",
+                        rm.risk_area.category.name if rm and rm.risk_area.category else "",
+                        rm.risk_area.name if rm else "(not yet mapped)",
+                        rm.rationale if rm else "",
+                    ]
+                    for c_idx, val in enumerate(row_values, start=1):
+                        cell = ws.cell(row=r, column=c_idx, value=val)
+                        cell.font = normal_font
+                        cell.alignment = wrap
+                    r += 1
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in guideline_name)[:60]
+    filename = f"RCM_{safe_name}_{guideline_id}.xlsx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 @re_bp.route("/clause-review", methods=["GET"])
 @login_required
 def clause_review():

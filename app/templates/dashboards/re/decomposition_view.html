@@ -1,0 +1,113 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<div class="top-buttons" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2>Full Decomposition View</h2>
+    <a href="{{ url_for('re.decomposition_view_export', guideline_id=guideline_id) }}"
+       style="background:#2E5C8A; color:white; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
+       ⬇ Download as Excel
+    </a>
+</div>
+
+<div style="background:#f0f4f8; padding:15px; border-radius:8px; margin-bottom:20px;">
+    <strong>Guideline:</strong> {{ guideline_name }}
+    &nbsp;|&nbsp; <strong>{{ total_clauses }}</strong> clauses
+    &nbsp;|&nbsp; <strong>{{ total_activities }}</strong> activities
+    &nbsp;|&nbsp; <strong>{{ total_with_evidence }}</strong> with evidence
+    &nbsp;|&nbsp; <strong>{{ total_with_checklist }}</strong> with checklist
+</div>
+
+<div style="background:#fff8e6; border:1px solid #e8b923; padding:12px 15px; border-radius:8px; margin-bottom:20px; font-size:0.92em;">
+    Read-only internal QA view. Shows every clause's activities, each activity's test procedure, evidence, and checklist, all on one page. Click any row to expand.
+</div>
+
+{% for clause in clauses %}
+<details style="background:#fff; border:1px solid #d8dee5; border-radius:8px; margin-bottom:10px; padding:0;">
+    <summary style="cursor:pointer; padding:14px 18px; font-weight:600; background:#f7f9fb; border-radius:8px; list-style:none;">
+        Clause {{ clause.clause_no }}
+        <span style="font-weight:400; color:#666; font-size:0.9em;">
+            &nbsp;&mdash;&nbsp;{{ clause.clause_type or 'UNCLASSIFIED' }}
+            &nbsp;|&nbsp;{{ clause.compliance_activities|length }} activit{{ 'y' if clause.compliance_activities|length == 1 else 'ies' }}
+        </span>
+    </summary>
+
+    <div style="padding:16px 18px;">
+        <div style="color:#444; font-size:0.92em; margin-bottom:14px; padding:10px; background:#fafbfc; border-left:3px solid #ccc; border-radius:4px;">
+            {{ clause.clause_text[:400] }}{% if clause.clause_text|length > 400 %}&hellip;{% endif %}
+        </div>
+
+        {% if not clause.compliance_activities %}
+        <div style="color:#888; font-style:italic; padding:8px 0;">No activities generated for this clause.</div>
+        {% endif %}
+
+        {% for activity in clause.compliance_activities %}
+        <div style="border:1px solid #e2e6ea; border-radius:6px; margin-bottom:12px; padding:14px; background:#fdfdfd;">
+            <div style="font-weight:600; margin-bottom:8px;">
+                Activity: {{ activity.activity_description }}
+            </div>
+            <div style="font-size:0.85em; color:#666; margin-bottom:10px;">
+                Compliance Level: {{ activity.compliance_level or 'N/A' }}
+            </div>
+
+            {% if not activity.control_activities %}
+            <div style="color:#a55; font-size:0.9em;">&#9888; No test procedure/control generated yet for this activity.</div>
+            {% endif %}
+
+            {% for control in activity.control_activities %}
+            <div style="border-top:1px dashed #ddd; padding-top:10px; margin-top:10px;">
+
+                <div style="margin-bottom:10px;">
+                    <span style="font-weight:600; color:#2E5C8A;">Test Procedure</span>
+                    {% if control.objective %}
+                    <div style="font-size:0.88em; margin-top:4px;"><strong>Objective:</strong> {{ control.objective }}</div>
+                    {% endif %}
+                    {% if control.test_procedure %}
+                        {% if control.test_procedure.walkthrough %}
+                        <div style="font-size:0.88em; margin-top:4px;"><strong>Walkthrough:</strong> {{ control.test_procedure.walkthrough }}</div>
+                        {% endif %}
+                        {% if control.test_procedure.sampling %}
+                        <div style="font-size:0.88em; margin-top:4px;"><strong>Sampling:</strong> {{ control.test_procedure.sampling }}</div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                <div style="margin-bottom:10px;">
+                    <span style="font-weight:600; color:#2E5C8A;">Evidence ({{ control.evidences|length }})</span>
+                    {% if control.evidences %}
+                    <ul style="margin:6px 0 0 0; padding-left:20px; font-size:0.88em;">
+                        {% for ev in control.evidences %}
+                        <li>[{{ ev.category }}] {{ ev.item }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div style="font-size:0.88em; color:#a55; margin-top:4px;">No evidence items generated.</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    {% set checklist = checklists_by_control_id.get(control.id) %}
+                    <span style="font-weight:600; color:#2E5C8A;">
+                        Checklist {% if checklist %}({{ (checklist.checklist_json or [])|length }} items){% else %}&mdash; not generated{% endif %}
+                    </span>
+                    {% if checklist and checklist.checklist_json %}
+                    <ul style="margin:6px 0 0 0; padding-left:20px; font-size:0.88em;">
+                        {% for item in checklist.checklist_json %}
+                        <li>
+                            <strong>{{ item.get('id', '') }}:</strong> {{ item.get('requirement', '') }}
+                            {% if item.get('checklist_family') %}
+                            <span style="color:#888;">[{{ item.get('checklist_family') }}]</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</details>
+{% endfor %}
+
+{% endblock %}

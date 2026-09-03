@@ -1214,6 +1214,7 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
             process_clauses_chunk,
             merge_evidence_groups,
             create_fallback_evidence,
+            _reconstruct_consolidated_groups,
         )
         from app.models import Guidelines, ComplifyreConsolidatedEvidence, db
         import time
@@ -1244,10 +1245,38 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
         logger.info(f"Found {total_clauses} clauses for guideline {guideline_id}")
 
         # Step 4: Prepare for chunk processing
-        CHUNK_SIZE = 5
+        # Adaptive, evidence-volume-aware chunking (Build Sequence #352): fixed
+        # CHUNK_SIZE=5 didn't account for clauses varying wildly in real evidence
+        # volume -- annex/schedule clauses in particular can carry dramatically more
+        # evidence items than a typical clause, pushing a chunk's AI-generated JSON
+        # output toward the 4000-token ceiling and causing invalid/truncated responses.
+        # Real diagnosis on guideline 163 confirmed this: even after adding retry logic
+        # (#351), annex/schedule clauses accounted for a disproportionate share of
+        # remaining failures. Group clauses by a target evidence-item budget per chunk
+        # instead of a fixed clause count -- a run of light clauses can fill one chunk,
+        # while a single evidence-dense clause gets its own chunk alone.
+        all_evidence_items_by_clause = {}
+        for item in process_clauses_chunk(all_clauses, guideline.id):
+            all_evidence_items_by_clause.setdefault(item["clause_no"], []).append(item)
+
+        MAX_EVIDENCE_ITEMS_PER_CHUNK = 100  # recalibrated from real per-clause data on guideline 163: median 19 items/clause, so 100 approximates the old, mostly-working 5-clause chunk scale
+        clause_chunks = []
+        current_chunk = []
+        current_chunk_item_count = 0
+        for clause in all_clauses:
+            clause_item_count = len(all_evidence_items_by_clause.get(clause.clause_no, []))
+            if current_chunk and (current_chunk_item_count + clause_item_count > MAX_EVIDENCE_ITEMS_PER_CHUNK):
+                clause_chunks.append(current_chunk)
+                current_chunk = []
+                current_chunk_item_count = 0
+            current_chunk.append(clause)
+            current_chunk_item_count += clause_item_count
+        if current_chunk:
+            clause_chunks.append(current_chunk)
+
         all_consolidated_evidence = []
         chunks_processed = 0
-        total_chunks = (total_clauses + CHUNK_SIZE - 1) // CHUNK_SIZE
+        total_chunks = len(clause_chunks)
 
         update_evidence_progress(
             task_id, 
@@ -1256,13 +1285,12 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
             f"Preparing to process {total_clauses} clauses in {total_chunks} chunks..."
         )
 
-        logger.info(f"📦 Processing {total_clauses} clauses in {total_chunks} chunks")
+        logger.info(f"📦 Processing {total_clauses} clauses in {total_chunks} adaptively-sized chunks")
 
         # Step 5: Process clauses in chunks
-        for chunk_start in range(0, total_clauses, CHUNK_SIZE):
-            chunk_end = min(chunk_start + CHUNK_SIZE, total_clauses)
-            chunk_clauses = all_clauses[chunk_start:chunk_end]
-            chunk_number = chunk_start // CHUNK_SIZE + 1
+        for chunk_number, chunk_clauses in enumerate(clause_chunks, start=1):
+            chunk_start = sum(len(c) for c in clause_chunks[:chunk_number-1])
+            chunk_end = chunk_start + len(chunk_clauses)
             chunks_processed += 1
 
             # Calculate progress (15% to 80% for chunk processing)
@@ -1278,12 +1306,32 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
                 f"Processing chunk {chunk_number}/{total_chunks} (clauses {chunk_start+1}-{chunk_end})"
             )
 
-            logger.info(f"Processing chunk {chunk_number}/{total_chunks}")
+            logger.info(f"Processing chunk {chunk_number}/{total_chunks} ({len(chunk_clauses)} clauses)")
 
             try:
                 # Step 5a: Extract evidence items from chunk
                 chunk_evidence_items = process_clauses_chunk(chunk_clauses, guideline.id)
-                
+
+                # Enrich each item with its activity's own description text (Build
+                # Sequence #361) -- gives the consolidation AI real context to tell
+                # apart genuinely different requirements that sound similar (e.g. KYC
+                # vs AML training), without needing it to touch linkage data itself.
+                # Batched into one query, not one lookup per item.
+                from app.models.ai import ComplianceActivities
+                unique_activity_ids = {
+                    item.get("activity_id") for item in chunk_evidence_items if item.get("activity_id")
+                }
+                activity_context_by_id = {}
+                if unique_activity_ids:
+                    activities_for_context = ComplianceActivities.query.filter(
+                        ComplianceActivities.id.in_([int(a) for a in unique_activity_ids if str(a).isdigit()])
+                    ).all()
+                    activity_context_by_id = {
+                        str(a.id): (a.activity_description or "") for a in activities_for_context
+                    }
+                for item in chunk_evidence_items:
+                    item["activity_context"] = activity_context_by_id.get(str(item.get("activity_id")), "")
+
                 update_evidence_progress(
                     task_id,
                     "PROCESSING", 
@@ -1293,78 +1341,115 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
 
                 # Step 5b: AI Processing if we have evidence items
                 if chunk_evidence_items:
-                    try:
-                        from app.services.prompt_service import evidences_consolidate
-                        from app.utils.cleaning import generate_chat_output
+                    from app.services.prompt_service import evidences_consolidate
+                    from app.utils.cleaning import generate_chat_output
 
-                        update_evidence_progress(
-                            task_id,
-                            "PROCESSING",
-                            min(round(current_progress + (progress_per_chunk * 0.4)), 80),
-                            f"Sending chunk {chunk_number} to AI for consolidation..."
-                        )
+                    # Retry logic added (Build Sequence #351): previously any single
+                    # failure (bad JSON, parse error, any exception) permanently fell
+                    # back to a generic placeholder with zero retry. Real diagnosis on
+                    # guideline 163 found ~15% of clauses affected, clustering into whole
+                    # failed chunks -- consistent with a transient/retryable failure mode,
+                    # not a fundamental one. Matches the 2-attempt pattern already used
+                    # elsewhere in this codebase (ControlWorkpaper extraction).
+                    MAX_EVIDENCE_ATTEMPTS = 2
+                    chunk_success = False
+                    last_error = None
 
-                        # Generate prompt and get AI response
-                        prompt = evidences_consolidate(chunk_evidence_items, chunk_number)
-                        logger.info(f"Calling AI for chunk {chunk_number}")
-                        res = generate_chat_output(
-                            prompt,
-                            override_system_prompt=(
-                                "You are a JSON-generating assistant for compliance evidence "
-                                "consolidation. Return ONLY valid JSON matching the exact schema "
-                                "requested in the user prompt. No markdown, no code fences, no "
-                                "explanations, no text outside the JSON object. Every key name in "
-                                "the JSON must be spelled exactly as specified in the schema -- do "
-                                "not abbreviate, alter, or insert characters into any key name."
-                            ),
-                            max_tokens=4000,
-                            frequency_penalty=0.0,
-                        )
+                    update_evidence_progress(
+                        task_id,
+                        "PROCESSING",
+                        min(round(current_progress + (progress_per_chunk * 0.4)), 80),
+                        f"Sending chunk {chunk_number} to AI for consolidation..."
+                    )
 
-                        update_evidence_progress(
-                            task_id,
-                            "PROCESSING",
-                            min(round(current_progress + (progress_per_chunk * 0.6)), 80),
-                            f"Processing AI response for chunk {chunk_number}..."
-                        )
+                    for attempt in range(1, MAX_EVIDENCE_ATTEMPTS + 1):
+                        try:
+                            # Generate prompt and get AI response
+                            prompt = evidences_consolidate(chunk_evidence_items, chunk_number)
+                            logger.info(f"Calling AI for chunk {chunk_number} (attempt {attempt}/{MAX_EVIDENCE_ATTEMPTS})")
+                            res = generate_chat_output(
+                                prompt,
+                                override_system_prompt=(
+                                    "You are a JSON-generating assistant for compliance evidence "
+                                    "consolidation. Return ONLY valid JSON matching the exact schema "
+                                    "requested in the user prompt. No markdown, no code fences, no "
+                                    "explanations, no text outside the JSON object. Every key name in "
+                                    "the JSON must be spelled exactly as specified in the schema -- do "
+                                    "not abbreviate, alter, or insert characters into any key name."
+                                ),
+                                max_tokens=12000,  # raised from 4000 (Build Sequence #355) -- confirmed via
+                                # real, consistent diagnostic evidence that 4000 tokens (~17,200 chars) was
+                                # the exact truncation point causing most remaining failures; gpt-4.1-mini's
+                                # real output ceiling is 32,768 tokens, so this stays well within budget.
+                                frequency_penalty=0.0,
+                                timeout=300.0,  # Build Sequence #356: the shared client's global 120s
+                                # default was calibrated for the old, smaller max_tokens -- confirmed live
+                                # that larger responses (needed to actually use the higher token budget
+                                # above) sometimes take longer than 120s to generate, causing genuine
+                                # request timeouts. Scoped to this call only via with_options(), the
+                                # shared global client's own default is untouched for every other caller.
+                            )
 
-                        # Parse and validate AI response
-                        chunk_consolidated_data = json.loads(res)
+                            update_evidence_progress(
+                                task_id,
+                                "PROCESSING",
+                                min(round(current_progress + (progress_per_chunk * 0.6)), 80),
+                                f"Processing AI response for chunk {chunk_number}..."
+                            )
 
-                        # Validate response structure -- also reject a response that carries
-                        # an "error" key, since generate_chat_output's own internal fallback
-                        # returns a syntactically-valid-but-empty {"grouped_evidences": [], "error": ...}
-                        # on failure, which previously passed this check as a false success.
-                        if (isinstance(chunk_consolidated_data, dict) and 
-                            "grouped_evidences" in chunk_consolidated_data and 
-                            isinstance(chunk_consolidated_data["grouped_evidences"], list) and
-                            "error" not in chunk_consolidated_data):
-                            
-                            all_consolidated_evidence.extend(chunk_consolidated_data["grouped_evidences"])
-                            logger.info(f"✅ Successfully processed chunk {chunk_number} with AI")
-                            
-                        else:
-                            # Use fallback for invalid AI response
-                            logger.warning(f"⚠️ AI returned invalid format for chunk {chunk_number}, using fallback")
-                            fallback_data = create_fallback_evidence(chunk_clauses, guideline_id)
-                            all_consolidated_evidence.extend(fallback_data["grouped_evidences"])
+                            # Parse and validate AI response
+                            chunk_consolidated_data = json.loads(res)
 
-                    except json.JSONDecodeError as e:
-                        logger.error(f"❌ JSON decode error for chunk {chunk_number}: {str(e)}")
-                        # Use fallback for JSON errors
+                            # Validate response structure -- also reject a response that carries
+                            # an "error" key, since generate_chat_output's own internal fallback
+                            # returns a syntactically-valid-but-empty {"grouped_evidences": [], "error": ...}
+                            # on failure, which previously passed this check as a false success.
+                            # (Build Sequence #361: now checks for "groups", the new index-only
+                            # format -- linkage is reconstructed mechanically below, never trusted
+                            # from the AI's own output.)
+                            if (isinstance(chunk_consolidated_data, dict) and 
+                                "groups" in chunk_consolidated_data and 
+                                isinstance(chunk_consolidated_data["groups"], list) and
+                                "error" not in chunk_consolidated_data):
+
+                                reconstructed = _reconstruct_consolidated_groups(
+                                    chunk_evidence_items, chunk_consolidated_data["groups"]
+                                )
+                                all_consolidated_evidence.extend(reconstructed)
+                                logger.info(f"✅ Successfully processed chunk {chunk_number} with AI (attempt {attempt}/{MAX_EVIDENCE_ATTEMPTS})")
+                                chunk_success = True
+                                break
+                            else:
+                                # Precise diagnosis + raw response logging (Build Sequence #353) --
+                                # "invalid format" alone wasn't enough to root-cause the failures
+                                # remaining after #351 (retry) and #352 (adaptive chunking).
+                                if not isinstance(chunk_consolidated_data, dict):
+                                    reason = f"response is not a dict (type={type(chunk_consolidated_data).__name__})"
+                                elif "grouped_evidences" not in chunk_consolidated_data:
+                                    reason = "missing 'grouped_evidences' key"
+                                elif not isinstance(chunk_consolidated_data["grouped_evidences"], list):
+                                    reason = f"'grouped_evidences' is not a list (type={type(chunk_consolidated_data['grouped_evidences']).__name__})"
+                                elif "error" in chunk_consolidated_data:
+                                    reason = f"response carries an 'error' key: {chunk_consolidated_data.get('error')}"
+                                else:
+                                    reason = "unknown"
+                                last_error = f"AI returned invalid format ({reason})"
+                                logger.warning(f"⚠️ AI returned invalid format for chunk {chunk_number} on attempt {attempt}/{MAX_EVIDENCE_ATTEMPTS}: {reason}")
+                                logger.warning(f"RAW_RESPONSE chunk={chunk_number} attempt={attempt} length={len(res)} start={res[:500]!r} end={res[-500:]!r}")
+
+                        except json.JSONDecodeError as e:
+                            last_error = f"JSON decode error: {str(e)}"
+                            logger.error(f"❌ JSON decode error for chunk {chunk_number} on attempt {attempt}/{MAX_EVIDENCE_ATTEMPTS}: {str(e)}")
+                            logger.error(f"RAW_RESPONSE chunk={chunk_number} attempt={attempt} length={len(res)} start={res[:500]!r} end={res[-500:]!r}")
+
+                        except Exception as e:
+                            last_error = f"AI processing error: {str(e)}"
+                            logger.error(f"❌ AI processing error for chunk {chunk_number} on attempt {attempt}/{MAX_EVIDENCE_ATTEMPTS}: {str(e)}")
+
+                    if not chunk_success:
+                        logger.error(f"❌ All {MAX_EVIDENCE_ATTEMPTS} attempts failed for chunk {chunk_number}. Last error: {last_error}. Using fallback.")
                         fallback_data = create_fallback_evidence(chunk_clauses, guideline_id)
                         all_consolidated_evidence.extend(fallback_data["grouped_evidences"])
-                        
-                    except Exception as e:
-                        logger.error(f"❌ AI processing error for chunk {chunk_number}: {str(e)}")
-                        # Use fallback for other AI errors
-                        fallback_data = create_fallback_evidence(chunk_clauses, guideline_id)
-                        all_consolidated_evidence.extend(fallback_data["grouped_evidences"])
-                else:
-                    # No evidence items in this chunk, create basic structure
-                    logger.info(f"📝 No evidence items in chunk {chunk_number}, creating basic structure")
-                    fallback_data = create_fallback_evidence(chunk_clauses, guideline_id)
-                    all_consolidated_evidence.extend(fallback_data["grouped_evidences"])
 
                 # Final progress update for this chunk
                 update_evidence_progress(
@@ -3836,8 +3921,10 @@ def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
         call1_obligation_intelligence_prompt,
         call2_activity_generation_prompt,
         validate_and_fix_activities,
+        reasonable_assurance_prompt,
         CALL1_SYSTEM,
         CALL2_SYSTEM,
+        CALL3_SYSTEM,
     )
     from app.services.model_response import _call_llm_json_raw
 
@@ -3898,6 +3985,48 @@ def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
 
     # ── Step E1: Python Validation + Fix ─────────────────────
     activities = validate_and_fix_activities(activities)
+
+    # Step E2 (Build Sequence #367): Reasonable Assurance Validation Loop
+    # Separate, dedicated call -- never trusts Call 2 to self-critique. On
+    # failure, regenerates WITH the specific feedback as context, capped at
+    # 3 attempts, then flags for human review rather than silently keeping a
+    # possibly-flawed result (same philosophy as the evidence self-check
+    # loop design, #359/#361).
+    MAX_ASSURANCE_ATTEMPTS = 3
+    assurance_feedback = None
+    needs_human_review = False
+    for assurance_attempt in range(1, MAX_ASSURANCE_ATTEMPTS + 1):
+        assurance_prompt = reasonable_assurance_prompt(clause_text, activities)
+        assurance_result = _call_llm_json_raw(system_msg=CALL3_SYSTEM, user_msg=assurance_prompt)
+
+        if not assurance_result:
+            logger.warning(f"[V2] Reasonable assurance check returned no output (attempt {assurance_attempt}/{MAX_ASSURANCE_ATTEMPTS}) -- treating as inconclusive, keeping current activities")
+            break
+
+        if assurance_result.get("passes"):
+            logger.info(f"[V2] Reasonable assurance check PASSED (attempt {assurance_attempt}/{MAX_ASSURANCE_ATTEMPTS})")
+            break
+
+        assurance_feedback = assurance_result.get("feedback", "")
+        logger.warning(f"[V2] Reasonable assurance check FAILED (attempt {assurance_attempt}/{MAX_ASSURANCE_ATTEMPTS}): {assurance_feedback}")
+
+        if assurance_attempt == MAX_ASSURANCE_ATTEMPTS:
+            needs_human_review = True
+            logger.warning(f"[V2] Max reasonable assurance attempts reached for clause -- flagging for human review, keeping last-generated activities. Feedback: {assurance_feedback}")
+            break
+
+        call2_retry_prompt = call2_activity_generation_prompt(clause_text, atomic_obligations, department_list)
+        call2_retry_prompt += f"\n\nPREVIOUS ATTEMPT WAS REJECTED ON REASONABLE-ASSURANCE REVIEW. Fix these specific issues:\n{assurance_feedback}"
+        call2_retry_result = _call_llm_json_raw(system_msg=CALL2_SYSTEM, user_msg=call2_retry_prompt)
+
+        if not call2_retry_result or not call2_retry_result.get("activities"):
+            logger.warning(f"[V2] Regeneration attempt {assurance_attempt + 1} produced no activities -- keeping previous set")
+            break
+
+        activities = validate_and_fix_activities(call2_retry_result.get("activities", []))
+
+    if needs_human_review:
+        logger.warning(f"[V2] NEEDS_HUMAN_REVIEW flag: clause activities did not pass reasonable assurance after {MAX_ASSURANCE_ATTEMPTS} attempts")
 
     # ── Map to ComplianceActivity schema fields ───────────────
     mapped = []
