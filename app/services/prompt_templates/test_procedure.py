@@ -329,6 +329,13 @@ INSTRUCTIONS:
          system, or validation results confirming it works -- never governance-style documentation
          alone (roles, approvals, policy documents) about the deliverable, since that proves who
          authorized it, not that it actually exists or functions.
+         This still applies even when the activity is WORDED as creating a "control framework,"
+         "policy," or "process" -- look past the surface wording to what the framework/policy/
+         process actually governs. If it governs a specific named technical system or tool (e.g. "a
+         control framework for integrating QR code scanning technology"), the technical system is the
+         real subject, and evidence must prove that system exists and functions, in addition to any
+         framework/policy document about it -- do not let the word "framework" or "policy" alone
+         justify governance-only evidence.
    - sampling_guidance: IMPORTANT — Only provide sampling guidance for "Operating Effectiveness" activities. For "Design" or "Implementation", set to "Not applicable."
 
 6. NULL FIELDS (post-audit only — do NOT generate content for these):
