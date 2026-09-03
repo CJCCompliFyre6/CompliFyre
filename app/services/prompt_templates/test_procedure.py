@@ -117,9 +117,16 @@ class ControlWorkpaper(BaseModel):
             return synonym_map.get(v.strip().lower(), v)
         return v
 
-    assessment_objective: AssessmentObjectiveType = Field(..., description="Primary objective of this assessment — Design Effectiveness, Operating Effectiveness, or Substantive Testing.")
-    assessment_objective_rationale: str = Field(..., description="Brief explanation of why this assessment objective was selected for this control activity.")
-    test_attributes: list[TestAttribute] = Field(..., description="List of specific attributes to be tested for this control activity. Each attribute must have clear pass/fail criteria.")
+    # These three are correctly None at initial generation time -- they belong to a
+    # later, separate stage. assessment_objective/rationale and test_attributes are
+    # mechanically derived from the project's OE checklist items when an auditor
+    # uploads real test data (see app/routes/audit/view.py upload_test_data() ->
+    # app/services/attribute_testing_engine.py run_attribute_testing()) -- not
+    # generated here, and never should be, to avoid a second, independent,
+    # potentially-drifting source of the same data. Build Sequence #377.
+    assessment_objective: None | AssessmentObjectiveType = Field(None, description="Primary objective of this assessment — Design Effectiveness, Operating Effectiveness, or Substantive Testing. Populated later from the checklist, not at initial generation.")
+    assessment_objective_rationale: None | str = Field(None, description="Brief explanation of why this assessment objective was selected. Populated later from the checklist, not at initial generation.")
+    test_attributes: None | list[TestAttribute] = Field(None, description="List of specific attributes to be tested. Populated later from the checklist's OE items when real audit data is uploaded, not at initial generation.")
     test_procedure: TestProcedure = Field(..., description="Detailed testing procedure.")
     evidences_artifacts_needed: list[EvidenceItem] = Field(
         ..., description="List of evidence categories and their items."
@@ -355,6 +362,7 @@ REQUIRED JSON SCHEMA:
     }}
   ],
   "sampling_guidance": "string",
+  "explain_test_procedure": "Step-by-step guidance in Markdown for performing this activity's testing -- what evidence to gather and when, what to review, who to interview and in what order, what to check during walkthrough. Do not repeat the structured walkthrough/sampling fields verbatim -- this is the narrative explanation an auditor reads before starting the test.",
   "auditor_observation": null,
   "findings": null,
   "recommendations": null,
