@@ -126,7 +126,7 @@ def login():
 
 # +++ ADDED LOGIN AND LOGOUT ROUTES +++
 @main_bp.route("/login_user_route", methods=["POST"])
-@limiter.limit("5 per minute")  # S-71: prevent ACS flood + brute force
+@limiter.limit("10 per minute")  # S-71: prevent ACS flood + brute force
 def login_user_route():
     email = request.form.get("email")
     password = request.form.get("password")
