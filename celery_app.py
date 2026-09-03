@@ -57,7 +57,7 @@ def celery_init_app(app: Flask) -> Celery:
             'app.services.manual_task.scan_watch_folder': {'queue': 'extract_guidelines'},
             'app.services.argus_orchestrator.argus_orchestrator': {'queue': 'extract_guidelines'},
         },
-        "imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5"),"imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5", "app.services.eve_step678", "app.services.argus_orchestrator"),
+        "imports": ("app.services.automate_task", "app.services.manual_task", "app.services.eve_tasks", "app.services.eve_step5", "app.services.eve_step678", "app.services.argus_orchestrator", "app.services.risk_mapping_service"),
         "task_track_started": True,
         "task_time_limit": 24 * 60 * 60,  # 24 hours
         "task_acks_late": True,

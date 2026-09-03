@@ -112,18 +112,26 @@ def delete_file(file_id: str) -> dict:
 
 
 
-def _call_llm_json_raw(system_msg: str, user_msg: str, retries: int = 3, backoff: float = 2.0) -> dict | None:
+def _call_llm_json_raw(system_msg: str, user_msg: str, retries: int = 3, backoff: float = 2.0, timeout: float = 90.0) -> dict | None:
     """
     Direct LLM call returning JSON dict — no vector store, no schema validation.
-    Used by V2 activity extraction pipeline.
+    Used by V2 activity extraction pipeline and RCM risk-mapping.
+    timeout=90.0 -- explicit, bounded per-attempt timeout (Build Sequence #376). The
+    shared global client's own default (120s) was found NOT to reliably bound worst-
+    case latency in practice -- confirmed twice: clauses 18/18(b) hung ~19-20 min
+    despite a theoretical ~6 min max (#370), and a real RCM bulk-generation run
+    stalled a full 2 hours on a single control with zero progress and the worker
+    unresponsive to inspect() pings. An explicit, real timeout here ensures a hung
+    call fails and retries within a bounded, predictable window instead.
     """
     import json
     import time
     from app import client
     logger_local = logging.getLogger(__name__)
+    request_client = client.with_options(timeout=timeout)
     for attempt in range(retries):
         try:
-            response = client.chat.completions.create(
+            response = request_client.chat.completions.create(
                 model="gpt-4.1-mini",
                 max_tokens=8000,
                 temperature=0,

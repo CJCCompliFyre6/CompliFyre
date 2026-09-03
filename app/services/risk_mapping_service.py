@@ -60,6 +60,19 @@ def generate_risk_mapping_for_control(control_activity_id: int) -> dict:
         rationale = m.get("rationale", "")
         risk_area_id = valid_risk_area_names.get(risk_area_name)
         if risk_area_id is None:
+            # Defensive fallback (Build Sequence #376): the LLM sometimes prepends
+            # the category name despite the prompt's explicit 'verbatim' instruction,
+            # e.g. "Operational Risk - Process / Execution Risk" instead of just
+            # "Process / Execution Risk". Strip a "{category} - " or "{category}: "
+            # prefix and retry the match once before giving up -- confirmed via a real
+            # bulk run where 12 of 852 controls (1.4%) hit exactly this pattern.
+            for sep in (" - ", ": "):
+                if sep in risk_area_name:
+                    candidate = risk_area_name.split(sep, 1)[-1].strip()
+                    risk_area_id = valid_risk_area_names.get(candidate)
+                    if risk_area_id is not None:
+                        break
+        if risk_area_id is None:
             skipped.append(risk_area_name)
             continue
         db.session.add(ControlRiskMapping(

@@ -77,6 +77,7 @@ class Config:
         "app.services.automate_task",
         "app.services.manual_task",
         "app.services.eve_tasks",
+        "app.services.risk_mapping_service",
     ),
     "task_track_started": True,
     "task_time_limit": 30 * 60,  # 30 minutes
