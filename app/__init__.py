@@ -35,7 +35,7 @@ limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=None,
     strategy="fixed-window",
-    default_limits=[],
+    default_limits=["200 per minute", "2000 per hour"],  # S-71: global rate limit — covers all routes
 )
 
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY")
