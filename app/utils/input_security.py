@@ -82,6 +82,19 @@ def validate_upload_file(filename: str, context: str = "evidence") -> dict:
         return {"ok": False, "error": "File has no extension — cannot determine type."}
 
     ext = filename.rsplit(".", 1)[1].lower()
+    # S-upload: Double extension bypass fix — check ALL parts of filename
+    # e.g. hello.exe.pdf has "exe" embedded — must be caught
+    all_parts = [p.lower() for p in filename.split(".")[1:]]
+    for part in all_parts:
+        if part in BLOCKED_EXTENSIONS:
+            logger.warning("[InputSecurity] Blocked double-extension: %s (.%s embedded)", filename, part)
+            return {
+                "ok": False,
+                "error": (
+                    f"File name contains blocked extension '.{part}'. "
+                    "Files with embedded executable extensions are not allowed."
+                ),
+            }
 
     # Hard block always runs first regardless of context
     if ext in BLOCKED_EXTENSIONS:
