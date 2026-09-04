@@ -1819,8 +1819,8 @@ def create_new_project():
         org_id = data.get("org_id")
         department_names = data.get("department", "")
         guideline_ids = data.get("guidelines", "")
-        project_description = data.get("project_description")
-        project_name = data.get("project_name")
+        project_description = sanitize_text_input(data.get("project_description", ""), context="general")["value"]
+        project_name = sanitize_text_input(data.get("project_name", ""), context="general")["value"]
         project_start_date = data.get("proj_start_date")
         assesment_start_date = data.get("assisment_start_date")
         assesment_end_date = data.get("assisment_end_date")
