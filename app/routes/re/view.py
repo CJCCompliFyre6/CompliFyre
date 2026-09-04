@@ -3433,6 +3433,11 @@ def activity(project_id):
             flash(f"Project with ID {project_id} not found", "error")
             return redirect(request.referrer or url_for("audit.my_projects"))
 
+        # S-64: IDOR fix — verify current user owns or has access to this project
+        from app.utils.evidence_access import user_can_access_project
+        if not user_can_access_project(project, current_user):
+            current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access project {project_id}")
+            abort(404)
         # Use project name from the retrieved project object
         project_name = project.project_name
 

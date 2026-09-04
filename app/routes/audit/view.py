@@ -1360,6 +1360,17 @@ def contact_dashboard():
 def get_projects(org_id):
     add_to_breadcrumb(request.full_path, "My Projects")
     try:
+        # S-64: IDOR fix — verify org_id belongs to current user's firm or clients
+        if current_user.auditor_profile_id:
+            # Check org is a client of current user's firm
+            from app.models.audit import auditor_client
+            allowed = db.session.query(auditor_client).filter_by(
+                audit_id=current_user.auditor_profile_id,
+                client_id=org_id
+            ).first()
+            if not allowed:
+                current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access org {org_id}")
+                abort(404)
         projects = (
             db.session.query(Projects.project_name)
             .filter_by(client=org_id)
