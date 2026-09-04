@@ -191,6 +191,20 @@ def create_organization():
         return jsonify({"error": "Internal server error"}), 500
 
 
+
+@audit_bp.route("/serve-certification/<path:filename>")
+@login_required
+def serve_certification(filename):
+    """Serve certification files with authentication — S-63: no direct static access."""
+    import os
+    from flask import send_from_directory, abort
+    safe_name = os.path.basename(filename)
+    cert_dir = os.path.join(os.getcwd(), "uploads", "certifications")
+    full_path = os.path.join(cert_dir, safe_name)
+    if not os.path.exists(full_path):
+        abort(404)
+    return send_from_directory(cert_dir, safe_name, as_attachment=True)
+
 @audit_bp.route("/edit_profile", methods=["GET", "POST"])
 @login_required
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
