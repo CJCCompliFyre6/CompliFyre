@@ -29,13 +29,16 @@ class PDFService(PromptsText):
         self.logger = logging.getLogger(__name__)
 
     _BLOCKED_NETWORKS = [
-        ipaddress.ip_network("127.0.0.0/8"),
-        ipaddress.ip_network("10.0.0.0/8"),
-        ipaddress.ip_network("172.16.0.0/12"),
-        ipaddress.ip_network("192.168.0.0/16"),
-        ipaddress.ip_network("169.254.0.0/16"),
-        ipaddress.ip_network("::1/128"),
-        ipaddress.ip_network("fc00::/7"),
+        ipaddress.ip_network("0.0.0.0/8"),       # S-SSRF: unspecified
+        ipaddress.ip_network("127.0.0.0/8"),      # loopback
+        ipaddress.ip_network("10.0.0.0/8"),       # private
+        ipaddress.ip_network("172.16.0.0/12"),    # private
+        ipaddress.ip_network("192.168.0.0/16"),   # private
+        ipaddress.ip_network("169.254.0.0/16"),   # link-local / Azure metadata
+        ipaddress.ip_network("100.64.0.0/10"),    # shared address space
+        ipaddress.ip_network("::1/128"),           # IPv6 loopback
+        ipaddress.ip_network("fc00::/7"),          # IPv6 ULA
+        ipaddress.ip_network("fe80::/10"),         # IPv6 link-local
     ]
 
     def _is_safe_url(self, url: str) -> bool:
@@ -79,7 +82,7 @@ class PDFService(PromptsText):
                 return False
 
             # Check if URL is accessible
-            response = self.session.head(url, allow_redirects=True, timeout=60)
+            response = self.session.head(url, allow_redirects=False, timeout=10)  # S-SSRF: no redirect following — prevents redirect-based SSRF
             # print(response)
             return response.status_code == 200
 
