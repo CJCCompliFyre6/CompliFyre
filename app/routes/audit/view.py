@@ -5177,6 +5177,11 @@ def get_clause_activities(clause_id):
     )
 
     project = Projects.query.get(clause.project_guideline.project_id)
+    # S-64: IDOR fix — verify ownership before returning clause data
+    from app.utils.evidence_access import user_can_access_project
+    if not user_can_access_project(project, current_user):
+        current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access clause {clause_id}")
+        abort(404)
 
     # Flatten the list of control activities
     control_activities = []
@@ -5278,6 +5283,11 @@ def clause_test_steps(clause_id):
     )
 
     project = Projects.query.get(clause.project_guideline.project_id)
+    # S-64: IDOR fix — verify ownership before returning clause data
+    from app.utils.evidence_access import user_can_access_project
+    if not user_can_access_project(project, current_user):
+        current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access clause {clause_id}")
+        abort(404)
 
     # Get only APPLICABLE project compliance activities for this clause
     project_compliance_activities = (
