@@ -4799,6 +4799,19 @@ def test_evidence_artifacts(activity_id):
                 .joinedload(ProjectGuideline.project),
             )
             .first_or_404()
+        # S-64: IDOR fix — verify user has access to this activity's parent project
+        try:
+            _project = (project_control
+                .project_compliance_activity
+                .project_clause
+                .project_guideline
+                .project)
+            from app.utils.evidence_access import user_can_access_project
+            if _project and not user_can_access_project(_project, current_user):
+                current_app.logger.warning(f"IDOR: user {current_user.id} tried activity {activity_id}")
+                abort(404)
+        except AttributeError:
+            abort(404)
         )
 
         # DEBUG: Print what we're getting
