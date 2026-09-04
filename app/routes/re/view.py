@@ -1660,6 +1660,16 @@ def edit_organization_locations(org_id):
     """
     # Fetch the organization to ensure it exists and user has permission
     organization = Organizations.query.get_or_404(org_id)
+    # S-64: IDOR fix — verify org belongs to current user's clients
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {org_id}")
+            abort(403)
 
     # --- Add a security check here if needed, e.g. ---
     # if organization.owner_id != current_user.id:
