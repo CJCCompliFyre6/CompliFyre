@@ -6012,7 +6012,7 @@ def uploaded_file(filename):
     # Use send_file instead of send_from_directory
     return send_file(
         file_path,
-        as_attachment=False,  # Display in browser instead of downloading
+        as_attachment=True,  # S-XSS: force download, prevent inline PDF JS execution
         conditional=True,  # Support for conditional requests (ETag, If-Modified-Since)
     )
 

@@ -54,6 +54,16 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
 }
 
 
+def _check_pdf_magic_bytes(filepath: str) -> bool:
+    """Check if file starts with PDF magic bytes %PDF — blocks fake PDFs with malicious content."""
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(4)
+        return header == b"%PDF"
+    except Exception:
+        return False
+
+
 def validate_upload_file(filename: str, context: str = "evidence") -> dict:
     """
     Validate an uploaded file's extension before saving to disk.
