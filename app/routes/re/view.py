@@ -4799,6 +4799,7 @@ def test_evidence_artifacts(activity_id):
                 .joinedload(ProjectGuideline.project),
             )
             .first_or_404()
+        )
         # S-64: IDOR fix — verify user has access to this activity's parent project
         try:
             _project = (project_control
@@ -4812,7 +4813,6 @@ def test_evidence_artifacts(activity_id):
                 abort(404)
         except AttributeError:
             abort(404)
-        )
 
         # DEBUG: Print what we're getting
         print(f"Control Activity Name: '{project_control.activity_name}'")
