@@ -1,0 +1,151 @@
+{% extends "audit_base.html" %} {% block content %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+
+<div class="max-w-4xl mx-auto p-8">
+  <div class="mb-6">
+    <a href="{{ url_for('re.test_evidence_artifacts', activity_id=activity_id) }}"
+       class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
+      &larr; Back to Activity Details
+    </a>
+  </div>
+
+  <div class="bg-white rounded-lg shadow-xl p-8 mb-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-2 text-center">
+      Checklist
+    </h1>
+    <p class="text-center text-gray-500 mb-6">
+      {{ activity_code }} &mdash; {{ activity_name }}
+    </p>
+
+    {% if not checklist %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center text-yellow-800">
+      No checklist has been generated for this activity yet.
+    </div>
+    {% else %}
+
+    <div class="bg-blue-50 p-6 rounded-lg shadow-md mb-8">
+      <h2 class="text-xl font-semibold text-blue-800 mb-3">Required Effectiveness Dimensions</h2>
+      <div class="flex gap-3">
+        <span class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if checklist.dimension_design else 'bg-gray-200 text-gray-500' }}">
+          Design {{ 'Yes' if checklist.dimension_design else 'No' }}
+        </span>
+        <span class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if checklist.dimension_implementation else 'bg-gray-200 text-gray-500' }}">
+          Implementation {{ 'Yes' if checklist.dimension_implementation else 'No' }}
+        </span>
+        <span class="px-3 py-1 rounded-full text-sm font-semibold {{ 'bg-green-200 text-green-800' if checklist.dimension_operating else 'bg-gray-200 text-gray-500' }}">
+          Operating {{ 'Yes' if checklist.dimension_operating else 'No' }}
+        </span>
+      </div>
+      <p class="text-gray-500 text-sm mt-3">
+        Version {{ checklist.version }}
+        {% if checklist.generated_at %} &middot; Generated {{ checklist.generated_at.strftime('%d %b %Y, %H:%M') }}{% endif %}
+      </p>
+    </div>
+
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">
+      Checklist Items ({{ (checklist.checklist_json or [])|length }})
+    </h2>
+
+    {% for item in (checklist.checklist_json or []) %}
+    <div class="border border-gray-200 rounded-lg p-6 mb-5 shadow-sm">
+      <div class="flex justify-between items-start mb-3">
+        <span class="text-sm font-mono text-gray-400">{{ item.id }}</span>
+        <div class="flex gap-2">
+          {% if item.weight %}
+          <span class="px-2 py-1 rounded text-xs font-semibold {{ 'bg-red-100 text-red-700' if item.weight == 'HIGH' else 'bg-yellow-100 text-yellow-700' if item.weight == 'MEDIUM' else 'bg-green-100 text-green-700' }}">
+            {{ item.weight }}
+          </span>
+          {% endif %}
+          {% if item.effectiveness_type %}
+          <span class="px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-700">
+            {{ item.effectiveness_type }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <p class="text-gray-900 font-medium mb-4">{{ item.requirement }}</p>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
+        {% if item.control_pattern %}
+        <div><span class="text-gray-500">Control Pattern:</span> <span class="text-gray-800">{{ item.control_pattern }}</span></div>
+        {% endif %}
+        {% if item.lifecycle_stage %}
+        <div><span class="text-gray-500">Lifecycle Stage:</span> <span class="text-gray-800">{{ item.lifecycle_stage }}</span></div>
+        {% endif %}
+        {% if item.requirement_type %}
+        <div><span class="text-gray-500">Requirement Type:</span> <span class="text-gray-800">{{ item.requirement_type }}</span></div>
+        {% endif %}
+        {% if item.testing_method %}
+        <div><span class="text-gray-500">Testing Method:</span> <span class="text-gray-800">{{ item.testing_method }}</span></div>
+        {% endif %}
+        {% if item.testing_approach %}
+        <div><span class="text-gray-500">Testing Approach:</span> <span class="text-gray-800">{{ item.testing_approach }}</span></div>
+        {% endif %}
+        {% if item.allows_compensating_control is defined %}
+        <div><span class="text-gray-500">Compensating Control Allowed:</span> <span class="text-gray-800">{{ 'Yes' if item.allows_compensating_control else 'No' }}</span></div>
+        {% endif %}
+      </div>
+
+      {% if item.expected_evidence_types %}
+      <div class="mb-3">
+        <span class="text-sm text-gray-500">Expected Evidence Types:</span>
+        <div class="flex flex-wrap gap-2 mt-1">
+          {% for et in item.expected_evidence_types %}
+          <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">{{ et }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if item.evidence_logic %}
+      <p class="text-sm text-gray-600 mb-3"><span class="text-gray-500">Evidence Logic:</span> {{ item.evidence_logic }}</p>
+      {% endif %}
+
+      {% if item.evaluation_logic %}
+      <div class="bg-gray-50 rounded p-3 mb-3 text-sm">
+        <p class="text-gray-500 mb-1">Evaluation Logic</p>
+        {% if item.evaluation_logic.check_for %}<p><span class="text-gray-500">Check for:</span> {{ item.evaluation_logic.check_for }}</p>{% endif %}
+        {% if item.evaluation_logic.pass_condition %}<p><span class="text-gray-500">Pass:</span> {{ item.evaluation_logic.pass_condition }}</p>{% endif %}
+        {% if item.evaluation_logic.fail_condition %}<p><span class="text-gray-500">Fail:</span> {{ item.evaluation_logic.fail_condition }}</p>{% endif %}
+      </div>
+      {% endif %}
+
+      {% if item.compensating_control_logic %}
+      <p class="text-sm text-gray-600 mb-3"><span class="text-gray-500">Compensating Control Logic:</span> {{ item.compensating_control_logic }}</p>
+      {% endif %}
+
+      {% if item.failure_impact %}
+      <p class="text-sm"><span class="text-gray-500">Failure Impact:</span> <span class="text-gray-800">{{ item.failure_impact }}</span></p>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% if checklist.admissibility_rules_json or checklist.sampling_rules_json or checklist.scoring_rules_json %}
+    <h2 class="text-xl font-semibold text-gray-800 mb-4 mt-8">Additional Rules</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {% if checklist.admissibility_rules_json %}
+      <div class="bg-gray-50 rounded-lg p-4">
+        <h3 class="font-semibold text-gray-700 mb-2 text-sm">Admissibility Rules</h3>
+        <pre class="text-xs text-gray-600 whitespace-pre-wrap">{{ checklist.admissibility_rules_json | tojson(indent=2) }}</pre>
+      </div>
+      {% endif %}
+      {% if checklist.sampling_rules_json %}
+      <div class="bg-gray-50 rounded-lg p-4">
+        <h3 class="font-semibold text-gray-700 mb-2 text-sm">Sampling Rules</h3>
+        <pre class="text-xs text-gray-600 whitespace-pre-wrap">{{ checklist.sampling_rules_json | tojson(indent=2) }}</pre>
+      </div>
+      {% endif %}
+      {% if checklist.scoring_rules_json %}
+      <div class="bg-gray-50 rounded-lg p-4">
+        <h3 class="font-semibold text-gray-700 mb-2 text-sm">Scoring Rules</h3>
+        <pre class="text-xs text-gray-600 whitespace-pre-wrap">{{ checklist.scoring_rules_json | tojson(indent=2) }}</pre>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

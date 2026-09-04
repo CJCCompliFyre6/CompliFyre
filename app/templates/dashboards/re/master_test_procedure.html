@@ -201,9 +201,15 @@
     {% for item in how_to_perform_activities%} {# Capture the current item's
     loop index for use in nested IDs #} {% set item_loop_idx = loop.index0 %}
     <div class="slider-item max-w-3xl mx-auto bg-white rounded-lg shadow-xl p-8 mb-8">
-      <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">
+      <h1 class="text-3xl font-extrabold text-gray-900 mb-3 text-center">
         Activity Details
       </h1>
+      <div class="text-center mb-6">
+        <a href="{{ url_for('re.checklist_view', activity_id=item.data.id) }}"
+           class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 text-sm font-medium">
+          View Checklist
+        </a>
+      </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div class="bg-blue-50 p-6 rounded-lg shadow-md">

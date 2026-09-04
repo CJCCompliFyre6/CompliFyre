@@ -5429,6 +5429,44 @@ def test_evidence_artifacts(activity_id):
         return redirect(request.referrer)
 
 
+@re_bp.route("/checklist_view/<int:activity_id>")
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def checklist_view(activity_id):
+    """
+    Displays the full checklist (ProjectChecklist) for a single project control
+    activity, in a dedicated, read-only view. First iteration of item 1 from the
+    #6 integration work -- view only, edit capability to follow once Ankita has
+    seen the layout and confirmed scope. Build Sequence #380.
+    """
+    add_to_breadcrumb(request.full_path, "Checklist")
+    from app.models.eve_models import ProjectChecklist
+
+    project_control = (
+        db.session.query(ProjectControlActivity)
+        .filter_by(id=activity_id)
+        .options(
+            joinedload(ProjectControlActivity.project_compliance_activity),
+        )
+        .first_or_404()
+    )
+    checklist = ProjectChecklist.query.filter_by(
+        project_control_activity_id=activity_id
+    ).first()
+
+    display_activity_name = (
+        project_control.project_compliance_activity.activity_description
+        if project_control.project_compliance_activity
+        else project_control.activity_description
+    )
+
+    return render_template(
+        "checklist_view.html",
+        activity_id=activity_id,
+        activity_name=display_activity_name,
+        activity_code=project_control.activity_code,
+        checklist=checklist,
+    )
+
 
 @re_bp.route("/delete_test_procedure_main_content", methods=["POST"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
