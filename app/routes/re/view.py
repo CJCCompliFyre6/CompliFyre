@@ -5823,6 +5823,7 @@ def upload_test_procedure_files():
 
             # Generate unique filename
             original_filename = secure_filename(file.filename)
+            safe_display_name = sanitize_text_input(original_filename, context="general")["value"]  # S-XSS: sanitize filename
             file_extension = os.path.splitext(original_filename)[1]
             unique_filename = f"{uuid.uuid4()}{file_extension}"
             file_path = os.path.join(upload_dir, unique_filename)
@@ -5833,7 +5834,7 @@ def upload_test_procedure_files():
             # Create file record
             new_file = TestProcedureFile(
                 test_procedure_id=project_control.project_test_procedure.id,
-                filename=original_filename,
+                filename=safe_display_name,
                 file_path=unique_filename,
                 file_size=os.path.getsize(file_path),
                 file_type=file_extension,
