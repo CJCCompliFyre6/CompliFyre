@@ -661,6 +661,7 @@ Choose ONE:
 - APPLICABILITY: describes the scope of who/what the regulation applies to — no new independent action is demanded by THIS clause, even if it uses "shall apply to"
 - EXEMPTION: carves out entities, transactions, or categories that are excluded from an otherwise-applicable requirement — including patterns like "Nothing contained in...shall apply to...", "shall not apply to...", "is exempted from...", or a list of excluded deposit/entity types
 - REFERENCE: historical circular references, appendix rows, amendment lists, or any content that is purely a reference to another document/circular with no regulatory requirement of its own
+- DISCRETIONARY: the core action is genuinely optional -- the entity may choose to do it or not, with no real expectation either way (e.g. "encouraged to leverage," "may consider adopting," "recommended practice," "where feasible"). Distinct from PRINCIPLE, which still carries a real, softer-but-genuine expectation ("shall endeavour"). Only classify as DISCRETIONARY if this is the clause's CORE action, not a sub-detail/method-choice within an otherwise-mandatory clause -- e.g. "REs may undertake V-CIP" is NOT discretionary, since the underlying CDD obligation remains mandatory and V-CIP is just one permitted method of fulfilling it.
 
 IMPORTANT — EMBEDDED OBLIGATION RULE:
 If a definition clause contains language like "shall ensure", "shall maintain", "is required to" — classify as MIXED, not DEFINITION.
@@ -717,7 +718,7 @@ OUTPUT FORMAT — return ONLY valid JSON, no explanation, no markdown:
 {{
   "clause_no": "{node.get('clause_no', '')}",
   "intent_summary": "one-sentence description of what this clause actually does — write this first, consistent with your Q0 answer",
-  "clause_type": "OBLIGATION|PRINCIPLE|MIXED|DEFINITION|APPLICABILITY|EXEMPTION|REFERENCE",
+  "clause_type": "OBLIGATION|PRINCIPLE|MIXED|DEFINITION|APPLICABILITY|EXEMPTION|REFERENCE|DISCRETIONARY",
   "merge_decision": "STANDALONE|MERGE_PARENT",
   "merge_reason": "brief reason for merge decision",
   "applicable_to": "INHERITS|SPECIFIC|UNKNOWN",

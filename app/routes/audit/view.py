@@ -131,6 +131,34 @@ def _build_project_control_activity_fields(control_template):
     }
 
 
+def _build_project_compliance_activity_fields(activity_template):
+    """
+    Single, shared source of truth for copying a master ComplianceActivities'
+    template data into a new ProjectComplianceActivity. Used by all three
+    project-instantiation code paths in this file, matching the same pattern as
+    _build_project_control_activity_fields. Build Sequence #379.
+
+    Also defaults applicability to False when the parent clause's clause_type is
+    DISCRETIONARY (a genuinely optional obligation, e.g. "encouraged to leverage"),
+    per Ankita's design decision (#365/#366) -- auditor can still opt in via the
+    existing applicability toggle if the discretionary item is relevant to this
+    specific client engagement.
+    """
+    parent_clause_type = None
+    if activity_template.clauses:
+        parent_clause_type = activity_template.clauses.clause_type
+
+    return {
+        "original_activity_id": activity_template.id,
+        "activity_id": activity_template.activity_id,
+        "activity_description": activity_template.activity_description,
+        "responsible_party": activity_template.responsible_party,
+        "frequency": activity_template.frequency,
+        "evidence_required": activity_template.evidence_required,
+        "applicability": parent_clause_type != "DISCRETIONARY",
+    }
+
+
 class TaskStatus:
     """
     Minimal helper to record Celery task status into Redis so the SSE progress
@@ -1808,12 +1836,7 @@ def update_project(project_id):
 
                         for activity_template in clause_template.compliance_activities:
                             project_activity = ProjectComplianceActivity(
-                                original_activity_id=activity_template.id,
-                                activity_id=activity_template.activity_id,
-                                activity_description=activity_template.activity_description,
-                                responsible_party=activity_template.responsible_party,
-                                frequency=activity_template.frequency,
-                                evidence_required=activity_template.evidence_required,
+                                **_build_project_compliance_activity_fields(activity_template)
                             )
                             db.session.add(project_activity)
                             db.session.flush()
@@ -1967,12 +1990,7 @@ def create_new_project():
 
                 for activity_template in clause_template.compliance_activities:
                     project_activity = ProjectComplianceActivity(
-                        original_activity_id=activity_template.id,
-                        activity_id=activity_template.activity_id,
-                        activity_description=activity_template.activity_description,
-                        responsible_party=activity_template.responsible_party,
-                        frequency=activity_template.frequency,
-                        evidence_required=activity_template.evidence_required,
+                        **_build_project_compliance_activity_fields(activity_template)
                     )
                     project_clause.project_compliance_activities.append(project_activity)
                     db.session.add(project_activity)
@@ -2175,12 +2193,7 @@ def refetch_project_activities():
         # --- 4. Rebuild the Full Activity Instance Tree (from create_project logic) ---
         for activity_template in clause_template.compliance_activities:
             project_activity = ProjectComplianceActivity(
-                original_activity_id=activity_template.id,
-                activity_id=activity_template.activity_id,
-                activity_description=activity_template.activity_description,
-                responsible_party=activity_template.responsible_party,
-                frequency=activity_template.frequency,
-                evidence_required=activity_template.evidence_required,
+                **_build_project_compliance_activity_fields(activity_template)
             )
 
             for control_template in activity_template.control_activities:
