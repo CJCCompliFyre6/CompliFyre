@@ -50,7 +50,7 @@ from app.utils.cleaning import *
 from app.models.project_instance_models import *
 from app.services.prompt_service import *
 from app.utils.bread_crumb import add_to_breadcrumb
-from app.utils.input_security import validate_upload_file, sanitize_text_input
+from app.utils.input_security import validate_upload_file, _check_pdf_magic_bytes, sanitize_text_input
 from app.utils.evidence_access import check_evidence_artifact_access
 from app.helper.evidence_helper import *
 from app.utils.compliance_utils import (
@@ -1723,6 +1723,16 @@ def edit_organization_locations(org_id):
 # route to handle managing departments for an organization
 @re_bp.route("/organization/<int:organization_id>/departments/manage", methods=["POST"])
 def manage_departments(organization_id):
+    # S-64: IDOR fix — verify org belongs to current user
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=organization_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {organization_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(organization_id)
 
     # Use getlist to read all checked checkbox values
@@ -1763,6 +1773,16 @@ def edit_organization_business_overview(org_id):
     """
     Handle editing of business overview information for an organization.
     """
+    # S-64: IDOR fix — verify org belongs to current user
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {org_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(org_id)
 
     if request.method == "POST":
@@ -1860,6 +1880,16 @@ def edit_organization_structure(org_id):
     """
     Handle editing of organization structure information for an organization.
     """
+    # S-64: IDOR fix — verify org belongs to current user
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {org_id}")
+            abort(403)
     # Fetch the organization to ensure it exists and user has permission
     organization = Organizations.query.get_or_404(org_id)
 
@@ -1927,6 +1957,16 @@ def edit_organization_structure(org_id):
 @re_bp.route("/organization/<int:organization_id>/financial-overview", methods=["POST"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def save_financial_overview(organization_id):
+    # S-64: IDOR fix — verify org belongs to current user
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=organization_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {organization_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(organization_id)
 
     # Read form fields
@@ -2029,6 +2069,16 @@ def save_financial_overview(organization_id):
 @re_bp.route("/organization/<int:organization_id>/directors", methods=["POST"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def save_directors(organization_id):
+    # S-64: IDOR fix — verify org belongs to current user
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=organization_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {organization_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(organization_id)
 
     # Read the JSON payload placed into the hidden input 'directors_data'
@@ -5976,6 +6026,7 @@ def allowed_file(filename):
 
 
 @re_bp.route("/uploads/evidences/<path:filename>")
+@login_required
 def uploaded_file(filename):
     """Serve uploaded evidence files from the uploads/evidences directory."""
     from pathlib import Path
