@@ -361,7 +361,7 @@ def edit_profile():
                     return redirect(request.referrer)
                 filename = secure_filename(cert_file.filename)
                 cert_path = os.path.join(
-                    current_app.root_path, "static/uploads", filename
+                    os.getcwd(), "uploads", "certifications", filename
                 )
 
                 # Ensure uploads directory exists
