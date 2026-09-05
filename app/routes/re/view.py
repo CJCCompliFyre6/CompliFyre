@@ -552,6 +552,16 @@ def check_client_delete(org_id):
         client = Organizations.query.get(org_id)
         if not client:
             return jsonify({"error": "Client not found"}), 404
+        # S-64: IDOR fix — verify org belongs to current user's clients
+        if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+            from app.models.audit import auditor_client
+            allowed = db.session.query(auditor_client).filter_by(
+                audit_id=current_user.auditor_profile_id,
+                client_id=org_id
+            ).first()
+            if not allowed:
+                current_app.logger.warning(f"IDOR: user {current_user.id} tried check-client-delete {org_id}")
+                return jsonify({"error": "Not found"}), 404
 
         # Check if client has any projects
         project_count = Projects.query.filter_by(client=org_id).count()
