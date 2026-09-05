@@ -111,7 +111,7 @@ class PDFService(PromptsText):
 
         try:
             # Get webpage content
-            response = self.session.get(url, timeout=600)
+            response = self.session.get(url, timeout=30, allow_redirects=False)  # S-SSRF: no redirect following
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
 
@@ -205,7 +205,7 @@ class PDFService(PromptsText):
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Download with progress tracking
-            response = self.session.get(url, stream=True)
+            response = self.session.get(url, stream=True, allow_redirects=False, timeout=30)  # S-SSRF: no redirect following
             response.raise_for_status()
 
             file_size = int(response.headers.get("content-length", 0))

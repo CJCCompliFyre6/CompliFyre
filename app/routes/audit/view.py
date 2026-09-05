@@ -300,10 +300,10 @@ def edit_profile():
                 org.number_of_employees = int(num_employees)
 
             # Step 2: Update Head Office Address
-            address = request.form.get("address", "").strip()
-            country = request.form.get("country", "").strip()
-            state = request.form.get("state", "").strip()
-            city = request.form.get("city", "").strip()
+            address = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+            country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+            state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+            city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
             if address or country or state or city:
                 # Update or create head office address
@@ -1020,14 +1020,14 @@ def add_my_guidelines():
 def create_organization_post():
     if request.method == "POST":
         try:
-            firm_name = request.form.get("org_name", "").strip()
-            firm_reg_no = request.form.get("org_reg_no", "").strip()
-            firm_desc = request.form.get("description", "").strip()
-            firm_address = request.form.get("address", "").strip()
-            country = request.form.get("country", "").strip()
-            state = request.form.get("state", "").strip()
-            city = request.form.get("city", "").strip()
-            num_emp = request.form.get("num_employees", "").strip()
+            firm_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+            firm_reg_no = sanitize_text_input(request.form.get("org_reg_no", "").strip(), context="general")["value"]
+            firm_desc = sanitize_text_input(request.form.get("description", "").strip(), context="general")["value"]
+            firm_address = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+            country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+            state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+            city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
+            num_emp = request.form.get("num_employees", "").strip()  # numeric — no sanitize needed
 
             if not firm_name or not firm_reg_no:
                 flash("Firm name and registration number are required.", "danger")

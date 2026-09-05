@@ -389,6 +389,7 @@ def register_user():
 
 # --- MODIFIED create_user ROUTE ---
 @main_bp.route("/create_user", methods=["POST"])
+@limiter.limit("5 per minute")  # S-73: prevent automated account creation
 def create_user():
     try:
         # (Your existing validation code remains here...)
