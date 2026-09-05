@@ -1382,6 +1382,11 @@ def consolidate_evidence_task(self, guideline_id: int, user_id: int = None):
                                 # the exact truncation point causing most remaining failures; gpt-4.1-mini's
                                 # real output ceiling is 32,768 tokens, so this stays well within budget.
                                 frequency_penalty=0.0,
+                                temperature=0.0,  # Build Sequence #326/#381: confirmed via repeated
+                                # live testing to fix the generic-fallback-name pattern (~15.5% of
+                                # consolidated groups coming back as bare 'Compliance Evidence for
+                                # Clause X' placeholders with no real content) -- validated but never
+                                # actually deployed as the production default until now.
                                 timeout=300.0,  # Build Sequence #356: the shared client's global 120s
                                 # default was calibrated for the old, smaller max_tokens -- confirmed live
                                 # that larger responses (needed to actually use the higher token budget

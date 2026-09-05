@@ -1233,7 +1233,13 @@ def extract_from_docx(path):
     )
 
 
-def generate_chat_output(prompt, override_system_prompt=None, max_tokens=1200, frequency_penalty=0.6, timeout=None):
+def generate_chat_output(prompt, override_system_prompt=None, max_tokens=1200, frequency_penalty=0.6, timeout=None, temperature=0.15):
+    # temperature=0.15 default preserves existing behavior for all current callers -- this was
+    # previously hardcoded inline. Build Sequence #326 confirmed via repeated live testing that
+    # temperature=0 is a real fix for the generic-fallback-name pattern (~15.5% of consolidated
+    # evidence groups coming back as bare 'Compliance Evidence for Clause X' placeholders) --
+    # exposed as a parameter so the evidence-consolidation caller can opt into it explicitly
+    # without changing behavior for any other caller of this shared function.
     # timeout=None preserves the existing behavior for all current callers (the shared
     # global client's own default, 120s). Callers using a much larger max_tokens (Build
     # Sequence #355/#356) should pass an explicit, proportionally larger timeout -- a
@@ -1326,7 +1332,7 @@ DO NOT summarize entire document. Only map evidence relevant to activity objecti
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.15,
+            temperature=temperature,
             top_p=0.2,
             frequency_penalty=frequency_penalty,
             presence_penalty=0.0,
