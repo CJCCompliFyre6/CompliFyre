@@ -554,7 +554,7 @@ def check_client_delete(org_id):
             return jsonify({"error": "Client not found"}), 404
         # S-64: IDOR fix — verify org belongs to current user's clients
         if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-            from app.models.audit import auditor_client
+            from app.models.auditOrganization import auditor_client
             allowed = db.session.query(auditor_client).filter_by(
                 audit_id=current_user.auditor_profile_id,
                 client_id=org_id
@@ -1512,7 +1512,7 @@ def edit_re_profile():
     organization = Organizations.query.filter_by(organization_id=org_id).first_or_404()
     # S-64: IDOR fix — verify org_id belongs to current user's clients
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         _allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=org_id
@@ -1682,7 +1682,7 @@ def edit_organization_locations(org_id):
         from flask import redirect, url_for
         return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=org_id
@@ -1758,7 +1758,7 @@ def manage_departments(organization_id):
         from flask import redirect, url_for
         return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=organization_id
@@ -1811,7 +1811,7 @@ def edit_organization_business_overview(org_id):
         from flask import redirect, url_for
         return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=org_id
@@ -1921,7 +1921,7 @@ def edit_organization_structure(org_id):
         from flask import redirect, url_for
         return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=org_id
@@ -2001,7 +2001,7 @@ def save_financial_overview(organization_id):
         from flask import redirect, url_for
         return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=organization_id
@@ -2116,7 +2116,7 @@ def save_directors(organization_id):
         from flask import redirect, url_for
         return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
-        from app.models.audit import auditor_client
+        from app.models.auditOrganization import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
             audit_id=current_user.auditor_profile_id,
             client_id=organization_id

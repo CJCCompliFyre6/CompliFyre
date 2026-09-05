@@ -1377,7 +1377,7 @@ def get_projects(org_id):
         # S-64: IDOR fix — verify org_id belongs to current user's firm or clients
         if current_user.auditor_profile_id:
             # Check org is a client of current user's firm
-            from app.models.audit import auditor_client
+            from app.models.auditOrganization import auditor_client
             allowed = db.session.query(auditor_client).filter_by(
                 audit_id=current_user.auditor_profile_id,
                 client_id=org_id
