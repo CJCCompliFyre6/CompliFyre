@@ -1757,6 +1757,9 @@ def edit_organization_locations(org_id):
 @re_bp.route("/organization/<int:organization_id>/departments/manage", methods=["POST"])
 def manage_departments(organization_id):
     # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
         from app.models.audit import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
@@ -1807,6 +1810,9 @@ def edit_organization_business_overview(org_id):
     Handle editing of business overview information for an organization.
     """
     # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
         from app.models.audit import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
@@ -1914,6 +1920,9 @@ def edit_organization_structure(org_id):
     Handle editing of organization structure information for an organization.
     """
     # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
         from app.models.audit import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
@@ -1991,6 +2000,9 @@ def edit_organization_structure(org_id):
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def save_financial_overview(organization_id):
     # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
         from app.models.audit import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
@@ -2103,6 +2115,9 @@ def save_financial_overview(organization_id):
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def save_directors(organization_id):
     # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
     if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
         from app.models.audit import auditor_client
         allowed = db.session.query(auditor_client).filter_by(
