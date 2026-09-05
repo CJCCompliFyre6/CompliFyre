@@ -1513,6 +1513,16 @@ def edit_re_profile():
     ).all()
 
     organization = Organizations.query.filter_by(organization_id=org_id).first_or_404()
+    # S-64: IDOR fix — verify org_id belongs to current user's clients
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.audit import auditor_client
+        _allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not _allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried edit_re_profile org {org_id}")
+            abort(403)
 
     # Fetch all organization types from the database
     organization_types = OrganizationType.query.filter_by(active=True).all()
