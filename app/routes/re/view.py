@@ -701,9 +701,9 @@ def add_new_client():
             # Handle different steps
             if current_step == "0":
                 # Step 1: Organization Basic Info
-                org_name = request.form.get("org_name", "").strip()
-                legal_name = request.form.get("legal_name", "").strip()
-                constitution = request.form.get("constitution", "").strip()
+                org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+                legal_name = sanitize_text_input(request.form.get("legal_name", "").strip(), context="general")["value"]
+                constitution = request.form.get("constitution", "").strip()  # dropdown value
                 selected_org_types = request.form.getlist("selected_org_types")
                 selected_industries = request.form.getlist("selected_industries")
                 indian_regulatory = request.form.get("indian_regulatory", "").strip()
@@ -741,10 +741,10 @@ def add_new_client():
                 db.session.flush()
 
                 # Handle head office address
-                addr_line1 = request.form.get("address", "").strip()
-                country = request.form.get("country", "").strip()
-                state = request.form.get("state", "").strip()
-                city = request.form.get("city", "").strip()
+                addr_line1 = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+                country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+                state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+                city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
                 if addr_line1 and city and state and country:
                     head_office = OrganizationAddresses(
@@ -846,10 +846,7 @@ def add_new_client():
                     flash("Please start from Step 1", "error")
                     return redirect(url_for("re.add_new_client"))
 
-                business_description = request.form.get(
-                    "businessDescription", ""
-                ).strip()
-                branches_india = request.form.get("branchesIndia", type=int) or 0
+                business_description = sanitize_text_input(request.form.get("businessDescription", "").strip(), context="general")["value"]
                 branches_outside_india = (
                     request.form.get("branchesOutsideIndia", type=int) or 0
                 )
@@ -1063,8 +1060,8 @@ def add_new_client():
                 session["step_6_data"] = {"directors": directors_list}
 
                 for director_data in directors_list:
-                    name = director_data.get("name", "").strip()
-                    email = director_data.get("email", "").strip().lower()
+                    name = sanitize_text_input(director_data.get("name", "").strip(), context="general")["value"]
+                    email = director_data.get("email", "").strip().lower()  # email format preserved
 
                     if name and email:
                         new_director = OrganizationContacts(
@@ -8088,11 +8085,11 @@ def regulators():
 @re_bp.route("/regulators/add", methods=["POST"])
 @role_required("COMPLIFYRE", "RE")
 def add_regulator():
-    name = request.form.get("name", "").strip()
+    name = sanitize_text_input(request.form.get("name", "").strip(), context="general")["value"]
     description = request.form.get("description", "").strip()
-    geography = request.form.get("geography", "").strip()
-    industry = request.form.get("industry", "").strip()
-    governed_institutions = request.form.get("governed_institutions", "").strip()
+    geography = sanitize_text_input(request.form.get("geography", "").strip(), context="general")["value"]
+    industry = sanitize_text_input(request.form.get("industry", "").strip(), context="general")["value"]
+    governed_institutions = sanitize_text_input(request.form.get("governed_institutions", "").strip(), context="general")["value"]
     website_url = request.form.get("website_url", "").strip()
 
     if not name or not website_url:
@@ -8123,7 +8120,7 @@ def add_regulator():
 @role_required("COMPLIFYRE", "RE")
 def edit_regulator(body_id):
     regulator = RegulatoryBodies.query.get_or_404(body_id)
-    name = request.form.get("name", "").strip()
+    name = sanitize_text_input(request.form.get("name", "").strip(), context="general")["value"]
     website_url = request.form.get("website_url", "").strip()
     if not name or not website_url:
         flash("Regulator name and URL are required.", "error")
@@ -8139,9 +8136,9 @@ def edit_regulator(body_id):
 
     regulator.name = name
     regulator.description = request.form.get("description", "").strip() or None
-    regulator.geography = request.form.get("geography", "").strip() or None
-    regulator.industry = request.form.get("industry", "").strip() or None
-    regulator.governed_institutions = request.form.get("governed_institutions", "").strip() or None
+    regulator.geography = sanitize_text_input(request.form.get("geography", "").strip(), context="general")["value"] or None
+    regulator.industry = sanitize_text_input(request.form.get("industry", "").strip(), context="general")["value"] or None
+    regulator.governed_institutions = sanitize_text_input(request.form.get("governed_institutions", "").strip(), context="general")["value"] or None
     regulator.website_url = website_url
     db.session.commit()
     flash(f"Updated regulator page: {regulator.name}", "success")
