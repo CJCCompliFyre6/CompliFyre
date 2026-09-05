@@ -570,7 +570,7 @@ def check_client_delete(org_id):
             {
                 "can_delete": project_count == 0,
                 "project_count": project_count,
-                "client_name": client.legal_name or client.name,
+                "client_name": sanitize_text_input(client.legal_name or client.name or "", context="general")["value"],  # S-XSS
                 "message": (
                     f"Cannot delete client as it has {project_count} related project(s)."
                     if project_count > 0
