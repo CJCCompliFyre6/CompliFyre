@@ -234,19 +234,36 @@ def fetch_page_text(url, timeout=15):
         _parsed = urlparse(url)
         if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
             return None, None, "BLOCKED: invalid URL scheme", None
+        _validated_ip = None
         try:
             _addrinfo = socket.getaddrinfo(_parsed.hostname, None)
             for _, _, _, _, _sockaddr in _addrinfo:
                 _addr = ipaddress.ip_address(_sockaddr[0])
                 if any(_addr in _net for _net in _BLOCKED):
                     return None, None, f"BLOCKED: internal address {_addr}", None
+                if _validated_ip is None:
+                    _validated_ip = _sockaddr[0]
         except socket.gaierror:
             return None, None, "BLOCKED: DNS resolution failed", None
-        resp = requests.get(
+
+        if not _validated_ip:
+            return None, None, "BLOCKED: could not resolve host", None
+
+        # S-SSRF (rebinding fix, thread-safe): pin THIS thread's connection
+        # to the already-validated IP, without rewriting the URL, so TLS
+        # SNI/certificate checks still run against the real hostname.
+        # requests.get() would otherwise re-resolve the hostname itself
+        # right before connecting, and a rebinding DNS server could hand
+        # back a different (internal) IP on that second lookup -- bypassing
+        # the blocklist check above. threading.local() ensures concurrent
+        # requests (e.g. multiple Gunicorn worker threads) each pin their
+        # own host/IP pair without clobbering one another. Helper function
+        # is defined at the bottom of this file (_ssrf_safe_get).
+        resp = _ssrf_safe_get(
             url,
+            _parsed.hostname,
+            _validated_ip,
             timeout=timeout,
-            allow_redirects=False,  # S-SSRF: prevent redirect to internal IPs
-            headers={"User-Agent": "Mozilla/5.0 (compatible; CompliFyre-checker/1.0)"},
         )
     except requests.exceptions.RequestException as e:
         return None, None, f"CONNECTION_ERROR: {e}", None
@@ -504,3 +521,50 @@ def try_link_tracked_guideline(guideline_id, document_name, threshold=0.6):
         )
         return best_doc
     return None
+
+
+# --- S-SSRF: thread-safe IP-pinned GET helper -------------------------------
+# Prevents DNS-rebinding SSRF: pins the TCP connection for this request to
+# the IP address that was already validated against the internal-IP
+# blocklist, while keeping the original hostname in the URL so TLS SNI and
+# certificate validation still succeed. Thread-local so concurrent requests
+# (e.g. separate Gunicorn worker threads) never share or clobber each
+# other's pinned IP. Appended at end of file; used by fetch_page_text()
+# above, which is safe because Python resolves the call at runtime, after
+# the whole module (including this block) has finished loading.
+import threading as _ssrf_threading
+import urllib3.util.connection as _ssrf_urllib3_conn_module
+from urllib3.util.connection import create_connection as _ssrf_original_create_connection
+
+_ssrf_thread_local = _ssrf_threading.local()
+
+
+def _ssrf_patched_create_connection(address, *args, **kwargs):
+    host, port = address
+    pin = getattr(_ssrf_thread_local, "pinned_host_ip", None)
+    if pin is not None and pin[0] == host:
+        address = (pin[1], port)
+    return _ssrf_original_create_connection(address, *args, **kwargs)
+
+
+_ssrf_urllib3_conn_module.create_connection = _ssrf_patched_create_connection
+
+
+def _ssrf_safe_get(url, hostname, validated_ip, timeout=15):
+    """
+    Perform a GET request where the TCP connection is guaranteed to go to
+    validated_ip for `hostname`, closing the DNS-rebinding window, while
+    preserving normal TLS/SNI/certificate validation against `hostname`.
+    """
+    _ssrf_thread_local.pinned_host_ip = (hostname, validated_ip)
+    try:
+        with requests.Session() as _session:
+            return _session.get(
+                url,
+                timeout=timeout,
+                allow_redirects=False,  # S-SSRF: prevent redirect to internal IPs
+                headers={"User-Agent": "Mozilla/5.0 (compatible; CompliFyre-checker/1.0)"},
+            )
+    finally:
+        _ssrf_thread_local.pinned_host_ip = None
+# --- end S-SSRF helper ------------------------------------------------------
