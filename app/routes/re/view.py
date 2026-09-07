@@ -801,10 +801,10 @@ def add_new_client():
                         new_address = OrganizationAddresses(
                             organization_id=org_id,
                             address_type="keylocation",
-                            address_line1=loc.get("address", ""),
-                            city=loc.get("city", ""),
-                            state=loc.get("state", ""),
-                            country=loc.get("country", ""),
+                            address_line1=sanitize_text_input(loc.get("address", ""), context="general")["value"],
+                            city=sanitize_text_input(loc.get("city", ""), context="general")["value"],
+                            state=sanitize_text_input(loc.get("state", ""), context="general")["value"],
+                            country=sanitize_text_input(loc.get("country", ""), context="general")["value"],
                         )
                         db.session.add(new_address)
 
@@ -8344,7 +8344,7 @@ def check_regulator(body_id):
     from app.services.check_guidelines_service import check_regulator_for_new_guidelines
     regulator = RegulatoryBodies.query.get_or_404(body_id)
     check_regulator_for_new_guidelines.delay(body_id)
-    flash(f"Check queued for {regulator.name}"
+    flash(f"Check queued for {sanitize_text_input(str(regulator.name), context="general")["value"]}"
           f"{' -- ' + regulator.description if regulator.description else ''}. "
           f"Refresh in a moment to see results.", "success")
     return redirect(url_for("re.regulators"))

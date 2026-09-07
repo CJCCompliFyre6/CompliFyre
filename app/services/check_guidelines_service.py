@@ -221,9 +221,31 @@ def fetch_page_text(url, timeout=15):
     from a successful-but-blocked response, which has a real http_status.
     """
     try:
+        # S-SSRF: validate URL before making outbound request
+        import ipaddress, socket
+        from urllib.parse import urlparse
+        _BLOCKED = [
+            ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"), ipaddress.ip_network("192.168.0.0/16"),
+            ipaddress.ip_network("169.254.0.0/16"), ipaddress.ip_network("0.0.0.0/8"),
+            ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("::1/128"),
+            ipaddress.ip_network("fc00::/7"), ipaddress.ip_network("fe80::/10"),
+        ]
+        _parsed = urlparse(url)
+        if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
+            return None, None, "BLOCKED: invalid URL scheme", None
+        try:
+            _addrinfo = socket.getaddrinfo(_parsed.hostname, None)
+            for _, _, _, _, _sockaddr in _addrinfo:
+                _addr = ipaddress.ip_address(_sockaddr[0])
+                if any(_addr in _net for _net in _BLOCKED):
+                    return None, None, f"BLOCKED: internal address {_addr}", None
+        except socket.gaierror:
+            return None, None, "BLOCKED: DNS resolution failed", None
         resp = requests.get(
             url,
             timeout=timeout,
+            allow_redirects=False,  # S-SSRF: prevent redirect to internal IPs
             headers={"User-Agent": "Mozilla/5.0 (compatible; CompliFyre-checker/1.0)"},
         )
     except requests.exceptions.RequestException as e:
