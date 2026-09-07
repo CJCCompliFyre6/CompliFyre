@@ -847,6 +847,7 @@ def add_new_client():
                     return redirect(url_for("re.add_new_client"))
 
                 business_description = sanitize_text_input(request.form.get("businessDescription", "").strip(), context="general")["value"]
+                branches_india = request.form.get("branchesIndia", type=int) or 0
                 branches_outside_india = (
                     request.form.get("branchesOutsideIndia", type=int) or 0
                 )
@@ -1578,10 +1579,10 @@ def edit_re_profile():
             current_step = request.form.get("current_step", "0")
 
             # Handle organization basic info
-            org_name = request.form.get("org_name", "").strip()
-            legal_name = request.form.get("legal_name", "").strip()
-            constitution = request.form.get("constitution", "").strip()
-            indian_regulatory = request.form.get("indian_regulatory", "").strip()
+            org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+            legal_name = sanitize_text_input(request.form.get("legal_name", "").strip(), context="general")["value"]
+            constitution = sanitize_text_input(request.form.get("constitution", "").strip(), context="general")["value"]
+            indian_regulatory = sanitize_text_input(request.form.get("indian_regulatory", "").strip(), context="general")["value"]
 
             # Handle organization types (checkboxes)
 
@@ -1605,10 +1606,10 @@ def edit_re_profile():
                 )
 
             # Handle head office address
-            addr_line1 = request.form.get("address", "").strip()
-            country = request.form.get("country", "").strip()
-            state = request.form.get("state", "").strip()
-            city = request.form.get("city", "").strip()
+            addr_line1 = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+            country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+            state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+            city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
             if head_office:
                 # Update existing head office
@@ -1960,10 +1961,12 @@ def edit_organization_structure(org_id):
             # 2. Add all the submitted positions as new records
             for position_data in submitted_positions:
                 if all(k in position_data for k in ["position", "reportsTo"]):
+                    safe_position = sanitize_text_input(str(position_data["position"]), context="general")["value"]
+                    safe_reports_to = sanitize_text_input(str(position_data["reportsTo"]), context="general")["value"]
                     new_structure = OrganizationStructure(
                         organization_id=org_id,
-                        position=position_data["position"],
-                        report_to=position_data["reportsTo"],
+                        position=safe_position,
+                        report_to=safe_reports_to,
                     )
                     db.session.add(new_structure)
 
