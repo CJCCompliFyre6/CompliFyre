@@ -8089,7 +8089,7 @@ def regulators():
 @role_required("COMPLIFYRE", "RE")
 def add_regulator():
     name = sanitize_text_input(request.form.get("name", "").strip(), context="general")["value"]
-    description = request.form.get("description", "").strip()
+    description = sanitize_text_input(request.form.get("description", "").strip(), context="general")["value"]
     geography = sanitize_text_input(request.form.get("geography", "").strip(), context="general")["value"]
     industry = sanitize_text_input(request.form.get("industry", "").strip(), context="general")["value"]
     governed_institutions = sanitize_text_input(request.form.get("governed_institutions", "").strip(), context="general")["value"]
@@ -8138,7 +8138,7 @@ def edit_regulator(body_id):
         return redirect(url_for("re.regulators"))
 
     regulator.name = name
-    regulator.description = request.form.get("description", "").strip() or None
+    regulator.description = sanitize_text_input(request.form.get("description", "").strip(), context="general")["value"] or None
     regulator.geography = sanitize_text_input(request.form.get("geography", "").strip(), context="general")["value"] or None
     regulator.industry = sanitize_text_input(request.form.get("industry", "").strip(), context="general")["value"] or None
     regulator.governed_institutions = sanitize_text_input(request.form.get("governed_institutions", "").strip(), context="general")["value"] or None
