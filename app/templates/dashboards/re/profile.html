@@ -845,15 +845,29 @@
         if (address && country && state && city) {
           const li = document.createElement("li");
           li.className = "border rounded-lg p-4 bg-orange-100 shadow flex justify-between items-center";
-          li.innerHTML = `
-            <div>
-                <p class="font-semibold text-gray-900">${address}</p>
-                <p class="text-gray-700">${city}, ${state}, ${country}</p>
-            </div>
-            <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full" aria-label="Remove location">
-                Remove
-            </button>
-          `;
+
+          // S-XSS (DOM-based): build with real DOM nodes + textContent
+          // instead of innerHTML template literals, so values typed into
+          // the Address/City/State/Country fields can never be parsed as
+          // HTML/JS -- textContent always escapes automatically.
+          const locDiv = document.createElement("div");
+          const pAddress = document.createElement("p");
+          pAddress.className = "font-semibold text-gray-900";
+          pAddress.textContent = address;
+          const pDetails = document.createElement("p");
+          pDetails.className = "text-gray-700";
+          pDetails.textContent = `${city}, ${state}, ${country}`;
+          locDiv.appendChild(pAddress);
+          locDiv.appendChild(pDetails);
+
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full";
+          removeBtn.setAttribute("aria-label", "Remove location");
+          removeBtn.textContent = "Remove";
+
+          li.appendChild(locDiv);
+          li.appendChild(removeBtn);
           locationsList.appendChild(li);
 
           addressInput.value = "";
