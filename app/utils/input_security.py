@@ -139,12 +139,24 @@ _DANGEROUS_TAG_PAIRS = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 # Strip opener-only or self-closing dangerous tags
+# NOTE (S-XSS fix): "img" was previously missing from this list, which
+# meant <img src=x onerror=...> passed through completely untouched --
+# this was the exact payload used throughout VAPT testing. Also added
+# svg/video/audio/source/track, which can carry the same kind of
+# event-handler-based payload via self-closing syntax.
 _DANGEROUS_TAG_OPEN = re.compile(
-    r"<(script|style|iframe|object|embed|form|input|button|link|meta|base)\b[^>]*/?>",
+    r"<(script|style|iframe|object|embed|form|input|button|link|meta|base|img|svg|video|audio|source|track)\b[^>]*/?>",
     re.IGNORECASE,
 )
 # Event handlers: onclick=, onmouseover=, onerror=, etc.
-_EVENT_HANDLERS = re.compile(r"\s+on\w+\s*=\s*([\"']).+?\1", re.IGNORECASE)
+# NOTE (S-XSS fix): previously only matched QUOTED values
+# (on\w+=(["']).+?\1), so onerror=alert(1) -- no quotes -- was never
+# matched. Per the HTML spec, an unquoted attribute value ends at the
+# next whitespace or '>', which is what [^\s>]+ captures below.
+_EVENT_HANDLERS = re.compile(
+    r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)',
+    re.IGNORECASE,
+)
 # javascript: in href / src / action — replace whole value with #
 _JS_PROTOCOL = re.compile(
     r"(href|src|action)\s*=\s*([\"']\s*)javascript:[^\"']*([\"']?)",
