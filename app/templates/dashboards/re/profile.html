@@ -933,15 +933,29 @@
         if (posName && reportsTo) {
           const li = document.createElement("li");
           li.className = "border rounded-lg p-4 bg-orange-100 shadow flex justify-between items-center";
-          li.innerHTML = `
-            <div>
-              <p class="font-semibold text-gray-900">${posName}</p>
-              <p class="text-gray-700">Reports to: ${reportsTo}</p>
-            </div>
-            <button type="button" class="remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full" aria-label="Remove position">
-              Remove
-            </button>
-          `;
+
+          // S-XSS (DOM-based): build with real DOM nodes + textContent
+          // instead of innerHTML template literals, so values typed into
+          // Position Name / Reports To can never be parsed as HTML/JS --
+          // textContent always escapes automatically.
+          const posDiv = document.createElement("div");
+          const pPosName = document.createElement("p");
+          pPosName.className = "font-semibold text-gray-900";
+          pPosName.textContent = posName;
+          const pReportsTo = document.createElement("p");
+          pReportsTo.className = "text-gray-700";
+          pReportsTo.textContent = `Reports to: ${reportsTo}`;
+          posDiv.appendChild(pPosName);
+          posDiv.appendChild(pReportsTo);
+
+          const removePosBtn = document.createElement("button");
+          removePosBtn.type = "button";
+          removePosBtn.className = "remove-btn bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full";
+          removePosBtn.setAttribute("aria-label", "Remove position");
+          removePosBtn.textContent = "Remove";
+
+          li.appendChild(posDiv);
+          li.appendChild(removePosBtn);
           positionsList.appendChild(li);
 
           document.getElementById("positionName").value = "";
