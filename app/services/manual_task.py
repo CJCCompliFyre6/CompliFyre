@@ -2271,6 +2271,23 @@ def extract_clauses(self, guideline_id: int):
             # Check if structure map already confirmed by user
             existing_structure_map = guideline.structure_map
 
+        # --- Detect regulator + populate applicable_licenses if missing (#384) ---
+        # Must run before Stage 2 semantic analysis, which needs guideline_licenses
+        # as an input for its own per-clause applicability matching (Q3). Only acts
+        # when the fields are genuinely missing -- never overwrites a deliberately-
+        # set value. Runs as its own DB transaction, outside session_scope() above,
+        # to avoid the nested-session conflict pattern noted earlier this session.
+        if not guideline_licenses:
+            try:
+                from app.services.clause_post_processor import detect_and_populate_guideline_applicability
+                applicability_result = detect_and_populate_guideline_applicability(guideline_id)
+                logger.info(f"[Applicability] Detection result for guideline_id={guideline_id}: {applicability_result}")
+                with session_scope() as _refresh_session:
+                    _refreshed = _refresh_session.query(Guidelines).filter_by(id=guideline_id).first()
+                    guideline_licenses = (_refreshed.applicable_licenses or []) if _refreshed else guideline_licenses
+            except Exception as applic_err:
+                logger.warning(f"[Applicability] Detection failed for guideline_id={guideline_id}, proceeding without it: {applic_err}")
+
         # --- STAGE 1A: Generate structure map if not already confirmed ---
         if existing_structure_map and existing_structure_map.get("confirmed"):
             structure_map = existing_structure_map

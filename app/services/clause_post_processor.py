@@ -32,6 +32,138 @@ def get_known_license_codes() -> set:
         return set()
 
 
+def detect_and_populate_guideline_applicability(guideline_id: int) -> dict:
+    """
+    Detects the regulator (if missing) and infers applicable_licenses (if missing)
+    for a guideline, using the document's own text plus the RegulatorLicenses master
+    table. Intended to run once per guideline, early in extract_clauses, before
+    Stage 2 semantic analysis needs guideline_licenses as an input -- Stage 2's own
+    per-clause applicability matching (Q3) depends on this list being populated to
+    correctly resolve SPECIFIC vs UNKNOWN_LICENSE. Build Sequence #384.
+
+    Only acts on fields that are currently missing/None -- never overwrites a
+    deliberately-set regulator or applicable_licenses value.
+    """
+    import fitz
+    from app.models.download import File
+    from app.services.pdf_service import PDFService
+    from app.services.model_response import _call_llm_json_raw
+
+    guideline = Guidelines.query.get(guideline_id)
+    if not guideline:
+        return {"status": "error", "message": "Guideline not found"}
+
+    guideline_data = guideline.guideline_data or {}
+    regulator_name = guideline_data.get("Regulator")
+    needs_regulator = not regulator_name or regulator_name.strip().lower() in ("unknown", "")
+    needs_licenses = guideline.applicable_licenses is None
+
+    if not needs_regulator and not needs_licenses:
+        return {"status": "skipped", "message": "Regulator and applicable_licenses already set"}
+
+    file_record = File.query.get(guideline.file_id) if guideline.file_id else None
+    if not file_record:
+        return {"status": "error", "message": "File record not found"}
+
+    # Prefer a page-targeted extract of the structure map's first section (typically
+    # 'Preliminary'/'Applicability') over a blind character-count cutoff of the raw PDF
+    # -- confirmed via real testing that the first ~5000 raw chars (often a bilingual
+    # title/header/table-of-contents block) does not reliably reach the actual,
+    # explicit applicability statement, while the confirmed section page-range does.
+    text_sample = None
+    structure_map = guideline.structure_map or {}
+    sections = structure_map.get("sections") or []
+    if sections:
+        first_section = sections[0]
+        start_page = first_section.get("start_page")
+        end_page = first_section.get("end_page")
+        if start_page and end_page:
+            try:
+                doc = fitz.open(file_record.path)
+                text_sample = "".join(
+                    doc[p].get_text() for p in range(start_page - 1, min(end_page, len(doc)))
+                )
+                doc.close()
+            except Exception as e:
+                logger.warning(f"[Applicability] Page-targeted extract failed for guideline_id={guideline_id}: {e}")
+                text_sample = None
+    if not text_sample:
+        pdf_service = PDFService()
+        full_text = pdf_service.extract_text_from_pdf(file_record.path)
+        text_sample = full_text[:5000]
+
+    # Step A: regulator detection, only if missing
+    if needs_regulator:
+        regulator_prompt = (
+            "Identify the regulatory body (regulator) that issued this document.\n"
+            "Return ONLY valid JSON: {\"regulator_name\": \"exact, full official name\"}\n\n"
+            f"Document text (opening pages):\n{text_sample}"
+        )
+        result = _call_llm_json_raw(
+            system_msg="You are a regulatory document classification expert. Return ONLY valid JSON.",
+            user_msg=regulator_prompt,
+        )
+        if result and result.get("regulator_name"):
+            regulator_name = result["regulator_name"]
+            new_guideline_data = dict(guideline_data)
+            new_guideline_data["Regulator"] = regulator_name
+            guideline.guideline_data = new_guideline_data
+            db.session.commit()
+            logger.info(f"[Applicability] Regulator detected for guideline_id={guideline_id}: {regulator_name}")
+        else:
+            logger.warning(f"[Applicability] Regulator detection failed for guideline_id={guideline_id}")
+
+    # Step B: license-code matching, only if missing, and only if we have a regulator name
+    matched_codes = []
+    if needs_licenses and regulator_name:
+        first_word = regulator_name.split()[0] if regulator_name.split() else regulator_name
+        candidate_licenses = RegulatorLicenses.query.filter(
+            RegulatorLicenses.regulator_name.ilike(f"%{first_word}%"),
+            RegulatorLicenses.is_active == True,
+        ).all()
+        if candidate_licenses:
+            valid_codes = {l.license_code for l in candidate_licenses}
+            license_options = "\n".join(f"- {l.license_code}: {l.license_name}" for l in candidate_licenses)
+            license_prompt = (
+                "Based on this regulatory document's applicability section, which of the "
+                "following license/entity types does this document apply to? A document may "
+                "apply to multiple types, or just one. Look for explicit mentions of entity "
+                "types this applies to.\n\n"
+                f"Document text (applicability/preliminary section):\n{text_sample}\n\n"
+                f"Available license codes for this regulator:\n{license_options}\n\n"
+                "Return ONLY valid JSON: {\"applicable_license_codes\": [\"CODE1\", \"CODE2\"]}"
+            )
+            result = _call_llm_json_raw(
+                system_msg="You are a regulatory compliance classification expert. Return ONLY valid JSON.",
+                user_msg=license_prompt,
+            )
+            returned = result.get("applicable_license_codes", []) if result else []
+            matched_codes = [c for c in returned if c in valid_codes]
+            unmatched = [c for c in returned if c not in valid_codes]
+            if unmatched:
+                logger.warning(
+                    f"[Applicability] guideline_id={guideline_id}: LLM returned codes not in "
+                    f"RegulatorLicenses, dropped: {unmatched}"
+                )
+            if matched_codes:
+                guideline.applicable_licenses = matched_codes
+                db.session.commit()
+                logger.info(
+                    f"[Applicability] applicable_licenses set for guideline_id={guideline_id}: {matched_codes}"
+                )
+        else:
+            logger.warning(
+                f"[Applicability] No candidate licenses found for regulator '{regulator_name}' "
+                f"(guideline_id={guideline_id})"
+            )
+
+    return {
+        "status": "success",
+        "regulator": regulator_name,
+        "applicable_licenses": matched_codes or guideline.applicable_licenses,
+    }
+
+
 def apply_merges(nodes: list, stage2_results: dict) -> list:
     """
     Fold MERGE_PARENT nodes into their parent's text.
