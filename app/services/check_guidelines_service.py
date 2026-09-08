@@ -70,6 +70,34 @@ def fetch_page_text_with_playwright(url, timeout=30000, wait_ms=3000):
     content is injected by JavaScript after the initial page load.
     Returns (success: bool, text_or_error: str).
     """
+    # S-SSRF: this fallback previously had NO IP validation at all --
+    # it's reached automatically whenever fetch_page_text()'s response
+    # looks "blocked" (e.g. short/empty, which is exactly what an SSRF
+    # probe URL returns), silently bypassing that function's blocklist
+    # check. Validate here too before launching a real browser.
+    import ipaddress as _pw_ipaddress
+    import socket as _pw_socket
+    from urllib.parse import urlparse as _pw_urlparse
+
+    _pw_blocked_nets = [
+        _pw_ipaddress.ip_network("127.0.0.0/8"), _pw_ipaddress.ip_network("10.0.0.0/8"),
+        _pw_ipaddress.ip_network("172.16.0.0/12"), _pw_ipaddress.ip_network("192.168.0.0/16"),
+        _pw_ipaddress.ip_network("169.254.0.0/16"), _pw_ipaddress.ip_network("0.0.0.0/8"),
+        _pw_ipaddress.ip_network("100.64.0.0/10"), _pw_ipaddress.ip_network("::1/128"),
+        _pw_ipaddress.ip_network("fc00::/7"), _pw_ipaddress.ip_network("fe80::/10"),
+    ]
+    _pw_parsed = _pw_urlparse(url)
+    if _pw_parsed.scheme not in ("http", "https") or not _pw_parsed.hostname:
+        return False, "BLOCKED: invalid URL scheme"
+    try:
+        _pw_addrinfo = _pw_socket.getaddrinfo(_pw_parsed.hostname, None)
+        for _, _, _, _, _pw_sockaddr in _pw_addrinfo:
+            _pw_addr = _pw_ipaddress.ip_address(_pw_sockaddr[0])
+            if any(_pw_addr in _net for _net in _pw_blocked_nets):
+                return False, f"BLOCKED: internal address {_pw_addr}"
+    except _pw_socket.gaierror:
+        return False, "BLOCKED: DNS resolution failed"
+
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
