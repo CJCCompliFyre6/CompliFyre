@@ -1227,12 +1227,12 @@ def link_form():
         req = request.form
         print(req)
         org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
-        legal_name = request.form.get("legal_name")
-        constitution = request.form.get("constitution")
+        legal_name = sanitize_text_input((request.form.get("legal_name") or "").strip(), context="general")["value"]
+        constitution = sanitize_text_input((request.form.get("constitution") or "").strip(), context="general")["value"]
         # business_desc = request.form.get('business_desc')
         # no_branch_india = request.form.get('no_branch_india')
         # no_branch_out_india = request.form.get('no_branch_out_india')
-        indian_regulatory = request.form.get("indian_regulatory")
+        indian_regulatory = sanitize_text_input((request.form.get("indian_regulatory") or "").strip(), context="general")["value"]
         # international_regulatory = request.form.get('international_regulatory')
         # business_processes = request.form.get('business_processes')
         # org_history = request.form.get('org_history')
@@ -1249,10 +1249,10 @@ def link_form():
         # pending_litig = request.form.get('pending_litig')
         # reg_filing = request.form.get('reg_filing')
         # recent_significant = request.form.get('recent_significant')
-        address = request.form.get("address")
-        country = request.form.get("country")
-        state = request.form.get("state")
-        city = request.form.get("city")
+        address = sanitize_text_input((request.form.get("address") or "").strip(), context="general")["value"]
+        country = sanitize_text_input((request.form.get("country") or "").strip(), context="general")["value"]
+        state = sanitize_text_input((request.form.get("state") or "").strip(), context="general")["value"]
+        city = sanitize_text_input((request.form.get("city") or "").strip(), context="general")["value"]
 
         # try:
         #     departments = json.loads(request.form.get('departments', '[]'))
