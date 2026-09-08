@@ -703,10 +703,14 @@ def add_new_client():
                 # Step 1: Organization Basic Info
                 org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
                 legal_name = sanitize_text_input(request.form.get("legal_name", "").strip(), context="general")["value"]
-                constitution = request.form.get("constitution", "").strip()  # dropdown value
+                constitution = sanitize_text_input(request.form.get("constitution", "").strip(), context="general")["value"]  # dropdown value
                 selected_org_types = request.form.getlist("selected_org_types")
                 selected_industries = request.form.getlist("selected_industries")
-                indian_regulatory = request.form.get("indian_regulatory", "").strip()
+                indian_regulatory = sanitize_text_input(request.form.get("indian_regulatory", "").strip(), context="general")["value"]
+                _step0_address = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+                _step0_country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+                _step0_state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+                _step0_city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
                 # Store in session for back navigation
                 session["step_0_data"] = {
@@ -716,10 +720,10 @@ def add_new_client():
                     "selected_org_types": selected_org_types,
                     "selected_industries": selected_industries,
                     "indian_regulatory": indian_regulatory,
-                    "address": request.form.get("address", "").strip(),
-                    "country": request.form.get("country", "").strip(),
-                    "state": request.form.get("state", "").strip(),
-                    "city": request.form.get("city", "").strip(),
+                    "address": _step0_address,
+                    "country": _step0_country,
+                    "state": _step0_state,
+                    "city": _step0_city,
                 }
 
                 # Check if organization with same name already exists
