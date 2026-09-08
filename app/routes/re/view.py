@@ -8103,6 +8103,15 @@ def add_regulator():
         flash("Regulator name and URL are required.", "error")
         return redirect(url_for("re.regulators"))
 
+    from app.services.check_guidelines_service import is_domain_allowed
+    if not is_domain_allowed(website_url):
+        flash(
+            "This domain is not on the approved regulator allowlist. "
+            "Contact an administrator to have it added before it can be tracked.",
+            "error",
+        )
+        return redirect(url_for("re.regulators"))
+
     existing = RegulatoryBodies.query.filter_by(website_url=website_url).first()
     if existing:
         flash(f"This URL is already tracked (under '{existing.name}') -- URLs must be unique. "
@@ -8131,6 +8140,15 @@ def edit_regulator(body_id):
     website_url = request.form.get("website_url", "").strip()
     if not name or not website_url:
         flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    from app.services.check_guidelines_service import is_domain_allowed
+    if not is_domain_allowed(website_url):
+        flash(
+            "This domain is not on the approved regulator allowlist. "
+            "Contact an administrator to have it added before it can be tracked.",
+            "error",
+        )
         return redirect(url_for("re.regulators"))
 
     existing = RegulatoryBodies.query.filter(
