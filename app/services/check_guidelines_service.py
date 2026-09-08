@@ -252,52 +252,7 @@ def fetch_page_text(url, timeout=15):
         # S-SSRF: validate URL before making outbound request
         import ipaddress, socket
         from urllib.parse import urlparse
-        # S-SSRF (real fix): domain allowlist for the Regulator "Listing Page URL"
-# feature. The internal-IP blocklist below only stops requests to
-# private/internal/cloud-metadata addresses -- it does NOT stop the
-# server from fetching ANY arbitrary public URL, which is itself the
-# SSRF this finding describes (the application making outbound requests
-# to an attacker-controlled server on the attacker's behalf). Only
-# domains explicitly listed here may be saved or fetched.
-#
-# NOTE: extend this list as legitimate regulators are onboarded. Add the
-# bare registrable domain (e.g. "rbi.org.in") -- subdomains of an
-# allowed domain are permitted automatically (see is_domain_allowed()).
-ALLOWED_REGULATOR_DOMAINS = {
-    "rbi.org.in",
-    "sebi.gov.in",
-    "irdai.gov.in",
-    "cert-in.org.in",
-    "pfrda.org.in",
-    "nabard.org",
-    "ibbi.gov.in",
-    "fiu-ind.gov.in",
-    "meity.gov.in",
-    "mca.gov.in",
-}
-
-
-def is_domain_allowed(url):
-    """
-    Returns True only if url's hostname is exactly an allowed domain, or
-    a subdomain of one (e.g. "notifications.rbi.org.in" is allowed
-    because "rbi.org.in" is on the list; "rbi.org.in.evil.com" is NOT
-    allowed -- it does not end with ".rbi.org.in" or equal "rbi.org.in").
-    """
-    from urllib.parse import urlparse
-    try:
-        hostname = (urlparse(url).hostname or "").lower().rstrip(".")
-    except Exception:
-        return False
-    if not hostname:
-        return False
-    for allowed in ALLOWED_REGULATOR_DOMAINS:
-        if hostname == allowed or hostname.endswith("." + allowed):
-            return True
-    return False
-
-
-_BLOCKED = [
+        _BLOCKED = [
             ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("10.0.0.0/8"),
             ipaddress.ip_network("172.16.0.0/12"), ipaddress.ip_network("192.168.0.0/16"),
             ipaddress.ip_network("169.254.0.0/16"), ipaddress.ip_network("0.0.0.0/8"),
@@ -307,14 +262,6 @@ _BLOCKED = [
         _parsed = urlparse(url)
         if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
             return None, None, "BLOCKED: invalid URL scheme", None
-        # S-SSRF (real fix): domain allowlist, defense in depth. Save-time
-        # validation in add_regulator/edit_regulator should already have
-        # rejected anything not on this list, but this check is enforced
-        # here too so that fetch_page_text() itself can never be pointed
-        # at an arbitrary attacker-controlled domain, no matter how the
-        # URL arrived (legacy row, direct DB edit, other call sites).
-        if not is_domain_allowed(url):
-            return None, None, f"BLOCKED: domain not in regulator allowlist ({_parsed.hostname})", None
         _validated_ip = None
         try:
             _addrinfo = socket.getaddrinfo(_parsed.hostname, None)
