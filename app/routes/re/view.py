@@ -1226,7 +1226,7 @@ def link_form():
     try:
         req = request.form
         print(req)
-        org_name = request.form.get("org_name")
+        org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
         legal_name = request.form.get("legal_name")
         constitution = request.form.get("constitution")
         # business_desc = request.form.get('business_desc')
@@ -2015,19 +2015,19 @@ def save_financial_overview(organization_id):
     organization = Organizations.query.get_or_404(organization_id)
 
     # Read form fields
-    key_revenue = request.form.get("revenueStreams", "").strip()
-    key_markets_customers = request.form.get("marketsCustomers", "").strip()
-    key_financials = request.form.get("financialMetrics", "").strip()
+    key_revenue = sanitize_text_input(request.form.get("revenueStreams", "").strip(), context="general")["value"]
+    key_markets_customers = sanitize_text_input(request.form.get("marketsCustomers", "").strip(), context="general")["value"]
+    key_financials = sanitize_text_input(request.form.get("financialMetrics", "").strip(), context="general")["value"]
     total_revenue = request.form.get("totalRevenue", "").strip()
     net_profit_loss = request.form.get("netProfitLoss", "").strip()
     total_assets = request.form.get("totalAssets", "").strip()
     total_liabilities = request.form.get("totalLiabilities", "").strip()
-    key_financial_challenges = request.form.get("financialChallenges", "").strip()
+    key_financial_challenges = sanitize_text_input(request.form.get("financialChallenges", "").strip(), context="general")["value"]
 
-    auditors_insights = request.form.get("auditorsInsights", "").strip()
-    compliance_status = request.form.get("complianceStatus", "").strip()
-    pending_litigations = request.form.get("pendingLitigations", "").strip()
-    regulatory_filings = request.form.get("regulatoryFilings", "").strip()
+    auditors_insights = sanitize_text_input(request.form.get("auditorsInsights", "").strip(), context="general")["value"]
+    compliance_status = sanitize_text_input(request.form.get("complianceStatus", "").strip(), context="general")["value"]
+    pending_litigations = sanitize_text_input(request.form.get("pendingLitigations", "").strip(), context="general")["value"]
+    regulatory_filings = sanitize_text_input(request.form.get("regulatoryFilings", "").strip(), context="general")["value"]
 
     try:
         # --- OrganizationInfo (create or update) ---
