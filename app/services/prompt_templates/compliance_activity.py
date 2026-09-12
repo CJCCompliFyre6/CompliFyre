@@ -139,8 +139,16 @@ CLAUSE:
 
 CLASSIFICATION RULES:
 - subject: Who bears the primary obligation?
-  * "listed_entity" = bank, NBFC, financial institution, listed company being regulated
-  * "regulator" = RBI, SEBI, IRDAI, stock exchange, Board
+  * "listed_entity" = bank, NBFC, financial institution, listed company being regulated --
+    this INCLUDES the entity's own internal governance structures: its Board of Directors,
+    Board-level committees (e.g. ALCO, Audit Committee, Risk Committee), and Management --
+    a bare reference to "the Board" or "the Committee" almost always means the regulated
+    entity's own board, not a regulator (Build Sequence #385: previously misclassified,
+    causing real governance obligations to be wrongly skipped as non-actionable)
+  * "regulator" = RBI, SEBI, IRDAI, stock exchange -- reference the regulator by its actual
+    name; do not classify a clause as "regulator" just because the word "Board" appears
+    (e.g. SEBI's own full name contains "Board", but that is a naming coincidence, not a
+    signal -- the surrounding context of who is being asked to act is what matters)
   * "third_party" = LSP, vendor, auditor, rating agency
   * "mixed" = multiple subjects including listed_entity
 
