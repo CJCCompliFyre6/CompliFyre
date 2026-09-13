@@ -538,6 +538,27 @@ class EveControlResult(db.Model):
     contradiction_summary_json = db.Column(db.JSON, nullable=True)
     oe_exception_summary_json = db.Column(db.JSON, nullable=True)
 
+    # Cross-dimension (DE -> IE -> OE) parameter carry-forward -- Build Sequence #394.
+    # Populated once DE evaluation genuinely completes for this activity (every DE
+    # discovers_parameter-tagged checklist item has reached a final answer -- found
+    # with a citation, or conclusively not-found). Never expires and is never
+    # silently overwritten -- persists until a NEWER Design-level document actually
+    # supersedes an earlier one (bank policy changes rarely; re-evaluation of IE/OE
+    # then triggers only for the specific checklist items whose depends_on_parameter
+    # matches what changed, not the whole activity).
+    # JSON: {parameter_name: {"value": ..., "evidence_artifact_id": ..., "checklist_item_id": ...,
+    #        "evidence_reference": ..., "discovered_at": ...}}
+    # A parameter genuinely not found in any Design evidence is recorded explicitly as
+    # {"value": None, "status": "not_found", ...} -- distinct from the key being absent,
+    # which means DE hasn't evaluated that item yet at all.
+    design_parameters_json = db.Column(db.JSON, nullable=True)
+
+    # True once every DE discovers_parameter-tagged checklist item for this activity
+    # has reached a final answer. IE/OE evaluation must check this before running
+    # (Build Sequence #394, Option A) -- queued, not evaluated against an incomplete
+    # or assumed picture, until this flips true.
+    de_discovery_completed = db.Column(db.Boolean, nullable=False, default=False)
+
     step6_completed = db.Column(db.Boolean, nullable=False, default=False)
     step7_completed = db.Column(db.Boolean, nullable=False, default=False)
     step8_completed = db.Column(db.Boolean, nullable=False, default=False)
