@@ -522,6 +522,34 @@ PRINCIPLE 15 — OBSERVATION/FINDING SEPARATION:
 Evidence summaries must NOT generate findings or recommendations.
 Findings emerge ONLY from: unresolved checklist failures, unresolved contradictions, failed logical validations, inadmissible evidence, unresolved inquiry results.
 
+PRINCIPLE 16 — CROSS-DIMENSION PARAMETER DISCOVERY (Build Sequence #394):
+DE, IE, and OE are not independent checks -- they are cumulative. Critically, DE-testing is a
+DISCOVERY step, not just a pass/fail gate: the real policy document reveals organization-specific
+implementation details (e.g. THIS bank's monitoring frequency, THIS bank's escalation forum) that
+IE and OE items must then test against -- not a generic assumption.
+* If a DESIGN item's own requirement text asks the auditor to establish a specific,
+  organization-defined fact that a LATER (Implementation or Operating) item in this SAME checklist
+  will need to check against (a frequency, a forum/committee name, a threshold, an approving
+  authority, a methodology) -- tag that DESIGN item with discovers_parameter: a short,
+  descriptive name for that fact, GROUNDED IN THIS SPECIFIC ACTIVITY'S OWN TEXT. Do NOT invent a
+  parameter from a generic, external list -- only tag what this activity's own requirement or test
+  procedure text genuinely implies needs discovering.
+* If an IMPLEMENTATION or OPERATING item's own requirement can only be correctly evaluated once
+  that organization-specific fact is known (e.g. "verify monthly reports exist" cannot be checked
+  without first knowing THIS org's actual required frequency), tag that item with
+  depends_on_parameter using the EXACT SAME parameter name as the DESIGN item that discovers it.
+* Every discovers_parameter / depends_on_parameter tag MUST be accompanied by
+  parameter_justification_quote: the exact, verbatim sentence or phrase from the Test Procedure or
+  Control Activity input above that justifies this tag. This is verified mechanically after
+  generation -- a tag whose quote cannot be found, verbatim, in the actual input text will be
+  discarded, so do not paraphrase or summarize here.
+* Most checklist items will have NEITHER field set (most items are standalone, self-contained
+  checks) -- only tag items where a genuine, real dependency exists between two specific items in
+  this checklist. Do not force every item into this pattern.
+* A depends_on_parameter with no matching discovers_parameter anywhere in the same checklist will
+  be treated as an error and dropped -- only reference a parameter you are also discovering
+  somewhere in this same output.
+
 ---
 
 STEP 4.1 — IDENTIFY CONTROL PATTERN
@@ -575,6 +603,9 @@ For each checklist item output EXACTLY this JSON structure:
   "control_pattern": "REVIEW_CONTROL | APPROVAL_CONTROL | RECONCILIATION_CONTROL | ACCESS_CONTROL | TRANSACTION_CONTROL | MONITORING_CONTROL | CONFIGURATION_CONTROL | DOCUMENTATION_CONTROL",
   "lifecycle_stage": "IDENTIFICATION | VALIDATION | APPROVAL | EXCEPTION | REMEDIATION | EVIDENCE | NA",
   "effectiveness_type": "DESIGN | IMPLEMENTATION | OPERATING",
+  "discovers_parameter": "Short parameter name this DESIGN item discovers, or null (Principle 16)",
+  "depends_on_parameter": "Exact parameter name this item depends on, or null (Principle 16)",
+  "parameter_justification_quote": "Verbatim quote from Test Procedure/Control Activity justifying the tag above, or null",
   "dimension_test_scope": "Describe exactly what to test for this dimension — do not cross dimension boundaries",
   "weight": "HIGH | MEDIUM | LOW",
   "assurance_weight": "HIGH | MEDIUM | LOW",
@@ -660,6 +691,7 @@ RULES FOR ASSIGNMENT:
 6. checklist_family: assign exactly ONE per item.
 7. confidence_classification: EXPLICIT where clause directly states requirement, IMPLIED where inferred, AMBIGUOUS where unclear.
 8. admissibility_states: always include all 5 states as array — this is metadata for Step 5.
+9. discovers_parameter / depends_on_parameter (Principle 16): leave BOTH null on most items. Only set when a genuine, real dependency exists between two specific items in THIS checklist, grounded in this activity's own text -- never invent a parameter from a generic list, and never set depends_on_parameter without a matching discovers_parameter present somewhere in this same output.
 
 ---
 
@@ -708,6 +740,73 @@ STRICT CONSTRAINTS:
 * CRITICAL — INSTITUTION-SPECIFIC SCOPE: Checklist items must NEVER mandate specific product names, service types, or process names that appear as examples in a clause. Test for COVERAGE and COMPLETENESS of the institution's actual scope — not for presence of illustrative examples.
 * CRITICAL — REGULATORY INTENT: Always derive checklist items from the INTENT of the regulatory requirement. Ask "What is this regulation trying to achieve?" — not "What specific words appear in the clause?"
 * Use consistent ENUM values only"""
+
+
+import re
+
+
+def _normalize_for_quote_match(text: str) -> str:
+    """Collapse whitespace and lowercase, for a forgiving-but-still-genuine substring check --
+    tolerates line-wrapping/spacing differences without allowing a paraphrase to pass."""
+    return re.sub(r"\s+", " ", (text or "")).strip().lower()
+
+
+def _validate_parameter_tags(checklist_items: list, source_text: str) -> list:
+    """
+    Build Sequence #394 Step 4.4 -- deterministic, code-level safeguard for the
+    discovers_parameter / depends_on_parameter tags an LLM call (Principle 16 in
+    _build_checklist_prompt) may have added to individual checklist items.
+
+    Two checks, both mechanical, never trusting the LLM's own tagging at face value:
+    1. Every tag's parameter_justification_quote must be a genuine, verbatim (whitespace/case
+       tolerant only) substring of the real activity + test procedure text. A tag whose quote
+       cannot be found this way is dropped entirely -- this is what actually prevents the LLM
+       from inventing a parameter that was never really discoverable in the source text.
+    2. Every depends_on_parameter must name a parameter some item's discovers_parameter in this
+       SAME checklist actually produces. An orphaned dependency (referencing a parameter nothing
+       in this checklist discovers) is dropped -- the item reverts to a standalone item rather
+       than carrying a dependency that can never be resolved.
+    """
+    normalized_source = _normalize_for_quote_match(source_text)
+
+    # Pass 1: quote verification
+    for item in checklist_items:
+        if not isinstance(item, dict):
+            continue
+        has_tag = item.get("discovers_parameter") or item.get("depends_on_parameter")
+        if not has_tag:
+            continue
+        quote = item.get("parameter_justification_quote")
+        if not quote or _normalize_for_quote_match(quote) not in normalized_source:
+            logger.warning(
+                f"[Module B] Dropping parameter tag -- quote not found verbatim in source text. "
+                f"discovers={item.get('discovers_parameter')!r}, depends_on={item.get('depends_on_parameter')!r}, "
+                f"quote={quote!r}"
+            )
+            item["discovers_parameter"] = None
+            item["depends_on_parameter"] = None
+            item["parameter_justification_quote"] = None
+
+    # Pass 2: dependency resolution -- only after quote-verification, so a dropped
+    # discovers_parameter from pass 1 correctly orphans anything that depended on it
+    discovered_names = {
+        item.get("discovers_parameter")
+        for item in checklist_items
+        if isinstance(item, dict) and item.get("discovers_parameter")
+    }
+    for item in checklist_items:
+        if not isinstance(item, dict):
+            continue
+        dep = item.get("depends_on_parameter")
+        if dep and dep not in discovered_names:
+            logger.warning(
+                f"[Module B] Dropping orphaned depends_on_parameter={dep!r} -- no matching "
+                f"discovers_parameter found anywhere in this checklist."
+            )
+            item["depends_on_parameter"] = None
+            item["parameter_justification_quote"] = None
+
+    return checklist_items
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
@@ -910,6 +1009,13 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
                 if filtered:
                     validated.checklist = filtered
                     logger.info(f"[Module B] Filtered checklist to {len(filtered)} items for dims: {allowed_dims}")
+
+        # ── 7.5. Verify parameter tags (Build Sequence #394 Step 4.4) ─────
+        # Must run on the FINAL, dimension-filtered checklist -- a dependency
+        # pointing to a discovery item that got filtered out above should also drop.
+        source_text_for_quotes = f"{control_activity_text}\n{test_procedure_text}"
+        if validated.checklist:
+            validated.checklist = _validate_parameter_tags(validated.checklist, source_text_for_quotes)
 
         # ── 8. Store in DB ────────────────────────────────────────────
         checklist_record = ControlChecklist(
