@@ -1013,7 +1013,12 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
         # ── 7.5. Verify parameter tags (Build Sequence #394 Step 4.4) ─────
         # Must run on the FINAL, dimension-filtered checklist -- a dependency
         # pointing to a discovery item that got filtered out above should also drop.
-        source_text_for_quotes = f"{control_activity_text}\n{test_procedure_text}"
+        # Build Sequence #394 bugfix: clause_text is a genuine, valid input source in
+        # the actual prompt above ("Clause: {clause_text}") -- confirmed via a real test
+        # run where every single tag was wrongly dropped because the source text checked
+        # here omitted it entirely, even though the cited quotes were real text sitting
+        # directly in the clause itself, not hallucinated.
+        source_text_for_quotes = f"{clause_text}\n{control_activity_text}\n{test_procedure_text}"
         if validated.checklist:
             validated.checklist = _validate_parameter_tags(validated.checklist, source_text_for_quotes)
 
