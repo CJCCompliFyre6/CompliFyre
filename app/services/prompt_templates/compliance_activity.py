@@ -74,13 +74,12 @@ def compliance_prompt(clause_text, department_list):
             * **Monitoring & Reporting**: Checking for compliance and reporting findings.
             * **Documentation & Evidence**: Maintaining records and proofs.
 
-        5.  **COMPLIANCE LEVEL MAPPING:**
-          - Policy creation, framework development, control design → **Design Effectiveness**
-          - Deployment, configuration, training, rollout → **Implementation Assessment** 
-          - Monitoring, testing, reporting, maintenance → **Operating Effectiveness**    
-            
-        6.  **Use Specifics**: For each activity, you must provide the following:
-            * **`compliance_level`**:  MUST be one of: "Design", "Implementation", or "Operating Effectiveness"
+        5.  **Use Specifics**: For each activity, you must provide the following:
+            # compliance_level is deliberately NOT requested here (Build Sequence #395) --
+            # it depended on control_type/frequency, which don't exist yet at this point in
+            # the pipeline. The single, authoritative decision on Design/Implementation/
+            # Operating dimensions now happens later, during checklist generation, once
+            # control_type and frequency are actually known.
             * **`relevant_departments`**: Identify the specific department(s) from the provided list that are responsible for the activity. If a department is not in the list, state it as "Compliance."
             * **`department_id`**: Map the identified department(s) to their corresponding `department_id` from the provided list.
             * **`process_name`**: Provide the name of a relevant business process (e.g., "KYC," "Internal Audit," "Risk Management").
@@ -241,7 +240,6 @@ Return this exact JSON structure:
     {{
       "activity_id": "1",
       "activity_description": "Clear, actionable description starting with action verb",
-      "compliance_level": "Design | Implementation | Operating Effectiveness",
       "relevant_departments": "Department name",
       "department_id": 0,
       "process_name": "Process name",
@@ -262,23 +260,12 @@ def validate_and_fix_activities(activities: list) -> list:
     ONE_TIME_FREQS = ["one-time", "one time", "onetime"]
     RECURRING_FREQS = ["quarterly", "monthly", "annually", "annual", "daily", "weekly", "ongoing", "continuous", "every", "periodic", "bi-annual", "semi-annual", "three years", "two years"]
 
+    # compliance_level is retired (Build Sequence #395) -- the checklist-generation stage
+    # is now the single, authoritative source for Design/Implementation/Operating dimensions.
+    # MONITOR_VERBS/ONE_TIME_FREQS/RECURRING_FREQS above are kept as they may still be
+    # referenced elsewhere; the compliance_level-specific fixes that used them are removed.
     fixed = []
     for act in activities:
-        desc = (act.get("activity_description") or "").lower()
-        level = (act.get("compliance_level") or "").strip()
-        freq = (act.get("frequency") or "").lower().strip()
-
-        # Fix 1: Design + recurring frequency → change to Operating Effectiveness
-        if level == "Design" and any(f in freq for f in RECURRING_FREQS):
-            act["compliance_level"] = "Operating Effectiveness"
-
-        # Fix 2: Monitor verb + Design or Implementation → Operating Effectiveness
-        if any(v in desc for v in MONITOR_VERBS) and level in ("Design", "Implementation"):
-            act["compliance_level"] = "Operating Effectiveness"
-            if any(f in freq for f in ONE_TIME_FREQS):
-                act["frequency"] = "Ongoing"
-
-        # Fix 3: Design + One-time only (correct — no change needed)
         fixed.append(act)
 
     # Renumber sequentially

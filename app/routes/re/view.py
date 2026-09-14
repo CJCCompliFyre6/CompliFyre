@@ -2610,11 +2610,22 @@ def decomposition_view_export():
             for control in act.control_activities:
                 rows_for_activity = control.evidences or [None]
                 for ev in rows_for_activity:
+                    # Build Sequence #395: compliance_level retired -- build a fresh,
+                    # readable string directly from the checklist's own dimension flags
+                    # instead (the single, authoritative source; see #375-derivation fix).
+                    checklist = getattr(control, "eve_checklist", None)
+                    dims = []
+                    if checklist:
+                        if checklist.dimension_design: dims.append("Design")
+                        if checklist.dimension_implementation: dims.append("Implementation")
+                        if checklist.dimension_operating: dims.append("Operating")
+                    compliance_level_display = ", ".join(dims)
+
                     row_values = [
                         clause.clause_no,
                         clause.clause_type or "",
                         act.activity_description or "",
-                        act.compliance_level or "",
+                        compliance_level_display,
                         control.objective or "",
                         control.test_procedure.walkthrough if control.test_procedure else "",
                         ev.category if ev else "",

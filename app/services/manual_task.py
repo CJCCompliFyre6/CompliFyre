@@ -3056,7 +3056,9 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                         responsible_party=act.get("responsible_party", ""),
                         frequency=act.get("frequency", ""),
                         evidence_required=act.get("evidence_required", ""),
-                        compliance_level=act.get("compliance_level", "Design"),
+                        compliance_level="Deprecated",  # Build Sequence #395: retired --
+                        # checklist generation is now the single, authoritative source for
+                        # Design/Implementation/Operating dimensions (see #375-derivation fix)
                     )
                     session.add(comp)
                     session.flush()
@@ -4296,9 +4298,7 @@ def generate_missing_activities_for_guideline(self, guideline_id):
                                     responsible_party=_get(act, "responsible_party"),
                                     frequency=_get(act, "frequency"),
                                     evidence_required=_get(act, "evidence_required"),
-                                    compliance_level=_get(
-                                        act, "compliance_level", "Design"
-                                    ),
+                                    compliance_level="Deprecated",  # Build Sequence #395
                                 )
                                 session.add(comp)
 

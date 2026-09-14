@@ -96,20 +96,25 @@ def _build_project_control_activity_fields(control_template):
     set these three columns -- they were permanently stuck blank/"no" for
     every activity in every project regardless of actual compliance level.
     """
-    compliance_level = None
-    if control_template.compliance_activity:
-        compliance_level = control_template.compliance_activity.compliance_level
-
+    # Build Sequence #395: repointed from the retired compliance_level field to the
+    # checklist's own dimension_design/implementation/operating flags directly --
+    # checklist generation now knows control_type and frequency (compliance_level did
+    # not, since it was decided earlier in the pipeline, before either existed), making
+    # it the single, more accurate source. A direct three-way boolean copy also avoids
+    # forcing checklist combinations that are not strictly cumulative -- e.g. a Detective
+    # control correctly landing on Operating-only -- into a lossy, misleading string.
+    from app.models.eve_models import ControlChecklist
     design = implementation = operating = "no"
-    if compliance_level == "Design":
-        design = "yes"
-    elif compliance_level == "Implementation":
-        implementation = "yes"
-    elif compliance_level in ("Operating Effectiveness", "Operating"):
-        operating = "yes"
-    # Any other/unrecognized value (stray "Per event", "One-time",
-    # "Improvement" data found in the compliance_level column) intentionally
-    # leaves all three as "no" rather than guessing which dimension applies.
+    checklist = ControlChecklist.query.filter_by(control_activity_id=control_template.id).first()
+    if checklist:
+        if checklist.dimension_design:
+            design = "yes"
+        if checklist.dimension_implementation:
+            implementation = "yes"
+        if checklist.dimension_operating:
+            operating = "yes"
+    # No checklist generated yet for this control: intentionally leaves all three as
+    # "no" rather than guessing -- matches the prior behavior for an unrecognized value.
 
     return {
         "original_control_id": control_template.id,
