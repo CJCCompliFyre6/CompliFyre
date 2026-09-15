@@ -3095,6 +3095,21 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                         )
                         logger.warning(f"[EVE] Checklist skipped for comp_id={comp_id_val} -- will be retried by fix_pending_checklists")
 
+                # Build Sequence #398: resolve cross-sibling parameter dependencies --
+                # every sibling activity's checklist for this clause now exists, so this
+                # is the first genuine point a depends_on_parameter can be checked against
+                # ALL siblings' discovers_parameter tags, not just its own (mechanical,
+                # no LLM call -- string matching against already-assigned parameter names).
+                if saved_activities:
+                    try:
+                        from app.services.eve_tasks import resolve_cross_sibling_dependencies
+                        resolve_cross_sibling_dependencies(clause_id_val)
+                    except Exception as dep_err:
+                        logger.error(
+                            f"[Module B] resolve_cross_sibling_dependencies failed for "
+                            f"clause_id={clause_id_val}: {dep_err}"
+                        )
+
                 results["activities"].append({clause_id_val: saved_activities})
                 processed_clauses += 1
 

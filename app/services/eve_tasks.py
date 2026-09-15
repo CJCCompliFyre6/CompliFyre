@@ -787,26 +787,99 @@ def _validate_parameter_tags(checklist_items: list, source_text: str) -> list:
             item["depends_on_parameter"] = None
             item["parameter_justification_quote"] = None
 
-    # Pass 2: dependency resolution -- only after quote-verification, so a dropped
-    # discovers_parameter from pass 1 correctly orphans anything that depended on it
-    discovered_names = {
-        item.get("discovers_parameter")
-        for item in checklist_items
-        if isinstance(item, dict) and item.get("discovers_parameter")
-    }
-    for item in checklist_items:
-        if not isinstance(item, dict):
-            continue
-        dep = item.get("depends_on_parameter")
-        if dep and dep not in discovered_names:
-            logger.warning(
-                f"[Module B] Dropping orphaned depends_on_parameter={dep!r} -- no matching "
-                f"discovers_parameter found anywhere in this checklist."
-            )
-            item["depends_on_parameter"] = None
-            item["parameter_justification_quote"] = None
-
+    # Build Sequence #398: dependency resolution (matching depends_on_parameter against
+    # discovers_parameter) is intentionally NOT done here anymore. A real bug found today:
+    # this function runs per-activity, while a genuine dependency very often points to a
+    # SIBLING activity's discovery under the same clause -- which doesn't exist yet at this
+    # point in generation. Checking only this checklist's own items would silently, wrongly,
+    # permanently drop every genuine cross-activity dependency. That resolution now happens
+    # once, later, in resolve_cross_sibling_dependencies() below, after every sibling
+    # activity's checklist for the clause actually exists.
     return checklist_items
+
+
+def resolve_cross_sibling_dependencies(clause_id: int) -> dict:
+    """
+    Build Sequence #398. Runs once, after every sibling activity under a clause has its
+    checklist generated -- the first point where a genuine cross-activity dependency can
+    actually be checked. Mechanical, no LLM call: depends_on_parameter is already an
+    explicit, plain-text name assigned by the tagging step: matching it against every
+    sibling's discovers_parameter names is a string comparison, not a judgment call.
+
+    Any depends_on_parameter that doesn't match a discovers_parameter anywhere across
+    ALL sibling checklists for this clause is dropped -- same orphan-handling principle
+    as the old, narrower, single-checklist check this replaces, just checked against the
+    full, real set of siblings instead of an empty one.
+    """
+    from app.models.ai import ComplianceActivities, ControlActivity
+    from app.models.eve_models import ControlChecklist
+
+    sibling_activity_ids = [
+        row.id for row in
+        db.session.query(ComplianceActivities.id).filter_by(clause_id=clause_id).all()
+    ]
+    if not sibling_activity_ids:
+        return {"clause_id": clause_id, "checklists_checked": 0, "dependencies_kept": 0, "dependencies_dropped": 0}
+
+    controls = (
+        db.session.query(ControlActivity)
+        .filter(ControlActivity.compliance_activity_id.in_(sibling_activity_ids))
+        .all()
+    )
+    control_ids = [c.id for c in controls]
+    checklists = (
+        db.session.query(ControlChecklist)
+        .filter(ControlChecklist.control_activity_id.in_(control_ids))
+        .all()
+        if control_ids else []
+    )
+
+    all_discovered_names = set()
+    for cl in checklists:
+        for item in (cl.checklist_json or []):
+            if isinstance(item, dict) and item.get("discovers_parameter"):
+                all_discovered_names.add(item["discovers_parameter"])
+
+    checklists_changed = 0
+    dependencies_kept = 0
+    dependencies_dropped = 0
+
+    for cl in checklists:
+        items = cl.checklist_json or []
+        changed = False
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            dep = item.get("depends_on_parameter")
+            if not dep:
+                continue
+            if dep in all_discovered_names:
+                dependencies_kept += 1
+            else:
+                logger.warning(
+                    f"[Module B] Dropping orphaned depends_on_parameter={dep!r} for "
+                    f"control_activity_id={cl.control_activity_id} -- no matching "
+                    f"discovers_parameter found across ANY sibling checklist for clause_id={clause_id}."
+                )
+                item["depends_on_parameter"] = None
+                item["parameter_justification_quote"] = None
+                dependencies_dropped += 1
+                changed = True
+        if changed:
+            cl.checklist_json = items
+            checklists_changed += 1
+
+    if checklists_changed:
+        db.session.commit()
+
+    summary = {
+        "clause_id": clause_id,
+        "checklists_checked": len(checklists),
+        "dependencies_kept": dependencies_kept,
+        "dependencies_dropped": dependencies_dropped,
+    }
+    logger.info(f"[Module B] resolve_cross_sibling_dependencies: {summary}")
+    return summary
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)

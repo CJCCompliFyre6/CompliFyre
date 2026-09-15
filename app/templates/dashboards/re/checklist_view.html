@@ -66,6 +66,22 @@
 
       <p class="text-gray-900 font-medium mb-4">{{ item.requirement }}</p>
 
+      {# Build Sequence #394/#398: organization-specific parameter discovery/dependency #}
+      {% if item.discovers_parameter or item.depends_on_parameter %}
+      <div class="mb-4 flex gap-2 flex-wrap">
+        {% if item.discovers_parameter %}
+        <span class="px-2 py-1 rounded text-xs font-semibold bg-teal-100 text-teal-800" title="{{ item.parameter_justification_quote }}">
+          Discovers: {{ item.discovers_parameter }}
+        </span>
+        {% endif %}
+        {% if item.depends_on_parameter %}
+        <span class="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-800" title="{{ item.parameter_justification_quote }}">
+          Depends on: {{ item.depends_on_parameter }}
+        </span>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
         {% if item.control_pattern %}
         <div><span class="text-gray-500">Control Pattern:</span> <span class="text-gray-800">{{ item.control_pattern }}</span></div>
