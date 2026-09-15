@@ -93,6 +93,12 @@ class ControlWorkpaper(BaseModel):
     owner: str = Field(..., description="Person or role responsible for the control.")
     control_type: ControlType = Field(..., description="Type of control.")
     frequency: Frequency = Field(..., description="Frequency of the control activity.")
+    # Build Sequence #397: the single, authoritative Design/Implementation/Operating
+    # decision -- made once, here, using the sequential three-question logic in the
+    # prompt below. Checklist generation reads these rather than re-deciding them.
+    dimension_design: bool = Field(..., description="True if Design-stage testing applies to this activity (per the Testing Depth Determination logic below).")
+    dimension_implementation: bool = Field(..., description="True if Implementation-stage testing applies. Never true unless dimension_design is also true.")
+    dimension_operating: bool = Field(..., description="True if Operating Effectiveness testing applies. Never true unless both dimension_design and dimension_implementation are also true.")
     @field_validator("frequency", mode="before")
     @classmethod
     def normalize_frequency(cls, v):
@@ -271,32 +277,24 @@ INSTRUCTIONS:
    - control_type: One of "Preventive", "Detective", or "Corrective".
    - frequency: e.g. "Daily", "Annually", "One Time".
 
-3. COMPLIANCE LEVEL GUIDANCE:
-   The activity has been pre-classified as: {control_activity.get("compliance_level", "Design") if isinstance(control_activity, dict) else "Design"}
-   
-   DEPENDENCY HIERARCHY — MANDATORY:
-   Each level DEPENDS on the previous level. You MUST understand and acknowledge this dependency in your test procedure:
+3. TESTING DEPTH DETERMINATION — MANDATORY, decide this yourself using the clause, activity, control_type, and frequency above:
 
-   - If "Design": 
-     INDEPENDENT level — no dependency on other levels.
-     Focus ONLY on: Are policies documented? Is the control framework defined? Are roles and responsibilities assigned? Is the control approved by the correct authority?
-     Evidence: Policy documents, framework documentation, board/management approvals, role definitions.
-     Do NOT test implementation or operating effectiveness.
+   Work through these three questions IN ORDER. Stop at the first one that applies. Do NOT use control_type alone as a shortcut -- e.g. a Detective control still needs its own genuine answer worked out here, never an automatic "skip straight to Operating."
 
-   - If "Implementation":
-     DEPENDS ON Design. You MUST first confirm that a Design exists (policy/framework is in place), then test whether it has been implemented.
-     Step 1 — Acknowledge Design: Note that the control design (policy/framework) is assumed to be in place as a prerequisite.
-     Step 2 — Test Implementation: Has the control been deployed as designed? Are systems configured? Are staff trained? Are procedures being followed?
-     Evidence: System configuration screenshots, training completion records, deployment evidence, SOPs.
-     Do NOT re-test design. Do NOT test operating effectiveness.
+   Q1 — Is this activity GENUINELY one-time, with no real, repeatable aspect ever again (e.g. a single, one-off policy approval)?
+     → If YES: dimension_design=true, dimension_implementation=false, dimension_operating=false. STOP.
 
-   - If "Operating Effectiveness":
-     DEPENDS ON both Design AND Implementation. You MUST first confirm both exist, then test whether the control operates consistently.
-     Step 1 — Acknowledge Design & Implementation: Note that design and implementation are assumed to be in place as prerequisites.
-     Step 2 — Test Operating Effectiveness: Is the control operating consistently over the audit period? Sample transactions, verify evidence of repeated execution, test adherence over time.
-     Evidence: Transaction logs, monitoring reports, samples from audit period, exception reports.
-     Sampling is MANDATORY for Operating Effectiveness — select representative samples from the audit period.
-     Do NOT re-test design or implementation.
+   Q2 — If not one-time: does it require an active rollout, deployment, or setup (training, system configuration, a new process going live) WITHOUT any genuine, over-time, sampled/observed operating component?
+     → If YES: dimension_design=true, dimension_implementation=true, dimension_operating=false. STOP.
+
+   Q3 — Everything else (any genuine, recurring, operational component -- monitoring, periodic review, transaction-level controls, etc.):
+     → dimension_design=true, dimension_implementation=true, dimension_operating=true.
+     Design and Implementation are the mandatory foundation Operating is tested against -- never optional once Operating applies. There is no real standard to test operating consistency against without first knowing what "correctly designed and implemented" means for this specific organization.
+
+   DEPENDENCY — MANDATORY when more than one dimension applies; acknowledge this in your test procedure:
+   - Design: are policies documented, is the control framework defined, are roles/responsibilities assigned, is it approved by the correct authority? Evidence: policy documents, framework documentation, approvals, role definitions.
+   - Implementation (only if dimension_implementation=true): first confirm Design exists as a prerequisite, then test whether it has actually been deployed/configured/trained/followed. Evidence: configuration screenshots, training records, deployment evidence, SOPs.
+   - Operating (only if dimension_operating=true): first confirm Design AND Implementation exist as prerequisites, then test whether the control operates consistently over the audit period. Sampling is MANDATORY here. Evidence: transaction logs, monitoring reports, samples from the audit period, exception reports.
 
 4. TEST PROCEDURE:
    Design a step-by-step audit procedure aligned to the compliance level above. Consolidate steps that concern the same
@@ -306,9 +304,9 @@ INSTRUCTIONS:
        - roles: All job roles to be interviewed.
        - key_questions: Specific open-ended questions per role.
    - walkthrough: Step-by-step description an auditor can follow to observe the control.
-   - sampling: IMPORTANT — Sampling applies ONLY to "Operating Effectiveness" level activities. 
-     If compliance_level is "Design" or "Implementation", set sampling to "Not applicable — sampling is only required for Operating Effectiveness testing."
-     If compliance_level is "Operating Effectiveness", provide sampling method and rationale (e.g. "Random sample of 25 records from the past 12 months").
+   - sampling: IMPORTANT — Sampling applies ONLY when dimension_operating=true (Section 3 above).
+     If dimension_operating=false, set sampling to "Not applicable — sampling is only required for Operating Effectiveness testing."
+     If dimension_operating=true, provide sampling method and rationale (e.g. "Random sample of 25 records from the past 12 months").
 
 5. EVIDENCE AND GUIDANCE:
    - evidences_artifacts_needed: List of objects, each with:
@@ -353,6 +351,9 @@ REQUIRED JSON SCHEMA:
   "owner": "string",
   "control_type": "Preventive | Detective | Corrective | Governance | Directive | Compensating",
   "frequency": "string",
+  "dimension_design": true,
+  "dimension_implementation": false,
+  "dimension_operating": false,
   "test_procedure": {{
     "review_of_documentation": ["string"],
     "interviews": {{

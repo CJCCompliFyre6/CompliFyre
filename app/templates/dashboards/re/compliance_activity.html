@@ -429,14 +429,19 @@
           <td hidden>{{ activity.id }}</td>
           <td>{{activity.activity_id}}</td>
           <td>{{activity.activity_description}}</td>
-          <td> <!-- Add this new cell for compliance level -->
-            <span class="px-2 py-1 rounded-full text-xs font-semibold 
-          {% if activity.compliance_level == 'Design' %}bg-blue-200 text-blue-800
-          {% elif activity.compliance_level == 'Implementation' %}bg-yellow-200 text-yellow-800
-          {% elif activity.compliance_level == 'Operating Effectiveness' %}bg-green-200 text-green-800
-          {% else %}bg-gray-200 text-gray-800{% endif %}">
-              {{activity.compliance_level}}
-            </span>
+          <td>
+            {# Build Sequence #397: compliance_level retired -- reads the single, #}
+            {# authoritative Design/Implementation/Operating decision from the linked #}
+            {# ControlActivity record instead (control_activities is a list due to the #}
+            {# relationship definition, but is always 0 or 1 item -- one-to-one). #}
+            {% set control = activity.control_activities[0] if activity.control_activities else None %}
+            {% if control %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ 'bg-blue-200 text-blue-800' if control.dimension_design else 'bg-gray-100 text-gray-400' }}">D</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ 'bg-yellow-200 text-yellow-800' if control.dimension_implementation else 'bg-gray-100 text-gray-400' }}">I</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ 'bg-green-200 text-green-800' if control.dimension_operating else 'bg-gray-100 text-gray-400' }}">OE</span>
+            {% else %}
+            <span class="text-xs text-gray-400">Not yet decided</span>
+            {% endif %}
           </td>
 
           <td>

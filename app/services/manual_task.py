@@ -3737,7 +3737,10 @@ def _generate_test_procedure_for_activity(
             "responsible_party": activity_data.get("responsible_party", ""),
             "frequency": activity_data.get("frequency", ""),
             "evidence_required": activity_data.get("evidence_required", ""),
-            "compliance_level": activity_data.get("compliance_level", "Design"),
+            # Build Sequence #397: compliance_level removed -- the prompt now decides
+            # Design/Implementation/Operating itself (Section 3), using control_type/
+            # frequency it also decides in this same call, rather than reading a value
+            # from an earlier, less-informed stage.
         }
 
         # Generate test procedure using the same prompt as individual route
@@ -3778,6 +3781,11 @@ def _generate_test_procedure_for_activity(
             control.owner = updated_data_dict.get("owner")
             control.control_type = updated_data_dict.get("control_type")
             control.frequency = updated_data_dict.get("frequency")
+            # Build Sequence #397: the single, authoritative Design/Implementation/
+            # Operating decision, made in this same call (Section 3 of the prompt)
+            control.dimension_design = bool(updated_data_dict.get("dimension_design", False))
+            control.dimension_implementation = bool(updated_data_dict.get("dimension_implementation", False))
+            control.dimension_operating = bool(updated_data_dict.get("dimension_operating", False))
             control.sampling_guidance = updated_data_dict.get("sampling_guidance")
             control.auditor_observation = updated_data_dict.get("auditor_observation")
             control.findings = updated_data_dict.get("findings")

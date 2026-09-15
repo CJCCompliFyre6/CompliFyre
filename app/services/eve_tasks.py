@@ -970,32 +970,25 @@ def generate_control_checklist(self, control_activity_id: int, generated_by: int
                 countdown=60,
             )
 
-        # ── 7. Parse dimensions ────────────────────────────────────────
-        dims = validated.required_dimensions
-        dimension_design = str(dims.get("design", "NO")).upper() == "YES"
-        dimension_implementation = str(dims.get("implementation", "NO")).upper() == "YES"
-        dimension_operating = str(dims.get("operating", "NO")).upper() == "YES"
+        # ── 7. Read dimensions (Build Sequence #397) ───────────────────
+        # This used to be independently re-decided here (LLM guess + hardcoded
+        # control_type/frequency override rules) -- a second, disagreeing decision
+        # from the one already made at test-procedure-generation time, which is
+        # provably more informed (same call that decides control_type/frequency
+        # itself) and matches the corrected principle that no control type can
+        # shortcut past Design/Implementation. That decision is now the single,
+        # authoritative source -- read directly from the control record rather
+        # than re-derived. The LLM's own required_dimensions guess in this
+        # checklist-generation response is intentionally ignored.
+        dimension_design = bool(control.dimension_design)
+        dimension_implementation = bool(control.dimension_implementation)
+        dimension_operating = bool(control.dimension_operating)
+        logger.info(
+            f"[Module B] Dimensions read from control_activity_id={control_activity_id}: "
+            f"design={dimension_design}, implementation={dimension_implementation}, operating={dimension_operating}"
+        )
 
-        # CODE-LEVEL DIMENSION OVERRIDE — based on control_type and frequency
-        # These rules are deterministic and override LLM output
-        ct = (control_type or "").strip().lower()
-        freq = (frequency or "").strip().lower()
-        logger.info(f"[Module B] Dimension override check: control_type='{ct}', frequency='{freq}'")
-
-        if ct == "detective" or freq in ("per transaction", "per instance", "per event"):
-            # Detective/per-transaction controls = pure OE testing
-            dimension_design = False
-            dimension_implementation = False
-            dimension_operating = True
-            logger.info(f"[Module B] Dimension override: Detective/PerTransaction → OPERATING only")
-        elif freq == "one time":
-            # One-time controls = pure design
-            dimension_design = True
-            dimension_implementation = False
-            dimension_operating = False
-            logger.info(f"[Module B] Dimension override: One Time → DESIGN only")
-
-        # Also filter checklist items to match overridden dimensions
+        # Filter checklist items to match the decided dimensions
         if not dimension_design or not dimension_implementation or not dimension_operating:
             allowed_dims = []
             if dimension_design: allowed_dims.append("DESIGN")

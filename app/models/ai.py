@@ -687,6 +687,13 @@ class ControlActivity(db.Model):
     owner = db.Column(db.String)
     control_type = db.Column(db.String)
     frequency = db.Column(db.String)
+    # Build Sequence #397: the single, authoritative Design/Implementation/Operating
+    # decision, made once here (test-procedure generation), alongside control_type/
+    # frequency -- the same call, the point with the most information. Checklist
+    # generation reads these rather than independently re-deciding them.
+    dimension_design = db.Column(db.Boolean, nullable=False, default=False)
+    dimension_implementation = db.Column(db.Boolean, nullable=False, default=False)
+    dimension_operating = db.Column(db.Boolean, nullable=False, default=False)
     sampling_guidance = db.Column(db.Text)
     auditor_observation = db.Column(db.Text)
     findings = db.Column(db.Text)
