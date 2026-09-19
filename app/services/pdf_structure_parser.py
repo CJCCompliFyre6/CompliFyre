@@ -224,6 +224,57 @@ def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, bo
     return clean_text, ambiguous_records
 
 
+def _build_table_interpretation_prompt(context_text: str, headers: list, rows_data: list) -> str:
+    """Build Sequence #TBD -- table-to-obligation interpretation. Replaces the old
+    mechanical '[Table: <3 lines above>] header: value | ...' concatenation, which
+    produced garbled, meaningless clause text whenever the raw text preceding a table
+    on the PDF page happened to be unrelated to that table (confirmed real cases:
+    ANN III ROW 7/10 in guideline 210 -- ANN IV A -- see Build Sequence #TBD).
+    """
+    rows_block = "\n".join(
+        f"  Row {idx}: " + " | ".join(f"{h}: {v}" for h, v in zip(headers, row) if v)
+        for idx, row in enumerate(rows_data, start=1)
+    )
+    return f"""You are analyzing a table extracted from a BFSI regulatory guideline PDF, to decide whether it describes obligations an NBFC must follow.
+
+TASK: First, judge whether this table describes obligations, requirements, or mandatory classifications the NBFC must follow -- as opposed to reference data, historical figures, or a blank worksheet/template with no real instructive content.
+
+Return ONLY valid JSON. No explanation. No markdown.
+
+---
+
+TEXT IMMEDIATELY PRECEDING THIS TABLE IN THE DOCUMENT (for context only -- may or may not describe the table):
+{context_text}
+
+---
+
+TABLE HEADERS: {' | '.join(headers)}
+
+TABLE ROWS:
+{rows_block}
+
+---
+
+TASK 1 -- IS THIS TABLE ACTIONABLE:
+Set is_actionable to true only if the table itself describes something the NBFC must do, classify, or comply with. Set it to false for pure reference data, historical figures, or blank/template worksheets with no real instructive content (e.g. a list of line items with no actual values filled in).
+
+TASK 2 -- IF ACTIONABLE, FRAME EACH ROW AS AN OBLIGATION:
+For each row that contains a genuine, distinct requirement, write ONE independent, plain-prose obligation statement -- a complete sentence a compliance officer could read and understand on its own, with no table jargon, no "Row N", no leftover header:value formatting. Frame every row's obligation in a SIMILAR, CONSISTENT sentence structure across all rows -- only the row-specific values (the classification, the item name, the treatment) should differ between them. Skip rows that are blank, header repeats, or carry no real content.
+
+OUTPUT FORMAT (exactly this JSON shape):
+{{
+  "is_actionable": true | false,
+  "obligations": [
+    {{
+      "row_number": <int, matching the Row N above>,
+      "obligation_text": "string -- one complete, standalone obligation sentence"
+    }}
+  ]
+}}
+
+If is_actionable is false, obligations must be an empty array []."""
+
+
 def extract_table_clauses(page, page_num, position):
     nodes = []
     cell_texts = set()
@@ -232,31 +283,82 @@ def extract_table_clauses(page, page_num, position):
         return nodes, cell_texts
     page_text = page.extract_text() or ''
     lines_above = [l.strip() for l in page_text.split('\n') if l.strip()]
-    table_title = ' | '.join(lines_above[-3:]) if lines_above else f'Table on page {page_num}'
+    # Real preceding context for the LLM to judge relevance itself -- wider window
+    # than the old 3-line heuristic, since the LLM (not string-joining) now decides
+    # what's actually relevant.
+    context_text = '\n'.join(lines_above[-8:]) if lines_above else f'(no text found before table on page {page_num})'
     section_prefix = build_clause_no(position) or 'TABLE'
+
+    from app import client
+    import json as _json
+
     for table_idx, table in enumerate(tables):
         if not table or len(table) < 2:
             continue
         headers = [str(cell).strip() if cell else '' for cell in table[0]]
+        rows_data = []
+        row_cell_texts_by_row = {}
         for row_idx, row in enumerate(table[1:], start=1):
             if not row or all(not cell for cell in row):
                 continue
-            row_parts = []
-            for col_idx, cell in enumerate(row):
-                cell_text = str(cell).strip() if cell else ''
+            row_values = [str(cell).strip() if cell else '' for cell in row]
+            for cell_text in row_values:
                 if cell_text:
                     cell_texts.add(cell_text)
-                if cell_text and col_idx < len(headers) and headers[col_idx]:
-                    row_parts.append(f"{headers[col_idx]}: {cell_text}")
-                elif cell_text:
-                    row_parts.append(cell_text)
-            if not row_parts:
+            rows_data.append(row_values)
+            row_cell_texts_by_row[len(rows_data)] = row_values
+
+        if not rows_data:
+            continue
+
+        try:
+            prompt = _build_table_interpretation_prompt(context_text, headers, rows_data)
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_tokens=4000,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": "You are a compliance classification engine. Return ONLY valid JSON. No explanation. No markdown."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            raw = response.choices[0].message.content
+            parsed = _json.loads(raw) if raw else None
+        except Exception as e:
+            logging.warning(f"[TableInterpretation] LLM call failed for table on page {page_num}: {e} -- table skipped, no clauses created (was previously force-split mechanically)")
+            continue
+
+        if not parsed or not isinstance(parsed, dict):
+            logging.warning(f"[TableInterpretation] LLM returned no usable output for table on page {page_num} -- table skipped")
+            continue
+
+        if not parsed.get("is_actionable"):
+            logging.info(f"[TableInterpretation] Table on page {page_num} judged NOT actionable -- no clauses created, matches design decision to skip non-actionable tables cleanly rather than force a fake obligation")
+            continue
+
+        obligations = parsed.get("obligations") or []
+        if not isinstance(obligations, list):
+            obligations = []
+
+        for entry in obligations:
+            if not isinstance(entry, dict):
                 continue
-            clause_text = f"[Table: {table_title}] {' | '.join(row_parts)}"
-            clause_no = f"{section_prefix} ROW {row_idx}"
+            row_number = entry.get("row_number")
+            obligation_text = (entry.get("obligation_text") or "").strip()
+            # Mechanical safeguard: never trust the LLM's row_number claim blindly --
+            # only accept it if it corresponds to a real row we actually sent, same
+            # never-trust-the-LLM-for-linkage principle used throughout this codebase.
+            if not isinstance(row_number, int) or row_number not in row_cell_texts_by_row:
+                logging.warning(f"[TableInterpretation] Dropping obligation with invalid row_number={row_number!r} on page {page_num} -- doesn't match any real row sent")
+                continue
+            if not obligation_text:
+                continue
+
+            clause_no = f"{section_prefix} ROW {row_number}"
             nodes.append({
                 'clause_no': clause_no,
-                'raw_text': clause_text.strip(),
+                'raw_text': obligation_text,
                 'node_type': 'table_row',
                 'page_number': page_num,
                 'depth': 1,
@@ -264,6 +366,7 @@ def extract_table_clauses(page, page_num, position):
                 'children': [],
                 'is_table_row': True,
             })
+
     return nodes, cell_texts
 
 

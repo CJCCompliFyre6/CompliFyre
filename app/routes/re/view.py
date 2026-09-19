@@ -3047,6 +3047,25 @@ def get_clause():
                 else:
                     consolidated_evidence = consolidated_rec.consolidate_evidence
 
+        # Build Sequence #TBD (C6): latest clause-level checklist assurance review
+        # per clause, for display on this page (the design doc's "natural home" for
+        # this clause-level -- not activity-level -- verdict). Keyed by clause_id,
+        # only the most recent row per clause (iteration support for C7, not yet
+        # built, will mean more than one row per clause over time).
+        clause_review_map = {}
+        if clause_data:
+            from app.models.eve_models import ClauseChecklistReview
+            clause_ids_on_page = [c.id for c in clause_data]
+            reviews = (
+                ClauseChecklistReview.query
+                .filter(ClauseChecklistReview.clause_id.in_(clause_ids_on_page))
+                .order_by(ClauseChecklistReview.id.desc())
+                .all()
+            )
+            for r in reviews:
+                if r.clause_id not in clause_review_map:
+                    clause_review_map[r.clause_id] = r
+
         return render_template(
             "clause.html",
             clause_data=clause_data,
@@ -3055,6 +3074,7 @@ def get_clause():
             guideline_name=guideline_name,
             consolidated_evidence=consolidated_evidence,
             clause_type_filter=clause_type_filter,
+            clause_review_map=clause_review_map,
             now=datetime.now(),
         )
     except Exception as err:
@@ -3190,9 +3210,15 @@ def compliance_activities():
             except (ValueError, TypeError):
                 activity_id = str(index)  # Use the loop index as fallback
 
+            # Build Sequence #405 bugfix: department_id=0 from the LLM is not a valid
+            # department -- inserting it raw violates the FK constraint against
+            # OrganizationDepartments. 0/missing now correctly becomes NULL, matching
+            # the guarded pattern already used elsewhere in this file (e.g.
+            # regenerate_compliance_activities).
+            raw_dept_id = int(item.get("department_id") or 0)
             comp = ComplianceActivities(
                 clause_id=id,
-                relevant_departments_id=int(item["department_id"]),
+                relevant_departments_id=raw_dept_id if raw_dept_id > 0 else None,
                 relevant_departments=item["relevant_departments"],
                 process=item["process_name"],
                 sub_process=item["sub_process_name"],
@@ -3259,6 +3285,7 @@ def regenerate_compliance_activities():
         pdf_service = PDFService()
         data = request.get_json()
         id = data.get("id")
+        current_app.logger.info(f"[DEBUG #405 ENTRY] regenerate_compliance_activities called for clause id={id!r}")
         clauses = Clauses.query.filter_by(id=id).first()
 
         if not clauses:

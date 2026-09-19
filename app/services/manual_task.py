@@ -3045,6 +3045,12 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                         dept_obj, "department_id", None
                     )
 
+                    logger.info(
+                        f"[DEBUG #405] dept_obj={dept_obj!r} dept_obj.department_id={getattr(dept_obj, 'department_id', 'MISSING')!r} "
+                        f"raw_dept_id={raw_dept_id!r} act.department_id={act.get('department_id')!r} "
+                        f"relevant_departments_id_val={relevant_departments_id_val!r}"
+                    )
+
                     comp = ComplianceActivities(
                         clause_id=clause_id_val,
                         relevant_departments_id=relevant_departments_id_val,
@@ -3108,6 +3114,22 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                         logger.error(
                             f"[Module B] resolve_cross_sibling_dependencies failed for "
                             f"clause_id={clause_id_val}: {dep_err}"
+                        )
+
+                    # Build Sequence #TBD (C6 + C7): clause-level checklist assurance review,
+                    # with C7's regenerate-once-then-flag orchestration on top -- must run
+                    # AFTER dependency resolution above, since it reviews the final, resolved
+                    # state of every sibling checklist for this clause. If C6 comes back
+                    # INSUFFICIENT, this also patches the specific missing coverage gaps,
+                    # re-resolves dependencies, and re-reviews once before settling on a
+                    # final verdict -- see run_clause_checklist_assurance_with_regeneration.
+                    try:
+                        from app.services.eve_tasks import run_clause_checklist_assurance_with_regeneration
+                        run_clause_checklist_assurance_with_regeneration(clause_id_val)
+                    except Exception as review_err:
+                        logger.error(
+                            f"[Module B] run_clause_checklist_assurance_with_regeneration failed for "
+                            f"clause_id={clause_id_val}: {review_err}"
                         )
 
                 results["activities"].append({clause_id_val: saved_activities})
@@ -4304,6 +4326,15 @@ def generate_missing_activities_for_guideline(self, guideline_id):
 
                                 relevant_departments_id_val = getattr(
                                     dept_obj, "department_id", None
+                                )
+
+                                logger.info(
+                                    f"[DEBUG #405 V2] dept_obj={dept_obj!r} "
+                                    f"dept_obj.department_id={getattr(dept_obj, 'department_id', 'MISSING')!r} "
+                                    f"dept_obj_in_session={dept_obj in session if dept_obj else 'N/A'} "
+                                    f"relevant_departments_id_val={relevant_departments_id_val!r} "
+                                    f"act.department_id={_get(act, 'department_id')!r} "
+                                    f"act.relevant_departments={_get(act, 'relevant_departments')!r}"
                                 )
 
                                 comp = ComplianceActivities(

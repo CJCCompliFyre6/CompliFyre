@@ -3480,23 +3480,138 @@ def process_clauses_chunk(clauses, guideline_id):
     return evidence_items
 
 
+def _build_evidence_merge_prompt(valid_groups: list) -> str:
+    """Build Sequence #TBD -- Phase 5, Step 5.4 (unified evidence list merge).
+
+    valid_groups: list of {"index": int, "evidence_item_name": str} -- names only,
+    no linkage data sent (linkage is never trusted from the LLM, only mechanically
+    reconstructed afterward -- same principle as _reconstruct_consolidated_groups).
+    """
+    names_block = "\n".join(
+        f'  {g["index"]}: "{g["evidence_item_name"]}"' for g in valid_groups
+    )
+    return f"""You are consolidating a compliance evidence list for a BFSI audit.
+
+TASK: Below is a list of evidence-ask names (index: name), already grouped once. Some of these may refer to the SAME real-world document AND serve the SAME underlying compliance purpose, just worded differently (e.g. "Liquidity Risk Policy" and "the liquidity risk management policy document" are the same). Others may sound similar but are genuinely different documents or serve different purposes -- do NOT merge those.
+
+Return ONLY valid JSON. No explanation. No markdown.
+
+---
+
+EVIDENCE ASKS:
+{names_block}
+
+---
+
+TASK: Propose merge groups -- each group is a list of indices that are the SAME real document serving the SAME purpose, plus one clear canonical name for the merged group. Every index you do NOT mention stays as its own separate, unmerged item -- do not feel obligated to place every index into a group. Only merge when you are confident both name-identity and purpose-identity hold.
+
+OUTPUT FORMAT (exactly this JSON shape):
+{{
+  "merge_groups": [
+    {{
+      "indices": [<int>, <int>, ...],
+      "canonical_name": "string -- clear, human-readable name for the merged evidence ask"
+    }}
+  ]
+}}
+
+If no genuine merges exist, merge_groups must be an empty array []."""
+
+
+def _reconstruct_merged_evidence_groups(valid_groups: list, ai_merge_groups: list) -> list:
+    """Build Sequence #TBD -- Phase 5, Step 5.4. Mechanically rebuilds merged
+    required_by data (guideline_ids/clause_nos/activity_ids/evidence) as the
+    UNION of each merge group's members -- the LLM's merge_groups output is
+    NEVER trusted for this data, only for which indices belong together and a
+    canonical name, matching the same safeguard principle already used by
+    _reconstruct_consolidated_groups above.
+    """
+    groups_by_index = {g["index"]: g["group"] for g in valid_groups}
+    merged_result = []
+    covered_indices = set()
+
+    for merge_entry in (ai_merge_groups or []):
+        if not isinstance(merge_entry, dict):
+            continue
+        indices = merge_entry.get("indices") or []
+        canonical_name = (merge_entry.get("canonical_name") or "").strip()
+
+        member_groups = []
+        for idx in indices:
+            if not isinstance(idx, int) or idx not in groups_by_index:
+                continue  # defensive: skip invalid/unknown indices from the AI
+            member_groups.append(groups_by_index[idx])
+            covered_indices.add(idx)
+
+        if not member_groups:
+            continue  # skip merge groups the AI proposed with no valid members
+        if len(member_groups) == 1:
+            # AI proposed a "merge" of just one item -- not a real merge, keep as-is.
+            merged_result.append(member_groups[0])
+            continue
+
+        if not canonical_name:
+            canonical_name = member_groups[0].get("evidence_item_name", "Unnamed evidence group")
+
+        union_guideline_ids = set()
+        union_clause_nos = set()
+        union_activity_ids = set()
+        union_evidence_list = []
+        seen_evidence_ids = set()
+
+        for member in member_groups:
+            required_by = member.get("required_by", {}) or {}
+            union_guideline_ids.update(required_by.get("guideline_ids", []) or [])
+            union_clause_nos.update(required_by.get("clause_nos", []) or [])
+            union_activity_ids.update(required_by.get("activity_ids", []) or [])
+            for ev_item in (required_by.get("evidence", []) or []):
+                if isinstance(ev_item, dict) and "evidence_id" in ev_item:
+                    if ev_item["evidence_id"] not in seen_evidence_ids:
+                        union_evidence_list.append(ev_item)
+                        seen_evidence_ids.add(ev_item["evidence_id"])
+
+        merged_result.append({
+            "evidence_item_name": canonical_name,
+            "required_by": {
+                "guideline_ids": list(union_guideline_ids),
+                "clause_nos": list(union_clause_nos),
+                "activity_ids": list(union_activity_ids),
+                "evidence": union_evidence_list,
+            },
+        })
+
+    # Fallback: any index the AI never mentioned in any merge group stays as its
+    # own standalone group -- preserves original intent, never silently dropped.
+    for g in valid_groups:
+        if g["index"] not in covered_indices:
+            merged_result.append(g["group"])
+
+    return merged_result
+
+
 def merge_evidence_groups(evidence_groups):
-    """Merge similar evidence groups from different chunks with proper error handling."""
+    """Build Sequence #TBD -- Phase 5, Step 5.4 (redesigned). Merge similar
+    evidence groups using one combined LLM call judging BOTH name-similarity
+    AND purpose-compatibility together -- replaces the old exact-text-match
+    approach, which missed real duplicates worded differently and had no way
+    to catch two different-purpose asks that happened to sound alike. Merge
+    linkage (guideline_ids/clause_nos/activity_ids/evidence) is NEVER trusted
+    from the LLM -- always mechanically reconstructed as a union, matching the
+    same safeguard principle used throughout this file.
+    """
     if not evidence_groups:
         return []
 
-    merged_evidence = {}
-
+    valid_groups = []
     for i, group in enumerate(evidence_groups):
         try:
-            # Skip if group is not a dictionary
             if not isinstance(group, dict):
                 current_app.logger.warning(
                     f"Skipping group {i}: not a dictionary, type: {type(group)}"
                 )
                 continue
 
-            evidence_name = group.get("evidence_item_name", "").lower().strip()
+            evidence_name = (group.get("evidence_item_name") or "").strip()
             if not evidence_name:
                 current_app.logger.warning(
                     f"Skipping group {i}: missing evidence_item_name"
@@ -3510,77 +3625,42 @@ def merge_evidence_groups(evidence_groups):
                 )
                 continue
 
-            if evidence_name not in merged_evidence:
-                # New evidence type, add it directly
-                merged_evidence[evidence_name] = group
-            else:
-                # Merge with existing evidence type
-                existing = merged_evidence[evidence_name]
-
-                # Ensure existing has the required structure
-                if "required_by" not in existing or not isinstance(
-                    existing["required_by"], dict
-                ):
-                    current_app.logger.warning(
-                        f"Existing group for {evidence_name} has invalid structure, replacing"
-                    )
-                    merged_evidence[evidence_name] = group
-                    continue
-
-                # Merge guideline_ids
-                existing_guidelines = set(
-                    existing["required_by"].get("guideline_ids", [])
-                )
-                new_guidelines = set(required_by.get("guideline_ids", []))
-                existing["required_by"]["guideline_ids"] = list(
-                    existing_guidelines.union(new_guidelines)
-                )
-
-                # Merge clause_nos
-                existing_clauses = set(existing["required_by"].get("clause_nos", []))
-                new_clauses = set(required_by.get("clause_nos", []))
-                existing["required_by"]["clause_nos"] = list(
-                    existing_clauses.union(new_clauses)
-                )
-
-                # Merge activity_ids
-                existing_activities = set(
-                    existing["required_by"].get("activity_ids", [])
-                )
-                new_activities = set(required_by.get("activity_ids", []))
-                existing["required_by"]["activity_ids"] = list(
-                    existing_activities.union(new_activities)
-                )
-
-                # Merge evidence items
-                existing_evidence_list = existing["required_by"].get("evidence", [])
-                if not isinstance(existing_evidence_list, list):
-                    existing_evidence_list = []
-
-                new_evidence_list = required_by.get("evidence", [])
-                if not isinstance(new_evidence_list, list):
-                    new_evidence_list = []
-
-                # Create a set of existing evidence IDs for quick lookup
-                existing_evidence_ids = set()
-                for item in existing_evidence_list:
-                    if isinstance(item, dict) and "evidence_id" in item:
-                        existing_evidence_ids.add(item["evidence_id"])
-
-                # Add new evidence items that don't exist already
-                for new_item in new_evidence_list:
-                    if isinstance(new_item, dict) and "evidence_id" in new_item:
-                        if new_item["evidence_id"] not in existing_evidence_ids:
-                            existing_evidence_list.append(new_item)
-                            existing_evidence_ids.add(new_item["evidence_id"])
-
-                existing["required_by"]["evidence"] = existing_evidence_list
-
+            valid_groups.append({
+                "index": len(valid_groups),
+                "evidence_item_name": evidence_name,
+                "group": group,
+            })
         except Exception as e:
-            current_app.logger.error(f"Error merging group {i}: {str(e)}")
+            current_app.logger.error(f"Error validating group {i}: {str(e)}")
             continue
 
-    return list(merged_evidence.values())
+    if not valid_groups:
+        return []
+    if len(valid_groups) == 1:
+        # Nothing to merge with just one valid group.
+        return [valid_groups[0]["group"]]
+
+    try:
+        from app.services.eve_tasks import _call_llm_json
+        prompt = _build_evidence_merge_prompt(valid_groups)
+        raw_output = _call_llm_json(prompt)
+
+        if not raw_output or not isinstance(raw_output, dict):
+            current_app.logger.warning(
+                "merge_evidence_groups: LLM returned no usable output -- "
+                "falling back to no merging (every group stays standalone)."
+            )
+            return [g["group"] for g in valid_groups]
+
+        ai_merge_groups = raw_output.get("merge_groups") or []
+        if not isinstance(ai_merge_groups, list):
+            ai_merge_groups = []
+
+        return _reconstruct_merged_evidence_groups(valid_groups, ai_merge_groups)
+
+    except Exception as e:
+        current_app.logger.error(f"merge_evidence_groups: LLM merge failed -- {e}. Falling back to no merging.")
+        return [g["group"] for g in valid_groups]
 
 
 def _reconstruct_consolidated_groups(raw_items, ai_groups):

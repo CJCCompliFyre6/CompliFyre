@@ -742,3 +742,139 @@ class EveAssuranceState(db.Model):
     # State
     last_updated_at = db.Column(db.DateTime, default=db.func.now())
     last_evidence_id = db.Column(db.Integer)
+
+
+# ---------------------------------------------------------------------------
+# Table — ClauseChecklistReview
+# Build Sequence #TBD — Part C, Step C6 (Clause-level checklist assurance review).
+#
+# One row per review attempt for a clause, run once every sibling activity's
+# checklist under that clause exists AND cross-sibling dependency resolution
+# (#398, resolve_cross_sibling_dependencies) has already run against them.
+#
+# A single LLM call produces two things, together:
+#   (a) sufficiency -- do these checklists, as a whole, let an auditor reach
+#       an accurate conclusion for the clause
+#   (c) genuine duplication across sibling activities -- candidate pairs only.
+#       C8 (not yet built) persists CONFIRMED links permanently, only after
+#       C6/C7 settle -- this table holds candidates from each review attempt,
+#       not the final, permanent link records.
+#
+# Dependency resolution (b) is intentionally NOT part of this table or this
+# review call -- that already runs mechanically, with no LLM, immediately
+# after sibling checklists are generated (see resolve_cross_sibling_dependencies
+# in eve_tasks.py).
+#
+# `iteration` exists for C7 (regenerate-once-then-flag, not yet built) --
+# multiple rows per clause_id will exist once that orchestration is built.
+# ---------------------------------------------------------------------------
+
+class ClauseChecklistReview(db.Model):
+    """
+    EVE Part C, Step C6 output -- clause-level sufficiency verdict plus
+    candidate duplicate-item pairs across sibling activities.
+    """
+
+    __tablename__ = "clause_checklist_review"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+
+    clause_id = db.Column(
+        db.Integer,
+        db.ForeignKey("clauses.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # For C7's regenerate-once-then-flag loop (not yet built) -- which attempt
+    # this review represents for the clause. Starts at 1.
+    iteration = db.Column(db.Integer, nullable=False, default=1)
+
+    # (a) sufficiency -- SUFFICIENT / INSUFFICIENT
+    sufficiency_verdict = db.Column(db.String(20), nullable=False)
+    sufficiency_reasoning = db.Column(db.Text, nullable=True)
+
+    # (c) duplicate candidates -- JSON array, each item shaped:
+    #   {
+    #     "activity_id_a": int, "checklist_item_id_a": "CHK_00X",
+    #     "activity_id_b": int, "checklist_item_id_b": "CHK_00Y",
+    #     "justification": "..."
+    #   }
+    duplicate_pairs_json = db.Column(db.JSON, nullable=True)
+
+    # Full raw LLM output -- kept for auditability, same pattern as
+    # ControlChecklist.raw_output_json
+    raw_output_json = db.Column(db.JSON, nullable=True)
+
+    reviewed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Build Sequence #TBD -- C8: permanent, durable record of CONFIRMED genuine
+# duplicate checklist-item pairs across sibling activities under a clause.
+#
+# Distinct from ClauseChecklistReview.duplicate_pairs_json above, which is a
+# per-review CANDIDATE snapshot tied to one review row -- this table only
+# holds pairs that survived the automatic confirmation rule (see promotion
+# logic in eve_tasks.py):
+#   - a pair that appears in both iteration=1 and iteration=2 (unchanged)
+#     after a C7 patch-and-recheck cycle, or
+#   - a pair found on a straight-SUFFICIENT iteration=1 review (no C7 cycle
+#     occurs, so there is no second review to confirm against -- promoted
+#     immediately).
+#
+# Function once confirmed: merge for evidence review (Part E, not yet built)
+# -- both checklist items stay visible/active, but evidence submitted
+# against one is treated as also satisfying the other.
+#
+# control_activity_id_a/b and checklist_item_id_a/b are ALWAYS normalized at
+# write time so control_activity_id_a < control_activity_id_b -- this makes
+# the same real pair detectable regardless of which side the LLM's
+# duplicate_pairs output happened to list first on any given review, and
+# lets the unique constraint actually prevent double-promotion of the same
+# pair across separate pipeline runs over the clause's lifetime.
+# ---------------------------------------------------------------------------
+
+class ConfirmedDuplicatePair(db.Model):
+    """
+    EVE Part C, Step C8 output -- permanently confirmed cross-activity
+    duplicate checklist-item pair. See module-level comment above for scope.
+    """
+
+    __tablename__ = "confirmed_duplicate_pairs"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+
+    clause_id = db.Column(
+        db.Integer,
+        db.ForeignKey("clauses.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Always normalized so control_activity_id_a < control_activity_id_b --
+    # see module comment above.
+    control_activity_id_a = db.Column(db.Integer, nullable=False)
+    checklist_item_id_a = db.Column(db.String(50), nullable=False)
+    control_activity_id_b = db.Column(db.Integer, nullable=False)
+    checklist_item_id_b = db.Column(db.String(50), nullable=False)
+
+    justification = db.Column(db.Text, nullable=True)
+
+    # Which review row triggered this confirmation -- audit trail only.
+    # SET NULL on delete: losing the source review shouldn't delete the
+    # permanent confirmation it produced.
+    source_review_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("clause_checklist_review.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    confirmed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "clause_id", "control_activity_id_a", "checklist_item_id_a",
+            "control_activity_id_b", "checklist_item_id_b",
+            name="uq_confirmed_duplicate_pair",
+        ),
+    )
+

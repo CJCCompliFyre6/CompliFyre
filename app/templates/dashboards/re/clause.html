@@ -1303,6 +1303,30 @@ Activities will be generated in background.`);
                         {% if clause.extraction_status == 'FLAGGED' %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 ml-1">⚑ Flagged</span>
                         {% endif %}
+                        {% set c6_review = clause_review_map.get(clause.id) if clause_review_map else None %}
+                        {% if c6_review %}
+                            {% if c6_review.sufficiency_verdict == 'SUFFICIENT' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 ml-1"
+                                title="Clause-level checklist assurance review: sufficient">
+                                ✓ Sufficient
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 ml-1"
+                                title="{{ c6_review.sufficiency_reasoning }}">
+                                ⚠ Insufficient
+                            </span>
+                            {% endif %}
+                            {% if c6_review.duplicate_pairs_json %}
+                            {% set pair_lines = [] %}
+                            {% for p in c6_review.duplicate_pairs_json %}
+                                {% set _ = pair_lines.append(p.checklist_item_id_a ~ ' <-> ' ~ p.checklist_item_id_b ~ ': ' ~ p.justification) %}
+                            {% endfor %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 ml-1"
+                                title="{{ pair_lines | join('&#10;') }}">
+                                🔗 {{ c6_review.duplicate_pairs_json|length }} possible duplicate{{ 's' if c6_review.duplicate_pairs_json|length != 1 else '' }}
+                            </span>
+                            {% endif %}
+                        {% endif %}
                     </td>
                     <td class="p-3 text-lg text-gray-700 whitespace-nowrap">
                         <div id="clause-number-{{ clause.id }}" class="inline-editable flex items-center">
@@ -1454,7 +1478,7 @@ Activities will be generated in background.`);
         async function createNewPrompt(event) {
             event.preventDefault();
             const promptText = document.getElementById('promptableLink').value;
-            console.log(promptText) const requestOptions = {
+            console.log(promptText); const requestOptions = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: promptText }),
@@ -1467,7 +1491,7 @@ Activities will be generated in background.`);
                 );
                 const result = await response.json();
                 console.log(result);
-                if (response.status == = 200) {
+                if (response.status == 200) {
                     fetchPrompts();
                 }
             } catch (error) {
@@ -1490,7 +1514,7 @@ Activities will be generated in background.`);
                 fetch(`${updatePromptBaseUrl}${id}`, requestOptions).then(response => response.text()).then(
                     result => {
                         console.log(result);
-                        const prompt = prompts.find(p => p.id == = id);
+                        const prompt = prompts.find(p => p.id == id);
                         if (prompt) {
                             prompt.text = newText;
                             renderPrompts();
@@ -1510,7 +1534,7 @@ Activities will be generated in background.`);
             fetch(`${updatePromptBaseUrl}${id}`, requestOptions).then(response => response.text()).then(
                 result => {
                     console.log(result);
-                    const index = prompts.findIndex(p => p.id == = id);
+                    const index = prompts.findIndex(p => p.id == id);
                     if (index > -1) {
                         prompts.splice(index, 1);
                         renderPrompts();
@@ -1606,25 +1630,39 @@ Activities will be generated in background.`);
             }
         }
 
+        // Build Sequence #405 follow-up: unified with the other two activity-generation
+        // buttons (Generate Activities for Selected, Extract All Activities) -- all three
+        // now call the same full pipeline (/extract-selected: activities -> test procedures
+        // -> checklists -> C6/C7/C8), differing only in which clause(s) they target. This
+        // used to call re.compliance_activities directly, a narrower route that only saved
+        // activities and never chained into the rest of the pipeline.
         async function getComplainceActivity(clauseid) {
+            if (!clauseReviewCompleted) {
+                alert('Clause classification review must be marked complete before generating activities.\n\nRedirecting to the Clause Review page...');
+                window.location.href = '/re/clause-review?guideline_id={{ guideline_id }}';
+                return;
+            }
             try {
-                alert("If You Have Already Generated The Activity Than Do Not Proceed Or It Will Generate Duplicate Activity")
                 showLoadingIcon();
-                const response = await fetch('{{url_for("re.compliance_activities")}}', {
+                const response = await fetch('/extract-selected', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCsrfToken(),
                     },
-                    body: JSON.stringify({ id: clauseid }),
+                    body: JSON.stringify({
+                        clause_ids: [clauseid],
+                        guideline_id: '{{ guideline_id }}'
+                    }),
                 });
 
-                if (response.ok) {
-                    alert('Activity extracted and saved in the database.');
-                    window.location.reload();
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    showToast('Activity extraction started -- this will run activities, test procedures, and checklists in the background.', 'success');
+                    monitorSelectedComplianceExtraction(data.task_id, [clauseid]);
                 } else {
-                    const errorData = await response.json();
-                    alert(`Error: ${errorData.error || 'Failed to extract activity.'}`);
+                    throw new Error(data.message || 'Failed to start extraction');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -1737,7 +1775,9 @@ Activities will be generated in background.`);
         <div class="spinner"></div>
     </div>
     <script>
-        document.getElementById('generateAllComplianceBtn').addEventListener('click', async function () {
+        const _generateAllComplianceBtnEl = document.getElementById('generateAllComplianceBtn');
+        if (_generateAllComplianceBtnEl) {
+        _generateAllComplianceBtnEl.addEventListener('click', async function () {
             const rows = document.querySelectorAll('#guidelinesTable tbody tr');
             const clauseIds = [];
             const generateAllComplianceUrl = "{{ url_for('re.generate_all_compliance') }}";
@@ -1768,6 +1808,7 @@ Activities will be generated in background.`);
                 alert("Failed to generate compliance activities.");
             }
         });
+        }
 
     </script>
     <script>
@@ -2887,7 +2928,12 @@ Are you sure you want to continue?`;
             URL.revokeObjectURL(url);
         }
         function extractAllActivities() {
-            if (!clauseReviewCompleted) {
+            // Build Sequence #406 workaround: does not depend on the page-level
+            // clauseReviewCompleted variable (currently unreliable -- see #406,
+            // still open). Computes the same condition inline, independent of
+            // whatever else runs elsewhere on this page.
+            const _clauseReviewCompletedInline = {{ 'true' if guideline.clause_review_completed_at else 'false' }};
+            if (!_clauseReviewCompletedInline) {
                 alert('Clause classification review must be marked complete before generating activities.\n\nRedirecting to the Clause Review page...');
                 window.location.href = '/re/clause-review?guideline_id={{ guideline_id }}';
                 return;

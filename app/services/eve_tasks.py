@@ -26,6 +26,7 @@ from app.models.eve_models import (
     GuidelineEveContext,
     ControlChecklist,
     ProjectChecklist,
+    ClauseChecklistReview,
 )
 from app.models.project_instance_models import ProjectControlActivity
 
@@ -880,6 +881,690 @@ def resolve_cross_sibling_dependencies(clause_id: int) -> dict:
     }
     logger.info(f"[Module B] resolve_cross_sibling_dependencies: {summary}")
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Build Sequence #TBD -- Part C, Step C6 (Clause-level checklist assurance review)
+#
+# Runs once every sibling activity's checklist under a clause exists AND
+# resolve_cross_sibling_dependencies() (above) has already run against them --
+# same wiring point in manual_task.py, called immediately after it.
+#
+# A single LLM call judges, across ALL sibling activities together (something
+# no single activity's own checklist-generation call can ever see, since it
+# only has its own checklist in view):
+#   (a) sufficiency -- do these checklists, as a whole, let an auditor reach
+#       an accurate conclusion for the clause
+#   (c) genuine duplicate checklist items across DIFFERENT sibling activities
+#       -- recorded as CANDIDATE pairs only. C8 (not yet built) persists
+#       CONFIRMED links permanently, only after C6/C7 (regenerate-once-then-
+#       flag orchestration, also not yet built) settle.
+#
+# Dependency resolution (b) is intentionally out of scope here -- that's
+# resolve_cross_sibling_dependencies() above, mechanical, no LLM, already run
+# before this.
+# ---------------------------------------------------------------------------
+
+def _build_clause_checklist_review_prompt(clause_text: str, activities_data: list) -> str:
+    """Build Sequence #TBD -- C6 prompt. See module-level comment above for scope."""
+    activities_block = []
+    for a in activities_data:
+        items_lines = []
+        for item in (a["checklist_items"] or []):
+            if not isinstance(item, dict):
+                continue
+            items_lines.append(
+                f'  - {item.get("id", "?")} [{item.get("effectiveness_type", "?")}]: '
+                f'{item.get("requirement", "")}'
+            )
+        activities_block.append(
+            f'Activity (control_activity_id={a["control_activity_id"]}): {a["activity_description"]}\n'
+            f'Dimensions: DESIGN={a["dimension_design"]}, IMPLEMENTATION={a["dimension_implementation"]}, OPERATING={a["dimension_operating"]}\n'
+            f'Checklist items:\n' + "\n".join(items_lines)
+        )
+    activities_text = "\n\n".join(activities_block)
+
+    return f"""You are a Clause-Level Checklist Assurance Reviewer for BFSI regulatory audits.
+
+TASK: Review ALL sibling control activities generated under a single regulatory clause, together, as one unit -- not one at a time. You are given every sibling activity's full checklist for this clause.
+
+Return ONLY valid JSON. No explanation. No markdown.
+
+---
+
+CLAUSE TEXT:
+{clause_text}
+
+---
+
+SIBLING ACTIVITIES AND THEIR CHECKLISTS (all activities generated for this clause):
+
+{activities_text}
+
+---
+
+TASK 1 -- SUFFICIENCY:
+Judge whether these checklists, taken TOGETHER as a whole, let an auditor reach an accurate, complete conclusion about the organization's compliance with this clause. Consider:
+* Does every distinct obligation in the clause text have at least one checklist item -- an actual line in a "Checklist items:" list above -- that DIRECTLY tests it?
+* Are there any genuine gaps -- an obligation in the clause with no corresponding checklist item anywhere?
+
+CRITICAL -- base this judgment ONLY on the actual checklist items listed under each activity. An activity's own name or description is NOT evidence that its obligation is covered -- an activity can be named or described in terms of an obligation (e.g. "Analyse, monitor, and report X") while its actual checklist items test something else entirely (e.g. only staff roles or training, with no item that tests analysis, monitoring, or reporting itself). If no checklist item anywhere actually tests an obligation, that obligation is a gap -- regardless of how directly relevant the activity's name or description sounds.
+
+Do NOT flag insufficiency merely because of duplication (see Task 2) -- overlapping coverage of the same obligation is not a gap.
+
+Set sufficiency_verdict to exactly "SUFFICIENT" or "INSUFFICIENT". If INSUFFICIENT, sufficiency_reasoning must name the specific obligation(s) in the clause text that have no checklist item testing them anywhere.
+
+If INSUFFICIENT, ALSO populate missing_coverage: for each distinct untested obligation, output which ONE sibling activity (by its exact control_activity_id, as given above) should logically cover it, based on that activity's existing description and checklist focus. Only name a control_activity_id that is one of the sibling activities actually given above. If no single sibling activity is a clear fit for an obligation, omit that obligation from missing_coverage rather than guessing.
+
+---
+
+TASK 2 -- GENUINE DUPLICATION ACROSS SIBLING ACTIVITIES (strict symmetric test):
+Find checklist items, in DIFFERENT sibling activities, that are genuine duplicates under this exact test:
+
+  Item A and Item B are duplicates ONLY IF evidence that fully and accurately
+  answers A would, BY ITSELF, also fully and accurately answer B -- AND,
+  symmetrically, evidence that fully and accurately answers B would, by
+  itself, also fully and accurately answer A. The test must hold in BOTH
+  directions.
+
+If evidence for A only partially answers B, or answers B but leaves out something B specifically requires (or vice versa), they are NOT duplicates -- B still needs its own independent investigation, even if related to A. Being in the same topic area, testing the same control, or sounding similar is NOT enough -- apply the exact evidence-sufficiency test above, in both directions, before calling a pair a duplicate.
+
+For each genuine duplicate pair found, output BOTH items' control_activity_id and checklist item id exactly as given above, plus a short justification that explicitly confirms BOTH directions of the test hold.
+
+Do NOT invent a duplicate pair across items within the SAME activity -- only across DIFFERENT sibling activities (control_activity_id must differ between the two sides of every pair).
+
+---
+
+OUTPUT FORMAT (exactly this JSON shape):
+{{
+  "sufficiency_verdict": "SUFFICIENT" | "INSUFFICIENT",
+  "sufficiency_reasoning": "string -- required if INSUFFICIENT, empty string if SUFFICIENT",
+  "missing_coverage": [
+    {{
+      "obligation": "string -- the specific untested obligation from the clause text",
+      "control_activity_id": <int, exactly as given above -- the sibling activity that should cover it>
+    }}
+  ],
+  "duplicate_pairs": [
+    {{
+      "control_activity_id_a": <int, exactly as given above>,
+      "checklist_item_id_a": "<e.g. CHK_001>",
+      "control_activity_id_b": <int, exactly as given above>,
+      "checklist_item_id_b": "<e.g. CHK_003>",
+      "justification": "string"
+    }}
+  ]
+}}
+
+If no genuine duplicates exist, duplicate_pairs must be an empty array []. If sufficiency_verdict is SUFFICIENT, missing_coverage must be an empty array []."""
+
+
+class EveClauseChecklistReviewSchema(BaseModel):
+    """Build Sequence #TBD -- Part C, Step C6 output schema."""
+    sufficiency_verdict: str
+    sufficiency_reasoning: str = ""
+    missing_coverage: list = []
+    duplicate_pairs: list = []
+
+    @field_validator("sufficiency_verdict")
+    @classmethod
+    def _verdict_must_be_valid(cls, v):
+        allowed = {"SUFFICIENT", "INSUFFICIENT"}
+        if v not in allowed:
+            raise ValueError(f"sufficiency_verdict must be one of {allowed}, got {v!r}")
+        return v
+
+
+def run_clause_checklist_assurance_review(clause_id: int, iteration: int = None) -> dict:
+    """
+    Build Sequence #TBD -- C6. See module-level comment above for scope.
+
+    iteration: explicit attempt number within a C7 cycle (1 = first look,
+    2 = re-check after patching). Pass explicitly from the C7 orchestrator
+    so iteration reflects "attempt within this C7 run", not "how many times
+    this clause has ever been reviewed for any reason". Left as None for a
+    bare/manual call (e.g. from the UI) with no C7 cycle context -- falls
+    back to self-incrementing off this clause's existing review history.
+    """
+    from app.models.ai import Clauses, ComplianceActivities
+
+    clause = db.session.query(Clauses).filter_by(id=clause_id).first()
+    if not clause:
+        logger.error(f"[Module B] run_clause_checklist_assurance_review: clause_id={clause_id} not found")
+        return {"clause_id": clause_id, "status": "ERROR", "reason": "clause not found"}
+
+    sibling_activity_ids = [
+        row.id for row in
+        db.session.query(ComplianceActivities.id).filter_by(clause_id=clause_id).all()
+    ]
+    if not sibling_activity_ids:
+        logger.info(f"[Module B] run_clause_checklist_assurance_review: no activities for clause_id={clause_id}, skipping")
+        return {"clause_id": clause_id, "status": "SKIPPED", "reason": "no activities"}
+
+    controls = (
+        db.session.query(ControlActivity)
+        .filter(ControlActivity.compliance_activity_id.in_(sibling_activity_ids))
+        .all()
+    )
+    control_ids = [c.id for c in controls]
+    if not control_ids:
+        logger.info(f"[Module B] run_clause_checklist_assurance_review: no control activities for clause_id={clause_id}, skipping")
+        return {"clause_id": clause_id, "status": "SKIPPED", "reason": "no control activities"}
+
+    checklists = (
+        db.session.query(ControlChecklist)
+        .filter(ControlChecklist.control_activity_id.in_(control_ids))
+        .all()
+    )
+    if not checklists:
+        logger.info(f"[Module B] run_clause_checklist_assurance_review: no checklists yet for clause_id={clause_id}, skipping")
+        return {"clause_id": clause_id, "status": "SKIPPED", "reason": "no checklists"}
+
+    control_by_id = {c.id: c for c in controls}
+    compliance_activity_by_id = {
+        a.id: a for a in
+        db.session.query(ComplianceActivities).filter(ComplianceActivities.id.in_(sibling_activity_ids)).all()
+    }
+
+    activities_data = []
+    for cl in checklists:
+        control = control_by_id.get(cl.control_activity_id)
+        activity_description = ""
+        if control is not None:
+            compliance_activity = compliance_activity_by_id.get(control.compliance_activity_id)
+            if compliance_activity is not None:
+                activity_description = compliance_activity.activity_description or ""
+        activities_data.append({
+            "control_activity_id": cl.control_activity_id,
+            "activity_description": activity_description,
+            "dimension_design": cl.dimension_design,
+            "dimension_implementation": cl.dimension_implementation,
+            "dimension_operating": cl.dimension_operating,
+            "checklist_items": cl.checklist_json or [],
+        })
+
+    prompt = _build_clause_checklist_review_prompt(clause.clause_text or "", activities_data)
+    raw_output = _call_llm_json(prompt)
+
+    if not raw_output:
+        logger.error(f"[Module B] run_clause_checklist_assurance_review: LLM returned no output for clause_id={clause_id}")
+        return {"clause_id": clause_id, "status": "ERROR", "reason": "LLM returned no output"}
+
+    try:
+        validated = EveClauseChecklistReviewSchema(**raw_output)
+    except Exception as e:
+        logger.error(f"[Module B] run_clause_checklist_assurance_review: schema validation failed for clause_id={clause_id}: {e}")
+        return {"clause_id": clause_id, "status": "ERROR", "reason": f"schema validation failed: {e}"}
+
+    real_items_by_control = {
+        a["control_activity_id"]: {item.get("id") for item in a["checklist_items"] if isinstance(item, dict)}
+        for a in activities_data
+    }
+    valid_control_activity_ids = set(real_items_by_control.keys())
+    valid_missing_coverage = []
+    missing_coverage_dropped = 0
+    for entry in (validated.missing_coverage or []):
+        if not isinstance(entry, dict):
+            missing_coverage_dropped += 1
+            continue
+        ca_id = entry.get("control_activity_id")
+        if ca_id not in valid_control_activity_ids:
+            logger.warning(
+                f"[Module B] Dropping missing_coverage entry -- control_activity_id={ca_id} "
+                f"is not one of the real sibling activities sent."
+            )
+            missing_coverage_dropped += 1
+            continue
+        valid_missing_coverage.append(entry)
+
+    valid_pairs = []
+    dropped_count = 0
+    for pair in (validated.duplicate_pairs or []):
+        if not isinstance(pair, dict):
+            dropped_count += 1
+            continue
+        ca_a = pair.get("control_activity_id_a")
+        ca_b = pair.get("control_activity_id_b")
+        item_a = pair.get("checklist_item_id_a")
+        item_b = pair.get("checklist_item_id_b")
+        if ca_a == ca_b:
+            logger.warning(
+                f"[Module B] Dropping duplicate pair -- same control_activity_id on both "
+                f"sides ({ca_a}), not a genuine cross-activity duplicate."
+            )
+            dropped_count += 1
+            continue
+        if ca_a not in real_items_by_control or item_a not in real_items_by_control.get(ca_a, set()):
+            logger.warning(f"[Module B] Dropping duplicate pair -- side A ({ca_a}, {item_a}) doesn't match any real checklist item sent.")
+            dropped_count += 1
+            continue
+        if ca_b not in real_items_by_control or item_b not in real_items_by_control.get(ca_b, set()):
+            logger.warning(f"[Module B] Dropping duplicate pair -- side B ({ca_b}, {item_b}) doesn't match any real checklist item sent.")
+            dropped_count += 1
+            continue
+        valid_pairs.append(pair)
+
+    if iteration is None:
+        from sqlalchemy import func as sa_func
+        prior_max_iteration = (
+            db.session.query(sa_func.max(ClauseChecklistReview.iteration))
+            .filter_by(clause_id=clause_id)
+            .scalar()
+        )
+        next_iteration = (prior_max_iteration or 0) + 1
+    else:
+        next_iteration = iteration
+
+    review = ClauseChecklistReview(
+        clause_id=clause_id,
+        iteration=next_iteration,
+        sufficiency_verdict=validated.sufficiency_verdict,
+        sufficiency_reasoning=validated.sufficiency_reasoning,
+        duplicate_pairs_json=valid_pairs,
+        raw_output_json=raw_output,
+        reviewed_at=datetime.utcnow(),
+    )
+    db.session.add(review)
+    db.session.commit()
+
+    summary = {
+        "clause_id": clause_id,
+        "status": "REVIEWED",
+        "sufficiency_verdict": validated.sufficiency_verdict,
+        "duplicate_pairs_kept": len(valid_pairs),
+        "duplicate_pairs_dropped": dropped_count,
+        "missing_coverage": valid_missing_coverage,
+        "missing_coverage_dropped": missing_coverage_dropped,
+    }
+    logger.info(f"[Module B] run_clause_checklist_assurance_review: {summary}")
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# Build Sequence #TBD -- Part C, Step C7 (regenerate-once-then-flag)
+#
+# Targeted patch, not full regeneration: appends checklist item(s) covering a
+# specific untested obligation (identified by C6's missing_coverage) to ONE
+# sibling activity's existing checklist. Does not touch other items, does not
+# bump ControlChecklist.version (that column tracks full C3 regenerations,
+# not additive patches), does not overwrite raw_output_json (which records
+# how the ORIGINAL checklist was generated).
+#
+# New item(s) are run through the same _validate_parameter_tags mechanical
+# safeguard as any item from a normal generation pass -- never trusted at
+# face value just because they came from a smaller, targeted call.
+# ---------------------------------------------------------------------------
+
+def _build_missing_coverage_patch_prompt(clause_text: str, control_activity_text: str,
+                                          test_procedure_text: str, obligation_text: str,
+                                          existing_checklist_items: list) -> str:
+    """Build Sequence #TBD -- C7 patch prompt. Appends item(s) for one obligation."""
+    existing_lines = []
+    for item in (existing_checklist_items or []):
+        if not isinstance(item, dict):
+            continue
+        existing_lines.append(
+            f'  - {item.get("id", "?")} [{item.get("effectiveness_type", "?")}]: '
+            f'{item.get("requirement", "")}'
+        )
+    existing_text = "\n".join(existing_lines) if existing_lines else "  (none)"
+
+    return f"""You are extending an existing BFSI audit checklist for ONE control activity.
+
+TASK: This activity's checklist does not yet test a specific obligation from its clause. Add ONE OR MORE new checklist item(s) that test it, matching the style and granularity of the EXISTING items below. Do not repeat or modify any existing item.
+
+Return ONLY valid JSON. No explanation. No markdown.
+
+---
+
+CLAUSE TEXT:
+{clause_text}
+
+CONTROL ACTIVITY:
+{control_activity_text}
+
+TEST PROCEDURE:
+{test_procedure_text}
+
+---
+
+EXISTING CHECKLIST ITEMS (for this activity -- do not duplicate or alter these):
+{existing_text}
+
+---
+
+UNTESTED OBLIGATION TO COVER:
+{obligation_text}
+
+---
+
+OUTPUT FORMAT (exactly this JSON shape):
+{{
+  "new_checklist_items": [
+    {{
+      "id": "<new unique id, e.g. CHK_00X, continuing the existing numbering>",
+      "requirement": "string",
+      "control_pattern": "string",
+      "lifecycle_stage": "string",
+      "effectiveness_type": "DESIGN" | "IMPLEMENTATION" | "OPERATING",
+      "weight": <number>,
+      "testing_method": "string",
+      "testing_approach": "string",
+      "expected_evidence_types": ["string"],
+      "evidence_logic": "string",
+      "requirement_type": "string",
+      "allows_compensating_control": <bool>,
+      "compensating_control_logic": "string",
+      "evaluation_logic": {{"check_for": "string", "pass_condition": "string", "fail_condition": "string"}},
+      "failure_impact": "string"
+    }}
+  ]
+}}"""
+
+
+def patch_checklist_for_missing_coverage(control_activity_id: int, obligation_text: str,
+                                          clause_text: str) -> dict:
+    """
+    Build Sequence #TBD -- C7. Appends new checklist item(s) to ONE activity's
+    existing ControlChecklist row, covering a specific untested obligation
+    identified by C6's missing_coverage. Targeted patch, not full regeneration
+    -- see module comment above.
+    """
+    control = db.session.query(ControlActivity).get(control_activity_id)
+    if not control:
+        logger.error(f"[Module B] patch_checklist_for_missing_coverage: control_activity_id={control_activity_id} not found")
+        return {"control_activity_id": control_activity_id, "status": "ERROR", "reason": "control activity not found"}
+
+    checklist_record = (
+        db.session.query(ControlChecklist)
+        .filter_by(control_activity_id=control_activity_id)
+        .first()
+    )
+    if not checklist_record:
+        logger.error(f"[Module B] patch_checklist_for_missing_coverage: no ControlChecklist for control_activity_id={control_activity_id}")
+        return {"control_activity_id": control_activity_id, "status": "ERROR", "reason": "no existing checklist to patch"}
+
+    control_activity_text = (
+        f"{control.activity_name or ''}\n{control.activity_description or ''}"
+    ).strip()
+
+    test_procedure_text = ""
+    if control.test_procedure:
+        tp = control.test_procedure
+        walkthrough = getattr(tp, "walkthrough", "") or ""
+        sampling = getattr(tp, "sampling", "") or ""
+        test_procedure_text = f"Walkthrough: {walkthrough}\nSampling: {sampling}".strip()
+
+    existing_items = checklist_record.checklist_json or []
+
+    prompt = _build_missing_coverage_patch_prompt(
+        clause_text, control_activity_text, test_procedure_text, obligation_text, existing_items
+    )
+    raw_output = _call_llm_json(prompt)
+
+    if not raw_output or not isinstance(raw_output, dict) or not raw_output.get("new_checklist_items"):
+        logger.error(f"[Module B] patch_checklist_for_missing_coverage: LLM returned no usable output for control_activity_id={control_activity_id}")
+        return {"control_activity_id": control_activity_id, "status": "ERROR", "reason": "LLM returned no usable output"}
+
+    new_items = raw_output["new_checklist_items"]
+    if not isinstance(new_items, list):
+        logger.error(f"[Module B] patch_checklist_for_missing_coverage: new_checklist_items is not a list for control_activity_id={control_activity_id}")
+        return {"control_activity_id": control_activity_id, "status": "ERROR", "reason": "new_checklist_items malformed"}
+
+    existing_ids = {item.get("id") for item in existing_items if isinstance(item, dict)}
+    deduped_new_items = []
+    for item in new_items:
+        if not isinstance(item, dict):
+            continue
+        if item.get("id") in existing_ids:
+            logger.warning(
+                f"[Module B] patch_checklist_for_missing_coverage: dropping new item with "
+                f"id={item.get('id')!r} -- collides with an existing item id."
+            )
+            continue
+        deduped_new_items.append(item)
+
+    if not deduped_new_items:
+        logger.warning(f"[Module B] patch_checklist_for_missing_coverage: no usable new items after dedup for control_activity_id={control_activity_id}")
+        return {"control_activity_id": control_activity_id, "status": "ERROR", "reason": "no usable new items after id dedup"}
+
+    source_text_for_quotes = f"{clause_text}\n{control_activity_text}\n{test_procedure_text}"
+    deduped_new_items = _validate_parameter_tags(deduped_new_items, source_text_for_quotes)
+
+    checklist_record.checklist_json = existing_items + deduped_new_items
+    db.session.commit()
+
+    summary = {
+        "control_activity_id": control_activity_id,
+        "status": "PATCHED",
+        "items_added": len(deduped_new_items),
+    }
+    logger.info(f"[Module B] patch_checklist_for_missing_coverage: {summary}")
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# Build Sequence #TBD -- Part C, Step C7 orchestrator (regenerate-once-then-flag)
+#
+# Runs C6. If INSUFFICIENT, patches ONLY the specific missing_coverage gaps
+# (via patch_checklist_for_missing_coverage above), re-resolves cross-sibling
+# dependencies (mandatory -- a patched item may carry a new discovers_parameter
+# or depends_on_parameter tag that resolve_cross_sibling_dependencies has not
+# yet checked against the full sibling set), then re-runs C6 fresh as the next
+# iteration. Whatever that second review says is final -- no third attempt.
+# The existing SUFFICIENT/INSUFFICIENT badge in the UI covers both outcomes;
+# no separate "flagged" status is introduced.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Build Sequence #TBD -- Part C, Step C8 (confirmed duplicate pair promotion)
+#
+# Turns C6's per-review CANDIDATE duplicate_pairs (ClauseChecklistReview.
+# duplicate_pairs_json) into permanent ConfirmedDuplicatePair rows, per the
+# automatic confirmation rule:
+#   - a pair present in BOTH iteration=1 and iteration=2 (after a C7 patch-
+#     and-recheck cycle) is confirmed -- it survived an independent re-review.
+#   - a pair found on a straight-SUFFICIENT iteration=1 (no C7 cycle occurs,
+#     so there's no second review to confirm against) is confirmed immediately.
+#
+# Every pair is normalized so control_activity_id_a < control_activity_id_b
+# before insert, regardless of which side C6's output happened to list first
+# -- this is what lets the unique constraint actually catch the same real
+# pair being promoted twice across separate pipeline runs over the clause's
+# lifetime, instead of silently duplicating it.
+# ---------------------------------------------------------------------------
+
+def _normalize_pair(pair: dict) -> tuple:
+    """Returns (control_activity_id_a, checklist_item_id_a, control_activity_id_b,
+    checklist_item_id_b) with side A always the smaller control_activity_id."""
+    ca_a, item_a = pair["control_activity_id_a"], pair["checklist_item_id_a"]
+    ca_b, item_b = pair["control_activity_id_b"], pair["checklist_item_id_b"]
+    if ca_a <= ca_b:
+        return (ca_a, item_a, ca_b, item_b)
+    return (ca_b, item_b, ca_a, item_a)
+
+
+def promote_confirmed_duplicate_pairs(clause_id: int, first_review: dict,
+                                       second_review: dict = None) -> dict:
+    """
+    Build Sequence #TBD -- C8. See module comment above for scope.
+
+    first_review: the C6 result dict from run_clause_checklist_assurance_review,
+    used only to check status/verdict -- the actual pairs are read fresh from
+    the corresponding ClauseChecklistReview row(s) by iteration, not trusted
+    from the summary dict.
+
+    second_review: the re-review result dict after a C7 patch cycle, if one
+    occurred. None means no C7 cycle ran (first_review was already SUFFICIENT).
+    """
+    from app.models.eve_models import ClauseChecklistReview, ConfirmedDuplicatePair
+
+    if second_review is None:
+        # No C7 cycle -- first_review's pairs are confirmed immediately.
+        row = (
+            db.session.query(ClauseChecklistReview)
+            .filter_by(clause_id=clause_id, iteration=1)
+            .order_by(ClauseChecklistReview.reviewed_at.desc())
+            .first()
+        )
+        if not row:
+            return {"clause_id": clause_id, "status": "SKIPPED", "reason": "no iteration=1 row found"}
+        candidate_pairs = row.duplicate_pairs_json or []
+        source_review_id = row.id
+    else:
+        # C7 cycle ran -- only pairs present in BOTH reviews are confirmed.
+        first_row = (
+            db.session.query(ClauseChecklistReview)
+            .filter_by(clause_id=clause_id, iteration=1)
+            .order_by(ClauseChecklistReview.reviewed_at.desc())
+            .first()
+        )
+        second_row = (
+            db.session.query(ClauseChecklistReview)
+            .filter_by(clause_id=clause_id, iteration=2)
+            .order_by(ClauseChecklistReview.reviewed_at.desc())
+            .first()
+        )
+        if not first_row or not second_row:
+            return {"clause_id": clause_id, "status": "SKIPPED", "reason": "missing iteration row(s) for comparison"}
+
+        first_normalized = {_normalize_pair(p) for p in (first_row.duplicate_pairs_json or [])}
+        second_pairs = second_row.duplicate_pairs_json or []
+        candidate_pairs = [p for p in second_pairs if _normalize_pair(p) in first_normalized]
+        source_review_id = second_row.id
+
+    promoted = []
+    skipped_existing = 0
+
+    for pair in candidate_pairs:
+        ca_a, item_a, ca_b, item_b = _normalize_pair(pair)
+        existing = (
+            db.session.query(ConfirmedDuplicatePair)
+            .filter_by(
+                clause_id=clause_id,
+                control_activity_id_a=ca_a,
+                checklist_item_id_a=item_a,
+                control_activity_id_b=ca_b,
+                checklist_item_id_b=item_b,
+            )
+            .first()
+        )
+        if existing:
+            skipped_existing += 1
+            continue
+
+        confirmed = ConfirmedDuplicatePair(
+            clause_id=clause_id,
+            control_activity_id_a=ca_a,
+            checklist_item_id_a=item_a,
+            control_activity_id_b=ca_b,
+            checklist_item_id_b=item_b,
+            justification=pair.get("justification", ""),
+            source_review_id=source_review_id,
+            confirmed_at=datetime.utcnow(),
+        )
+        db.session.add(confirmed)
+        promoted.append((ca_a, item_a, ca_b, item_b))
+
+    if promoted:
+        db.session.commit()
+
+    summary = {
+        "clause_id": clause_id,
+        "status": "PROMOTED",
+        "pairs_promoted": len(promoted),
+        "pairs_already_confirmed": skipped_existing,
+    }
+    logger.info(f"[Module B] promote_confirmed_duplicate_pairs: {summary}")
+    return summary
+
+
+def run_clause_checklist_assurance_with_regeneration(clause_id: int) -> dict:
+    """Build Sequence #TBD -- C7. See module comment above for scope."""
+    first_review = run_clause_checklist_assurance_review(clause_id, iteration=1)
+
+    if first_review.get("status") != "REVIEWED":
+        # ERROR or SKIPPED from C6 itself -- nothing for C7 to do.
+        return first_review
+
+    if first_review.get("sufficiency_verdict") != "INSUFFICIENT":
+        # SUFFICIENT on iteration=1 -- no regeneration needed. C8: promote
+        # this review's duplicate pairs immediately, since there's no
+        # second review coming to confirm against.
+        promote_confirmed_duplicate_pairs(clause_id, first_review)
+        return first_review
+
+    missing_coverage = first_review.get("missing_coverage") or []
+    if not missing_coverage:
+        # INSUFFICIENT but nothing usable to patch (all entries dropped by the
+        # mechanical safeguard) -- nothing C7 can do, first review stands as final.
+        logger.warning(
+            f"[Module B] run_clause_checklist_assurance_with_regeneration: clause_id={clause_id} "
+            f"is INSUFFICIENT but has no usable missing_coverage entries -- cannot patch, flagging as-is."
+        )
+        return first_review
+
+    clause_text = ""
+    from app.models.ai import Clauses
+    clause = db.session.query(Clauses).filter_by(id=clause_id).first()
+    if clause:
+        clause_text = clause.clause_text or ""
+
+    patch_results = []
+    for entry in missing_coverage:
+        ca_id = entry.get("control_activity_id")
+        obligation = entry.get("obligation", "")
+        if not ca_id or not obligation:
+            continue
+        patch_result = patch_checklist_for_missing_coverage(ca_id, obligation, clause_text)
+        patch_results.append(patch_result)
+
+    patched_count = sum(1 for p in patch_results if p.get("status") == "PATCHED")
+    if patched_count == 0:
+        logger.warning(
+            f"[Module B] run_clause_checklist_assurance_with_regeneration: clause_id={clause_id} "
+            f"-- all patch attempts failed, flagging first review as final."
+        )
+        first_review["c7_patch_results"] = patch_results
+        first_review["c7_status"] = "PATCH_FAILED"
+        return first_review
+
+    # Mandatory: re-resolve cross-sibling dependencies. A patched item may carry
+    # a new discovers_parameter/depends_on_parameter tag that hasn't been checked
+    # against the full sibling set yet.
+    resolve_cross_sibling_dependencies(clause_id)
+
+    second_review = run_clause_checklist_assurance_review(clause_id, iteration=2)
+
+    # C8: promote duplicate pairs that survived from iteration=1 into
+    # iteration=2 unchanged -- see promote_confirmed_duplicate_pairs.
+    promote_confirmed_duplicate_pairs(clause_id, first_review, second_review)
+
+    # Build Sequence #TBD -- 4.8: if the second, independent review is STILL
+    # INSUFFICIENT after C7's targeted patch, stop retrying and flag the
+    # clause for human review -- same flagging mechanism already used for
+    # ambiguous clause classifications (Clauses.extraction_status /
+    # Clauses.flag_reason), so it surfaces on the existing Clause Review
+    # screen's FLAGGED filter and badge with no UI changes needed.
+    if second_review.get("sufficiency_verdict") == "INSUFFICIENT":
+        from app.models.ai import Clauses
+        clause_row = db.session.query(Clauses).filter_by(id=clause_id).first()
+        if clause_row:
+            clause_row.extraction_status = "FLAGGED"
+            clause_row.flag_reason = "CHECKLIST_ASSURANCE_FAILED"
+            db.session.commit()
+            logger.warning(
+                f"[Module B] clause_id={clause_id} flagged CHECKLIST_ASSURANCE_FAILED -- "
+                f"still INSUFFICIENT after C7 patch-and-recheck cycle."
+            )
+
+    second_review["c7_patch_results"] = patch_results
+    second_review["c7_status"] = "REGENERATED_AND_REVIEWED"
+    logger.info(
+        f"[Module B] run_clause_checklist_assurance_with_regeneration: clause_id={clause_id} "
+        f"final verdict after C7 = {second_review.get('sufficiency_verdict')}"
+    )
+    return second_review
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
