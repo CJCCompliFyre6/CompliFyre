@@ -197,6 +197,15 @@ class Guidelines(db.Model):
     clause_review_completed_at = db.Column(db.TIMESTAMP, nullable=True)
     clause_review_completed_by = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
 
+    # -- Added 2026-09-19: guideline-level "Extract All Activities" completion marker --
+    # NULL = the per-clause activity/test-procedure/checklist loop has not yet run to
+    # completion for this guideline. Set once every clause in the guideline has been
+    # processed by extract_selected_activities_and_tests's main loop. Surfaced on the
+    # Clause Review page so the user knows when it's safe to move to evidence
+    # consolidation (Phase 5), and gates the "Consolidate Evidence List" action on the
+    # decomposition-view page.
+    activities_generation_completed_at = db.Column(db.TIMESTAMP, nullable=True)
+
     regulator_body_id = db.Column(
         db.BigInteger,
         nullable=True

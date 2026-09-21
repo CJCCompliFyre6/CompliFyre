@@ -81,3 +81,4 @@ itsdangerous
 pyotp 
 qrcode
 Flask-Session
+rapidfuzz==3.14.6

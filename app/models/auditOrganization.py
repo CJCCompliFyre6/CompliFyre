@@ -247,6 +247,62 @@ class ComplifyreConsolidatedEvidence(db.Model):
     guideline = db.relationship("Guidelines", backref="consolidated_evidence")
 
 
+class ProjectEvidenceFile(db.Model):
+    """Build Sequence #TBD -- Phase 6, evidence ingestion. One row per real
+    evidence file the client has provided for a project's assessment --
+    either uploaded directly, or synced in from a linked cloud folder (Google
+    Drive first; other providers may be added later). This is the source of
+    truth EVE's mapping step (matching files to evidence requirements) reads
+    from, and it is intentionally source-agnostic: the mapping logic doesn't
+    need to know or care whether a given file arrived via upload or via Drive
+    sync, only that its content is readable from storage_path.
+    """
+
+    __tablename__ = "project_evidence_files"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    project_id = db.Column(
+        db.BigInteger, db.ForeignKey("projects.id"), nullable=False
+    )
+
+    # Where the file actually came from -- 'upload' or 'google_drive' today;
+    # kept as a plain string (not an enum) so adding a new source later (e.g.
+    # 'sharepoint') needs no schema migration, only a new value.
+    source = db.Column(db.String(50), nullable=False)
+
+    # Original filename as the client named it -- shown in the UI, never used
+    # as the actual storage key (see storage_path).
+    original_filename = db.Column(db.String(500), nullable=False)
+
+    # Where this file's actual bytes live on CompliFyre's own storage, once
+    # ingested -- a local/blob storage path for an upload, or a cached local
+    # copy of a Drive file pulled down for EVE to read. Never a client-side
+    # or third-party URL directly -- EVE always reads from a location we
+    # control, so mapping doesn't depend on continued third-party access.
+    storage_path = db.Column(db.String(1000), nullable=True)
+
+    file_size_bytes = db.Column(db.BigInteger, nullable=True)
+    mime_type = db.Column(db.String(255), nullable=True)
+
+    # Source-specific reference -- e.g. the Google Drive file ID, so a later
+    # re-sync can detect the file already exists rather than duplicating it.
+    # Null for direct uploads, which have no external source to reference.
+    external_reference_id = db.Column(db.String(500), nullable=True)
+
+    # EVE mapping state -- deliberately separate from a simple boolean, since
+    # a file can genuinely land in more than one of these states over its
+    # life (e.g. mapped, then a human marks it not_relevant on review).
+    # 'pending' = not yet processed by EVE; 'mapped' = EVE found at least one
+    # confident match; 'needs_review' = EVE found only low-confidence or
+    # ambiguous matches; 'unmatched' = EVE found no plausible match at all.
+    mapping_status = db.Column(db.String(50), nullable=False, default="pending")
+
+    uploaded_by = db.Column(db.BigInteger, db.ForeignKey("Users.id"), nullable=True)
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    project = db.relationship("Projects", backref="evidence_files")
+
+
 class Documentation(db.Model):
     __tablename__ = "Documentation"
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)

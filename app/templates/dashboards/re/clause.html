@@ -965,6 +965,25 @@ Activities will be generated in background.`);
 
 
 
+        <!-- Build Sequence #TBD (Phase 5 entry point): shows once the per-clause
+             activity/test-procedure/checklist loop (Extract All Activities) has
+             finished for this guideline. Links to the decomposition-view page,
+             which is where the "Consolidate Evidence List" action (this
+             pipeline's own Phase 5, replacing the older, separate
+             startEvidenceConsolidation flow below) will live. -->
+        {% if guideline and guideline.activities_generation_completed_at %}
+        <div class="mb-6 p-4 bg-green-50 border border-green-300 rounded-none flex items-center justify-between">
+            <div>
+                <span class="font-semibold text-green-800">Activities generation complete.</span>
+                <span class="text-green-700">All obligations and principles now have activities, test procedures, and checklists.</span>
+            </div>
+            <a href="{{ url_for('re.decomposition_view', guideline_id=guideline_id) }}"
+                class="px-6 py-3 bg-green-600 text-white hover:bg-green-700 transition-all rounded-none">
+                View Full Output &amp; Consolidate Evidence
+            </a>
+        </div>
+        {% endif %}
+
         <!-- Get Consolidated Evidence -->
         {%if current_user.is_authenticated and current_user.role.name == "COMPLIFYRE"%}
         <div class="mb-6">

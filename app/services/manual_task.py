@@ -3135,6 +3135,23 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
                 results["activities"].append({clause_id_val: saved_activities})
                 processed_clauses += 1
 
+        # Build Sequence #TBD (Phase 5 entry point): mark this guideline's activity
+        # generation as complete once every selected clause has been processed by
+        # the loop above. This is a guideline-level marker, not tied to any one
+        # clause -- it's what the Clause Review page checks to decide whether to
+        # show the link to the decomposition-view page and, from there, the
+        # "Consolidate Evidence List" action (Phase 5), which only makes sense
+        # once every clause's checklists exist.
+        try:
+            with session_scope() as completion_session:
+                guideline_row = completion_session.query(Guidelines).filter_by(id=guideline_id).first()
+                if guideline_row:
+                    from datetime import datetime as _dt
+                    guideline_row.activities_generation_completed_at = _dt.utcnow()
+                    logger.info(f"[Phase5Entry] activities_generation_completed_at set for guideline_id={guideline_id}")
+        except Exception as completion_err:
+            logger.error(f"[Phase5Entry] Failed to set activities_generation_completed_at for guideline_id={guideline_id}: {completion_err}")
+
         # Final completion
         total_activities = sum(len(item.values()) for item in results["activities"])
         update_compliance_progress(
@@ -3178,6 +3195,226 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
             state="FAILURE",
             meta={"exc_type": type(e).__name__, "exc_message": str(e)},
         )
+        raise
+
+
+@shared_task(bind=True, max_retries=0)
+def consolidate_evidence_for_pipeline(self, guideline_id: int):
+    """
+    Build Sequence #TBD (Phase 5, "Extract All Activities" pipeline). Fresh
+    orchestration written specifically for this pipeline -- NOT calling the older,
+    separate consolidate_evidence_task, which stays untouched and will be deleted
+    once this new path is fully verified. Genuine complex logic (chunking retry,
+    reconstruction safeguards, cross-chunk merge) is reused from the existing,
+    proven helper functions in app/routes/audit/view.py rather than duplicated,
+    per explicit direction: only the orchestration itself is written fresh.
+
+    Only intended to be called once a guideline's activities_generation_completed_at
+    is set (i.e. after the per-clause loop in extract_selected_activities_and_tests
+    has finished) -- Phase 5 (this) and Phase 6 (not yet built) both need every
+    clause's checklists to exist first, since their whole purpose is finding
+    duplicate/overlapping evidence asks ACROSS clauses.
+    """
+    task_id = self.request.id
+    logger.info(f"[Phase5] Starting evidence consolidation for guideline_id={guideline_id}, task_id={task_id}")
+
+    try:
+        from app.routes.audit.view import (
+            process_clauses_chunk,
+            normalize_evidence_text,
+            find_fuzzy_containment_matches,
+            cluster_evidence_items_by_similarity,
+            merge_evidence_cluster,
+            _reconstruct_consolidated_groups,
+            merge_duplicate_groups_second_pass,
+        )
+        import json as _json
+
+        update_evidence_progress(task_id, "STARTING", 0, "Initializing evidence consolidation...", guideline_id)
+
+        guideline = Guidelines.query.get(guideline_id)
+        if not guideline:
+            raise ValueError(f"Guideline with ID {guideline_id} not found")
+
+        if not guideline.activities_generation_completed_at:
+            raise ValueError(
+                f"Guideline {guideline_id} has not finished activity generation yet "
+                f"(activities_generation_completed_at is not set) -- Phase 5 cannot "
+                f"run until every clause's checklists exist."
+            )
+
+        update_evidence_progress(task_id, "PROCESSING", 5, "Retrieving clauses...", guideline_id)
+        all_clauses = guideline.clauses
+        total_clauses = len(all_clauses)
+        if total_clauses == 0:
+            raise ValueError("No clauses found for this guideline")
+
+        logger.info(f"[Phase5] {total_clauses} clauses for guideline_id={guideline_id}")
+
+        # D1 (unchanged, existing, proven): flat, atomic evidence-ask list,
+        # guideline-wide -- no chunking here, this is genuinely the whole raw list.
+        update_evidence_progress(task_id, "PROCESSING", 15, "Extracting evidence items (D1)...", guideline_id)
+        all_evidence_items = process_clauses_chunk(all_clauses, guideline_id)
+        logger.info(f"[Phase5] D1: {len(all_evidence_items)} raw evidence items")
+
+        # D-normalize (Build Sequence #TBD, precursor to D5a-i/D2/D3): cheap,
+        # deterministic casing/whitespace cleanup -- runs on every item's text
+        # before anything else touches it, catching trivial duplicates for
+        # free and giving the rest of the pipeline cleaner input.
+        for item in all_evidence_items:
+            item["evidence_item"] = normalize_evidence_text(item.get("evidence_item"))
+
+        if not all_evidence_items:
+            final_output = {"grouped_evidences": []}
+        else:
+            # D5a-i (Build Sequence #TBD, runs BEFORE D2/D3): deterministic,
+            # no-LLM-call containment check -- catches the specific real
+            # pattern where a bare document name and a more detailed variant
+            # of the same name (describing what one checklist item needs from
+            # it) are the same document, but embedding similarity alone
+            # under-scores the match because of the added detail. See
+            # find_fuzzy_containment_matches's own docstring for the full
+            # real diagnosis on guideline 210.
+            update_evidence_progress(task_id, "PROCESSING", 25, "Checking for containment matches (D5a-i)...", guideline_id)
+            containment_matches = find_fuzzy_containment_matches(all_evidence_items)
+            logger.info(f"[Phase5] D5a-i: {len(containment_matches)} containment matches found (no LLM call needed)")
+
+            # Fold containment matches into ai_groups-shaped entries immediately
+            # -- one entry per canonical anchor that has at least one variant.
+            canonical_to_variants = {}
+            for variant_idx, canonical_idx in containment_matches.items():
+                canonical_to_variants.setdefault(canonical_idx, []).append(variant_idx)
+
+            ai_groups = []
+            d5a1_covered_indices = set()
+            for canonical_idx, variant_indices in canonical_to_variants.items():
+                all_indices = [canonical_idx] + variant_indices
+                ai_groups.append({
+                    "item_indices": all_indices,
+                    "canonical_name": all_evidence_items[canonical_idx].get("evidence_item") or "",
+                })
+                d5a1_covered_indices.update(all_indices)
+
+            # D2 (Build Sequence #TBD, REPLACES old chunk-based grouping entirely):
+            # genuine guideline-wide similarity clustering via embeddings -- no
+            # arbitrary chunk boundary that could split two real duplicates apart
+            # from each other before they're ever compared. See
+            # cluster_evidence_items_by_similarity's own docstring for the real,
+            # live diagnosis on guideline 210 that necessitated this replacement.
+            # D2 only runs on items NOT already resolved by D5a-i as a variant
+            # (a variant is fully accounted for once folded into its
+            # canonical's group above). Canonical anchors themselves DO still
+            # go through D2/D3 -- a canonical item can have further,
+            # embedding-level duplicates beyond what fuzzy matching caught.
+            variant_indices_only = set(containment_matches.keys())
+            items_for_d2 = [
+                item for idx, item in enumerate(all_evidence_items)
+                if idx not in variant_indices_only
+            ]
+            # D2 clusters operate on items_for_d2's own local indices -- map
+            # back to the real all_evidence_items indices immediately so
+            # downstream code (D3, D4) only ever deals with one consistent
+            # index space.
+            local_to_real_index = [
+                idx for idx in range(len(all_evidence_items)) if idx not in variant_indices_only
+            ]
+
+            update_evidence_progress(task_id, "PROCESSING", 30, f"Clustering {len(items_for_d2)} remaining evidence items by similarity (D2)...", guideline_id)
+            local_clusters = cluster_evidence_items_by_similarity(items_for_d2)
+            clusters = [[local_to_real_index[local_idx] for local_idx in cluster] for cluster in local_clusters]
+            singleton_clusters = [c for c in clusters if len(c) == 1]
+            multi_clusters = [c for c in clusters if len(c) > 1]
+            logger.info(
+                f"[Phase5] D2: {len(clusters)} clusters total -- "
+                f"{len(singleton_clusters)} singletons (no LLM call needed), "
+                f"{len(multi_clusters)} multi-item clusters (need D3 judgment)"
+            )
+
+            # D3 (Build Sequence #TBD, REPLACES old single guideline-wide merge
+            # pass): LLM judgment scoped to ONE small cluster at a time -- never
+            # the full item count against itself, which is what broke the old
+            # design. Singleton clusters skip this entirely (real cost saving).
+            # NOTE: ai_groups already exists from D5a-i above -- append to it,
+            # never reset it here, or D5a-i's containment matches are silently
+            # dropped (found and fixed during initial wiring, before any real
+            # test run used this bug).
+            possible_duplicates_for_review = []
+            for cluster_idx, cluster in enumerate(multi_clusters):
+                progress = 30 + round((cluster_idx / max(len(multi_clusters), 1)) * 50)
+                update_evidence_progress(
+                    task_id, "PROCESSING", min(progress, 80),
+                    f"Reviewing cluster {cluster_idx + 1}/{len(multi_clusters)} (D3)...", guideline_id
+                )
+                try:
+                    decision_result = merge_evidence_cluster(all_evidence_items, cluster)
+                    decision = decision_result.get("decision")
+                    if decision == "merge":
+                        ai_groups.append({
+                            "item_indices": cluster,
+                            "canonical_name": decision_result.get("canonical_name") or "",
+                        })
+                    elif decision == "possible_duplicate":
+                        possible_duplicates_for_review.append({
+                            "indices": cluster,
+                            "items": [all_evidence_items[i].get("evidence_item") for i in cluster],
+                            "reasoning": decision_result.get("reasoning", ""),
+                        })
+                        logger.info(f"[Phase5] D3: cluster {cluster} flagged as possible_duplicate, not merged")
+                    # "separate": do nothing -- items stay as their own individual
+                    # groups via _reconstruct_consolidated_groups's own fallback
+                    # for any index never covered by an ai_groups entry.
+                except Exception as cluster_error:
+                    logger.error(f"[Phase5] D3: cluster {cluster} judgment failed: {cluster_error} -- leaving items separate")
+
+            if possible_duplicates_for_review:
+                logger.info(f"[Phase5] {len(possible_duplicates_for_review)} clusters flagged possible_duplicate for human review: {possible_duplicates_for_review}")
+
+            # D4 (unchanged, existing, proven -- Build Sequence #357/#358/#359):
+            # mechanical traceability rebuild. Never trusts the AI for linkage,
+            # only for which indices belong together and a canonical name --
+            # same safeguard, now consuming D2/D3's cluster-based decisions
+            # instead of the old chunk-based LLM grouping output.
+            update_evidence_progress(task_id, "PROCESSING", 85, "Rebuilding traceable evidence groups (D4)...", guideline_id)
+            first_pass_groups = _reconstruct_consolidated_groups(all_evidence_items, ai_groups)
+            logger.info(f"[Phase5] D4 (first pass): {len(first_pass_groups)} groups before cross-mechanism dedup")
+
+            # Final cross-mechanism dedup pass (Build Sequence #TBD): D5a-i/D2/D3
+            # each work correctly within their own comparison, but nothing
+            # compares their RESULTING canonical group names against each other
+            # -- confirmed live on guideline 210, e.g. "Liquidity Risk Management
+            # Policy document" and "Final approved liquidity management policy
+            # document" surviving as separate groups despite being the same real
+            # document. Re-runs the same D5a-i/D2/D3 machinery on the smaller set
+            # of group names instead of the original raw items.
+            update_evidence_progress(task_id, "PROCESSING", 87, "Checking for cross-group duplicates (final pass)...", guideline_id)
+            final_consolidated_evidence = merge_duplicate_groups_second_pass(first_pass_groups)
+            logger.info(f"[Phase5] Final pass: {len(final_consolidated_evidence)} groups after cross-mechanism dedup")
+
+            update_evidence_progress(task_id, "PROCESSING", 90, "Saving consolidated evidence...", guideline_id)
+            final_output = {
+                "grouped_evidences": final_consolidated_evidence,
+                "possible_duplicates_for_review": possible_duplicates_for_review,
+            }
+
+        evidence_record = ComplifyreConsolidatedEvidence.query.filter_by(guideline_id=guideline_id).first()
+        if evidence_record:
+            evidence_record.consolidate_evidence = final_output
+        else:
+            evidence_record = ComplifyreConsolidatedEvidence(
+                guideline_id=guideline_id,
+                consolidate_evidence=final_output,
+            )
+            db.session.add(evidence_record)
+        db.session.commit()
+
+        update_evidence_progress(task_id, "COMPLETED", 100, f"Evidence consolidation complete: {len(final_consolidated_evidence)} groups", guideline_id)
+        logger.info(f"[Phase5] Completed for guideline_id={guideline_id}: {len(final_consolidated_evidence)} groups")
+
+        return {"status": "success", "guideline_id": guideline_id, "groups": len(final_consolidated_evidence)}
+
+    except Exception as e:
+        logger.exception(f"[Phase5] Evidence consolidation failed for guideline_id={guideline_id}")
+        update_evidence_progress(task_id, "FAILED", 100, f"Evidence consolidation failed: {str(e)}", guideline_id)
         raise
 
 

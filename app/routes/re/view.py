@@ -2683,6 +2683,137 @@ def decomposition_view_export():
 
 
 # ============================================================
+# Build Sequence #TBD -- Phase 5 entry point. Single, deliberate trigger for
+# evidence consolidation on this pipeline (see manual_task.consolidate_evidence_
+# for_pipeline). Only reachable once activities_generation_completed_at is set --
+# the decomposition-view page only shows this button once that's true.
+# ============================================================
+@re_bp.route("/consolidate-evidence-pipeline/<int:guideline_id>", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE")
+def consolidate_evidence_pipeline_trigger(guideline_id):
+    try:
+        from app.services.manual_task import get_redis_connection
+        guideline = Guidelines.query.get(guideline_id)
+        if not guideline:
+            return jsonify({"status": "error", "message": "Guideline not found"}), 404
+        if not guideline.activities_generation_completed_at:
+            return jsonify({
+                "status": "error",
+                "message": "Activity generation must complete for every clause before evidence consolidation can run.",
+            }), 403
+
+        redis_conn = get_redis_connection()
+        active_task_key = f"active_evidence_consolidation:{guideline_id}"
+        existing_task_id = redis_conn.get(active_task_key)
+        if existing_task_id:
+            if isinstance(existing_task_id, bytes):
+                existing_task_id = existing_task_id.decode("utf-8")
+            from celery.result import AsyncResult
+            task_result = AsyncResult(existing_task_id)
+            if task_result.state in ["PENDING", "STARTED", "RETRY"]:
+                return jsonify({
+                    "status": "already_running",
+                    "message": "Evidence consolidation already in progress for this guideline",
+                    "task_id": existing_task_id,
+                }), 200
+
+        from app.services.manual_task import consolidate_evidence_for_pipeline
+        task = consolidate_evidence_for_pipeline.delay(guideline_id)
+        redis_conn.setex(active_task_key, 14400, task.id)
+
+        return jsonify({
+            "status": "success",
+            "message": "Evidence consolidation started",
+            "task_id": task.id,
+            "guideline_id": guideline_id,
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to start evidence consolidation: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@re_bp.route("/consolidate-evidence-pipeline/progress/<task_id>", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE")
+def consolidate_evidence_pipeline_progress(task_id):
+    try:
+        from app.services.manual_task import get_redis_connection
+        redis_conn = get_redis_connection()
+        progress_json = redis_conn.get(f"evidence_progress:{task_id}")
+        if not progress_json:
+            return jsonify({"status": "unknown", "message": "No progress data found"}), 404
+        import json as _json
+        progress_data = _json.loads(progress_json)
+        return jsonify(progress_data), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to fetch evidence consolidation progress: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@re_bp.route("/evidence-list-view", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE")
+def evidence_list_view():
+    """Build Sequence #TBD -- Phase 5 UI. Shows the final unified evidence list
+    for a guideline, produced by consolidate_evidence_for_pipeline. Groups with
+    2+ evidence items are real merges (D5a-i containment matches or D2/D3
+    similarity-clustered duplicates); groups with exactly 1 item are standalone,
+    distinct evidence asks -- both shown, visually distinguished, since a
+    correct consolidation genuinely produces many standalone items alongside
+    the real merges, not just merges.
+    """
+    guideline_id = request.args.get("guideline_id", type=int)
+    if not guideline_id:
+        flash("No guideline specified.", "error")
+        return redirect(url_for("re.guidelines"))
+
+    guideline = Guidelines.query.get_or_404(guideline_id)
+    guideline_name = "Unknown Guideline"
+    if isinstance(guideline.guideline_data, dict):
+        guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
+
+    evidence_record = ComplifyreConsolidatedEvidence.query.filter_by(guideline_id=guideline_id).first()
+    if not evidence_record or not evidence_record.consolidate_evidence:
+        return render_template(
+            "evidence_list_view.html",
+            guideline_id=guideline_id,
+            guideline_name=guideline_name,
+            groups=[],
+            has_data=False,
+        )
+
+    data = evidence_record.consolidate_evidence
+    if isinstance(data, str):
+        import json as _json
+        data = _json.loads(data)
+
+    raw_groups = data.get("grouped_evidences", []) or []
+    possible_duplicates = data.get("possible_duplicates_for_review", []) or []
+
+    # Sort: merged groups (2+ items) first, by size descending -- the most
+    # consequential consolidations are the most useful to review first.
+    # Standalone (1-item) groups follow, in their original order.
+    merged_groups = sorted(
+        [g for g in raw_groups if len(g.get("required_by", {}).get("evidence", [])) > 1],
+        key=lambda g: len(g.get("required_by", {}).get("evidence", [])),
+        reverse=True,
+    )
+    standalone_groups = [g for g in raw_groups if len(g.get("required_by", {}).get("evidence", [])) <= 1]
+
+    return render_template(
+        "evidence_list_view.html",
+        guideline_id=guideline_id,
+        guideline_name=guideline_name,
+        merged_groups=merged_groups,
+        standalone_groups=standalone_groups,
+        possible_duplicates=possible_duplicates,
+        total_groups=len(raw_groups),
+        has_data=True,
+    )
+
+
+# ============================================================
 # RCM (Risk Control Matrix) view -- maps every control to the risk area(s)
 # it mitigates. Build Sequence #372/#373. Read-only view; generation is
 # triggered via a separate POST endpoint (async, Celery-backed).

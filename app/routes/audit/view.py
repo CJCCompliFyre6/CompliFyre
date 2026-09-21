@@ -3480,19 +3480,403 @@ def process_clauses_chunk(clauses, guideline_id):
     return evidence_items
 
 
+def normalize_evidence_text(text: str) -> str:
+    """Build Sequence #TBD -- Phase 5 redesign, D-normalize (precursor step,
+    runs immediately after D1, before D5a-i/D2/D3 ever see the text). Cheap,
+    deterministic cleanup that both (a) catches trivial duplicates the rest of
+    the pipeline shouldn't have to spend an LLM call or embedding comparison
+    on -- e.g. "Final approved liquidity management policy document" vs.
+    "Final approved Liquidity Management Policy document", differing only in
+    casing -- and (b) gives D5a-i's token matching and D2's embeddings
+    cleaner, more consistent input, which should modestly improve their own
+    real match rates too, not just fix end-of-pipeline symptoms.
+
+    Deliberately conservative: only casing and whitespace, never touches word
+    choice or word order -- those are exactly what D5a-i/D2/D3 exist to judge,
+    and normalizing them away here would hide real signal from those steps
+    rather than just cleaning noise.
+    """
+    import re
+    if not text:
+        return text
+    normalized = text.strip()
+    normalized = re.sub(r"\s+", " ", normalized)  # collapse repeated whitespace
+    return normalized
+
+
+def find_fuzzy_containment_matches(evidence_items: list, threshold: int = 90) -> dict:
+    """Build Sequence #TBD -- Phase 5 redesign, D5a-i (runs BEFORE D2/D3, not
+    after). Deterministic, no-LLM-call containment check: does one item's text
+    name or clearly paraphrase an already-identified item, describing a
+    section/topic of it? This catches the specific real pattern found on
+    guideline 210 -- a bare document name (e.g. "Liquidity Risk Management
+    Policy and Framework Document") vs. the same name plus what one specific
+    checklist item needs from it (e.g. "Liquidity Risk Management Policy and
+    Framework Document, specifically the section on interest rate risk
+    monitoring") -- which D2's embedding clustering under-scores because it
+    treats the added detail as making the two texts less similar overall,
+    when it's actually a subset relationship, not a difference.
+
+    CORRECTED (initial version compared raw character length to pick the
+    "canonical" item -- real testing on exactly this pattern showed length is
+    unreliable: a more elaborate variant can be the longer STRING while still
+    being the more specific, non-canonical one). Direction is now decided by
+    TOKEN SET containment, not string length: the item whose meaningful words
+    are a strict subset of another item's words is the more generic, bare
+    name -- and that bare-name item is the canonical anchor everything else
+    merges INTO, regardless of which string happens to be longer.
+
+    Uses rapidfuzz's token_set_ratio for the initial similarity screen (not
+    token_sort_ratio, which still penalizes the length/token-count mismatch
+    inherent to a genuine subset relationship), then confirms genuine token
+    subset-hood before deciding direction.
+
+    Returns a dict: {variant_item_index: canonical_item_index} for every
+    confirmed containment pair -- the variant (more detailed) item is
+    understood to merge into the canonical (more generic) one. Deliberately
+    returns pairs, not pre-merged groups -- the caller decides how to fold
+    these into the rest of the pipeline (this genuinely finishes what D3
+    would otherwise have to judge with an LLM call, for cases where no
+    judgment call is actually needed).
+    """
+    import re
+    from rapidfuzz import fuzz
+
+    def _tokenize(text):
+        return set(re.findall(r"\b\w+\b", text.lower()))
+
+    n = len(evidence_items)
+    texts = [(item.get("evidence_item") or "").strip() for item in evidence_items]
+    token_sets = [_tokenize(t) if t else set() for t in texts]
+    containment_matches = {}
+
+    for i in range(n):
+        if not texts[i] or not token_sets[i]:
+            continue
+        for j in range(n):
+            if i == j or not texts[j] or not token_sets[j]:
+                continue
+            # Direction test: is i's token set a strict subset of j's? If so,
+            # i is the more generic/bare item -- the CANONICAL anchor -- and j
+            # (the more detailed variant) is what merges into it. This is the
+            # opposite assignment from a naive "shorter = variant" reading:
+            # the bare name, having fewer distinct words, is mathematically
+            # the subset, and semantically the canonical document.
+            if not token_sets[i] < token_sets[j]:
+                continue  # i is not a strict subset of j -- not this direction
+            score = fuzz.token_set_ratio(texts[i], texts[j])
+            if score >= threshold:
+                # If j matches multiple canonical candidates, keep the
+                # highest-scoring one only -- avoids ambiguous multi-parent
+                # chains (variant j should collapse into exactly one anchor).
+                existing = containment_matches.get(j)
+                if existing is None or score > existing[1]:
+                    containment_matches[j] = (i, score)
+
+    return {variant_idx: canonical_idx for variant_idx, (canonical_idx, score) in containment_matches.items()}
+
+
+def get_embedding(text: str) -> list:
+    """Build Sequence #TBD -- Phase 5 redesign, D2. Single text embedding via the
+    same Azure OpenAI client used for chat completions elsewhere in this codebase.
+    Requires an embeddings-capable deployment named 'text-embedding-3-small' on
+    that resource -- confirmed provisioned 20 Sept 2026 specifically for this.
+    """
+    from app import client
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=[text],
+    )
+    return response.data[0].embedding
+
+
+def get_embeddings_batch(texts: list, batch_size: int = 100) -> list:
+    """Build Sequence #TBD -- D2. Batched embedding calls -- one API call per
+    batch_size texts, not one call per text, since the embeddings endpoint
+    accepts a list input natively. Returns embeddings in the same order as texts.
+    """
+    from app import client
+    all_embeddings = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=batch,
+        )
+        all_embeddings.extend([d.embedding for d in response.data])
+    return all_embeddings
+
+
+def cluster_evidence_items_by_similarity(evidence_items: list, similarity_threshold: float = 0.85) -> list:
+    """Build Sequence #TBD -- Phase 5 redesign, D2 (REPLACES the old batch-based
+    D2 entirely -- see redesign doc). Real diagnosis on guideline 210's full
+    ~240-item run (18-20 Sept 2026) showed the old design (split into ~100-item
+    chunks, LLM-group within each chunk, then one guideline-wide LLM merge pass
+    at the end) failed badly at real scale: judging "same document AND same
+    purpose" from bare names across ~150 chunk-level groups in one LLM call
+    produced a single 933-item, 129-clause catch-all group with clearly
+    unrelated evidence merged together, and 49% of all evidence_ids ended up
+    duplicated across multiple final groups. This replaces that whole mechanism
+    with genuine, guideline-wide, mathematical similarity comparison -- every
+    single evidence item is compared against every other one via cosine
+    similarity of their text embeddings, with NO arbitrary chunk boundary that
+    could split two real duplicates into groups that never get compared to each
+    other at all (the core structural flaw in the old design).
+
+    Uses plain numpy cosine similarity + simple greedy connected-component
+    clustering rather than pulling in scikit-learn for something this
+    contained -- deliberately kept dependency-free.
+
+    Returns a list of clusters, each a list of indices into evidence_items.
+    Most clusters will be singletons (nothing else looks similar) -- this is
+    expected and correct, not a sign of undermatching.
+    """
+    import numpy as np
+
+    if not evidence_items:
+        return []
+    if len(evidence_items) == 1:
+        return [[0]]
+
+    texts = [item.get("evidence_item") or "" for item in evidence_items]
+    embeddings = get_embeddings_batch(texts)
+    embeddings_matrix = np.array(embeddings)
+
+    # Normalize once, then a single matrix multiply gives the full pairwise
+    # cosine similarity matrix -- O(n^2) but n is at most a few thousand real
+    # evidence items per guideline, well within what this computes instantly.
+    norms = np.linalg.norm(embeddings_matrix, axis=1, keepdims=True)
+    norms[norms == 0] = 1e-10  # guard against a zero-vector embedding (empty text)
+    normalized = embeddings_matrix / norms
+    similarity_matrix = normalized @ normalized.T
+
+    n = len(evidence_items)
+    visited = [False] * n
+    clusters = []
+
+    for i in range(n):
+        if visited[i]:
+            continue
+        cluster = [i]
+        visited[i] = True
+        for j in range(i + 1, n):
+            if not visited[j] and similarity_matrix[i][j] >= similarity_threshold:
+                cluster.append(j)
+                visited[j] = True
+        clusters.append(cluster)
+
+    return clusters
+
+
+def _build_cluster_merge_prompt(cluster_items: list) -> str:
+    """Build Sequence #TBD -- Phase 5 redesign, D3. Prompt scoped to ONE cluster
+    of genuinely similar-looking items (already confirmed similar by D2's
+    embedding comparison, typically 2-5 items) -- never the full guideline-wide
+    item count, which is what broke the old single-pass D4. Explicitly allows a
+    third state (possible_duplicate) rather than forcing a binary merge/no-merge
+    when genuinely ambiguous, per the redesign's own stated principle: don't
+    force a guess where the honest answer is "not sure, flag for a human."
+    """
+    items_block = "\n".join(
+        f'  {idx}: "{item.get("evidence_item", "")}" (clause {item.get("clause_no", "?")})'
+        for idx, item in cluster_items
+    )
+    return f"""You are reviewing a small cluster of compliance evidence asks that a similarity search flagged as similar documents, as part of building a consolidated evidence list for an audit.
+
+TASK: For this cluster, decide whether these items are asking for the SAME real-world document or the SAME broad category of documentation, even if worded differently or covering slightly different levels of detail. A merged evidence list is reviewed by a human afterward, so lean toward MERGING when items plausibly refer to the same document or documentation set -- do not withhold a merge just because the two descriptions aren't word-for-word identical or cover slightly different scope. Two policy/framework documents on the same risk topic (e.g. two descriptions of a liquidity risk framework, even if one mentions reporting and the other mentions funding strategies) should normally be treated as the same underlying document family and merged.
+
+Only choose "separate" when the items are clearly about different topics or different kinds of evidence entirely (e.g. a policy document vs. a training log, or liquidity risk vs. an unrelated risk area). Only choose "possible_duplicate" in the rare case where you genuinely cannot tell whether they are even the same topic at all -- not merely because the wording or level of detail differs. When in doubt between "merge" and "possible_duplicate", prefer "merge".
+
+Return ONLY valid JSON. No explanation. No markdown.
+
+---
+
+CLUSTER ITEMS:
+{items_block}
+
+---
+
+OUTPUT FORMAT (exactly this JSON shape):
+{{
+  "decision": "merge" | "separate" | "possible_duplicate",
+  "canonical_name": "string -- only if decision is 'merge': a clear, human-readable name for the merged evidence ask",
+  "reasoning": "string -- one short sentence explaining the decision, for human review of possible_duplicate cases"
+}}"""
+
+
+def merge_evidence_cluster(evidence_items: list, cluster_indices: list) -> dict:
+    """Build Sequence #TBD -- D3. Runs the cluster-scoped LLM judgment for one
+    multi-item cluster (singleton clusters never reach this function -- caller
+    skips them, no LLM call needed, which is most of the real cost savings vs.
+    the old design). Mechanical traceability rebuild (D4, unchanged from the
+    existing _reconstruct_consolidated_groups principle) still applies to
+    whatever this returns -- linkage is never trusted from the LLM's own output.
+    """
+    from app.services.eve_tasks import _call_llm_json
+
+    cluster_items = [(idx, evidence_items[idx]) for idx in cluster_indices]
+    prompt = _build_cluster_merge_prompt(cluster_items)
+    result = _call_llm_json(prompt)
+
+    if not result or not isinstance(result, dict):
+        current_app.logger.warning(
+            f"merge_evidence_cluster: LLM returned no usable output for cluster {cluster_indices} "
+            f"-- treating as possible_duplicate (safe default, never silently merged, never silently dropped)."
+        )
+        return {"decision": "possible_duplicate", "reasoning": "LLM call failed or returned invalid output"}
+
+    decision = result.get("decision")
+    if decision not in ("merge", "separate", "possible_duplicate"):
+        current_app.logger.warning(
+            f"merge_evidence_cluster: LLM returned invalid decision {decision!r} for cluster {cluster_indices} "
+            f"-- treating as possible_duplicate."
+        )
+        return {"decision": "possible_duplicate", "reasoning": f"LLM returned invalid decision: {decision!r}"}
+
+    return result
+
+
+def merge_duplicate_groups_second_pass(groups: list) -> list:
+    """Build Sequence #TBD -- Phase 5 redesign, final cross-mechanism dedup
+    pass. Real diagnosis on guideline 210's full run found that D5a-i/D2/D3
+    each work correctly WITHIN their own comparison, but nothing compares the
+    RESULTING canonical group names against each other afterward -- so if
+    "Liquidity Risk Management Policy document" got merged in one part of the
+    item list and "Liquidity Management Policy document" (missing one word,
+    different capitalization) got merged separately elsewhere, both survive
+    as distinct top-level groups even though they're almost certainly the
+    same real document. Confirmed live: exactly this case, visible in the
+    evidence-list-view UI on 21 Sept 2026.
+
+    Runs the SAME find_fuzzy_containment_matches -> cluster_evidence_items_by_
+    similarity -> merge_evidence_cluster pipeline used for the first pass, but
+    on the ~1,000-1,200 canonical group names instead of the original
+    ~1,500 raw items -- genuinely smaller, so genuinely cheaper, and catches
+    exactly the cross-mechanism blind spot the first pass structurally can't.
+
+    Unlike the first pass (which builds NEW groups from raw D1 items via
+    _reconstruct_consolidated_groups), merging here means UNIONING two
+    already-consolidated groups' required_by data -- both groups already
+    carry real linkage from the first pass, so nothing is rebuilt from
+    scratch, only combined.
+    """
+    if not groups:
+        return []
+    if len(groups) == 1:
+        return groups
+
+    # Treat each group's canonical name as if it were a single "evidence_item"
+    # for the purposes of the exact same D5a-i/D2/D3 functions -- they only
+    # ever look at the evidence_item field, so this is a legitimate reuse.
+    pseudo_items = [{"evidence_item": g.get("evidence_item_name") or ""} for g in groups]
+
+    containment_matches = find_fuzzy_containment_matches(pseudo_items)
+    canonical_to_variants = {}
+    for variant_idx, canonical_idx in containment_matches.items():
+        canonical_to_variants.setdefault(canonical_idx, []).append(variant_idx)
+
+    covered_indices = set()
+    for canonical_idx, variant_indices in canonical_to_variants.items():
+        covered_indices.add(canonical_idx)
+        covered_indices.update(variant_indices)
+
+    remaining_indices = [i for i in range(len(groups)) if i not in covered_indices]
+    remaining_pseudo_items = [pseudo_items[i] for i in remaining_indices]
+    local_clusters = cluster_evidence_items_by_similarity(remaining_pseudo_items)
+    # Map local cluster indices back to real group indices.
+    real_clusters = [[remaining_indices[local_idx] for local_idx in cluster] for cluster in local_clusters]
+
+    for cluster in real_clusters:
+        if len(cluster) <= 1:
+            continue
+        try:
+            decision_result = merge_evidence_cluster(pseudo_items, cluster)
+            if decision_result.get("decision") == "merge":
+                canonical_idx = cluster[0]
+                canonical_to_variants.setdefault(canonical_idx, []).extend(cluster[1:])
+                covered_indices.update(cluster)
+        except Exception as e:
+            current_app.logger.error(f"[Phase5 second pass] cluster {cluster} judgment failed: {e}")
+
+    # Build the final, second-pass-merged group list.
+    final_groups = []
+    fully_covered = set()
+    for canonical_idx, variant_indices in canonical_to_variants.items():
+        member_indices = [canonical_idx] + variant_indices
+        member_groups = [groups[i] for i in member_indices]
+        fully_covered.update(member_indices)
+
+        union_guideline_ids = set()
+        union_clause_nos = set()
+        union_activity_ids = set()
+        union_evidence_list = []
+        seen_evidence_ids = set()
+        for mg in member_groups:
+            rb = mg.get("required_by", {}) or {}
+            union_guideline_ids.update(rb.get("guideline_ids", []) or [])
+            union_clause_nos.update(rb.get("clause_nos", []) or [])
+            union_activity_ids.update(rb.get("activity_ids", []) or [])
+            for ev in (rb.get("evidence", []) or []):
+                if isinstance(ev, dict) and ev.get("evidence_id") not in seen_evidence_ids:
+                    union_evidence_list.append(ev)
+                    seen_evidence_ids.add(ev.get("evidence_id"))
+
+        final_groups.append({
+            "evidence_item_name": groups[canonical_idx].get("evidence_item_name") or "Unnamed evidence group",
+            "required_by": {
+                "guideline_ids": list(union_guideline_ids),
+                "clause_nos": list(union_clause_nos),
+                "activity_ids": list(union_activity_ids),
+                "evidence": union_evidence_list,
+            },
+        })
+
+    # Any group never touched by this second pass survives unchanged.
+    for i, g in enumerate(groups):
+        if i not in fully_covered:
+            final_groups.append(g)
+
+    return final_groups
+
+
 def _build_evidence_merge_prompt(valid_groups: list) -> str:
     """Build Sequence #TBD -- Phase 5, Step 5.4 (unified evidence list merge).
 
-    valid_groups: list of {"index": int, "evidence_item_name": str} -- names only,
-    no linkage data sent (linkage is never trusted from the LLM, only mechanically
-    reconstructed afterward -- same principle as _reconstruct_consolidated_groups).
+    valid_groups: list of {"index": int, "evidence_item_name": str, "group": dict}.
+    ENRICHED (Build Sequence #TBD, after a real, live guideline-scale run on
+    guideline 210 -- 240 evidence items, 17 chunks, ~150 chunk-level groups --
+    showed name-only input caused a severe real failure: the LLM produced one
+    933-item, 129-clause catch-all group with clearly unrelated evidence
+    (policy documents, training materials, system screenshots, transaction logs
+    all merged together), and 49% of all evidence_ids ended up duplicated
+    across multiple final groups. Root cause: judging "same real document AND
+    same purpose" from a bare name alone gives the LLM no real signal to tell
+    apart genuinely similar BFSI-domain vocabulary (many groups naturally share
+    words like "Liquidity", "Policy", "Board Approved") from actual duplicates.
+    Now includes each group's real clause numbers and a sample of its actual
+    evidence item text, not just its summary name -- linkage is still NEVER
+    trusted from the LLM, only mechanically reconstructed afterward, unchanged.
     """
-    names_block = "\n".join(
-        f'  {g["index"]}: "{g["evidence_item_name"]}"' for g in valid_groups
-    )
+    def _group_context(g):
+        group_data = g.get("group", {}) or {}
+        required_by = group_data.get("required_by", {}) or {}
+        clause_nos = required_by.get("clause_nos", []) or []
+        evidence_items = required_by.get("evidence", []) or []
+        sample_texts = [
+            (ev.get("evidence_item") or "").strip()
+            for ev in evidence_items[:3]
+            if isinstance(ev, dict) and ev.get("evidence_item")
+        ]
+        clause_str = ", ".join(clause_nos[:5]) + (f" (+{len(clause_nos)-5} more)" if len(clause_nos) > 5 else "")
+        sample_str = " | ".join(sample_texts) if sample_texts else "(no sample text available)"
+        return f'  {g["index"]}: "{g["evidence_item_name"]}"\n      Clauses: {clause_str}\n      Sample items: {sample_str}'
+
+    names_block = "\n".join(_group_context(g) for g in valid_groups)
     return f"""You are consolidating a compliance evidence list for a BFSI audit.
 
-TASK: Below is a list of evidence-ask names (index: name), already grouped once. Some of these may refer to the SAME real-world document AND serve the SAME underlying compliance purpose, just worded differently (e.g. "Liquidity Risk Policy" and "the liquidity risk management policy document" are the same). Others may sound similar but are genuinely different documents or serve different purposes -- do NOT merge those.
+TASK: Below is a list of evidence-ask groups, each with its name, the clauses it comes from, and a sample of its actual evidence item text. Some of these may refer to the SAME real-world document AND serve the SAME underlying compliance purpose, just worded differently (e.g. "Liquidity Risk Policy" and "the liquidity risk management policy document" are the same). Others may sound similar but are genuinely different documents or serve different purposes -- do NOT merge those, even if their names share common regulatory vocabulary (e.g. "Liquidity Risk Management Policy" for general liquidity risk vs. a policy specifically covering liquidity AND interest rate risk together are NOT automatically the same document -- check the sample items).
+
+Use the clause numbers and sample evidence text, not just the name, to judge genuine purpose-identity. Never merge a large number of groups into one broad catch-all -- if you are not genuinely confident two specific groups are the same document serving the same purpose, leave them separate. A correct output typically merges only a modest number of clearly-duplicate pairs or small clusters; it is normal and expected for most groups to remain unmerged.
 
 Return ONLY valid JSON. No explanation. No markdown.
 
@@ -3503,7 +3887,7 @@ EVIDENCE ASKS:
 
 ---
 
-TASK: Propose merge groups -- each group is a list of indices that are the SAME real document serving the SAME purpose, plus one clear canonical name for the merged group. Every index you do NOT mention stays as its own separate, unmerged item -- do not feel obligated to place every index into a group. Only merge when you are confident both name-identity and purpose-identity hold.
+TASK: Propose merge groups -- each group is a list of indices that are the SAME real document serving the SAME purpose, plus one clear canonical name for the merged group. Every index you do NOT mention stays as its own separate, unmerged item -- do not feel obligated to place every index into a group. Only merge when you are confident both name-identity and purpose-identity hold, based on the clause numbers and sample text provided, not name alone.
 
 OUTPUT FORMAT (exactly this JSON shape):
 {{
