@@ -127,9 +127,18 @@ def _build_project_control_activity_fields(control_template):
         "frequency": control_template.frequency,
         "sampling_guidance": control_template.sampling_guidance,
         "explain_test_procedure": control_template.explain_test_procedure,
-        "assessment_objective": control_template.assessment_objective,
-        "assessment_objective_rationale": control_template.assessment_objective_rationale,
-        "test_attributes": control_template.test_attributes,
+        # assessment_objective / assessment_objective_rationale REMOVED here --
+        # real bug found and fixed 21 Sept 2026: ProjectControlActivity (the
+        # only model _build_project_control_activity_fields's result is ever
+        # unpacked into, at all 3 call sites) has no such columns; confirmed
+        # against project_instance_models.py's actual schema before removing.
+        # These two fields exist only on the source ControlTemplate model, with
+        # no equivalent column anywhere on ProjectControlActivity -- not a
+        # naming mismatch to map, genuinely absent from this model.
+        # test_attributes REMOVED here too -- same real bug, same fix, found
+        # immediately after the assessment_objective fix above via the very
+        # next field in this dict (21 Sept 2026): also genuinely absent from
+        # ProjectControlActivity's actual schema, confirmed the same way.
         "required_effectiveness_design": design,
         "required_effectiveness_implementation": implementation,
         "required_effectiveness_operating": operating,

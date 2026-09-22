@@ -2814,6 +2814,89 @@ def evidence_list_view():
 
 
 # ============================================================
+# Build Sequence #TBD -- Phase 6, evidence ingestion. Direct file upload for
+# a project's evidence collection, first of two intake paths (Google Drive
+# folder linkage is the second, not yet built). Stores the actual file bytes
+# in Azure Blob Storage, saves the record via ProjectEvidenceFile.
+# ============================================================
+@re_bp.route("/project-evidence-upload/<int:project_id>", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def project_evidence_upload(project_id):
+    try:
+        project = Projects.query.get(project_id)
+        if not project:
+            return jsonify({"status": "error", "message": "Project not found"}), 404
+
+        uploaded_files = request.files.getlist("evidence_files")
+        if not uploaded_files:
+            return jsonify({"status": "error", "message": "No files provided"}), 400
+
+        from app.services.blob_storage_service import upload_evidence_file
+
+        saved_records = []
+        for f in uploaded_files:
+            if not f.filename:
+                continue
+            file_bytes = f.read()
+            upload_result = upload_evidence_file(
+                project_id, f.filename, file_bytes, content_type=f.content_type
+            )
+            record = ProjectEvidenceFile(
+                project_id=project_id,
+                source="upload",
+                original_filename=f.filename,
+                storage_path=upload_result["storage_path"],
+                file_size_bytes=upload_result["size_bytes"],
+                mime_type=f.content_type,
+                mapping_status="pending",
+                uploaded_by=current_user.id if current_user.is_authenticated else None,
+            )
+            db.session.add(record)
+            saved_records.append(record)
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": f"{len(saved_records)} file(s) uploaded successfully",
+            "files": [{"id": r.id, "filename": r.original_filename} for r in saved_records],
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Evidence file upload failed for project_id={project_id}: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@re_bp.route("/project-evidence-files/<int:project_id>", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def project_evidence_files_list(project_id):
+    try:
+        files = ProjectEvidenceFile.query.filter_by(project_id=project_id).order_by(
+            ProjectEvidenceFile.created_at.desc()
+        ).all()
+        return jsonify({
+            "status": "success",
+            "files": [
+                {
+                    "id": f.id,
+                    "filename": f.original_filename,
+                    "source": f.source,
+                    "size_bytes": f.file_size_bytes,
+                    "mapping_status": f.mapping_status,
+                    "created_at": f.created_at.isoformat() if f.created_at else None,
+                }
+                for f in files
+            ],
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to list evidence files for project_id={project_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================
 # RCM (Risk Control Matrix) view -- maps every control to the risk area(s)
 # it mitigates. Build Sequence #372/#373. Read-only view; generation is
 # triggered via a separate POST endpoint (async, Celery-backed).

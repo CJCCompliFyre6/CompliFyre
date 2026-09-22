@@ -1047,7 +1047,97 @@
               Regenerate Evidence
             </button>
           </form>
+
+          <!-- Build Sequence #TBD (Phase 6): direct evidence file upload -->
+          <button id="openUploadModalBtn" onclick="document.getElementById('evidenceUploadModal').classList.remove('hidden')"
+            class="px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 transition-all rounded-full font-medium">
+            Upload Evidence Files
+          </button>
         </div>
+
+        <!-- Evidence Upload Modal -->
+        <div id="evidenceUploadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-semibold">Upload Evidence Files</h3>
+              <button onclick="document.getElementById('evidenceUploadModal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <input type="file" id="evidenceFileInput" multiple class="mb-4 block w-full text-sm" />
+            <div id="uploadStatus" class="text-sm text-gray-600 mb-4"></div>
+            <button id="doUploadBtn" onclick="submitEvidenceUpload({{ project.id }})"
+              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Upload
+            </button>
+            <div class="mt-4">
+              <h4 class="text-sm font-semibold mb-2">Uploaded files</h4>
+              <ul id="evidenceFileList" class="text-sm text-gray-700 space-y-1"></ul>
+            </div>
+          </div>
+        </div>
+
+        <script>
+        function loadEvidenceFileList(projectId) {
+            fetch(`/re/project-evidence-files/${projectId}`)
+              .then(res => res.json())
+              .then(data => {
+                  const listEl = document.getElementById('evidenceFileList');
+                  if (!listEl) return;
+                  listEl.innerHTML = '';
+                  if (data.status === 'success' && data.files) {
+                      data.files.forEach(f => {
+                          const li = document.createElement('li');
+                          li.textContent = `${f.filename} (${f.mapping_status})`;
+                          listEl.appendChild(li);
+                      });
+                  }
+              });
+        }
+
+        function submitEvidenceUpload(projectId) {
+            const input = document.getElementById('evidenceFileInput');
+            const statusEl = document.getElementById('uploadStatus');
+            if (!input.files.length) {
+                statusEl.textContent = 'Please choose at least one file.';
+                return;
+            }
+            const formData = new FormData();
+            for (const file of input.files) {
+                formData.append('evidence_files', file);
+            }
+            statusEl.textContent = 'Uploading...';
+            // Real bug found and fixed 21 Sept 2026: getCsrfToken() does not
+            // exist in this page's actual base template (auditor/audit_base.html)
+            // -- it only exists in the RE-dashboard base templates. Calling it
+            // here threw a silent ReferenceError that killed the fetch() call
+            // before any request left the browser, with zero server-side trace
+            // (confirmed via journalctl showing no incoming request at all).
+            // This base template instead puts the token in a <meta> tag.
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+            fetch(`/re/project-evidence-upload/${projectId}`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData,
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusEl.textContent = data.message;
+                    input.value = '';
+                    loadEvidenceFileList(projectId);
+                } else {
+                    statusEl.textContent = 'Error: ' + (data.message || 'Upload failed');
+                }
+            })
+            .catch(err => {
+                statusEl.textContent = 'Error: ' + err;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEvidenceFileList({{ project.id }});
+        });
+        </script>
 
         <!-- Debug Section (Remove in production) -->
         <div class="debug-info mb-4 p-3 bg-gray-100 rounded text-sm hidden">
@@ -3974,27 +4064,19 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeCheckboxStates();
 });
 
-  // Also update the individual toggle handler to save checkbox states
-  // Find this in your toggle clause handler and add this after success:
-  if (data.status === "success") {
-    const newVal = !!data.applicability;
-
-    // Update checkbox data attribute
-    const checkbox = document.querySelector(`.clause-checkbox[data-clause-id="${clauseId}"]`);
-    if (checkbox) {
-      checkbox.dataset.originalApplicability = newVal.toString();
-    }
-
-    // Save checkbox states
-    // You'll need to call saveCheckboxStates() here
-    // You can either make the function global or trigger it
-    setTimeout(() => {
-      const bulkScript = document.querySelector('script[data-bulk-selection]');
-      if (bulkScript && bulkScript.saveCheckboxStates) {
-        bulkScript.saveCheckboxStates();
-      }
-    }, 100);
-  }
+  // Real bug found and fixed 21 Sept 2026: the block that was here (starting
+  // "if (data.status === ...)") ran at the top level of this <script> tag --
+  // not inside any function or event handler -- so it executed immediately
+  // on every single page load. It referenced `data` and `clauseId`, neither
+  // of which is defined at this scope; its own comments explicitly say it
+  // was meant to be manually copy-pasted into a DIFFERENT handler elsewhere
+  // ("Find this in your toggle clause handler and add this after success"),
+  // never actually wired in. Result: a guaranteed Uncaught ReferenceError on
+  // every page load (confirmed live via browser console: "data is not
+  // defined" at this exact spot), which was masking/interfering with
+  // unrelated JS elsewhere on this same large page (including this session's
+  // new evidence-upload status text, which appeared stuck as a result).
+  // Removed entirely -- it was never functional, only ever an error source.
 </script>
 
 <!-- pie chart script -->

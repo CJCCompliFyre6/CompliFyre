@@ -192,6 +192,48 @@ class ControlChecklist(db.Model):
 # future changes to the master checklist do not affect running audits.
 # ---------------------------------------------------------------------------
 
+class ChecklistItem(db.Model):
+    """Build Sequence #TBD -- Phase 6 foundation, GRACE/EVE traceability chain,
+    step 1 of 5 (bottom of the chain). One row per ATOMIC checklist item --
+    previously these existed only as JSON array entries inside
+    ControlChecklist.checklist_json, with no individually queryable or
+    linkable row of their own. Real Ankita design decision (21 Sept 2026):
+    multi-user, parallel-background-task usage (this session's own new
+    per-file evidence mapping being the immediate driver) makes JSON blobs
+    unsafe for anything that needs concurrent, item-level writes.
+
+    ADDITIVE ONLY -- ControlChecklist.checklist_json is NOT modified, removed,
+    or replaced by this table in any way. Every existing code path that reads
+    checklist_json directly continues to work completely unchanged. This
+    table is a new, parallel, queryable index built FROM that JSON, alongside
+    it -- not a migration away from it. Confirmed with Ankita as an explicit
+    requirement before this was written (21 Sept 2026).
+
+    Deliberately narrow: only pulls out item_id and requirement text as real
+    columns -- everything else EVE's own evaluation logic needs stays exactly
+    as originally authored, preserved whole in full_item_json.
+    """
+
+    __tablename__ = "checklist_items"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    control_checklist_id = db.Column(
+        db.BigInteger, db.ForeignKey("control_checklist.id", ondelete="CASCADE"), nullable=False
+    )
+
+    item_id = db.Column(db.String(50), nullable=False)
+    requirement = db.Column(db.Text, nullable=True)
+    full_item_json = db.Column(db.JSON, nullable=False)
+
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    control_checklist = db.relationship("ControlChecklist", backref="checklist_items")
+
+    __table_args__ = (
+        db.UniqueConstraint("control_checklist_id", "item_id", name="uq_checklist_item_per_checklist"),
+    )
+
+
 class ProjectChecklist(db.Model):
     """
     Project-specific copy of ControlChecklist.
