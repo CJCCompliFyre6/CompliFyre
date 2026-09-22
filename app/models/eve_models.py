@@ -234,6 +234,54 @@ class ChecklistItem(db.Model):
     )
 
 
+class RawEvidenceRequirement(db.Model):
+    """Build Sequence #TBD -- Phase 6 foundation, GRACE/EVE traceability chain,
+    step 2 of 5. One row per D1-level raw evidence ask (the "Extract All
+    Activities" pipeline's own Phase 5 D1 output -- see process_clauses_chunk
+    in app/routes/audit/view.py) -- previously these existed only as
+    transient Python dicts during a single pipeline run, never persisted.
+
+    Real linkage confirmed with Ankita (21 Sept 2026) before this was built:
+    D1's raw items and ControlChecklist's checklist items are NOT directly
+    linked to each other at the individual-item level anywhere in the
+    existing pipeline -- both share the same parent control_activity_id, and
+    that shared parent is the real, existing relationship. This table
+    therefore links to control_activity_id (matching EvidenceArtifact's own
+    real linkage via control.evidences), not to an individual ChecklistItem
+    row -- inventing a finer-grained link the pipeline itself never
+    established would misrepresent what GRACE actually produces.
+
+    This is the ONLY new persistence point in the existing Extract All
+    Activities pipeline -- no new, separate pipeline was created; this table
+    is populated from data process_clauses_chunk (Phase 5 D1) already
+    produces, within that same pipeline.
+    """
+
+    __tablename__ = "raw_evidence_requirements"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    control_activity_id = db.Column(
+        db.Integer, db.ForeignKey("control_activities.id", ondelete="CASCADE"), nullable=False
+    )
+    guideline_id = db.Column(db.BigInteger, db.ForeignKey("guidelines.id"), nullable=False)
+    clause_id = db.Column(db.BigInteger, nullable=True)
+    clause_no = db.Column(db.String(100), nullable=True)
+
+    # Matches EvidenceArtifact's own two real fields -- this table indexes
+    # the same underlying evidence text, not a redefinition of it.
+    category = db.Column(db.String(255), nullable=True)
+    evidence_item = db.Column(db.Text, nullable=False)
+
+    # The originating EvidenceArtifact row, when one exists (a raw item can
+    # exist without one -- e.g. the "no evidence submitted" / "no control
+    # activities" placeholder rows process_clauses_chunk also produces).
+    evidence_artifact_id = db.Column(db.BigInteger, nullable=True)
+
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    control_activity = db.relationship("ControlActivity", backref="raw_evidence_requirements")
+
+
 class ProjectChecklist(db.Model):
     """
     Project-specific copy of ControlChecklist.
