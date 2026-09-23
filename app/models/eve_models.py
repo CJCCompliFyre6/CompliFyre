@@ -381,6 +381,78 @@ class RawToGroupedRequirementLink(db.Model):
     )
 
 
+class FileRequirementMapping(db.Model):
+    """Build Sequence #TBD -- Phase 6 foundation, GRACE/EVE traceability chain,
+    step 5 of 5 (the actual deliverable the whole chain exists to support).
+    Many-to-many link between a project's uploaded evidence files
+    (ProjectEvidenceFile) and the guideline-level evidence requirements they
+    satisfy (GuidelineEvidenceRequirement) -- genuinely many-to-many in both
+    directions per Ankita's explicit direction (21 Sept 2026): one file can
+    satisfy multiple requirements, one requirement can be satisfied by
+    multiple files.
+
+    This is the row the two-column mapping UI (requirements on the left,
+    incoming files mapped against them on the right) reads and writes, and
+    the row a per-file background mapping task (run in parallel across many
+    concurrently-uploading files -- Ankita's own explicit design direction)
+    creates as its output. Real rows with a real composite unique constraint
+    are what make that parallelism safe -- two mapping tasks writing
+    different files' matches never touch the same row, unlike a shared JSON
+    array would.
+
+    Once a file's mappings exist here, EVE reaches every checklist item that
+    file is now relevant to by following: this row -> GuidelineEvidenceRequirement
+    -> RawToGroupedRequirementLink -> RawEvidenceRequirement -> EvidenceArtifact
+    -> (existing control_evidences many-to-many) -> ControlActivity ->
+    ControlChecklist -> ChecklistItem. EVE's own evaluation logic is not
+    built here -- this table only establishes the mapping EVE then acts on,
+    per Ankita's explicit scoping (22 Sept 2026): "eve is designed to do
+    that... once that mapping is clear... eve should do its job."
+    """
+
+    __tablename__ = "file_requirement_mappings"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    project_evidence_file_id = db.Column(
+        db.BigInteger, db.ForeignKey("project_evidence_files.id", ondelete="CASCADE"), nullable=False
+    )
+    guideline_evidence_requirement_id = db.Column(
+        db.BigInteger, db.ForeignKey("guideline_evidence_requirements.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # 'pending' = mapping task queued/running for this pair (not applicable
+    # in practice since rows are only created once a match is decided, but
+    # kept for symmetry with ProjectEvidenceFile.mapping_status and for any
+    # future two-phase mapping flow); 'confirmed' = the mapping task judged
+    # this file satisfies this requirement; 'needs_review' = low-confidence
+    # match, surfaced to a human; 'rejected' = a human or later pass
+    # explicitly ruled this match out (row kept, not deleted, for audit
+    # trail -- a rejected match is still a real event worth preserving).
+    status = db.Column(db.String(50), nullable=False, default="confirmed")
+
+    # Which mechanism produced this specific mapping -- e.g. an LLM-based
+    # content-matching task's own name/version, or 'manual' if a human
+    # created/confirmed it directly in the UI.
+    mapping_mechanism = db.Column(db.String(100), nullable=True)
+
+    # Free-text rationale the mapping mechanism can record for why it judged
+    # this file relevant to this requirement -- shown to a human reviewing a
+    # needs_review match, not required for a confirmed one.
+    mapping_reasoning = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    project_evidence_file = db.relationship("ProjectEvidenceFile", backref="requirement_mappings")
+    guideline_evidence_requirement = db.relationship("GuidelineEvidenceRequirement", backref="file_mappings")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "project_evidence_file_id", "guideline_evidence_requirement_id",
+            name="uq_file_requirement_mapping"
+        ),
+    )
+
+
 class ProjectChecklist(db.Model):
     """
     Project-specific copy of ControlChecklist.
