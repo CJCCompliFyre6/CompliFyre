@@ -241,28 +241,25 @@ class RawEvidenceRequirement(db.Model):
     in app/routes/audit/view.py) -- previously these existed only as
     transient Python dicts during a single pipeline run, never persisted.
 
-    Real linkage confirmed with Ankita (21 Sept 2026) before this was built:
-    D1's raw items and ControlChecklist's checklist items are NOT directly
-    linked to each other at the individual-item level anywhere in the
-    existing pipeline -- both share the same parent control_activity_id, and
-    that shared parent is the real, existing relationship. This table
-    therefore links to control_activity_id (matching EvidenceArtifact's own
-    real linkage via control.evidences), not to an individual ChecklistItem
-    row -- inventing a finer-grained link the pipeline itself never
-    established would misrepresent what GRACE actually produces.
-
-    This is the ONLY new persistence point in the existing Extract All
-    Activities pipeline -- no new, separate pipeline was created; this table
-    is populated from data process_clauses_chunk (Phase 5 D1) already
-    produces, within that same pipeline.
+    CORRECTED (22-23 Sept 2026, before any real data was ever written to this
+    table): the original design linked to a single control_activity_id,
+    assuming a raw evidence item belongs to exactly one control activity.
+    Real schema check with Ankita found this wrong -- EvidenceArtifact is
+    explicitly many-to-many with ControlActivity (its own docstring: "This
+    can be linked to multiple ControlActivities", via the existing
+    control_evidences association table) -- confirmed against real guideline
+    210 data, where a single evidence_id's group spanned 26 different
+    activity_ids. This table now links to evidence_artifact_id (a real FK to
+    evidence_artifacts.id) instead, and derives ALL of its control-activity
+    traceability through EvidenceArtifact.controls, the existing many-to-many
+    relationship -- not a new backward-mapping table, since control_evidences
+    already IS that backward mapping and re-deriving it would only risk
+    drifting out of sync with the source of truth.
     """
 
     __tablename__ = "raw_evidence_requirements"
 
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
-    control_activity_id = db.Column(
-        db.Integer, db.ForeignKey("control_activities.id", ondelete="CASCADE"), nullable=False
-    )
     guideline_id = db.Column(db.BigInteger, db.ForeignKey("guidelines.id"), nullable=False)
     clause_id = db.Column(db.BigInteger, nullable=True)
     clause_no = db.Column(db.String(100), nullable=True)
@@ -272,14 +269,116 @@ class RawEvidenceRequirement(db.Model):
     category = db.Column(db.String(255), nullable=True)
     evidence_item = db.Column(db.Text, nullable=False)
 
-    # The originating EvidenceArtifact row, when one exists (a raw item can
-    # exist without one -- e.g. the "no evidence submitted" / "no control
+    # Real FK to evidence_artifacts.id -- nullable because a raw item can
+    # exist without one (e.g. the "no evidence submitted" / "no control
     # activities" placeholder rows process_clauses_chunk also produces).
-    evidence_artifact_id = db.Column(db.BigInteger, nullable=True)
+    # Control-activity traceability (and therefore checklist traceability)
+    # comes from EvidenceArtifact.controls (existing many-to-many), reached
+    # via this FK -- not stored redundantly on this row.
+    evidence_artifact_id = db.Column(
+        db.Integer, db.ForeignKey("evidence_artifacts.id", ondelete="SET NULL"), nullable=True
+    )
 
     created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
 
-    control_activity = db.relationship("ControlActivity", backref="raw_evidence_requirements")
+    evidence_artifact = db.relationship("EvidenceArtifact", backref="raw_evidence_requirements")
+
+
+class GuidelineEvidenceRequirement(db.Model):
+    """Build Sequence #TBD -- Phase 6 foundation, GRACE/EVE traceability chain,
+    step 3 of 5. One row per FINAL grouped evidence requirement -- the real
+    output of the "Extract All Activities" pipeline's Phase 5 consolidation
+    (D5a-i / D2 / D3 / normalize / second-pass -- see
+    consolidate_evidence_for_pipeline in app/services/manual_task.py).
+
+    Real design correction from Ankita (21-22 Sept 2026): this is
+    GUIDELINE-level, not project-level -- GRACE produces this list ONCE,
+    centrally, per guideline; every project that uses that guideline reads
+    the same central list, rather than each project generating or owning its
+    own copy. Multi-user, parallel-background-task usage (per-file async
+    mapping) makes JSON blobs genuinely unsafe for anything needing
+    concurrent, row-level writes -- this table is the real, durable,
+    queryable final output Phase 5 exists to produce; ComplifyreConsolidatedEvidence's
+    JSON blob was the mid-stage storage for this same output before this
+    table existed and remains available for historical/debug reference.
+
+    Deliberately does NOT duplicate clause_no / activity_id here -- those
+    already live on RawEvidenceRequirement (step 2), and which raw items
+    belong to this group is the job of the raw-to-grouped link table (step 4,
+    not yet built), not a re-storage of that same data on this row.
+    """
+
+    __tablename__ = "guideline_evidence_requirements"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    guideline_id = db.Column(db.BigInteger, db.ForeignKey("guidelines.id"), nullable=False)
+
+    # The canonical, final name for this requirement -- what Phase 5's D3
+    # merge judgment (or D5a-i's containment match) settled on as the
+    # group's evidence_item_name.
+    evidence_item_name = db.Column(db.Text, nullable=False)
+
+    # Which Phase 5 pass produced this row -- useful for understanding a
+    # given requirement's provenance without re-deriving it (e.g. a
+    # "possible_duplicate" group flagged for human review is recorded
+    # distinctly from a confident D3 merge).
+    consolidation_source = db.Column(db.String(50), nullable=True)
+
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    guideline = db.relationship("Guidelines", backref="guideline_evidence_requirements")
+
+    __table_args__ = (
+        db.UniqueConstraint("guideline_id", "evidence_item_name", name="uq_requirement_per_guideline"),
+    )
+
+
+class RawToGroupedRequirementLink(db.Model):
+    """Build Sequence #TBD -- Phase 6 foundation, GRACE/EVE traceability chain,
+    step 4 of 5. Records exactly which RawEvidenceRequirement rows (step 2)
+    were merged into which GuidelineEvidenceRequirement row (step 3) -- the
+    real grouping decision Phase 5's D5a-i/D2/D3 pipeline made, preserved as
+    queryable data rather than lost once the final grouped list is saved.
+
+    Directly required by Ankita's own real requirement (22 Sept 2026): the
+    grouped/deduplicated final list is only useful for EVE's downstream
+    per-checklist-item evaluation if every file mapped to a grouped
+    requirement can be traced back through it to EVERY checklist item any of
+    its constituent raw requirements originated from -- collapsing multiple
+    near-duplicate raw asks into one canonical row is only safe if this
+    backward path survives the collapse, not lost to it.
+
+    merge_mechanism records provenance -- which Phase 5 stage (or later
+    backfill/cleanup pass) made this specific merge decision, useful for
+    understanding why two items were judged the same without re-deriving it.
+    """
+
+    __tablename__ = "raw_to_grouped_requirement_links"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    raw_evidence_requirement_id = db.Column(
+        db.BigInteger, db.ForeignKey("raw_evidence_requirements.id", ondelete="CASCADE"), nullable=False
+    )
+    guideline_evidence_requirement_id = db.Column(
+        db.BigInteger, db.ForeignKey("guideline_evidence_requirements.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # e.g. 'd5a1_fuzzy_containment', 'd2_d3_embedding_cluster',
+    # 'backfill_case_insensitive_merge' -- which mechanism decided this raw
+    # item belongs in this group.
+    merge_mechanism = db.Column(db.String(100), nullable=True)
+
+    created_at = db.Column(db.TIMESTAMP, default=func.current_timestamp())
+
+    raw_evidence_requirement = db.relationship("RawEvidenceRequirement", backref="grouped_links")
+    guideline_evidence_requirement = db.relationship("GuidelineEvidenceRequirement", backref="raw_links")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "raw_evidence_requirement_id", "guideline_evidence_requirement_id",
+            name="uq_raw_to_grouped_link"
+        ),
+    )
 
 
 class ProjectChecklist(db.Model):
