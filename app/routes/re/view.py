@@ -3088,12 +3088,76 @@ def project_begin_evaluation(project_id):
 
         db.session.commit()
 
+        # Build Sequence #TBD -- automatic EVE trigger, per Ankita's explicit
+        # correction (24 Sept 2026): "this part should be started
+        # automatically for all activities that have received evidence
+        # against them." Reuses the EXACT SAME real, proven Celery chord
+        # pattern re_evaluate_evidence already uses (Step 5 per evidence
+        # artifact, then Step 6/7 once all Step 5 tasks for that activity
+        # complete) -- no new evaluation logic, only triggering it
+        # automatically instead of requiring a user to find and click into
+        # a specific evidence artifact's own page.
+        from app.models.eve_models import ProjectChecklist
+        from app.services.eve_step5 import run_eve_step5_for_evidence
+        from app.services.eve_step678 import run_eve_step6_and_7
+        from celery import chord
+        import os as _os
+
+        upload_base_path = _os.getenv("UPLOAD_FOLDER", "uploads")
+        triggered_activities = 0
+
+        # Only trigger for activities that genuinely have new, real evidence
+        # (skip empty-template-only activities) -- avoids wasted evaluation
+        # runs on activities nothing was actually uploaded for.
+        activities_touched = set()
+        for mapping, file_record in mappings:
+            links = RawToGroupedRequirementLink.query.filter_by(
+                guideline_evidence_requirement_id=mapping.guideline_evidence_requirement_id
+            ).all()
+            for link in links:
+                raw_req = RawEvidenceRequirement.query.get(link.raw_evidence_requirement_id)
+                if not raw_req or not raw_req.evidence_artifact_id:
+                    continue
+                evidence_artifact = EvidenceArtifact.query.get(raw_req.evidence_artifact_id)
+                if not evidence_artifact:
+                    continue
+                for control_activity in evidence_artifact.controls:
+                    project_activity = control_id_to_project_activity.get(control_activity.id)
+                    if project_activity:
+                        activities_touched.add(project_activity.id)
+
+        for pca_id in activities_touched:
+            checklist = ProjectChecklist.query.filter_by(project_control_activity_id=pca_id).first()
+            if not checklist:
+                continue
+
+            real_artifacts = [
+                a for a in ProjectEvidenceArtifact.query.filter_by(project_control_activity_id=pca_id).all()
+                if a.evidence_file_path or a.evidence_text
+            ]
+            if not real_artifacts:
+                continue
+
+            step5_tasks = [
+                run_eve_step5_for_evidence.s(
+                    a.id, checklist.id, upload_base_path
+                ).set(queue='eve_evaluate')
+                for a in real_artifacts
+            ]
+            chord(step5_tasks)(
+                run_eve_step6_and_7.si(
+                    pca_id, current_user.id
+                ).set(queue='eve_evaluate')
+            )
+            triggered_activities += 1
+
         return jsonify({
             "status": "success",
-            "message": f"{created} evidence artifact(s) created for evaluation",
+            "message": f"{created} evidence artifact(s) created; evaluation triggered for {triggered_activities} activity(ies)",
             "created": created,
             "skipped_existing": skipped_existing,
             "skipped_no_activity": skipped_no_activity,
+            "triggered_activities": triggered_activities,
         }), 200
 
     except Exception as e:
