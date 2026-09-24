@@ -2979,6 +2979,129 @@ def project_evidence_mapping(project_id):
     )
 
 
+@re_bp.route("/project-begin-evaluation/<int:project_id>", methods=["POST"])
+@login_required
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def project_begin_evaluation(project_id):
+    """Build Sequence #TBD -- Phase 6, Step 1 of the SS1->SS4 flow Ankita
+    designed (23-24 Sept 2026). Resolves every FileRequirementMapping for
+    this project down to real ProjectControlActivity rows and creates
+    ProjectEvidenceArtifact records -- feeding our new mapping data into the
+    EXACT SAME relationship (submitted_evidences) the existing, live, proven
+    evaluate_clause_activities already reads. No changes to that evaluation
+    logic itself; this route only ever writes ProjectEvidenceArtifact rows.
+
+    Real chain, all confirmed via direct code inspection before building:
+    FileRequirementMapping -> GuidelineEvidenceRequirement ->
+    RawToGroupedRequirementLink -> RawEvidenceRequirement -> (master)
+    EvidenceArtifact -> EvidenceArtifact.controls (existing many-to-many) ->
+    (master) ControlActivity -> ProjectControlActivity (via
+    original_control_id, filtered to this project).
+    """
+    from app.models.project_instance_models import ProjectGuideline, ProjectControlActivity, ProjectComplianceActivity, ProjectClause
+    from app.models.eve_models import (
+        FileRequirementMapping, GuidelineEvidenceRequirement,
+        RawToGroupedRequirementLink, RawEvidenceRequirement,
+    )
+    from app.models.ai import EvidenceArtifact
+    from app.models.project_instance_models import ProjectEvidenceArtifact
+
+    project = Projects.query.get_or_404(project_id)
+    if not current_user.is_authenticated or not current_user.auditor_profile_id:
+        return jsonify({"status": "error", "message": "Not authorized"}), 403
+    if project.auditing_firm != current_user.auditor_profile_id:
+        return jsonify({"status": "error", "message": "You do not have access to this project"}), 403
+
+    try:
+        # Build a project_control_activity_id lookup keyed by original_control_id,
+        # scoped to this project only, once -- avoids one query per mapping.
+        project_control_activities = (
+            db.session.query(ProjectControlActivity)
+            .join(ProjectComplianceActivity, ProjectControlActivity.project_compliance_activity_id == ProjectComplianceActivity.id)
+            .join(ProjectClause, ProjectComplianceActivity.project_clause_id == ProjectClause.id)
+            .join(ProjectGuideline, ProjectClause.project_guideline_id == ProjectGuideline.id)
+            .filter(ProjectGuideline.project_id == project_id)
+            .all()
+        )
+        control_id_to_project_activity = {
+            pca.original_control_id: pca for pca in project_control_activities if pca.original_control_id
+        }
+
+        mappings = (
+            db.session.query(FileRequirementMapping, ProjectEvidenceFile)
+            .join(ProjectEvidenceFile, FileRequirementMapping.project_evidence_file_id == ProjectEvidenceFile.id)
+            .filter(ProjectEvidenceFile.project_id == project_id)
+            .all()
+        )
+
+        created = 0
+        skipped_existing = 0
+        skipped_no_activity = 0
+
+        for mapping, file_record in mappings:
+            links = RawToGroupedRequirementLink.query.filter_by(
+                guideline_evidence_requirement_id=mapping.guideline_evidence_requirement_id
+            ).all()
+
+            seen_activity_ids_for_this_file = set()
+
+            for link in links:
+                raw_req = RawEvidenceRequirement.query.get(link.raw_evidence_requirement_id)
+                if not raw_req or not raw_req.evidence_artifact_id:
+                    continue
+
+                evidence_artifact = EvidenceArtifact.query.get(raw_req.evidence_artifact_id)
+                if not evidence_artifact:
+                    continue
+
+                for control_activity in evidence_artifact.controls:
+                    project_activity = control_id_to_project_activity.get(control_activity.id)
+                    if not project_activity:
+                        skipped_no_activity += 1
+                        continue
+
+                    # Avoid creating the same (file, activity) pair twice, even
+                    # across multiple raw requirements resolving to the same activity.
+                    dedupe_key = (file_record.id, project_activity.id)
+                    if dedupe_key in seen_activity_ids_for_this_file:
+                        continue
+                    seen_activity_ids_for_this_file.add(dedupe_key)
+
+                    existing = ProjectEvidenceArtifact.query.filter_by(
+                        project_control_activity_id=project_activity.id,
+                        evidence_text=file_record.storage_path,
+                    ).first()
+                    if existing:
+                        skipped_existing += 1
+                        continue
+
+                    artifact = ProjectEvidenceArtifact(
+                        project_control_activity_id=project_activity.id,
+                        original_evidence_id=evidence_artifact.id,
+                        category=evidence_artifact.category,
+                        item=file_record.original_filename,
+                        evidence_text=file_record.storage_path,
+                        evidence_file_path=file_record.storage_path,
+                    )
+                    db.session.add(artifact)
+                    created += 1
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": f"{created} evidence artifact(s) created for evaluation",
+            "created": created,
+            "skipped_existing": skipped_existing,
+            "skipped_no_activity": skipped_no_activity,
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"project_begin_evaluation failed for project_id={project_id}: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @re_bp.route("/project-evidence-files/<int:project_id>", methods=["GET"])
 @login_required
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
@@ -4405,6 +4528,39 @@ def activity(project_id):
             old_status_display = get_compliance_status_display_info(old_clause_status)
             assessment_status = get_assessment_status(old_clause_status)
 
+            # Build Sequence #TBD -- Phase 6, Step 2 of Ankita's SS1->SS4 flow.
+            # "Evidence Received" per clause = how many of this clause's
+            # activities now have at least one GENUINE evidence artifact --
+            # real signal, works for evidence from ANY source (bulk-mapped
+            # via Phase 6, or the existing per-activity upload button).
+            # CORRECTED TWICE (24 Sept 2026, both real bugs found via live
+            # testing against real data, not assumption):
+            # (1) the original condition (len(submitted_evidences) > 0)
+            # counted EVERY ProjectEvidenceArtifact, including empty
+            # template rows the guideline itself creates at project-creation
+            # time with no real file attached.
+            # (2) `activities` here (from unique_clauses[clause_id]["activities"])
+            # is a list of ProjectComplianceActivity objects, NOT
+            # ProjectControlActivity -- submitted_evidences lives on the
+            # CONTROL activity, one level deeper (confirmed: getattr on the
+            # compliance activity silently returned None for every real
+            # activity, always short-circuiting this count to 0, even though
+            # clause_test_steps.html's own page -- reading the correct,
+            # deeper level -- correctly showed "Yes" for the same real data).
+            # project_control_activities is already eager-loaded above (see
+            # the .options() call building `compliance_activities`), so this
+            # adds no new queries.
+            activities_with_evidence = sum(
+                1 for act in activities
+                if any(
+                    any(
+                        (ev.evidence_files.count() > 0 or ev.evidence_file_path or ev.evidence_text)
+                        for ev in control_act.submitted_evidences
+                    )
+                    for control_act in (act.project_control_activities or [])
+                )
+            )
+
             clause_obj = {
                 "id": clause.id,
                 "clause": clause,
@@ -4413,6 +4569,7 @@ def activity(project_id):
                 "assessment_status_info": assessment_status,
                 "representative_activity": representative_activity,
                 "activities_count": len(activities),
+                "activities_with_evidence_count": activities_with_evidence,
                 # Keep old structure for compatibility
                 "old_clause_status": old_status_display,
             }

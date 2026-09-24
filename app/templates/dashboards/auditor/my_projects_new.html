@@ -2162,6 +2162,13 @@ document.addEventListener('DOMContentLoaded', function() {
             Compliance Status
           </th>
 
+          <!-- Build Sequence #TBD -- Phase 6, Step 2: real per-clause evidence
+               coverage, computed from ProjectEvidenceArtifact regardless of
+               source (bulk-mapped or per-activity upload). -->
+          <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
+            Evidence Received
+          </th>
+
           <th class="text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200 sticky top-0 z-10 p-3">
             Actions
           </th>
@@ -2169,7 +2176,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         <!-- Bulk Action Buttons Row -->
         <tr id="bulkActionButtons" class="hidden">
-          <td colspan="6" class="py-3 bg-gray-50">
+          <td colspan="7" class="py-3 bg-gray-50">
             <div class="flex items-center justify-between px-2">
               <div class="flex items-center space-x-3">
                 <span id="selectedCountBadge"
@@ -2323,6 +2330,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
             </div>
+          </td>
+
+          <!-- Build Sequence #TBD -- Phase 6, Step 2: real per-clause
+               evidence coverage, "2/5"-style. -->
+          <td class="px-6 py-4 text-sm text-gray-700">
+            {{ clause_data.activities_with_evidence_count | default(0) }}/{{ clause_data.activities_count | default(0) }}
           </td>
 
           <td>
