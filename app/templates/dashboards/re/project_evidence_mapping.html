@@ -2,11 +2,54 @@
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
     <h2>Evidence Mapping — {{ project.project_name }}</h2>
-    <a href="{{ url_for('re.activity', project_id=project_id) }}"
-       style="background:#2E5C8A; color:white; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
-       ← Back to Project
-    </a>
+    <div style="display:flex; gap:10px;">
+        <!-- Build Sequence #TBD -- Phase 6, Step 1 of Ankita's SS1->SS4 flow.
+             Manual trigger (not automatic) per her own explicit direction. -->
+        <button id="beginEvaluationBtn" onclick="beginEvaluation({{ project_id }})"
+           style="background:#2e7d32; color:white; padding:10px 18px; border:none; border-radius:6px; font-weight:600; cursor:pointer;">
+           Begin Evaluation
+        </button>
+        <a href="{{ url_for('re.activity', project_id=project_id) }}"
+           style="background:#2E5C8A; color:white; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
+           ← Back to Project
+        </a>
+    </div>
 </div>
+<div id="beginEvaluationStatus" style="margin-bottom:15px; font-size:0.9em; color:#666;"></div>
+
+<script>
+function beginEvaluation(projectId) {
+    const btn = document.getElementById('beginEvaluationBtn');
+    const statusEl = document.getElementById('beginEvaluationStatus');
+    btn.disabled = true;
+    btn.textContent = 'Preparing evidence for evaluation...';
+    statusEl.textContent = '';
+
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    fetch(`/re/project-begin-evaluation/${projectId}`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            statusEl.textContent = data.message + ' -- redirecting to project details...';
+            window.location.href = `/re/activity/${projectId}`;
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Begin Evaluation';
+            statusEl.textContent = 'Error: ' + (data.message || 'Failed to begin evaluation');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Begin Evaluation';
+        statusEl.textContent = 'Error: ' + err;
+    });
+}
+</script>
 
 <div style="background:#fff3e0; border:1px solid #E8A020; padding:12px 15px; border-radius:8px; margin-bottom:20px; font-size:0.9em;">
     <strong>Note:</strong> A file shown next to a requirement is a <em>candidate match</em>, not a final, verified answer.
