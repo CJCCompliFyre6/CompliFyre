@@ -1122,9 +1122,14 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    statusEl.textContent = data.message;
+                    statusEl.textContent = data.message + ' -- redirecting to mapping view...';
                     input.value = '';
-                    loadEvidenceFileList(projectId);
+                    // Build Sequence #TBD: take the user directly to the live
+                    // two-column mapping page after a successful upload, per
+                    // Ankita's own explicit expectation (23 Sept 2026) --
+                    // upload should flow straight into watching mapping
+                    // happen, not leave them in the modal.
+                    window.location.href = `/re/project-evidence-mapping/${projectId}`;
                 } else {
                     statusEl.textContent = 'Error: ' + (data.message || 'Upload failed');
                 }

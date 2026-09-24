@@ -1,0 +1,97 @@
+{% extends "audit_base.html" %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2>Evidence Mapping — {{ project.project_name }}</h2>
+    <a href="{{ url_for('re.activity', project_id=project_id) }}"
+       style="background:#2E5C8A; color:white; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
+       ← Back to Project
+    </a>
+</div>
+
+<div style="background:#fff3e0; border:1px solid #E8A020; padding:12px 15px; border-radius:8px; margin-bottom:20px; font-size:0.9em;">
+    <strong>Note:</strong> A file shown next to a requirement is a <em>candidate match</em>, not a final, verified answer.
+    Candidates are subject to EVE's downstream evaluation before they should be treated as confirmed compliance evidence.
+</div>
+
+<div style="background:#f0f4f8; padding:15px; border-radius:8px; margin-bottom:20px;">
+    <strong>{{ total_requirements }}</strong> total evidence requirements
+    &nbsp;|&nbsp; <strong style="color:#2e7d32;">{{ mapped_count }}</strong> with at least one candidate file
+    &nbsp;|&nbsp; <strong style="color:#c62828;">{{ unmapped_count }}</strong> with no candidate yet
+</div>
+
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:0; border:1px solid #ddd; border-radius:8px; overflow:hidden;">
+    <div style="background:#2E5C8A; color:white; padding:12px 16px; font-weight:600;">Evidence Requirement</div>
+    <div style="background:#2E5C8A; color:white; padding:12px 16px; font-weight:600; border-left:1px solid rgba(255,255,255,0.3);">Candidate Files</div>
+
+    {% for req in requirements %}
+    <div style="padding:12px 16px; border-top:1px solid #eee; font-size:0.9em;">
+        {{ req.evidence_item_name }}
+    </div>
+    <div style="padding:12px 16px; border-top:1px solid #eee; border-left:1px solid #eee; font-size:0.85em;">
+        {% if req.mapped_files %}
+            {% for mf in req.mapped_files %}
+            <div style="margin-bottom:6px; padding:6px 8px; border-radius:4px;
+                        background:{% if mf.status == 'confirmed' %}#e8f5e9{% elif mf.status == 'needs_review' %}#fff8e1{% else %}#f5f5f5{% endif %};">
+                <span style="font-weight:600;">{{ mf.filename }}</span>
+                <span style="font-size:0.85em; color:#666;">
+                    ({% if mf.status == 'confirmed' %}candidate match{% elif mf.status == 'needs_review' %}needs review{% else %}{{ mf.status }}{% endif %})
+                </span>
+                {% if mf.reasoning %}
+                <div style="color:#777; font-style:italic; margin-top:2px;">{{ mf.reasoning }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <span style="color:#999; font-style:italic;">No candidate files yet</span>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+// Build Sequence #TBD -- live-update this page while background per-file
+// mapping tasks are still running, per Ankita's explicit expectation
+// (23 Sept 2026): upload should flow into watching this page update "in
+// front of my eyes", not require a manual refresh. Polls a lightweight
+// status endpoint; if the mapped-vs-unmapped counts have changed since the
+// page was rendered, does a full reload to pick up the new candidate files
+// -- simpler and more reliable than re-building this page's whole table in
+// JS, and mapping tasks complete on the order of seconds to tens of
+// seconds, so a poll-and-reload cadence is a reasonable trade-off here.
+(function() {
+    const projectId = {{ project_id }};
+    const initialMappedCount = {{ mapped_count }};
+    const initialUnmappedCount = {{ unmapped_count }};
+    let pollCount = 0;
+    const MAX_POLLS = 60; // stop after ~5 minutes at 5s intervals
+
+    function pollForUpdates() {
+        pollCount += 1;
+        if (pollCount > MAX_POLLS) return;
+
+        fetch(`/re/project-evidence-files/${projectId}`)
+          .then(res => res.json())
+          .then(data => {
+              if (data.status !== 'success' || !data.files) return;
+              const stillPending = data.files.some(f => f.mapping_status === 'pending');
+              if (!stillPending) {
+                  // All files have finished mapping (mapped or unmatched) --
+                  // one final reload to show the settled state, then stop polling.
+                  window.location.reload();
+                  return;
+              }
+              setTimeout(pollForUpdates, 5000);
+          })
+          .catch(() => {
+              setTimeout(pollForUpdates, 5000);
+          });
+    }
+
+    // Only start polling if there's real reason to -- i.e. this page was
+    // just loaded after an upload and files may still be mapping. A simple,
+    // honest heuristic: always poll briefly on load, since checking is cheap
+    // and the loop stops itself as soon as nothing is pending.
+    setTimeout(pollForUpdates, 5000);
+})();
+</script>
+{% endblock %}

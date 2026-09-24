@@ -3199,6 +3199,113 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
 
 
 @shared_task(bind=True, max_retries=0)
+def map_evidence_file_to_requirements(self, project_evidence_file_id):
+    """Build Sequence #TBD -- Phase 6, per-file evidence mapping. Runs
+    independently per uploaded file (Ankita, 22 Sept 2026 -- her own explicit
+    design direction: "the whole exhaustive list... incoming evidence file
+    gets checked against all of the checklist items... while file 2 is still
+    uploading"). Triggered once per file, immediately after that file's
+    ProjectEvidenceFile row is saved -- not waiting for a whole batch of
+    uploads to finish, and safe to run many of these concurrently because
+    FileRequirementMapping's real composite unique constraint (not a shared
+    JSON array) means two parallel file-mapping tasks never touch the same
+    row.
+
+    Simple first-pass version (Ankita, 23 Sept 2026): chunked LLM calls over
+    the full requirements list, no embedding-based pre-filtering yet -- that
+    optimization is deliberately deferred until this simple version is
+    proven on real usage.
+    """
+    from app.models.auditOrganization import ProjectEvidenceFile
+    from app.models.project_instance_models import ProjectGuideline
+    from app.models.eve_models import GuidelineEvidenceRequirement, FileRequirementMapping
+    from app.services.blob_storage_service import download_evidence_file
+    from app.services.evidence_text_extraction import extract_representative_text
+    from app.services.evidence_file_mapping import map_file_to_requirements
+
+    try:
+        file_record = ProjectEvidenceFile.query.get(project_evidence_file_id)
+        if not file_record:
+            logger.error(f"[Phase6 mapping] ProjectEvidenceFile {project_evidence_file_id} not found")
+            return {"status": "error", "message": "File not found"}
+
+        project_guideline = ProjectGuideline.query.filter_by(project_id=file_record.project_id).first()
+        if not project_guideline:
+            logger.warning(f"[Phase6 mapping] No guideline linked to project {file_record.project_id}, cannot map file {project_evidence_file_id}")
+            file_record.mapping_status = "unmatched"
+            db.session.commit()
+            return {"status": "error", "message": "No guideline linked to this project"}
+
+        guideline_id = project_guideline.original_guideline_id
+
+        if not file_record.storage_path:
+            file_record.mapping_status = "unmatched"
+            db.session.commit()
+            return {"status": "error", "message": "File has no storage_path"}
+
+        file_bytes = download_evidence_file(file_record.storage_path)
+        extraction_result = extract_representative_text(file_bytes, file_record.original_filename)
+
+        if extraction_result["status"] != "success":
+            logger.info(f"[Phase6 mapping] File {project_evidence_file_id} ({file_record.original_filename}) "
+                        f"not extractable: {extraction_result.get('message')}")
+            file_record.mapping_status = "unmatched"
+            db.session.commit()
+            return {"status": "unsupported", "message": extraction_result.get("message")}
+
+        requirements = GuidelineEvidenceRequirement.query.filter_by(guideline_id=guideline_id).all()
+        requirements_list = [{"id": r.id, "evidence_item_name": r.evidence_item_name} for r in requirements]
+
+        logger.info(f"[Phase6 mapping] Mapping file {project_evidence_file_id} ({file_record.original_filename}) "
+                    f"against {len(requirements_list)} requirements for guideline {guideline_id}")
+
+        matches = map_file_to_requirements(
+            file_record.original_filename, extraction_result["text"], requirements_list
+        )
+
+        created = 0
+        for match in matches:
+            requirement_id = match.get("requirement_id")
+            status = match.get("status", "needs_review")
+            reasoning = match.get("reasoning")
+            if not requirement_id:
+                continue
+            existing = FileRequirementMapping.query.filter_by(
+                project_evidence_file_id=project_evidence_file_id,
+                guideline_evidence_requirement_id=requirement_id,
+            ).first()
+            if existing:
+                continue
+            mapping = FileRequirementMapping(
+                project_evidence_file_id=project_evidence_file_id,
+                guideline_evidence_requirement_id=requirement_id,
+                status=status,
+                mapping_mechanism="simple_llm_pass_23sept2026",
+                mapping_reasoning=reasoning,
+            )
+            db.session.add(mapping)
+            created += 1
+
+        file_record.mapping_status = "mapped" if created > 0 else "unmatched"
+        db.session.commit()
+
+        logger.info(f"[Phase6 mapping] File {project_evidence_file_id}: {created} requirement mapping(s) created")
+        return {"status": "success", "mappings_created": created}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"[Phase6 mapping] Failed for file {project_evidence_file_id}")
+        try:
+            file_record = ProjectEvidenceFile.query.get(project_evidence_file_id)
+            if file_record:
+                file_record.mapping_status = "unmatched"
+                db.session.commit()
+        except Exception:
+            pass
+        return {"status": "error", "message": str(e)}
+
+
+@shared_task(bind=True, max_retries=0)
 def consolidate_evidence_for_pipeline(self, guideline_id: int):
     """
     Build Sequence #TBD (Phase 5, "Extract All Activities" pipeline). Fresh

@@ -2828,6 +2828,22 @@ def project_evidence_upload(project_id):
         if not project:
             return jsonify({"status": "error", "message": "Project not found"}), 404
 
+        # Real security gap found and fixed 23 Sept 2026 (Build Sequence #414):
+        # this route previously checked only that the project exists and that
+        # the user has an allowed role -- not that the user's own firm
+        # actually owns this project. Matches the same firm-level access
+        # model my_projects() already uses (filters = {"auditing_firm":
+        # auditor_id}) -- confirmed with Ankita as the correct, existing
+        # model to reuse, not a new, stricter per-user model.
+        if not current_user.is_authenticated or not current_user.auditor_profile_id:
+            return jsonify({"status": "error", "message": "Not authorized"}), 403
+        if project.auditing_firm != current_user.auditor_profile_id:
+            current_app.logger.warning(
+                f"[Security] User {current_user.id} (firm {current_user.auditor_profile_id}) "
+                f"attempted to upload to project {project_id} (owned by firm {project.auditing_firm})"
+            )
+            return jsonify({"status": "error", "message": "You do not have access to this project"}), 403
+
         uploaded_files = request.files.getlist("evidence_files")
         if not uploaded_files:
             return jsonify({"status": "error", "message": "No files provided"}), 400
@@ -2857,9 +2873,20 @@ def project_evidence_upload(project_id):
 
         db.session.commit()
 
+        # Build Sequence #TBD -- Phase 6: dispatch one mapping task PER FILE,
+        # immediately after all records are saved -- not waiting for a whole
+        # batch, per Ankita's own explicit design direction (22 Sept 2026):
+        # mapping should start "parallely" while other files are still
+        # uploading, not after the whole batch finishes. Each dispatch is
+        # independent; one file's mapping task failing does not block or
+        # delay any other file's.
+        from app.services.manual_task import map_evidence_file_to_requirements
+        for record in saved_records:
+            map_evidence_file_to_requirements.delay(record.id)
+
         return jsonify({
             "status": "success",
-            "message": f"{len(saved_records)} file(s) uploaded successfully",
+            "message": f"{len(saved_records)} file(s) uploaded successfully, mapping started",
             "files": [{"id": r.id, "filename": r.original_filename} for r in saved_records],
         }), 200
 
@@ -2869,11 +2896,108 @@ def project_evidence_upload(project_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@re_bp.route("/project-evidence-mapping/<int:project_id>", methods=["GET"])
+@login_required
+@role_required("COMPLIFYRE", "AUDITOR", "RE")
+def project_evidence_mapping(project_id):
+    """Build Sequence #TBD -- Phase 6 two-column mapping UI. Evidence
+    requirements (guideline-level, from GuidelineEvidenceRequirement) on the
+    left; this project's uploaded files, mapped against each requirement, on
+    the right -- live, per Ankita's own explicit design (22 Sept 2026).
+
+    Mapping status shown here is a CANDIDATE, not a final verification --
+    Ankita's own explicit framing (23 Sept 2026): mapping's job is to surface
+    plausible candidates; EVE's downstream evaluation is what actually
+    verifies them. The UI reflects that distinction rather than presenting
+    "confirmed" as a final, trusted state.
+    """
+    from app.models.project_instance_models import ProjectGuideline
+    from app.models.eve_models import GuidelineEvidenceRequirement, FileRequirementMapping
+
+    project = Projects.query.get_or_404(project_id)
+
+    # Same firm-level access check as project_evidence_upload -- Build
+    # Sequence #414.
+    if not current_user.is_authenticated or not current_user.auditor_profile_id:
+        flash("Not authorized.", "error")
+        return redirect(url_for("main.login"))
+    if project.auditing_firm != current_user.auditor_profile_id:
+        current_app.logger.warning(
+            f"[Security] User {current_user.id} (firm {current_user.auditor_profile_id}) "
+            f"attempted to view evidence mapping for project {project_id} (owned by firm {project.auditing_firm})"
+        )
+        flash("You do not have access to this project.", "error")
+        return redirect(url_for("audit.my_projects"))
+
+    project_guideline = ProjectGuideline.query.filter_by(project_id=project_id).first()
+    if not project_guideline:
+        flash("No guideline linked to this project.", "error")
+        return redirect(url_for("re.activity", project_id=project_id))
+
+    guideline_id = project_guideline.original_guideline_id
+
+    requirements = GuidelineEvidenceRequirement.query.filter_by(
+        guideline_id=guideline_id
+    ).order_by(GuidelineEvidenceRequirement.evidence_item_name).all()
+
+    # Build requirement_id -> list of {filename, status, reasoning} in one
+    # query, rather than N+1 queries per requirement.
+    mappings = (
+        db.session.query(FileRequirementMapping, ProjectEvidenceFile)
+        .join(ProjectEvidenceFile, FileRequirementMapping.project_evidence_file_id == ProjectEvidenceFile.id)
+        .filter(ProjectEvidenceFile.project_id == project_id)
+        .all()
+    )
+
+    mapped_files_by_requirement = {}
+    for mapping, file_record in mappings:
+        mapped_files_by_requirement.setdefault(mapping.guideline_evidence_requirement_id, []).append({
+            "filename": file_record.original_filename,
+            "status": mapping.status,
+            "reasoning": mapping.mapping_reasoning,
+        })
+
+    requirements_data = []
+    for req in requirements:
+        requirements_data.append({
+            "id": req.id,
+            "evidence_item_name": req.evidence_item_name,
+            "mapped_files": mapped_files_by_requirement.get(req.id, []),
+        })
+
+    unmapped_count = sum(1 for r in requirements_data if not r["mapped_files"])
+
+    return render_template(
+        "project_evidence_mapping.html",
+        project=project,
+        project_id=project_id,
+        guideline_id=guideline_id,
+        requirements=requirements_data,
+        total_requirements=len(requirements_data),
+        mapped_count=len(requirements_data) - unmapped_count,
+        unmapped_count=unmapped_count,
+    )
+
+
 @re_bp.route("/project-evidence-files/<int:project_id>", methods=["GET"])
 @login_required
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def project_evidence_files_list(project_id):
     try:
+        # Same firm-level access check as project_evidence_upload -- Build
+        # Sequence #414.
+        project = Projects.query.get(project_id)
+        if not project:
+            return jsonify({"status": "error", "message": "Project not found"}), 404
+        if not current_user.is_authenticated or not current_user.auditor_profile_id:
+            return jsonify({"status": "error", "message": "Not authorized"}), 403
+        if project.auditing_firm != current_user.auditor_profile_id:
+            current_app.logger.warning(
+                f"[Security] User {current_user.id} (firm {current_user.auditor_profile_id}) "
+                f"attempted to list evidence files for project {project_id} (owned by firm {project.auditing_firm})"
+            )
+            return jsonify({"status": "error", "message": "You do not have access to this project"}), 403
+
         files = ProjectEvidenceFile.query.filter_by(project_id=project_id).order_by(
             ProjectEvidenceFile.created_at.desc()
         ).all()
