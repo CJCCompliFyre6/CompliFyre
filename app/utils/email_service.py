@@ -144,10 +144,10 @@ The Complifyre Team
         logger.info(f"Connecting to SMTP server: {smtp_server}:{smtp_port}")
 
         if use_ssl:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=5)
             logger.info("Using SSL connection")
         else:
-            server = smtplib.SMTP(smtp_server, smtp_port)
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=5)
             server.set_debuglevel(1)
 
             if use_tls:
@@ -187,107 +187,41 @@ The Complifyre Team
 
 
 def send_guideline_request_email(guideline_request):
-    """Send email notification for new guideline request"""
-    
+    """Send email notification for new guideline request via ACS (migrated from blocked SMTP relay)"""
+
     user = guideline_request.user
     if not user:
         logger.error("No user found for guideline request")
         return False
+
+    recipient_email = "ceo@complifyre.ai"  # Internal team notification
     
-    # Use system SMTP credentials
-    sender_email = current_app.config['MAIL_USERNAME']  # System email
-    sender_password = current_app.config['MAIL_PASSWORD']  # System password
-    recipient_email = "complifyre2fa@crackerjacktech.com"  # Send to ComplifyRe
-    
-    # Create message
-    msg = MIMEMultipart()
-    msg['From'] = f"ComplifyRe System <{sender_email}>"
-    msg['Reply-To'] = user.email  # Important: replies go to auditor
-    msg['To'] = recipient_email
-    msg['Subject'] = f"Guideline Request from {user.name} "
-    
-    # Email body with clear auditor contact info
-    body = f"""
-    GUIDELINE REQUEST SUBMITTED
-    
-    ====================================
-    REQUEST DETAILS
-    ====================================
-    Guideline Name: {guideline_request.guideline_name}
-    Regulator/Authority: {guideline_request.regulator_name}
-    Web Link: {guideline_request.web_link or 'Not provided'}
-    
-    ====================================
-    REQUESTED BY (AUDITOR)
-    ====================================
-    Name: {user.name}
-    Email: {user.email}
-    Phone: {getattr(user, 'phone_no', 'Not provided')}
-    
-    
-    ====================================
-    TECHNICAL DETAILS
-    ====================================
-    
-    Submitted: {guideline_request.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-    Attachment: {'Attached' if guideline_request.attachment_path else 'None'}
-    
-    ====================================
-    ACTION REQUIRED
-    ====================================
-    Please review this guideline request and:
-    1. Add the guideline to the system if available
-    2. Contact the auditor if more information is needed
-    3. Update the request status in the system
-    
-    ---
-    This is an automated message from ComplifyRe System.
+    # Send via ACS (SMTP relay permanently blocked — migrated to ACS)
+    html_body = f"""
+    <h2>Guideline Request Submitted</h2>
+    <h3>Request Details</h3>
+    <p><b>Guideline Name:</b> {guideline_request.guideline_name}</p>
+    <p><b>Regulator/Authority:</b> {guideline_request.regulator_name}</p>
+    <p><b>Web Link:</b> {guideline_request.web_link or 'Not provided'}</p>
+    <h3>Requested By</h3>
+    <p><b>Name:</b> {user.name}</p>
+    <p><b>Email:</b> {user.email}</p>
+    <p><b>Phone:</b> {getattr(user, 'phone_no', 'Not provided')}</p>
+    <h3>Technical Details</h3>
+    <p><b>Submitted:</b> {guideline_request.created_at.strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <p><b>Attachment:</b> {'Attached' if guideline_request.attachment_path else 'None'}</p>
+    <p><i>Please review and add the guideline to the system if available.</i></p>
     """
-    
-    msg.attach(MIMEText(body, 'plain'))
-    
-    # Attach file if exists
-    if guideline_request.attachment_path and os.path.exists(guideline_request.attachment_path):
-        with open(guideline_request.attachment_path, "rb") as attachment:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            
-            filename = os.path.basename(guideline_request.attachment_path)
-            part.add_header(
-                "Content-Disposition",
-                f"attachment; filename={filename}",
-            )
-            msg.attach(part)
-    
-    # Send email
-    try:
-        # Configure based on .env settings
-        use_tls = current_app.config.get('MAIL_USE_TLS', False)
-        use_ssl = current_app.config.get('MAIL_USE_SSL', False)
-        
-        if use_ssl:
-            server = smtplib.SMTP_SSL(
-                current_app.config['MAIL_SERVER'], 
-                current_app.config['MAIL_PORT']
-            )
-        else:
-            server = smtplib.SMTP(
-                current_app.config['MAIL_SERVER'], 
-                current_app.config['MAIL_PORT']
-            )
-            if use_tls:
-                server.starttls()
-        
-        server.login(sender_email, sender_password)
-        server.send_message(msg)
-        server.quit()
-        
-        logger.info(f"Guideline request email sent to ComplifyRe for request ID: {guideline_request.id}")
+    result = send_via_azure_email(
+        recipient_email=recipient_email,
+        subject=f"Guideline Request from {user.name}",
+        html_body=html_body,
+    )
+    if result:
+        logger.info(f"Guideline request email sent via ACS for request ID: {guideline_request.id}")
         return True
-        
-    except Exception as e:
-        logger.error(f"Failed to send guideline request email: {str(e)}")
+    else:
+        logger.error(f"ACS failed to send guideline request email for request ID: {guideline_request.id}")
         return False
 
 
@@ -447,7 +381,7 @@ def send_via_azure_email(recipient_email, subject, html_body, plain_text=None, a
     try:
         client = EmailClient.from_connection_string(connection_string)
         poller = client.begin_send(message)
-        result = poller.result()
+        result = poller.result(timeout=10)
         if result["status"] == "Succeeded":
             logger.info(f"Email sent via Azure to {recipient_email} (id: {result['id']})")
             return True
@@ -496,7 +430,7 @@ def send_invite_email(recipient_email, subject, html_body):
     try:
         client = EmailClient.from_connection_string(connection_string)
         poller = client.begin_send(message)
-        result = poller.result()
+        result = poller.result(timeout=10)
         if result["status"] == "Succeeded":
             logger.info(f"Invite email sent via Azure to {recipient_email} (id: {result['id']})")
             return True

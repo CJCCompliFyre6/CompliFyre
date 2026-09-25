@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required
 # from app import limiter
 from app.services.pdf_service import PDFService
+from app.utils.input_security import validate_upload_file
 from app.utils.exceptions import PDFServiceError, URLValidationError
 from marshmallow import Schema, fields, ValidationError
 import os, json
@@ -28,6 +29,11 @@ def pdf_retrive():
 
         if not file or not file.filename.lower().endswith(".pdf"):
             return jsonify({"error": "File is not a PDF"}), 400
+
+        # S-upload: validate file before saving
+        _sec = validate_upload_file(file.filename, context="guideline")
+        if not _sec["ok"]:
+            return jsonify({"error": _sec["error"]}), 400
 
         filename = f"{os.urandom(8).hex()}.pdf"
         uploads_dir = os.path.join(os.getcwd(), "uploads")
@@ -68,6 +74,11 @@ def clause_guidlines_retrive():
         if not file or not file.filename.lower().endswith(".pdf"):
             return jsonify({"error": "File is not a PDF"}), 400
 
+        # S-upload: validate file before saving
+        _sec = validate_upload_file(file.filename, context="guideline")
+        if not _sec["ok"]:
+            return jsonify({"error": _sec["error"]}), 400
+
         filename = f"{os.urandom(8).hex()}.pdf"
         uploads_dir = os.path.join(os.getcwd(), "uploads")
         save_path = os.path.join(uploads_dir, filename)
@@ -106,6 +117,11 @@ def regulatory_complience_retrive():
         if not file or not file.filename.lower().endswith(".pdf"):
             return jsonify({"error": "File is not a PDF"}), 400
 
+        # S-upload: validate file before saving
+        _sec = validate_upload_file(file.filename, context="guideline")
+        if not _sec["ok"]:
+            return jsonify({"error": _sec["error"]}), 400
+
         filename = f"{os.urandom(8).hex()}.pdf"
         uploads_dir = os.path.join(os.getcwd(), "uploads")
         save_path = os.path.join(uploads_dir, filename)
@@ -143,6 +159,11 @@ def activity_redundancy():
 
         if not file or not file.filename.lower().endswith(".pdf"):
             return jsonify({"error": "File is not a PDF"}), 400
+
+        # S-upload: validate file before saving
+        _sec = validate_upload_file(file.filename, context="guideline")
+        if not _sec["ok"]:
+            return jsonify({"error": _sec["error"]}), 400
 
         filename = f"{os.urandom(8).hex()}.pdf"
         uploads_dir = os.path.join(os.getcwd(), "uploads")

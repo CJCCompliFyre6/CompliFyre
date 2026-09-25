@@ -1,5 +1,7 @@
 # backend/app/__init__.py
-from flask import Flask, send_from_directory, redirect, url_for, current_app
+from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import send_from_directory, redirect, url_for, current_app
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -33,7 +35,7 @@ limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=None,
     strategy="fixed-window",
-    default_limits=[],
+    default_limits=["200 per minute", "2000 per hour"],  # S-71: global rate limit — covers all routes
 )
 
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -125,7 +127,7 @@ def create_app(config_name=None):
     login_manager.login_message = "Please log in to access this page."
     login_manager.login_message_category = "info"
 
-    CORS(app)
+    CORS(app, origins=["https://complifyre.in", "https://staging.complifyre.in"], supports_credentials=False)  # S-74: restrict CORS to own domains only
     db.init_app(app)
     migrate.init_app(app, db)
     md.init_app(app)
@@ -134,6 +136,7 @@ def create_app(config_name=None):
     csrf.init_app(app)
     app.config["RATELIMIT_STORAGE_URI"] = app.config.get("CELERY", {}).get("broker_url") or "redis://127.0.0.1:6379/0"
     limiter.init_app(app)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # S-71: trust Nginx X-Real-IP
 
     # --- Initialize Celery ---
     celery_app = celery_init_app(app)

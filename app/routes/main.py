@@ -14,7 +14,7 @@ from app.models.user import *
 from app.models.ai import *
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.utils.input_security import validate_upload_file
-from app import db, mail
+from app import db, mail, limiter
 from sqlalchemy.exc import IntegrityError
 from app.services.automate_task import *
 from app.services.manual_task import *
@@ -80,8 +80,10 @@ def home():
 @role_required("COMPLIFYRE")
 def comp_dash():
     """
-    Dashboard route for the RE application.
+    Redirect to re.guidelines which has the full sidebar.
+    S-70: complifyre_main.html has no sidebar — redirect to proper page.
     """
+    return redirect(url_for("re.guidelines"))
     try:
         # pdf_service = PDFService()
         # guidelines = pdf_service.get_guidelines()
@@ -124,6 +126,7 @@ def login():
 
 # +++ ADDED LOGIN AND LOGOUT ROUTES +++
 @main_bp.route("/login_user_route", methods=["POST"])
+@limiter.limit("10 per minute")  # S-71: prevent ACS flood + brute force
 def login_user_route():
     email = request.form.get("email")
     password = request.form.get("password")
@@ -193,6 +196,14 @@ def login_user_route():
                 session["user_type"] = "admin"
                 return redirect(url_for("admin.dashboard"))
                 
+            elif user.role_id == 9:  # COMPLIFYRE role
+                session["user_type"] = "complifyre"
+                return redirect(url_for("re.guidelines"))
+
+            elif user.role_id == 10:  # RE role
+                session["user_type"] = "re"
+                return redirect(url_for("re.guidelines"))
+
             else:
                 session["user_type"] = "regular_user"
                 return redirect(url_for("main.home"))
@@ -378,6 +389,7 @@ def register_user():
 
 # --- MODIFIED create_user ROUTE ---
 @main_bp.route("/create_user", methods=["POST"])
+@limiter.limit("5 per minute")  # S-73: prevent automated account creation
 def create_user():
     try:
         # (Your existing validation code remains here...)
@@ -474,6 +486,7 @@ def verify_email(token):
 
 
 # 2. Password Reset
+@limiter.limit("3 per minute")  # S-72: prevent email flooding on password reset
 @main_bp.route("/request-reset", methods=["GET", "POST"])
 def request_password_reset():
     if request.method == "POST":
@@ -488,6 +501,7 @@ def request_password_reset():
     return render_template("dashboards/re/request_reset.html")
 
 
+@limiter.limit("5 per minute")  # S-72: prevent token brute force
 @main_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password_token(token):
     serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
@@ -538,6 +552,7 @@ def setup_tfa():
     )
 
 
+@limiter.limit("5 per minute")  # S-73: prevent TFA setup brute force
 @main_bp.route("/verify-tfa-setup", methods=["POST"])
 @login_required
 def verify_tfa_setup():
@@ -553,6 +568,7 @@ def verify_tfa_setup():
 
 
 @main_bp.route("/verify-tfa-login", methods=["GET", "POST"])
+@limiter.limit("5 per minute")  # S-71: prevent OTP brute force
 def verify_tfa_login():
     if "user_id_for_tfa" not in session:
         return redirect(url_for("main.login"))

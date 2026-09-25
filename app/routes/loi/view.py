@@ -33,8 +33,9 @@ from flask import (
 from flask_login import login_required, current_user, login_user
 from werkzeug.security import generate_password_hash
 from app.utils.permission_handler import role_required
+from app.utils.input_security import sanitize_text_input
 
-from app import db
+from app import db, limiter
 from app.models.loi import EditableContent
 from app.utils.email_service import send_invite_email, render_invite_email_content, DEFAULT_INVITE_SUBJECT, DEFAULT_INVITE_BODY
 from app.models import (
@@ -74,6 +75,7 @@ def generate_invite_token():
 
 @loi_bp.route("/admin/invite-new-user")
 @login_required
+@role_required("COMPLIFYRE")
 def invite_new_user_form():
     catalogue_guidelines = Guidelines.query.filter_by(catalogue_enabled=True).all()
     return render_template(
@@ -82,6 +84,7 @@ def invite_new_user_form():
     )
 
 
+@limiter.limit("5 per minute")  # S-73: prevent invite email flooding
 @loi_bp.route("/admin/create-invite", methods=["POST"])
 @login_required
 def create_invite():
@@ -137,9 +140,11 @@ def create_invite():
 
 @loi_bp.route("/admin/invites")
 @login_required
+@role_required("COMPLIFYRE")
 def invite_list():
     invites = SignupInvites.query.order_by(SignupInvites.created_at.desc()).all()
     return render_template("dashboards/loi/invite_list.html", invites=invites)
+@limiter.limit("3 per minute")  # S-73: prevent invite resend flooding
 @loi_bp.route("/admin/invites/<int:invite_id>/resend", methods=["POST"])
 @login_required
 def resend_invite_link(invite_id):
@@ -397,15 +402,23 @@ def activation_submit(token_hash):
         login_user(user, remember=True)
         return redirect(url_for("loi.mfa_setup"))
 
+    _loi_legal_name = sanitize_text_input((request.form.get("legal_name") or "").strip(), context="general")["value"]
+    _loi_entity_type = sanitize_text_input((request.form.get("entity_type") or "").strip(), context="general")["value"]
+    _loi_cin = sanitize_text_input((request.form.get("cin") or "").strip(), context="general")["value"]
+    _loi_registered_address = sanitize_text_input((request.form.get("registered_address") or "").strip(), context="general")["value"]
+    _loi_city = sanitize_text_input((request.form.get("city") or "").strip(), context="general")["value"]
+    _loi_state = sanitize_text_input((request.form.get("state") or "").strip(), context="general")["value"]
+    _loi_phone = sanitize_text_input((request.form.get("phone") or "").strip(), context="general")["value"]
+
     org = Organizations(
-        name=request.form.get("legal_name"),
-        legal_name=request.form.get("legal_name"),
-        entity_type=request.form.get("entity_type"),
-        cin=request.form.get("cin"),
-        registered_address=request.form.get("registered_address"),
-        city=request.form.get("city"),
-        state=request.form.get("state"),
-        contact_phone=request.form.get("phone"),
+        name=_loi_legal_name,
+        legal_name=_loi_legal_name,
+        entity_type=_loi_entity_type,
+        cin=_loi_cin,
+        registered_address=_loi_registered_address,
+        city=_loi_city,
+        state=_loi_state,
+        contact_phone=_loi_phone,
         loi_required=True,
         loi_status="PENDING",
         temp_access_expires_at=datetime.now(timezone.utc) + timedelta(days=14),
@@ -426,9 +439,9 @@ def activation_submit(token_hash):
     # collected at signup, so download guidelines / create clients /
     # create projects all work correctly for a new self-signup user.
     audit_org = AuditOrganization(
-        firm_name=request.form.get("legal_name"),
-        firm_registration_no=request.form.get("cin"),
-        firm_description=f"{request.form.get('entity_type')} -- registered via CompliFyre self-signup",
+        firm_name=_loi_legal_name,
+        firm_registration_no=_loi_cin,
+        firm_description=f"{_loi_entity_type} -- registered via CompliFyre self-signup",
         number_of_employees=1,
     )
     db.session.add(audit_org)
@@ -505,6 +518,7 @@ def mfa_setup():
     )
 
 
+@limiter.limit("5 per minute")  # S-73: prevent MFA brute force
 @loi_bp.route("/activate/verify-mfa", methods=["POST"])
 @login_required
 def verify_mfa():

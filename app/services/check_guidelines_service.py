@@ -70,6 +70,34 @@ def fetch_page_text_with_playwright(url, timeout=30000, wait_ms=3000):
     content is injected by JavaScript after the initial page load.
     Returns (success: bool, text_or_error: str).
     """
+    # S-SSRF: this fallback previously had NO IP validation at all --
+    # it's reached automatically whenever fetch_page_text()'s response
+    # looks "blocked" (e.g. short/empty, which is exactly what an SSRF
+    # probe URL returns), silently bypassing that function's blocklist
+    # check. Validate here too before launching a real browser.
+    import ipaddress as _pw_ipaddress
+    import socket as _pw_socket
+    from urllib.parse import urlparse as _pw_urlparse
+
+    _pw_blocked_nets = [
+        _pw_ipaddress.ip_network("127.0.0.0/8"), _pw_ipaddress.ip_network("10.0.0.0/8"),
+        _pw_ipaddress.ip_network("172.16.0.0/12"), _pw_ipaddress.ip_network("192.168.0.0/16"),
+        _pw_ipaddress.ip_network("169.254.0.0/16"), _pw_ipaddress.ip_network("0.0.0.0/8"),
+        _pw_ipaddress.ip_network("100.64.0.0/10"), _pw_ipaddress.ip_network("::1/128"),
+        _pw_ipaddress.ip_network("fc00::/7"), _pw_ipaddress.ip_network("fe80::/10"),
+    ]
+    _pw_parsed = _pw_urlparse(url)
+    if _pw_parsed.scheme not in ("http", "https") or not _pw_parsed.hostname:
+        return False, "BLOCKED: invalid URL scheme"
+    try:
+        _pw_addrinfo = _pw_socket.getaddrinfo(_pw_parsed.hostname, None)
+        for _, _, _, _, _pw_sockaddr in _pw_addrinfo:
+            _pw_addr = _pw_ipaddress.ip_address(_pw_sockaddr[0])
+            if any(_pw_addr in _net for _net in _pw_blocked_nets):
+                return False, f"BLOCKED: internal address {_pw_addr}"
+    except _pw_socket.gaierror:
+        return False, "BLOCKED: DNS resolution failed"
+
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
@@ -214,6 +242,51 @@ def extract_text_with_links(html):
     return soup.get_text(separator="\n", strip=True)
 
 
+# S-SSRF (real fix): domain allowlist for the Regulator "Listing Page URL"
+# feature. The internal-IP blocklist below only stops requests to
+# private/internal/cloud-metadata addresses -- it does NOT stop the
+# server from fetching ANY arbitrary public URL, which is itself the
+# SSRF this finding describes (the application making outbound requests
+# to an attacker-controlled server on the attacker's behalf). Only
+# domains explicitly listed here may be saved or fetched.
+#
+# NOTE: extend this list as legitimate regulators are onboarded. Add the
+# bare registrable domain (e.g. "rbi.org.in") -- subdomains of an
+# allowed domain are permitted automatically (see is_domain_allowed()).
+ALLOWED_REGULATOR_DOMAINS = {
+    "rbi.org.in",
+    "sebi.gov.in",
+    "irdai.gov.in",
+    "cert-in.org.in",
+    "pfrda.org.in",
+    "nabard.org",
+    "ibbi.gov.in",
+    "fiu-ind.gov.in",
+    "meity.gov.in",
+    "mca.gov.in",
+}
+
+
+def is_domain_allowed(url):
+    """
+    Returns True only if url's hostname is exactly an allowed domain, or
+    a subdomain of one (e.g. "notifications.rbi.org.in" is allowed
+    because "rbi.org.in" is on the list; "rbi.org.in.evil.com" is NOT
+    allowed -- it does not end with ".rbi.org.in" or equal "rbi.org.in").
+    """
+    from urllib.parse import urlparse
+    try:
+        hostname = (urlparse(url).hostname or "").lower().rstrip(".")
+    except Exception:
+        return False
+    if not hostname:
+        return False
+    for allowed in ALLOWED_REGULATOR_DOMAINS:
+        if hostname == allowed or hostname.endswith("." + allowed):
+            return True
+    return False
+
+
 def fetch_page_text(url, timeout=15):
     """
     Fetch a URL and return (http_status, content_length, cleaned_text_or_error, raw_html).
@@ -221,10 +294,57 @@ def fetch_page_text(url, timeout=15):
     from a successful-but-blocked response, which has a real http_status.
     """
     try:
-        resp = requests.get(
+        # S-SSRF: validate URL before making outbound request
+        import ipaddress, socket
+        from urllib.parse import urlparse
+        _BLOCKED = [
+            ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"), ipaddress.ip_network("192.168.0.0/16"),
+            ipaddress.ip_network("169.254.0.0/16"), ipaddress.ip_network("0.0.0.0/8"),
+            ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("::1/128"),
+            ipaddress.ip_network("fc00::/7"), ipaddress.ip_network("fe80::/10"),
+        ]
+        _parsed = urlparse(url)
+        if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
+            return None, None, "BLOCKED: invalid URL scheme", None
+        # S-SSRF (real fix): domain allowlist, defense in depth. Save-time
+        # validation in add_regulator/edit_regulator should already have
+        # rejected anything not on this list, but this check is enforced
+        # here too so that fetch_page_text() itself can never be pointed
+        # at an arbitrary attacker-controlled domain, no matter how the
+        # URL arrived (legacy row, direct DB edit, other call sites).
+        if not is_domain_allowed(url):
+            return None, None, f"BLOCKED: domain not in regulator allowlist ({_parsed.hostname})", None
+        _validated_ip = None
+        try:
+            _addrinfo = socket.getaddrinfo(_parsed.hostname, None)
+            for _, _, _, _, _sockaddr in _addrinfo:
+                _addr = ipaddress.ip_address(_sockaddr[0])
+                if any(_addr in _net for _net in _BLOCKED):
+                    return None, None, f"BLOCKED: internal address {_addr}", None
+                if _validated_ip is None:
+                    _validated_ip = _sockaddr[0]
+        except socket.gaierror:
+            return None, None, "BLOCKED: DNS resolution failed", None
+
+        if not _validated_ip:
+            return None, None, "BLOCKED: could not resolve host", None
+
+        # S-SSRF (rebinding fix, thread-safe): pin THIS thread's connection
+        # to the already-validated IP, without rewriting the URL, so TLS
+        # SNI/certificate checks still run against the real hostname.
+        # requests.get() would otherwise re-resolve the hostname itself
+        # right before connecting, and a rebinding DNS server could hand
+        # back a different (internal) IP on that second lookup -- bypassing
+        # the blocklist check above. threading.local() ensures concurrent
+        # requests (e.g. multiple Gunicorn worker threads) each pin their
+        # own host/IP pair without clobbering one another. Helper function
+        # is defined at the bottom of this file (_ssrf_safe_get).
+        resp = _ssrf_safe_get(
             url,
+            _parsed.hostname,
+            _validated_ip,
             timeout=timeout,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; CompliFyre-checker/1.0)"},
         )
     except requests.exceptions.RequestException as e:
         return None, None, f"CONNECTION_ERROR: {e}", None
@@ -482,3 +602,50 @@ def try_link_tracked_guideline(guideline_id, document_name, threshold=0.6):
         )
         return best_doc
     return None
+
+
+# --- S-SSRF: thread-safe IP-pinned GET helper -------------------------------
+# Prevents DNS-rebinding SSRF: pins the TCP connection for this request to
+# the IP address that was already validated against the internal-IP
+# blocklist, while keeping the original hostname in the URL so TLS SNI and
+# certificate validation still succeed. Thread-local so concurrent requests
+# (e.g. separate Gunicorn worker threads) never share or clobber each
+# other's pinned IP. Appended at end of file; used by fetch_page_text()
+# above, which is safe because Python resolves the call at runtime, after
+# the whole module (including this block) has finished loading.
+import threading as _ssrf_threading
+import urllib3.util.connection as _ssrf_urllib3_conn_module
+from urllib3.util.connection import create_connection as _ssrf_original_create_connection
+
+_ssrf_thread_local = _ssrf_threading.local()
+
+
+def _ssrf_patched_create_connection(address, *args, **kwargs):
+    host, port = address
+    pin = getattr(_ssrf_thread_local, "pinned_host_ip", None)
+    if pin is not None and pin[0] == host:
+        address = (pin[1], port)
+    return _ssrf_original_create_connection(address, *args, **kwargs)
+
+
+_ssrf_urllib3_conn_module.create_connection = _ssrf_patched_create_connection
+
+
+def _ssrf_safe_get(url, hostname, validated_ip, timeout=15):
+    """
+    Perform a GET request where the TCP connection is guaranteed to go to
+    validated_ip for `hostname`, closing the DNS-rebinding window, while
+    preserving normal TLS/SNI/certificate validation against `hostname`.
+    """
+    _ssrf_thread_local.pinned_host_ip = (hostname, validated_ip)
+    try:
+        with requests.Session() as _session:
+            return _session.get(
+                url,
+                timeout=timeout,
+                allow_redirects=False,  # S-SSRF: prevent redirect to internal IPs
+                headers={"User-Agent": "Mozilla/5.0 (compatible; CompliFyre-checker/1.0)"},
+            )
+    finally:
+        _ssrf_thread_local.pinned_host_ip = None
+# --- end S-SSRF helper ------------------------------------------------------

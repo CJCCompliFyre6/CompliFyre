@@ -223,7 +223,7 @@
   const activityHiddenInput = document.getElementById('activityHiddenInput');
   const selectAllActivitiesChk = document.getElementById('selectAllActivitiesChk');
 
-  const departments = [{% for d in departments %}'{{ d | safe}}', {% endfor %}];
+  const departments = {{ departments | tojson }};  {# S-XSS: tojson escapes safely, replaced unsafe | safe filter #}
   const guidelines = [
     {% for g in guidelines %}{ id: '{{ g.id }}', name: `{{ g.guideline_data.DocumentDetails.DocumentName }}` }, {% endfor %}
 ];

@@ -342,7 +342,7 @@
                     {% if value.evidence_ans %}
                     <p class="mb-2">
                       <strong class="font-medium text-gray-800">Evidence:</strong>
-                      {{ value.evidence_ans | safe }}
+                      {{ value.evidence_ans }}
                     </p>
                     {% endif %} {% if value.files %}
 
@@ -387,7 +387,7 @@
                     <div id="evidence_editor_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
                       class="quill-editor-container quill-editor"></div>
                     <textarea name="evidence_content" class="hidden" autocomplete="on" autofocus
-                      id="evidence_hidden_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">{% if value.evidence_ans %}{{ value.evidence_ans | safe }}{% endif %}</textarea>
+                      id="evidence_hidden_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}">{% if value.evidence_ans %}{{ value.evidence_ans }}{% endif %}</textarea>
 
                     <div class="mt-2 flex items-center">
                       <label for="evidence_file_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
@@ -518,7 +518,7 @@
                       {% if q.answer %}
                       <div id="interview_display_{{ item_loop_idx }}_{{ loop.index0 }}">
                         <p class="text-lg px-[3rem]">
-                          <strong>Answer:</strong> {{ q.answer | safe }}
+                          <strong>Answer:</strong> {{ q.answer }}
                         </p>
                       </div>
                       {% endif %}
@@ -534,7 +534,7 @@
                           class="quill-editor-container quill-editor"></div>
 
                         <textarea name="answer" class="hidden" autocomplete="on" autofocus
-                          id="interview_q_hidden_{{ item_loop_idx }}_{{ loop.index0 }}">{% if q.answer %}{{ q.answer | safe }}{% endif %}</textarea>
+                          id="interview_q_hidden_{{ item_loop_idx }}_{{ loop.index0 }}">{% if q.answer %}{{ q.answer }}{% endif %}</textarea>
 
                         <div class="mt-2 flex justify-end space-x-2">
                           <button type="button"
@@ -670,7 +670,7 @@
                       <strong class="font-medium text-gray-800"
                         >Evidence:</strong
                       >
-                      {{ value.evidence_ans | safe }}
+                      {{ value.evidence_ans }}
                     </p>
                     {% endif %} {% if value.files %}
                     <div class="my-4">
@@ -711,7 +711,7 @@
                       name="evidence_content"
                       class="hidden"
                       id="evidence_hidden_{{ item_loop_idx }}_{{ sanitized_key }}_{{ loop.index0 }}"
-                    >{% if value.evidence_ans %}{{ value.evidence_ans | safe }}{% endif %}</textarea>
+                    >{% if value.evidence_ans %}{{ value.evidence_ans }}{% endif %}</textarea>
 
                     <div class="mt-2 flex items-center">
                       <label
@@ -792,11 +792,11 @@
         <div id="compliance_display_{{ item_loop_idx }}">
           <div class="mb-4">
             <strong class="font-medium text-gray-900">Findings:</strong>
-            {{ item.data.control_finding | safe }}
+            {{ item.data.control_finding }}
           </div>
           <div class="mb-4">
             <strong class="font-medium text-gray-900">Recommendation:</strong>
-            {{ item.data.control_recomend | safe }}
+            {{ item.data.control_recomend }}
           </div>
         </div>
         {% endif %}
@@ -834,14 +834,14 @@
             </label>
             <div id="findings_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
             <textarea name="findings_content" class="hidden" autocomplete="on" autofocus
-              id="findings_hidden_{{item_loop_idx}}">{% if item.data.control_finding %}{{ item.data.control_finding | safe }}{% endif %}</textarea>
+              id="findings_hidden_{{item_loop_idx}}">{% if item.data.control_finding %}{{ item.data.control_finding }}{% endif %}</textarea>
 
             <label class="block mb-1 text-sm font-bold text-gray-700">
               Recommendation
             </label>
             <div id="recommendation_editor_{{item_loop_idx}}" class="quill-editor-container quill-editor mb-2"></div>
             <textarea name="recommendation_content" class="hidden" autocomplete="on" autofocus
-              id="recommendation_hidden_{{item_loop_idx}}">{% if item.data.control_recomend %}{{ item.data.control_recomend | safe }}{% endif %}</textarea>
+              id="recommendation_hidden_{{item_loop_idx}}">{% if item.data.control_recomend %}{{ item.data.control_recomend }}{% endif %}</textarea>
           </div>
 
           <div class="flex justify-end space-x-2">

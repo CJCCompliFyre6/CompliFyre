@@ -50,7 +50,7 @@ from app.utils.cleaning import *
 from app.models.project_instance_models import *
 from app.services.prompt_service import *
 from app.utils.bread_crumb import add_to_breadcrumb
-from app.utils.input_security import validate_upload_file, sanitize_text_input
+from app.utils.input_security import validate_upload_file, _check_pdf_magic_bytes, sanitize_text_input
 from app.utils.evidence_access import check_evidence_artifact_access
 from app.helper.evidence_helper import *
 from app.utils.compliance_utils import (
@@ -552,6 +552,16 @@ def check_client_delete(org_id):
         client = Organizations.query.get(org_id)
         if not client:
             return jsonify({"error": "Client not found"}), 404
+        # S-64: IDOR fix — verify org belongs to current user's clients
+        if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+            from app.models.auditOrganization import auditor_client
+            allowed = db.session.query(auditor_client).filter_by(
+                audit_id=current_user.auditor_profile_id,
+                client_id=org_id
+            ).first()
+            if not allowed:
+                current_app.logger.warning(f"IDOR: user {current_user.id} tried check-client-delete {org_id}")
+                return jsonify({"error": "Not found"}), 404
 
         # Check if client has any projects
         project_count = Projects.query.filter_by(client=org_id).count()
@@ -560,7 +570,7 @@ def check_client_delete(org_id):
             {
                 "can_delete": project_count == 0,
                 "project_count": project_count,
-                "client_name": client.legal_name or client.name,
+                "client_name": sanitize_text_input(client.legal_name or client.name or "", context="general")["value"],  # S-XSS
                 "message": (
                     f"Cannot delete client as it has {project_count} related project(s)."
                     if project_count > 0
@@ -691,12 +701,16 @@ def add_new_client():
             # Handle different steps
             if current_step == "0":
                 # Step 1: Organization Basic Info
-                org_name = request.form.get("org_name", "").strip()
-                legal_name = request.form.get("legal_name", "").strip()
-                constitution = request.form.get("constitution", "").strip()
+                org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+                legal_name = sanitize_text_input(request.form.get("legal_name", "").strip(), context="general")["value"]
+                constitution = sanitize_text_input(request.form.get("constitution", "").strip(), context="general")["value"]  # dropdown value
                 selected_org_types = request.form.getlist("selected_org_types")
                 selected_industries = request.form.getlist("selected_industries")
-                indian_regulatory = request.form.get("indian_regulatory", "").strip()
+                indian_regulatory = sanitize_text_input(request.form.get("indian_regulatory", "").strip(), context="general")["value"]
+                _step0_address = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+                _step0_country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+                _step0_state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+                _step0_city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
                 # Store in session for back navigation
                 session["step_0_data"] = {
@@ -706,10 +720,10 @@ def add_new_client():
                     "selected_org_types": selected_org_types,
                     "selected_industries": selected_industries,
                     "indian_regulatory": indian_regulatory,
-                    "address": request.form.get("address", "").strip(),
-                    "country": request.form.get("country", "").strip(),
-                    "state": request.form.get("state", "").strip(),
-                    "city": request.form.get("city", "").strip(),
+                    "address": _step0_address,
+                    "country": _step0_country,
+                    "state": _step0_state,
+                    "city": _step0_city,
                 }
 
                 # Check if organization with same name already exists
@@ -731,10 +745,10 @@ def add_new_client():
                 db.session.flush()
 
                 # Handle head office address
-                addr_line1 = request.form.get("address", "").strip()
-                country = request.form.get("country", "").strip()
-                state = request.form.get("state", "").strip()
-                city = request.form.get("city", "").strip()
+                addr_line1 = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+                country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+                state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+                city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
                 if addr_line1 and city and state and country:
                     head_office = OrganizationAddresses(
@@ -791,10 +805,10 @@ def add_new_client():
                         new_address = OrganizationAddresses(
                             organization_id=org_id,
                             address_type="keylocation",
-                            address_line1=loc.get("address", ""),
-                            city=loc.get("city", ""),
-                            state=loc.get("state", ""),
-                            country=loc.get("country", ""),
+                            address_line1=sanitize_text_input(loc.get("address", ""), context="general")["value"],
+                            city=sanitize_text_input(loc.get("city", ""), context="general")["value"],
+                            state=sanitize_text_input(loc.get("state", ""), context="general")["value"],
+                            country=sanitize_text_input(loc.get("country", ""), context="general")["value"],
                         )
                         db.session.add(new_address)
 
@@ -836,9 +850,7 @@ def add_new_client():
                     flash("Please start from Step 1", "error")
                     return redirect(url_for("re.add_new_client"))
 
-                business_description = request.form.get(
-                    "businessDescription", ""
-                ).strip()
+                business_description = sanitize_text_input(request.form.get("businessDescription", "").strip(), context="general")["value"]
                 branches_india = request.form.get("branchesIndia", type=int) or 0
                 branches_outside_india = (
                     request.form.get("branchesOutsideIndia", type=int) or 0
@@ -1053,8 +1065,8 @@ def add_new_client():
                 session["step_6_data"] = {"directors": directors_list}
 
                 for director_data in directors_list:
-                    name = director_data.get("name", "").strip()
-                    email = director_data.get("email", "").strip().lower()
+                    name = sanitize_text_input(director_data.get("name", "").strip(), context="general")["value"]
+                    email = director_data.get("email", "").strip().lower()  # email format preserved
 
                     if name and email:
                         new_director = OrganizationContacts(
@@ -1218,13 +1230,13 @@ def link_form():
     try:
         req = request.form
         print(req)
-        org_name = request.form.get("org_name")
-        legal_name = request.form.get("legal_name")
-        constitution = request.form.get("constitution")
+        org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+        legal_name = sanitize_text_input((request.form.get("legal_name") or "").strip(), context="general")["value"]
+        constitution = sanitize_text_input((request.form.get("constitution") or "").strip(), context="general")["value"]
         # business_desc = request.form.get('business_desc')
         # no_branch_india = request.form.get('no_branch_india')
         # no_branch_out_india = request.form.get('no_branch_out_india')
-        indian_regulatory = request.form.get("indian_regulatory")
+        indian_regulatory = sanitize_text_input((request.form.get("indian_regulatory") or "").strip(), context="general")["value"]
         # international_regulatory = request.form.get('international_regulatory')
         # business_processes = request.form.get('business_processes')
         # org_history = request.form.get('org_history')
@@ -1241,10 +1253,10 @@ def link_form():
         # pending_litig = request.form.get('pending_litig')
         # reg_filing = request.form.get('reg_filing')
         # recent_significant = request.form.get('recent_significant')
-        address = request.form.get("address")
-        country = request.form.get("country")
-        state = request.form.get("state")
-        city = request.form.get("city")
+        address = sanitize_text_input((request.form.get("address") or "").strip(), context="general")["value"]
+        country = sanitize_text_input((request.form.get("country") or "").strip(), context="general")["value"]
+        state = sanitize_text_input((request.form.get("state") or "").strip(), context="general")["value"]
+        city = sanitize_text_input((request.form.get("city") or "").strip(), context="general")["value"]
 
         # try:
         #     departments = json.loads(request.form.get('departments', '[]'))
@@ -1503,6 +1515,16 @@ def edit_re_profile():
     ).all()
 
     organization = Organizations.query.filter_by(organization_id=org_id).first_or_404()
+    # S-64: IDOR fix — verify org_id belongs to current user's clients
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        _allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not _allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried edit_re_profile org {org_id}")
+            abort(403)
 
     # Fetch all organization types from the database
     organization_types = OrganizationType.query.filter_by(active=True).all()
@@ -1561,10 +1583,10 @@ def edit_re_profile():
             current_step = request.form.get("current_step", "0")
 
             # Handle organization basic info
-            org_name = request.form.get("org_name", "").strip()
-            legal_name = request.form.get("legal_name", "").strip()
-            constitution = request.form.get("constitution", "").strip()
-            indian_regulatory = request.form.get("indian_regulatory", "").strip()
+            org_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+            legal_name = sanitize_text_input(request.form.get("legal_name", "").strip(), context="general")["value"]
+            constitution = sanitize_text_input(request.form.get("constitution", "").strip(), context="general")["value"]
+            indian_regulatory = sanitize_text_input(request.form.get("indian_regulatory", "").strip(), context="general")["value"]
 
             # Handle organization types (checkboxes)
 
@@ -1588,10 +1610,10 @@ def edit_re_profile():
                 )
 
             # Handle head office address
-            addr_line1 = request.form.get("address", "").strip()
-            country = request.form.get("country", "").strip()
-            state = request.form.get("state", "").strip()
-            city = request.form.get("city", "").strip()
+            addr_line1 = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+            country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+            state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+            city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
             if head_office:
                 # Update existing head office
@@ -1660,6 +1682,19 @@ def edit_organization_locations(org_id):
     """
     # Fetch the organization to ensure it exists and user has permission
     organization = Organizations.query.get_or_404(org_id)
+    # S-64: IDOR fix — verify org belongs to current user's clients
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {org_id}")
+            abort(403)
 
     # --- Add a security check here if needed, e.g. ---
     # if organization.owner_id != current_user.id:
@@ -1723,6 +1758,19 @@ def edit_organization_locations(org_id):
 # route to handle managing departments for an organization
 @re_bp.route("/organization/<int:organization_id>/departments/manage", methods=["POST"])
 def manage_departments(organization_id):
+    # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=organization_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {organization_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(organization_id)
 
     # Use getlist to read all checked checkbox values
@@ -1763,6 +1811,19 @@ def edit_organization_business_overview(org_id):
     """
     Handle editing of business overview information for an organization.
     """
+    # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {org_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(org_id)
 
     if request.method == "POST":
@@ -1860,6 +1921,19 @@ def edit_organization_structure(org_id):
     """
     Handle editing of organization structure information for an organization.
     """
+    # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=org_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {org_id}")
+            abort(403)
     # Fetch the organization to ensure it exists and user has permission
     organization = Organizations.query.get_or_404(org_id)
 
@@ -1891,10 +1965,12 @@ def edit_organization_structure(org_id):
             # 2. Add all the submitted positions as new records
             for position_data in submitted_positions:
                 if all(k in position_data for k in ["position", "reportsTo"]):
+                    safe_position = sanitize_text_input(str(position_data["position"]), context="general")["value"]
+                    safe_reports_to = sanitize_text_input(str(position_data["reportsTo"]), context="general")["value"]
                     new_structure = OrganizationStructure(
                         organization_id=org_id,
-                        position=position_data["position"],
-                        report_to=position_data["reportsTo"],
+                        position=safe_position,
+                        report_to=safe_reports_to,
                     )
                     db.session.add(new_structure)
 
@@ -1927,22 +2003,35 @@ def edit_organization_structure(org_id):
 @re_bp.route("/organization/<int:organization_id>/financial-overview", methods=["POST"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def save_financial_overview(organization_id):
+    # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=organization_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {organization_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(organization_id)
 
     # Read form fields
-    key_revenue = request.form.get("revenueStreams", "").strip()
-    key_markets_customers = request.form.get("marketsCustomers", "").strip()
-    key_financials = request.form.get("financialMetrics", "").strip()
+    key_revenue = sanitize_text_input(request.form.get("revenueStreams", "").strip(), context="general")["value"]
+    key_markets_customers = sanitize_text_input(request.form.get("marketsCustomers", "").strip(), context="general")["value"]
+    key_financials = sanitize_text_input(request.form.get("financialMetrics", "").strip(), context="general")["value"]
     total_revenue = request.form.get("totalRevenue", "").strip()
     net_profit_loss = request.form.get("netProfitLoss", "").strip()
     total_assets = request.form.get("totalAssets", "").strip()
     total_liabilities = request.form.get("totalLiabilities", "").strip()
-    key_financial_challenges = request.form.get("financialChallenges", "").strip()
+    key_financial_challenges = sanitize_text_input(request.form.get("financialChallenges", "").strip(), context="general")["value"]
 
-    auditors_insights = request.form.get("auditorsInsights", "").strip()
-    compliance_status = request.form.get("complianceStatus", "").strip()
-    pending_litigations = request.form.get("pendingLitigations", "").strip()
-    regulatory_filings = request.form.get("regulatoryFilings", "").strip()
+    auditors_insights = sanitize_text_input(request.form.get("auditorsInsights", "").strip(), context="general")["value"]
+    compliance_status = sanitize_text_input(request.form.get("complianceStatus", "").strip(), context="general")["value"]
+    pending_litigations = sanitize_text_input(request.form.get("pendingLitigations", "").strip(), context="general")["value"]
+    regulatory_filings = sanitize_text_input(request.form.get("regulatoryFilings", "").strip(), context="general")["value"]
 
     try:
         # --- OrganizationInfo (create or update) ---
@@ -2029,6 +2118,19 @@ def save_financial_overview(organization_id):
 @re_bp.route("/organization/<int:organization_id>/directors", methods=["POST"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def save_directors(organization_id):
+    # S-64: IDOR fix — verify org belongs to current user
+    if not current_user.is_authenticated:
+        from flask import redirect, url_for
+        return redirect(url_for("main.login"))
+    if current_user.auditor_profile_id and current_user.role.name not in ("COMPLIFYRE", "RE"):
+        from app.models.auditOrganization import auditor_client
+        allowed = db.session.query(auditor_client).filter_by(
+            audit_id=current_user.auditor_profile_id,
+            client_id=organization_id
+        ).first()
+        if not allowed:
+            current_app.logger.warning(f"IDOR: user {current_user.id} tried org {organization_id}")
+            abort(403)
     organization = Organizations.query.get_or_404(organization_id)
 
     # Read the JSON payload placed into the hidden input 'directors_data'
@@ -4312,6 +4414,11 @@ def activity(project_id):
             flash(f"Project with ID {project_id} not found", "error")
             return redirect(request.referrer or url_for("audit.my_projects"))
 
+        # S-64: IDOR fix — verify current user owns or has access to this project
+        from app.utils.evidence_access import user_can_access_project
+        if not user_can_access_project(project, current_user):
+            current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access project {project_id}")
+            abort(404)
         # Use project name from the retrieved project object
         project_name = project.project_name
 
@@ -5648,6 +5755,19 @@ def test_evidence_artifacts(activity_id):
             )
             .first_or_404()
         )
+        # S-64: IDOR fix — verify user has access to this activity's parent project
+        try:
+            _project = (project_control
+                .project_compliance_activity
+                .project_clause
+                .project_guideline
+                .project)
+            from app.utils.evidence_access import user_can_access_project
+            if _project and not user_can_access_project(_project, current_user):
+                current_app.logger.warning(f"IDOR: user {current_user.id} tried activity {activity_id}")
+                abort(404)
+        except AttributeError:
+            abort(404)
 
         # DEBUG: Print what we're getting
         print(f"Control Activity Name: '{project_control.activity_name}'")
@@ -6696,6 +6816,7 @@ def upload_test_procedure_files():
 
             # Generate unique filename
             original_filename = secure_filename(file.filename)
+            safe_display_name = sanitize_text_input(original_filename, context="general")["value"]  # S-XSS: sanitize filename
             file_extension = os.path.splitext(original_filename)[1]
             unique_filename = f"{uuid.uuid4()}{file_extension}"
             file_path = os.path.join(upload_dir, unique_filename)
@@ -6706,7 +6827,7 @@ def upload_test_procedure_files():
             # Create file record
             new_file = TestProcedureFile(
                 test_procedure_id=project_control.project_test_procedure.id,
-                filename=original_filename,
+                filename=safe_display_name,
                 file_path=unique_filename,
                 file_size=os.path.getsize(file_path),
                 file_type=file_extension,
@@ -6922,6 +7043,7 @@ def allowed_file(filename):
 
 
 @re_bp.route("/uploads/evidences/<path:filename>")
+@login_required
 def uploaded_file(filename):
     """Serve uploaded evidence files from the uploads/evidences directory."""
     from pathlib import Path
@@ -6958,7 +7080,7 @@ def uploaded_file(filename):
     # Use send_file instead of send_from_directory
     return send_file(
         file_path,
-        as_attachment=False,  # Display in browser instead of downloading
+        as_attachment=True,  # S-XSS: force download, prevent inline PDF JS execution
         conditional=True,  # Support for conditional requests (ETag, If-Modified-Since)
     )
 
@@ -8921,15 +9043,24 @@ def regulators():
 @re_bp.route("/regulators/add", methods=["POST"])
 @role_required("COMPLIFYRE", "RE")
 def add_regulator():
-    name = request.form.get("name", "").strip()
-    description = request.form.get("description", "").strip()
-    geography = request.form.get("geography", "").strip()
-    industry = request.form.get("industry", "").strip()
-    governed_institutions = request.form.get("governed_institutions", "").strip()
+    name = sanitize_text_input(request.form.get("name", "").strip(), context="general")["value"]
+    description = sanitize_text_input(request.form.get("description", "").strip(), context="general")["value"]
+    geography = sanitize_text_input(request.form.get("geography", "").strip(), context="general")["value"]
+    industry = sanitize_text_input(request.form.get("industry", "").strip(), context="general")["value"]
+    governed_institutions = sanitize_text_input(request.form.get("governed_institutions", "").strip(), context="general")["value"]
     website_url = request.form.get("website_url", "").strip()
 
     if not name or not website_url:
         flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    from app.services.check_guidelines_service import is_domain_allowed
+    if not is_domain_allowed(website_url):
+        flash(
+            "This domain is not on the approved regulator allowlist. "
+            "Contact an administrator to have it added before it can be tracked.",
+            "error",
+        )
         return redirect(url_for("re.regulators"))
 
     existing = RegulatoryBodies.query.filter_by(website_url=website_url).first()
@@ -8956,10 +9087,19 @@ def add_regulator():
 @role_required("COMPLIFYRE", "RE")
 def edit_regulator(body_id):
     regulator = RegulatoryBodies.query.get_or_404(body_id)
-    name = request.form.get("name", "").strip()
+    name = sanitize_text_input(request.form.get("name", "").strip(), context="general")["value"]
     website_url = request.form.get("website_url", "").strip()
     if not name or not website_url:
         flash("Regulator name and URL are required.", "error")
+        return redirect(url_for("re.regulators"))
+
+    from app.services.check_guidelines_service import is_domain_allowed
+    if not is_domain_allowed(website_url):
+        flash(
+            "This domain is not on the approved regulator allowlist. "
+            "Contact an administrator to have it added before it can be tracked.",
+            "error",
+        )
         return redirect(url_for("re.regulators"))
 
     existing = RegulatoryBodies.query.filter(
@@ -8971,10 +9111,10 @@ def edit_regulator(body_id):
         return redirect(url_for("re.regulators"))
 
     regulator.name = name
-    regulator.description = request.form.get("description", "").strip() or None
-    regulator.geography = request.form.get("geography", "").strip() or None
-    regulator.industry = request.form.get("industry", "").strip() or None
-    regulator.governed_institutions = request.form.get("governed_institutions", "").strip() or None
+    regulator.description = sanitize_text_input(request.form.get("description", "").strip(), context="general")["value"] or None
+    regulator.geography = sanitize_text_input(request.form.get("geography", "").strip(), context="general")["value"] or None
+    regulator.industry = sanitize_text_input(request.form.get("industry", "").strip(), context="general")["value"] or None
+    regulator.governed_institutions = sanitize_text_input(request.form.get("governed_institutions", "").strip(), context="general")["value"] or None
     regulator.website_url = website_url
     db.session.commit()
     flash(f"Updated regulator page: {regulator.name}", "success")
@@ -9180,7 +9320,7 @@ def check_regulator(body_id):
     from app.services.check_guidelines_service import check_regulator_for_new_guidelines
     regulator = RegulatoryBodies.query.get_or_404(body_id)
     check_regulator_for_new_guidelines.delay(body_id)
-    flash(f"Check queued for {regulator.name}"
+    flash(f"Check queued for {sanitize_text_input(str(regulator.name), context="general")["value"]}"
           f"{' -- ' + regulator.description if regulator.description else ''}. "
           f"Refresh in a moment to see results.", "success")
     return redirect(url_for("re.regulators"))

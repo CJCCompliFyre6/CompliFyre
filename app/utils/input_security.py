@@ -54,6 +54,16 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
 }
 
 
+def _check_pdf_magic_bytes(filepath: str) -> bool:
+    """Check if file starts with PDF magic bytes %PDF — blocks fake PDFs with malicious content."""
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(4)
+        return header == b"%PDF"
+    except Exception:
+        return False
+
+
 def validate_upload_file(filename: str, context: str = "evidence") -> dict:
     """
     Validate an uploaded file's extension before saving to disk.
@@ -72,6 +82,19 @@ def validate_upload_file(filename: str, context: str = "evidence") -> dict:
         return {"ok": False, "error": "File has no extension — cannot determine type."}
 
     ext = filename.rsplit(".", 1)[1].lower()
+    # S-upload: Double extension bypass fix — check ALL parts of filename
+    # e.g. hello.exe.pdf has "exe" embedded — must be caught
+    all_parts = [p.lower() for p in filename.split(".")[1:]]
+    for part in all_parts:
+        if part in BLOCKED_EXTENSIONS:
+            logger.warning("[InputSecurity] Blocked double-extension: %s (.%s embedded)", filename, part)
+            return {
+                "ok": False,
+                "error": (
+                    f"File name contains blocked extension '.{part}'. "
+                    "Files with embedded executable extensions are not allowed."
+                ),
+            }
 
     # Hard block always runs first regardless of context
     if ext in BLOCKED_EXTENSIONS:
@@ -116,12 +139,24 @@ _DANGEROUS_TAG_PAIRS = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 # Strip opener-only or self-closing dangerous tags
+# NOTE (S-XSS fix): "img" was previously missing from this list, which
+# meant <img src=x onerror=...> passed through completely untouched --
+# this was the exact payload used throughout VAPT testing. Also added
+# svg/video/audio/source/track, which can carry the same kind of
+# event-handler-based payload via self-closing syntax.
 _DANGEROUS_TAG_OPEN = re.compile(
-    r"<(script|style|iframe|object|embed|form|input|button|link|meta|base)\b[^>]*/?>",
+    r"<(script|style|iframe|object|embed|form|input|button|link|meta|base|img|svg|video|audio|source|track)\b[^>]*/?>",
     re.IGNORECASE,
 )
 # Event handlers: onclick=, onmouseover=, onerror=, etc.
-_EVENT_HANDLERS = re.compile(r"\s+on\w+\s*=\s*([\"']).+?\1", re.IGNORECASE)
+# NOTE (S-XSS fix): previously only matched QUOTED values
+# (on\w+=(["']).+?\1), so onerror=alert(1) -- no quotes -- was never
+# matched. Per the HTML spec, an unquoted attribute value ends at the
+# next whitespace or '>', which is what [^\s>]+ captures below.
+_EVENT_HANDLERS = re.compile(
+    r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)',
+    re.IGNORECASE,
+)
 # javascript: in href / src / action — replace whole value with #
 _JS_PROTOCOL = re.compile(
     r"(href|src|action)\s*=\s*([\"']\s*)javascript:[^\"']*([\"']?)",

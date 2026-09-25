@@ -77,6 +77,7 @@ audit_bp = Blueprint(
     __name__,
     template_folder="../../templates/dashboards/auditor",
     static_folder="../../templates/dashboards/auditor/assets",
+    static_url_path="/audit/assets",  # S-77: fix static URL so url_for generates /audit/assets/ not /audit/static/
 )
 UPLOAD_FOLDER_MOM = "uploads/minute_of_meeting"
 os.makedirs(UPLOAD_FOLDER_MOM, exist_ok=True)
@@ -281,6 +282,20 @@ def create_organization():
         return jsonify({"error": "Internal server error"}), 500
 
 
+
+@audit_bp.route("/serve-certification/<path:filename>")
+@login_required
+def serve_certification(filename):
+    """Serve certification files with authentication — S-63: no direct static access."""
+    import os
+    from flask import send_from_directory, abort
+    safe_name = os.path.basename(filename)
+    cert_dir = os.path.join(os.getcwd(), "uploads", "certifications")
+    full_path = os.path.join(cert_dir, safe_name)
+    if not os.path.exists(full_path):
+        abort(404)
+    return send_from_directory(cert_dir, safe_name, as_attachment=True)
+
 @audit_bp.route("/edit_profile", methods=["GET", "POST"])
 @login_required
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
@@ -376,10 +391,10 @@ def edit_profile():
                 org.number_of_employees = int(num_employees)
 
             # Step 2: Update Head Office Address
-            address = request.form.get("address", "").strip()
-            country = request.form.get("country", "").strip()
-            state = request.form.get("state", "").strip()
-            city = request.form.get("city", "").strip()
+            address = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+            country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+            state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+            city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
 
             if address or country or state or city:
                 # Update or create head office address
@@ -437,7 +452,7 @@ def edit_profile():
                     return redirect(request.referrer)
                 filename = secure_filename(cert_file.filename)
                 cert_path = os.path.join(
-                    current_app.root_path, "static/uploads", filename
+                    os.getcwd(), "uploads", "certifications", filename
                 )
 
                 # Ensure uploads directory exists
@@ -1096,14 +1111,14 @@ def add_my_guidelines():
 def create_organization_post():
     if request.method == "POST":
         try:
-            firm_name = request.form.get("org_name", "").strip()
-            firm_reg_no = request.form.get("org_reg_no", "").strip()
-            firm_desc = request.form.get("description", "").strip()
-            firm_address = request.form.get("address", "").strip()
-            country = request.form.get("country", "").strip()
-            state = request.form.get("state", "").strip()
-            city = request.form.get("city", "").strip()
-            num_emp = request.form.get("num_employees", "").strip()
+            firm_name = sanitize_text_input(request.form.get("org_name", "").strip(), context="general")["value"]
+            firm_reg_no = sanitize_text_input(request.form.get("org_reg_no", "").strip(), context="general")["value"]
+            firm_desc = sanitize_text_input(request.form.get("description", "").strip(), context="general")["value"]
+            firm_address = sanitize_text_input(request.form.get("address", "").strip(), context="general")["value"]
+            country = sanitize_text_input(request.form.get("country", "").strip(), context="general")["value"]
+            state = sanitize_text_input(request.form.get("state", "").strip(), context="general")["value"]
+            city = sanitize_text_input(request.form.get("city", "").strip(), context="general")["value"]
+            num_emp = request.form.get("num_employees", "").strip()  # numeric — no sanitize needed
 
             if not firm_name or not firm_reg_no:
                 flash("Firm name and registration number are required.", "danger")
@@ -1450,6 +1465,17 @@ def contact_dashboard():
 def get_projects(org_id):
     add_to_breadcrumb(request.full_path, "My Projects")
     try:
+        # S-64: IDOR fix — verify org_id belongs to current user's firm or clients
+        if current_user.auditor_profile_id:
+            # Check org is a client of current user's firm
+            from app.models.auditOrganization import auditor_client
+            allowed = db.session.query(auditor_client).filter_by(
+                audit_id=current_user.auditor_profile_id,
+                client_id=org_id
+            ).first()
+            if not allowed:
+                current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access org {org_id}")
+                abort(404)
         projects = (
             db.session.query(Projects.project_name)
             .filter_by(client=org_id)
@@ -1737,8 +1763,8 @@ def update_project(project_id):
         org_id = data.get("org_id")
         department_names = data.get("department", "")
         guideline_ids = data.get("guidelines", "")
-        project_description = data.get("project_description")
-        project_name = data.get("project_name")
+        project_description = sanitize_text_input(data.get("project_description", ""), context="general")["value"]  # S-XSS
+        project_name = sanitize_text_input(data.get("project_name", ""), context="general")["value"]  # S-XSS
         project_start_date = data.get("proj_start_date")
         assessment_start_date = data.get("assisment_start_date")
         assessment_end_date = data.get("assisment_end_date")
@@ -1893,8 +1919,8 @@ def create_new_project():
         org_id = data.get("org_id")
         department_names = data.get("department", "")
         guideline_ids = data.get("guidelines", "")
-        project_description = data.get("project_description")
-        project_name = data.get("project_name")
+        project_description = sanitize_text_input(data.get("project_description", ""), context="general")["value"]
+        project_name = sanitize_text_input(data.get("project_name", ""), context="general")["value"]
         project_start_date = data.get("proj_start_date")
         assesment_start_date = data.get("assisment_start_date")
         assesment_end_date = data.get("assisment_end_date")
@@ -5672,6 +5698,11 @@ def get_clause_activities(clause_id):
     )
 
     project = Projects.query.get(clause.project_guideline.project_id)
+    # S-64: IDOR fix — verify ownership before returning clause data
+    from app.utils.evidence_access import user_can_access_project
+    if not user_can_access_project(project, current_user):
+        current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access clause {clause_id}")
+        abort(404)
 
     # Flatten the list of control activities
     control_activities = []
@@ -5773,6 +5804,11 @@ def clause_test_steps(clause_id):
     )
 
     project = Projects.query.get(clause.project_guideline.project_id)
+    # S-64: IDOR fix — verify ownership before returning clause data
+    from app.utils.evidence_access import user_can_access_project
+    if not user_can_access_project(project, current_user):
+        current_app.logger.warning(f"IDOR attempt: user {current_user.id} tried to access clause {clause_id}")
+        abort(404)
 
     # Get only APPLICABLE project compliance activities for this clause
     project_compliance_activities = (
