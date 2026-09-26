@@ -328,10 +328,10 @@ class Clauses(db.Model):
     )
     page_number = db.Column(db.Integer, nullable=True)
     clause_type = db.Column(db.String(50), nullable=True, default='OBLIGATION')
-    applicable_to = db.Column(db.JSON, nullable=True)
-    clause_references = db.Column(db.JSON, nullable=True)
+    applicable_to = db.Column(JSONB, nullable=True)
+    clause_references = db.Column(JSONB, nullable=True)
     extraction_status = db.Column(db.String(50), nullable=True, default='EXTRACTED')
-    flag_reason = db.Column(db.String(200), nullable=True)
+    flag_reason = db.Column(db.Text, nullable=True)
     activity_generation_claimed_at = db.Column(db.TIMESTAMP, nullable=True)  # atomic claim marker for race-safe activity generation
 
     # -- Added 2026-08-18: preserve AI reasoning + support human review/correction tracking --
