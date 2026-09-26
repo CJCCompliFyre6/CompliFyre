@@ -2,6 +2,7 @@ from app import db
 import enum
 import os
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 from app.models.download import *
 from app.models.auditOrganization import *
 import sqlalchemy as sa
@@ -187,8 +188,8 @@ class Guidelines(db.Model):
     disabled_reason = db.Column(db.Text, nullable=True)
     disabled_at = db.Column(db.TIMESTAMP, nullable=True)
     catalogue_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    applicable_licenses = db.Column(db.JSON, nullable=True)
-    structure_map = db.Column(db.JSON, nullable=True)
+    applicable_licenses = db.Column(JSONB, nullable=True)
+    structure_map = db.Column(JSONB, nullable=True)
 
     # -- Added 2026-08-20: guideline-level clause-review sign-off gate --
     # NULL = review not yet marked complete; activity generation should be blocked.
