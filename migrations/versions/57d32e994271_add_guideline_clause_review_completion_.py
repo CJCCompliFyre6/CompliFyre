@@ -22,7 +22,7 @@ def upgrade():
     # same as the prior migration. This does ONLY the guideline review-gate columns.
     with op.batch_alter_table('guidelines', schema=None) as batch_op:
         batch_op.add_column(sa.Column('clause_review_completed_at', sa.TIMESTAMP(), nullable=True))
-        batch_op.add_column(sa.Column('clause_review_completed_by', sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column('clause_review_completed_by', sa.BigInteger(), nullable=True))
         batch_op.create_foreign_key('fk_guidelines_clause_review_completed_by', 'Users', ['clause_review_completed_by'], ['id'])
 
 
