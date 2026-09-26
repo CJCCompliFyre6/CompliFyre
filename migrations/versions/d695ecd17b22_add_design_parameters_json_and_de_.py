@@ -27,12 +27,17 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table('eve_control_result', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('design_parameters_json', sa.JSON(), nullable=True))
-        batch_op.add_column(sa.Column('de_discovery_completed', sa.Boolean(), nullable=False, server_default=sa.false()))
+    # S-fix: op.batch_alter_table() is SQLite-oriented (table recreation
+    # for engines with limited ALTER TABLE support) and is not needed on
+    # PostgreSQL. Using it here triggered an Alembic/SQLAlchemy internal
+    # code path that referenced an unrelated table's sequence
+    # ("compliance_activities_id_seq" instead of
+    # eve_control_result_id_seq), causing UndefinedTable on production.
+    # Plain add_column/drop_column are safe, standard, and Postgres-native.
+    op.add_column('eve_control_result', sa.Column('design_parameters_json', sa.JSON(), nullable=True))
+    op.add_column('eve_control_result', sa.Column('de_discovery_completed', sa.Boolean(), nullable=False, server_default=sa.false()))
 
 
 def downgrade():
-    with op.batch_alter_table('eve_control_result', schema=None) as batch_op:
-        batch_op.drop_column('de_discovery_completed')
-        batch_op.drop_column('design_parameters_json')
+    op.drop_column('eve_control_result', 'de_discovery_completed')
+    op.drop_column('eve_control_result', 'design_parameters_json')
