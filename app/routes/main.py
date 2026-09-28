@@ -1474,9 +1474,16 @@ def edit_clause(clause_id):
         return redirect(request.referrer)
 
     if request.method == "POST":
-        # Update clause attributes from form data
-        clause.clause_no = request.form.get("clause_no")
-        clause.clause_text = request.form.get("clause_text")
+        # Update clause attributes from form data.
+        # Never overwrite with empty values -- an empty submission (e.g. a
+        # front-end failure) must not wipe the stored clause (#429).
+        new_clause_no = (request.form.get("clause_no") or "").strip()
+        new_clause_text = (request.form.get("clause_text") or "").strip()
+        if not new_clause_no or not new_clause_text:
+            flash("Clause number and clause text cannot be empty. No changes were saved.", "danger")
+            return render_template("dashboards/re/edit_clause.html", clause=clause)
+        clause.clause_no = new_clause_no
+        clause.clause_text = new_clause_text
         db.session.commit()
 
         flash("Clause updated successfully!", "success")

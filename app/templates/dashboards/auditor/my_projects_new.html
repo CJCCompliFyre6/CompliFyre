@@ -2221,13 +2221,13 @@ document.addEventListener('DOMContentLoaded', function() {
           data-project-id="{{ clause_data.clause.project_guideline.project_id if clause_data.clause and clause_data.clause.project_guideline else '' }}"
           data-guideline-id="{{ clause_data.clause.project_guideline.id if clause_data.clause and clause_data.clause.project_guideline else '' }}"
           data-project-clause-id="{{ clause_data.clause.id if clause_data.clause else '' }}"
-          data-original-clause-id="{{ clause_data.clause.original_clause_id if clause_data.clause else '' }}">
+          data-original-clause-id="{{ clause_data.clause.original_clause_id if clause_data.clause else '' }}" data-clause-type="{{ clause_data.clause_type | default('OBLIGATION') }}" data-not-tested="{{ 'true' if clause_data.not_tested else 'false' }}"{% if clause_data.not_tested %} style="background:#f9fafb"{% endif %}>
           <td>
-            <input type="checkbox"
+            {% if not clause_data.not_tested %}<input type="checkbox"
               class="clause-checkbox w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500 cursor-pointer align-middle"
               data-clause-id="{{ clause_data.clause.id if clause_data.clause else '' }}"
               data-original-applicability="{{ 'true' if clause_data.clause.applicability else 'false' }}" {% if
-              current_user.free_report_used %}disabled{% endif %}>
+              current_user.free_report_used %}disabled{% endif %}>{% endif %}
           </td>
 
           <td class="clause-number text-sm text-gray-700">
@@ -2245,6 +2245,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     {% endif %}
                     {% endfor %}
               </div>
+              <div class="mb-1">{% set _ct = clause_data.clause_type | default('OBLIGATION') %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold {% if _ct in ['OBLIGATION','PRINCIPLE','MIXED'] %}bg-green-100 text-green-800{% else %}bg-gray-200 text-gray-800{% endif %}">{{ _ct | title }}</span></div>
               <!-- Clause Content -->
               <div class="text-sm text-gray-700">
                 <span class="font-semibold">{{ clause_data.clause.clause_no }}</span> -
@@ -2260,7 +2261,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           <!-- applicability -->
           <td class="text-center">
-            {% if clause_data.clause %}
+            {% if clause_data.not_tested %}<span class="text-gray-400">&mdash;</span>{% elif clause_data.clause %}
             <button class="toggle-clause-applicability px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 
                {% if clause_data.clause.applicability %} 
                    bg-green-100 text-green-800 border border-green-200 hover:bg-green-200 
@@ -2297,7 +2298,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
           <!-- Assessment Status -->
           <td class="px-6 py-4">
-            {% if clause_data.clause.assessment_status == "Completed" %}
+            {% if clause_data.not_tested %}
+            {% if clause_data.untested_reason == 'no_activities' %}
+            <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800 border border-red-200" title="Classified as an obligation but no activities were generated -- check whether this clause was missed.">No activities generated</div>
+            {% else %}
+            <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-800 border border-gray-300" title="Not an obligation -- shown for reference and interpretation.">No testing required</div>
+            {% endif %}
+            {% elif clause_data.clause.assessment_status == "Completed" %}
             <div
               class="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800 border border-green-200">
               <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
@@ -2322,7 +2329,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           <!-- Compliance Status -->
           <!-- Compliance Status -->
-          <td class="compliance-status-cell" data-clause-id="{{ clause_data.clause.id if clause_data.clause else '' }}">
+          {% if clause_data.not_tested %}<td class="text-center text-gray-400">&mdash;</td>{% else %}<td class="compliance-status-cell" data-clause-id="{{ clause_data.clause.id if clause_data.clause else '' }}">
             <div class="flex flex-col space-y-1">
               <span class="px-3 py-1 rounded-full text-sm font-semibold {{ clause_data.clause_status_info.css_class }}">
                 {{ clause_data.clause_status_info.text }}
@@ -2330,16 +2337,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
             </div>
-          </td>
+          </td>{% endif %}
 
           <!-- Build Sequence #TBD -- Phase 6, Step 2: real per-clause
                evidence coverage, "2/5"-style. -->
           <td class="px-6 py-4 text-sm text-gray-700">
-            {{ clause_data.activities_with_evidence_count | default(0) }}/{{ clause_data.activities_count | default(0) }}
+            {% if clause_data.not_tested %}&mdash;{% else %}{{ clause_data.activities_with_evidence_count | default(0) }}/{{ clause_data.activities_count | default(0) }}{% endif %}
           </td>
 
           <td>
-            {% if clause_data.clause %}
+            {% if clause_data.not_tested %}<span class="text-xs text-gray-400">&mdash;</span>{% elif clause_data.clause %}
 
 
 
@@ -3448,6 +3455,17 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentPage = 1;
     let rowsPerPage = 10;
     let allRows = [];
+    // #430: clause-type filter (combines with pagination, search and guideline filter)
+    let typeFilter = 'OBLIGATIONS';
+    const TYPE_GROUPS = { OBLIGATIONS: ['OBLIGATION', 'PRINCIPLE', 'MIXED'], DEFINITIONS: ['DEFINITION'],
+      APPLICABILITY: ['APPLICABILITY'], EXEMPTIONS: ['EXEMPTION'], REFERENCE: ['REFERENCE'] };
+    const KNOWN_TYPES = new Set(Object.values(TYPE_GROUPS).flat());
+    function rowType(row) { return (row.getAttribute('data-clause-type') || 'OBLIGATION').toUpperCase(); }
+    function typeOk(row) {
+      if (typeFilter === 'ALL') return true;
+      if (typeFilter === 'OTHER') return !KNOWN_TYPES.has(rowType(row));
+      return (TYPE_GROUPS[typeFilter] || []).includes(rowType(row));
+    }
 
     // Initialize pagination
     function initPagination() {
@@ -3463,7 +3481,7 @@ document.addEventListener('DOMContentLoaded', function() {
       entriesSelect.value = rowsPerPage;
 
       // Show first page
-      showPage(allRows); // Show all rows initially (they will be filtered by pagination)
+      showPage(allRows.filter(typeOk)); // Show all rows initially (they will be filtered by pagination)
     }
 
     // Update pagination controls
@@ -3556,7 +3574,7 @@ document.addEventListener('DOMContentLoaded', function() {
       rowsPerPage = parseInt(this.value);
       currentPage = 1;
       const visibleRows = allRows.filter(row => row.style.display !== 'none');
-      showPage(allRows); // Use allRows instead of visibleRows to reset
+      showPage(allRows.filter(typeOk)); // #430: respect type filter
     });
 
     // Search functionality with pagination integration
@@ -3564,7 +3582,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const searchTerm = this.value.toLowerCase();
       const visibleRows = allRows.filter(row => {
         const text = row.textContent.toLowerCase();
-        const isVisible = text.includes(searchTerm);
+        const isVisible = text.includes(searchTerm) && typeOk(row);
         return isVisible;
       });
 
@@ -3591,10 +3609,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedGuidelineId = this.value;
         const visibleRows = allRows.filter(row => {
           if (selectedGuidelineId === 'all') {
-            return true;
+            return typeOk(row);
           } else {
             const rowGuidelineId = row.getAttribute('data-guideline-id');
-            return selectedGuidelineId === rowGuidelineId;
+            return selectedGuidelineId === rowGuidelineId && typeOk(row);
           }
         });
 
@@ -3615,6 +3633,52 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     });
+
+    // #430: clause-type filter buttons
+    (function buildTypeChips() {
+      const table = document.getElementById('guidelinesTable');
+      if (!table) return;
+      const rows = Array.from(table.querySelectorAll('tbody tr[data-clause-type]'));
+      const countFor = (key) => rows.filter(r => key === 'ALL' ? true
+        : key === 'OTHER' ? !KNOWN_TYPES.has(rowType(r)) : TYPE_GROUPS[key].includes(rowType(r))).length;
+      const chips = [['OBLIGATIONS', 'Obligations'], ['ALL', 'All types'], ['DEFINITIONS', 'Definitions'],
+        ['APPLICABILITY', 'Applicability'], ['EXEMPTIONS', 'Exemptions'], ['REFERENCE', 'Reference'], ['OTHER', 'Other']];
+      const bar = document.createElement('div');
+      bar.id = 'clauseTypeChips';
+      bar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px 0;font-size:13px;';
+      const label = document.createElement('span');
+      label.textContent = 'Show:';
+      label.style.cssText = 'color:#4b5563;margin-right:4px;';
+      bar.appendChild(label);
+      function paint() {
+        bar.querySelectorAll('button[data-type]').forEach(b => {
+          const on = b.dataset.type === typeFilter;
+          b.style.background = on ? '#f97316' : '#ffffff';
+          b.style.color = on ? '#ffffff' : '#374151';
+          b.style.borderColor = on ? '#f97316' : '#d1d5db';
+        });
+      }
+      chips.forEach(([key, text]) => {
+        const n = countFor(key);
+        if (key === 'OTHER' && n === 0) return;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.type = key;
+        b.textContent = text + ' (' + n + ')';
+        b.style.cssText = 'padding:4px 12px;border-radius:9999px;border:1px solid #d1d5db;font-weight:500;cursor:pointer;';
+        b.addEventListener('click', () => {
+          typeFilter = key;
+          paint();
+          const search = document.getElementById('searchInput');
+          if (search) search.value = '';
+          currentPage = 1;
+          showPage(allRows.filter(typeOk));
+        });
+        bar.appendChild(b);
+      });
+      paint();
+      table.parentNode.insertBefore(bar, table);
+    })();
 
     // Initialize pagination when page loads
     initPagination();

@@ -1951,6 +1951,24 @@ def _create_fallback_guideline(pdf_text: str):
 
 
 
+def _apply_modal_guard(result: dict, node: dict) -> dict:
+    """#426: an OBLIGATION needs mandatory language. If the LLM labels a clause
+    OBLIGATION but its text has none, relabel (PRINCIPLE if 'should', else
+    DISCRETIONARY) and FLAG it for human review. Never touches a clause that
+    contains mandatory language, so real obligations are never downgraded."""
+    import re as _re426
+    text = node.get("raw_text", "") or ""
+    if result.get("clause_type") == "OBLIGATION" and not _re426.search(
+            r"\b(shall|must|required to|mandatory|obligatory|prohibited|not permitted|may not)\b", text, _re426.I):
+        new_type = "PRINCIPLE" if _re426.search(r"\bshould\b", text, _re426.I) else "DISCRETIONARY"
+        result["clause_type"] = new_type
+        reason = (f"MODAL_GUARD: labelled OBLIGATION but the clause has no mandatory language -- "
+                  f"reclassified as {new_type}; verify (page {node.get('page_number')})")
+        result["flag"] = "FLAGGED"
+        result["flag_reason"] = (result.get("flag_reason") + "; " + reason) if result.get("flag_reason") else reason
+    return result
+
+
 def generate_structure_map(file_path: str, guideline_id: int, regulator_name: str = "Unknown") -> dict:
     """
     Stage 1A: Generate document structure map using LLM.
@@ -1995,7 +2013,8 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                     r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix|MODULE|Module)"
                     r"(?:\s*NO\.?)?"
                     r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?"
-                    r"(\s*[-–:*]|\s*$|\s+[A-Z][A-Z\s]+$)",
+                    r"(\s*[-–—:*]|\s*$|\s+[A-Z][A-Z\s]+$"
+                    r"|\s+(?=[A-Z][A-Za-z()/,&'’-]*(?:\s+(?:[A-Z][A-Za-z()/,&'’-]*|and|of|the|for|to|in|on|or|with|by|&))*\s*$))",  # #423: em-dash, and Title Case title with no separator
                     clean
                 )
                 if m:
@@ -2363,6 +2382,7 @@ def extract_clauses(self, guideline_id: int):
 
                 result_text = response.choices[0].message.content.strip()
                 result = _json.loads(result_text)
+                result = _apply_modal_guard(result, node)  # #426
                 stage2_results[clause_no] = result
 
                 # Update running context if this node has new applicability info
@@ -3810,21 +3830,67 @@ def _split_clause_in_db(clause_id: int, depth: int = 0, max_depth: int = 2) -> l
             logger.info(f"[Split] Deleted original {clause_no} (id={clause_id})")
 
     # Step 6: Insert sub-clauses
+    # #413: classify every piece on its OWN content (same Stage 2 prompt + modal guard)
+    # before inserting. On any failure the piece inherits the parent's type and is FLAGGED.
+    _VALID_413 = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
+    _piece_cls = {}
+    try:
+        import json as _json_413
+        from app.services.prompt_templates.clasue_prompt import stage2_semantic_prompt as _s2p_413
+        try:
+            from app.models.ai import Guidelines as _G413
+        except ImportError:
+            _G413 = globals()["Guidelines"]
+        with session_scope() as session:
+            _g413 = session.query(_G413).get(guideline_id)
+            _lic413 = list((_g413.applicable_licenses or []) if _g413 else [])
+        _client413 = get_llm_service()
+        for sc_data in numbered:
+            _node413 = {"clause_no": sc_data["clause_no"], "raw_text": sc_data["clause_text"],
+                        "page_number": sc_data["page_number"], "node_type": "regulation"}
+            try:
+                _ctx413 = {"guideline_applies_to": _lic413, "section_applicability": [],
+                           "current_chapter": " ".join(str(sc_data["clause_no"]).split()[:2])}
+                _resp413 = _client413.chat.completions.create(
+                    model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
+                    messages=[{"role": "user", "content": _s2p_413(_node413, _ctx413, _lic413)}],
+                    temperature=0.0, response_format={"type": "json_object"})
+                _piece_cls[sc_data["clause_no"]] = _apply_modal_guard(
+                    _json_413.loads(_resp413.choices[0].message.content), _node413)
+            except Exception as _e413:
+                logger.warning(f"[Split] #413 classification failed for {sc_data['clause_no']}: {_e413} -- inheriting {original_clause_type}")
+    except Exception as _e413b:
+        logger.warning(f"[Split] #413 classification setup failed: {_e413b} -- pieces inherit {original_clause_type}")
+
     new_ids = []
     with session_scope() as session:
         for sc_data in numbered:
+            _r413 = _piece_cls.get(sc_data["clause_no"]) or {}
+            _t413 = _r413.get("clause_type") if _r413.get("clause_type") in _VALID_413 else None
+            _type413 = _t413 or original_clause_type
+            _flag413 = _r413.get("flag_reason")
+            if not _t413:
+                _flag413 = ((_flag413 + "; ") if _flag413 else "") + (
+                    f"SPLIT_PIECE: own classification unavailable -- type inherited from {clause_no} ({original_clause_type}); verify")
             new_clause = Clauses(
                 clause_no=sc_data["clause_no"],
                 clause_text=sc_data["clause_text"],
                 guideline_id=guideline_id,
                 page_number=sc_data["page_number"],
-                clause_type=original_clause_type,
-                extraction_status="EXTRACTED",
+                clause_type=_type413,
+                extraction_status="FLAGGED" if _flag413 else "EXTRACTED",
             )
+            if _t413 and hasattr(Clauses, "ai_assigned_clause_type"):
+                new_clause.ai_assigned_clause_type = _t413
+            if _r413.get("intent_summary") and hasattr(Clauses, "intent_summary"):
+                new_clause.intent_summary = _r413["intent_summary"]
+            if _flag413 and hasattr(Clauses, "flag_reason"):
+                new_clause.flag_reason = _flag413
             session.add(new_clause)
             session.flush()
             new_ids.append(new_clause.id)
-            logger.info(f"[Split] Inserted {sc_data['clause_no']} id={new_clause.id} type={original_clause_type}")
+            logger.info(f"[Split] Inserted {sc_data['clause_no']} id={new_clause.id} type={_type413} "
+                        f"({'own classification' if _t413 else 'inherited, flagged'})")
         session.commit()
 
     logger.info(f"[Split] Complete — {len(new_ids)} sub-clauses from {clause_no}: {new_ids}")

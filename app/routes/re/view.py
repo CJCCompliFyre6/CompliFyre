@@ -4442,6 +4442,9 @@ def activity(project_id):
                 joinedload(ProjectComplianceActivity.project_clause).joinedload(
                     ProjectClause.project_guideline
                 ),
+                joinedload(ProjectComplianceActivity.project_clause).joinedload(
+                    ProjectClause.original_clause
+                ),
                 joinedload(ProjectComplianceActivity.project_control_activities).joinedload(
                     ProjectControlActivity.submitted_evidences
                 ),
@@ -4755,14 +4758,22 @@ def activity(project_id):
             current_app.logger.info(f"  {i+1}. '{clause_no}' (type: {type(clause_no)})")
 
         # FIX: Apply natural sorting to clauses (same as complifyre route)
+        # #419: sort by document position -- page number first, then natural
+        # clause-number order within the page -- the same rule as the GRACE
+        # clause page (get_clause). Page number comes from the master clause
+        # this project clause was copied from.
         def natural_sort_key(item):
-            clause_no = item["clause"].clause_no
-            if clause_no is None or clause_no == "":
-                return [float("inf")]
-            return [
+            pc = item["clause"]
+            master = getattr(pc, "original_clause", None)
+            page = getattr(master, "page_number", None)
+            page_key = page if page is not None else 9999
+            clause_no = pc.clause_no
+            if clause_no is None or str(clause_no).strip() == "":
+                return (page_key, 1, [])
+            return (page_key, 0, [
                 int(part) if part.isdigit() else part.lower()
                 for part in re.split(r"(\d+)", str(clause_no))
-            ]
+            ])
 
         enriched_clauses.sort(key=natural_sort_key)
 
@@ -5330,6 +5341,53 @@ def activity(project_id):
             'Minor': 'bg-blue-400 text-white',
             'No findings noted': 'bg-green-500 text-white'
         }.get(overall_project_severity, 'bg-gray-400 text-white')
+        # #430: also show clauses that have NO activities (definitions,
+        # applicability, exemptions, references, and obligations that never got
+        # activities). Added after all statistics are computed, so counts,
+        # severity and completion logic are unchanged. Built in a temp list and
+        # merged only on success, so a failure here cannot break the page.
+        try:
+            _NOT_REQUIRED = {"DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
+            _shown_ids = {c["id"] for c in enriched_clauses}
+            _extra = []
+            for _pc in (ProjectClause.query
+                        .join(ProjectGuideline, ProjectClause.project_guideline_id == ProjectGuideline.id)
+                        .filter(ProjectGuideline.project_id == project_id)
+                        .options(joinedload(ProjectClause.original_clause))
+                        .all()):
+                if _pc.id in _shown_ids:
+                    continue
+                _extra.append({
+                    "id": _pc.id,
+                    "clause": _pc,
+                    "clause_status_info": None,
+                    "assessment_status": None,
+                    "assessment_status_info": None,
+                    "representative_activity": None,
+                    "activities_count": 0,
+                    "activities_with_evidence_count": 0,
+                    "old_clause_status": None,
+                    "not_tested": True,
+                })
+            _merged = enriched_clauses + _extra
+            for _c in _merged:
+                _m = getattr(_c["clause"], "original_clause", None)
+                _t = (getattr(_m, "clause_type", None) or "OBLIGATION").upper()
+                _c["clause_type"] = _t
+                _c.setdefault("not_tested", False)
+                _c["untested_reason"] = (
+                    None if not _c["not_tested"]
+                    else ("not_required" if _t in _NOT_REQUIRED else "no_activities")
+                )
+            _merged.sort(key=natural_sort_key)
+            enriched_clauses = _merged
+            current_app.logger.info(
+                f"#430: project {project_id} -- {len(enriched_clauses)} clauses shown "
+                f"({len(_extra)} without activities)"
+            )
+        except Exception as _e430:
+            current_app.logger.error(f"#430 merge of untested clauses failed: {_e430}", exc_info=True)
+
         # Render my_projects_new.html instead of project_activity.html
         return render_template(
             "my_projects_new.html",

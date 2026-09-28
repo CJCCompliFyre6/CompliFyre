@@ -649,6 +649,9 @@ appears in OBLIGATION, APPLICABILITY, and EXEMPTION clauses alike:
 Judge by what the clause DOES to the reader's obligations, not by which modal 
 verb it contains. Write your one-sentence intent summary before answering Q1 —
 your Q1 answer must be consistent with that summary.
+ABBREVIATIONS RULE (#426): in intent_summary and any other text you write, do NOT expand an abbreviation
+unless its expansion appears in this clause text or in the context provided in this prompt. If the expansion
+is not given, keep the abbreviation exactly as written (e.g. write 'ITSC', never a guessed expansion).
 
 Q1 — CLAUSE TYPE
 Based on the intent you just identified, what type of content is this clause?
@@ -662,6 +665,19 @@ Choose ONE:
 - EXEMPTION: carves out entities, transactions, or categories that are excluded from an otherwise-applicable requirement — including patterns like "Nothing contained in...shall apply to...", "shall not apply to...", "is exempted from...", or a list of excluded deposit/entity types
 - REFERENCE: historical circular references, appendix rows, amendment lists, or any content that is purely a reference to another document/circular with no regulatory requirement of its own
 - DISCRETIONARY: the core action is genuinely optional -- the entity may choose to do it or not, with no real expectation either way (e.g. "encouraged to leverage," "may consider adopting," "recommended practice," "where feasible"). Distinct from PRINCIPLE, which still carries a real, softer-but-genuine expectation ("shall endeavour"). Only classify as DISCRETIONARY if this is the clause's CORE action, not a sub-detail/method-choice within an otherwise-mandatory clause -- e.g. "REs may undertake V-CIP" is NOT discretionary, since the underlying CDD obligation remains mandatory and V-CIP is just one permitted method of fulfilling it.
+
+IMPORTANT — "MAY" RULE (#426):
+A clause whose core action uses "may", "may consider", "may, at its discretion", or "is permitted to" grants a PERMISSION or an option. It is NEVER an OBLIGATION on that basis alone. Classify it as DISCRETIONARY (genuinely optional) or PRINCIPLE (if the surrounding text still sets a real expectation) -- unless the same clause ALSO contains a separate "shall" / "must" duty, in which case classify by that duty (OBLIGATION or MIXED). Exception: "may not" / "shall not" express a prohibition, which IS an obligation.
+
+IMPORTANT — FORMAL AND ENABLING PROVISIONS RULE (#426):
+These are NEVER OBLIGATION, even though they often contain "shall":
+- the preamble / enacting formula ("In exercise of the powers conferred by ..., RBI hereby issues ...") -- a clause numbered PREAMBLE is always this -> REFERENCE
+- short title and commencement ("These Directions shall be called ...", "shall come into force / effect ...") -> REFERENCE
+- repeal and saving ("... shall stand repealed", "Notwithstanding such repeal, anything done ...") -> REFERENCE
+- application of other laws ("The provisions of these Directions shall be in addition to, and not in derogation of ...") -> REFERENCE
+- interpretation ("For the purpose of interpretation ... the decision of RBI shall be final") -> REFERENCE; clauses that define what terms mean -> DEFINITION
+- powers reserved to RBI / the regulator ("RBI may issue clarifications", "to remove difficulties, RBI may ...") -> REFERENCE (the "may" belongs to the regulator, not the regulated entity)
+- a clause stating which entities / categories these Directions apply to -> APPLICABILITY
 
 IMPORTANT — EMBEDDED OBLIGATION RULE:
 If a definition clause contains language like "shall ensure", "shall maintain", "is required to" — classify as MIXED, not DEFINITION.

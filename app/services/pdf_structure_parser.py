@@ -11,6 +11,9 @@ import fitz
 
 logger = logging.getLogger(__name__)
 
+LAST_DROPPED_LINES = []  # #128: filled by parse_pdf_structure for diagnostics
+LAST_REATTACHED = 0
+
 PATTERNS = {
     'chapter':              re.compile(r'^(CHAPTER|Chapter)\s+([IVXLCDM]+)\b'),
     'schedule':             re.compile(r'^(SCHEDULE|Schedule)\s+([IVXLCDM]+|\d+)\b'),
@@ -29,7 +32,7 @@ PATTERNS = {
     'proviso':              re.compile(r'^\s*Provided\s+(that|further\s+that)', re.IGNORECASE),
     'explanation':          re.compile(r'^\s*Explanation\s*[\(\d\-\u2013]', re.IGNORECASE),
     'footnote_ref_inline':  re.compile(r'\b\d+\[([^\]]+)\]'),
-    'footnote_block':       re.compile(r'^\d+\.?\s+(Inserted|Substituted|Omitted|Added|Prior to|Deleted)\s+', re.IGNORECASE),
+    'footnote_block':       re.compile(r'^\d+\.?\s+(Inserted|Substituted|Omitted|Added|Prior to (?:its |the )?(?:amendment|substitution|insertion|omission|deletion)|Deleted)\s+', re.IGNORECASE),
     'omitted':              re.compile(r'\[\s*\*{2,}\s*\]'),
     'cross_ref_tag':        re.compile(r'\[See\s+[^\]]+\]', re.IGNORECASE),
     'page_number':          re.compile(r'^\s*\d{1,4}\s*$'),
@@ -124,7 +127,7 @@ def collect_footnote_numbers(pdf):
     cent') from being silently deleted by the superscript-cleanup heuristic."""
     footnote_numbers = set()
     footnote_def_pattern = re.compile(
-        r'^\s{0,4}(\d{1,3})\.?\s+(Inserted|Substituted|Omitted|Added|Prior to|Deleted|Vide)\b',
+        r'^\s{0,4}(\d{1,3})\.?\s+(Inserted|Substituted|Omitted|Added|Prior to (?:its |the )?(?:amendment|substitution|insertion|omission|deletion)|Deleted|Vide)\b',
         re.IGNORECASE
     )
     for page in pdf.pages:
@@ -161,12 +164,41 @@ def get_ordered_digit_words(plumber_page):
     return [(w['text'], round(w['size'], 1)) for w in words if re.match(r'^\d{1,4}$', w['text'])]
 
 
-def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, body_font_size=None):
+def _norm_running(line):
+    """#421: normalise a line for running header/footer comparison --
+    lowercase, collapse spaces, treat all digit runs as the same ('Page 3' == 'Page 17')."""
+    return re.sub(r'\s+', ' ', re.sub(r'\d+', '#', line.strip().lower()))
+
+
+def detect_running_lines(pdf_fitz, top_n=3, bottom_n=3, min_share=0.4):
+    """#421: find lines repeated in the top/bottom few lines of most pages
+    (running headers/footers such as the document title or 'Page X of Y').
+    Lines with fewer than 4 letters are never treated as running lines, so
+    standalone clause numbers (RBI 2025 dotless format) are never touched."""
+    from collections import Counter
+    counts = Counter()
+    pages = len(pdf_fitz)
+    for i in range(pages):
+        lines = [l for l in (pdf_fitz[i].get_text() or '').split('\n') if l.strip()]
+        seen = set()
+        for l in lines[:top_n] + lines[-bottom_n:]:
+            n = _norm_running(l)
+            if sum(ch.isalpha() for ch in n) < 4 or n in seen:
+                continue
+            seen.add(n)
+            counts[n] += 1
+    threshold = max(3, int(pages * min_share))
+    return {n for n, c in counts.items() if c >= threshold}
+
+
+def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, body_font_size=None, running_lines=None):
     footnote_numbers = footnote_numbers or set()
     digit_word_queue = list(digit_word_queue or [])
     _queue_idx = [0]
     ambiguous_records = []
     lines = page_text.split('\n')
+    if running_lines:  # #421: blank running headers/footers before page-number detection
+        lines = ['' if _norm_running(l) in running_lines else l for l in lines]
     non_empty = [i for i, l in enumerate(lines) if l.strip()]
     first_ne = non_empty[0] if non_empty else -1
     last_ne = non_empty[-1] if non_empty else -1
@@ -404,8 +436,36 @@ def build_prefix_from_section(section):
     return None
 
 
+def _is_section_heading(line):
+    """#422: True for section heading lines that must not be glued onto clause
+    text -- chapter/schedule/annexure/part headings, and lettered/numbered
+    section headings such as 'B. Applicability' or 'A.1 IT Strategy Committee'.
+    Called only after every clause-number pattern has already failed."""
+    if (PATTERNS['chapter'].match(line) or PATTERNS['schedule'].match(line)
+            or PATTERNS['annexure'].match(line) or PATTERNS['part'].match(line)):
+        return True
+    m = re.match(r'^([A-Z](?:\.\d{1,2}){0,3})\.?\s+(\S.*)$', line)
+    if not m:
+        return False
+    title = m.group(2).strip()
+    if re.search(r'[.;:,]$', title):
+        return False
+    words = title.split()
+    if not (1 <= len(words) <= 14):
+        return False
+    if re.search(r'\d', m.group(1)):  # numbered marker, e.g. 'B.1' -- sentence case is fine
+        return words[0][:1].isupper() or words[0].startswith('(')
+    long_words = [w for w in words if len(re.sub(r'[^A-Za-z]', '', w)) > 3]
+    if not long_words:
+        return False
+    caps = sum(1 for w in long_words if w[0].isupper() or w.startswith('('))
+    return caps / len(long_words) >= 0.6
+
+
 def parse_pdf_structure(file_path, structure_map=None):
     logger.info(f"Stage 1: Parsing {file_path}")
+    global LAST_DROPPED_LINES, LAST_REATTACHED
+    dropped_lines = []  # #128: lines the parser discards -- measured, not guessed
     nodes = []
     position = empty_position()
     skip_to_end = False
@@ -416,6 +476,12 @@ def parse_pdf_structure(file_path, structure_map=None):
         logger.info(f"Stage 1: {total_pages} pages")
         footnote_numbers = collect_footnote_numbers(pdf_plumber)
         logger.info(f"Stage 1: {len(footnote_numbers)} confirmed footnote markers detected: {sorted(footnote_numbers)}")
+        try:
+            running_lines = detect_running_lines(pdf_fitz)
+        except Exception as _e421:
+            logger.warning(f"Stage 1: running header/footer detection failed, continuing without it: {_e421}")
+            running_lines = set()
+        logger.info(f"Stage 1: {len(running_lines)} running header/footer line(s) detected: {sorted(running_lines)[:5]}")
     except Exception as e:
         logger.error(f"Stage 1: Cannot open PDF: {e}")
         raise
@@ -427,11 +493,24 @@ def parse_pdf_structure(file_path, structure_map=None):
     buf_parent = None
     buf_depth = 0
     all_ambiguous_matches = []
+    resume_idx = None     # #128: clause closed by a table page, may continue on the next page
+    reattached_lines = 0
+    annex_text_counts = {}  # #128: numbering for unstructured annex/schedule text pieces
 
     def flush():
         nonlocal buf_text, buf_clause_no, buf_node_type, buf_page, buf_parent, buf_depth
         if buf_text and buf_clause_no:
-            text = ' '.join(' '.join(buf_text).split())
+            # #424: 'well-' + 'defined' -> 'well-defined' (line-break hyphen, keep the hyphen)
+            _out = ''
+            for _piece in buf_text:
+                _piece = _piece.strip()
+                if not _piece:
+                    continue
+                if len(_out) > 1 and _out.endswith('-') and _out[-2].isalpha() and _piece[:1].islower():
+                    _out += _piece
+                else:
+                    _out += (' ' if _out else '') + _piece
+            text = ' '.join(_out.split())
             if text.strip():
                 nodes.append({
                     'clause_no': buf_clause_no, 'raw_text': text.strip(),
@@ -443,8 +522,9 @@ def parse_pdf_structure(file_path, structure_map=None):
         buf_clause_no = None
 
     def start_node(clause_no, node_type, page, parent, depth, first_text=''):
-        nonlocal buf_text, buf_clause_no, buf_node_type, buf_page, buf_parent, buf_depth
+        nonlocal buf_text, buf_clause_no, buf_node_type, buf_page, buf_parent, buf_depth, resume_idx
         flush()
+        resume_idx = None  # #128: a new clause has started
         buf_clause_no = clause_no
         buf_node_type = node_type
         buf_page = page
@@ -454,6 +534,7 @@ def parse_pdf_structure(file_path, structure_map=None):
 
     # Track last known section from structure map to detect changes
     last_section_id = None
+    expect_title = False  # #422: next non-empty line may be a chapter's title
 
     try:
         for page_num in range(total_pages):
@@ -476,6 +557,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                 section_id = f"{section.get('type')}_{section.get('id')}"
                 if section_id != last_section_id:
                     flush()
+                    resume_idx = None  # #128: never carry text across a section change
                     position = empty_position()
                     sec_type = section.get("type", "").lower()
                     sec_id = section.get("id", "")
@@ -510,7 +592,7 @@ def parse_pdf_structure(file_path, structure_map=None):
             plumber_page = pdf_plumber.pages[page_num]
             body_font_size = get_body_font_size(plumber_page)
             digit_word_queue = get_ordered_digit_words(plumber_page)
-            clean_text, page_ambiguous = strip_page_noise(raw_text, footnote_numbers, digit_word_queue, body_font_size)
+            clean_text, page_ambiguous = strip_page_noise(raw_text, footnote_numbers, digit_word_queue, body_font_size, running_lines)
             for digit, ctx in page_ambiguous:
                 all_ambiguous_matches.append((page_num + 1, digit, ctx))
             has_tables = bool(plumber_page.extract_tables())
@@ -528,6 +610,8 @@ def parse_pdf_structure(file_path, structure_map=None):
                 # context-free fragment clause (Build Sequence #344).
                 if stripped in table_cell_texts:
                     continue
+                _title_slot = expect_title  # #422
+                expect_title = False
 
                 # Section detection — only in regex fallback mode
                 if not structure_map:
@@ -535,6 +619,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     if m:
                         flush(); position = empty_position()
                         position['chapter'] = m.group(2); position['current_section'] = 'chapter'
+                        expect_title = True  # #422
                         continue
                     m = PATTERNS['schedule'].match(stripped)
                     if m:
@@ -552,6 +637,12 @@ def parse_pdf_structure(file_path, structure_map=None):
                         position = reset_below(position, 'regulation'); continue
 
                 if not position['current_section']:
+                    if buf_clause_no == 'PREAMBLE':
+                        buf_text.append(stripped)
+                    elif not nodes and not buf_clause_no and stripped.lower().startswith('in exercise of'):
+                        start_node('PREAMBLE', 'regulation', page_num + 1, None, 0, stripped)  # #128
+                    else:
+                        dropped_lines.append((page_num + 1, 'before first section', stripped))
                     continue
 
                 # --- Annexure/Appendix lettered-paragraph format: "A. text", "B. text" ---
@@ -673,16 +764,57 @@ def parse_pdf_structure(file_path, structure_map=None):
                     idx = line.index(f'({nd})'); text_after = line[idx + len(nd) + 2:].strip()
                     start_node(clause_no, 'numbered_deep', page_num + 1, parent, _depth_of(position), text_after)
                     continue
+                # #422: never glue section headings onto clause text
+                if re.match(r'^[A-Z]((?:\.\d{1,2}){1,3}\.?|\.)$', stripped):
+                    expect_title = True  # #422: marker alone on its line ('B.'); title follows
+                    continue
+                if _is_section_heading(stripped):
+                    expect_title = (bool(PATTERNS['chapter'].match(stripped) or PATTERNS['schedule'].match(stripped)
+                                         or PATTERNS['annexure'].match(stripped)) and len(stripped.split()) <= 4) \
+                                   or stripped.count('(') > stripped.count(')')  # #422: wrapped title
+                    continue
+                if _title_slot and len(stripped.split()) <= 10 and not re.search(r'[.;:,]$', stripped):
+                    continue  # #422: stand-alone title line under a chapter heading
                 if buf_clause_no:
                     buf_text.append(stripped)
+                elif resume_idx is not None and resume_idx < len(nodes):
+                    _t = nodes[resume_idx]['raw_text']  # #128: continuation after a table page
+                    if len(_t) > 1 and _t.endswith('-') and _t[-2].isalpha() and stripped[:1].islower():
+                        nodes[resume_idx]['raw_text'] = _t + stripped
+                    else:
+                        nodes[resume_idx]['raw_text'] = _t + ' ' + stripped
+                    reattached_lines += 1
+                elif not nodes and stripped.lower().startswith('in exercise of'):
+                    start_node('PREAMBLE', 'regulation', page_num + 1, None, 0, stripped)  # #128
+                elif position['current_section'] in ('annexure', 'schedule'):
+                    _sec = f"ANN {position['annexure']}" if position['current_section'] == 'annexure' else f"SCH {position['schedule']}"
+                    annex_text_counts[_sec] = annex_text_counts.get(_sec, 0) + 1
+                    _id = f'{_sec} TEXT' if annex_text_counts[_sec] == 1 else f'{_sec} TEXT {annex_text_counts[_sec]}'
+                    start_node(_id, 'regulation', page_num + 1, _sec, 1, stripped)  # #128: keep annex forms/declarations
+                else:
+                    dropped_lines.append((page_num + 1, 'no open clause', stripped))
             if has_tables:
+                _had_open = bool(buf_clause_no)
                 flush()
+                if _had_open and nodes and not nodes[-1].get('is_table_row'):
+                    resume_idx = len(nodes) - 1  # #128: next page may continue this clause
                 nodes.extend(table_nodes)
         flush()
     finally:
         pdf_plumber.close()
         pdf_fitz.close()
 
+    for _n in nodes:  # #128: flag unstructured annex/schedule text for human review
+        if re.search(r' TEXT( \d+)?$', _n.get('clause_no') or ''):
+            _n['extraction_status'] = 'FLAGGED'
+            _n['flag_reason'] = ('UNSTRUCTURED_SECTION_TEXT: annex/schedule text with no clause numbering '
+                                 '(forms, declarations, notes) -- kept for completeness; review how it should be treated')
+    LAST_DROPPED_LINES = dropped_lines
+    LAST_REATTACHED = reattached_lines
+    if reattached_lines:
+        logger.info(f"Stage 1: {reattached_lines} line(s) re-attached to a clause continuing after a table page")
+    if dropped_lines:
+        logger.warning(f"Stage 1: {len(dropped_lines)} line(s) discarded (no clause to attach to) -- first: {dropped_lines[:3]}")
     nodes = _assign_parents(nodes)
     if all_ambiguous_matches:
         logger.warning(f"Stage 1: {len(all_ambiguous_matches)} ambiguous digit(s) found (not stripped, not deleted) - flagging matching nodes")
