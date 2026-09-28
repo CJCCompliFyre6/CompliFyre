@@ -133,7 +133,7 @@ def login_user_route():
 
     print(f"=== LOGIN ATTEMPT ===")
     print(f"Email: {email}")
-    print(f"Password provided: {password}")
+    # #275: removed -- printed the plain-text password to the system log
 
     # Normalize email
     normalized_email = email.strip().lower() if email else ""

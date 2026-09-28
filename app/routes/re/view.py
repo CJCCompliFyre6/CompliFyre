@@ -5429,6 +5429,10 @@ def activity(project_id):
 @re_bp.route("/activity_clauses/<int:project_id>", methods=["GET"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def activity_clauses(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     AJAX endpoint — returns paginated clauses with status for a project.
     Used by frontend pagination (no page reload).
@@ -5500,6 +5504,10 @@ def activity_clauses(project_id):
 
 @re_bp.route("/get_clause_statistics/<int:project_id>", methods=["GET"])
 def get_clause_statistics(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     Get updated clause statistics for charts
     """
@@ -7525,6 +7533,10 @@ def extract_and_format_data():
 
 @re_bp.route("/report_options/<int:project_id>", methods=["GET"])
 def report_options(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     Show report generation options page
     """
@@ -7553,6 +7565,10 @@ def report_options(project_id):
 
 @re_bp.route("/generate_report/<int:project_id>", methods=["POST"])
 def generate_audit_report(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     Generate audit report using ONLY consolidated clause data
     """
