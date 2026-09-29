@@ -133,7 +133,7 @@ def login_user_route():
 
     print(f"=== LOGIN ATTEMPT ===")
     print(f"Email: {email}")
-    print(f"Password provided: {password}")
+    # #275: removed -- printed the plain-text password to the system log
 
     # Normalize email
     normalized_email = email.strip().lower() if email else ""
@@ -301,15 +301,24 @@ def logout():
 
 # +++ HELPER FUNCTIONS FOR EMAIL +++
 def send_verification_email(user_email):
+    """
+    Fix 2026-09-27: switched the actual send from Flask-Mail's
+    mail.send() (crackerjacktech.com relay, permanently blocked --
+    SMTP 535 on every attempt) to Azure Communication Services via the
+    shared send_via_azure_email() helper, matching verify_user_login()
+    and send_password_reset_email(), which were moved on 2026-08-09.
+    This function was missed in that migration. Token logic unchanged.
+    """
+    from app.utils.email_service import send_via_azure_email
+
     serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
     token = serializer.dumps(user_email, salt="email-verification-salt")
     verify_url = url_for("main.verify_email", token=token, _external=True)
-    msg = Message(
+    send_via_azure_email(
+        recipient_email=user_email,
         subject="Complifyre - Verify Your Email Address",
-        recipients=[user_email],
-        html=f"<p>Welcome! Click the link to verify your email:</p><p><a href='{verify_url}'>Verify Email</a></p>",
+        html_body=f"<p>Welcome! Click the link to verify your email:</p><p><a href='{verify_url}'>Verify Email</a></p>",
     )
-    mail.send(msg)
 
 
 def verify_user_login(user):
@@ -1447,6 +1456,11 @@ def upload_clauses(guideline_id):
                 clauses_to_add.append(new_clause)
 
             # Add all new clauses to the session and commit
+            # GRACE-HEADING-STRIP: bulk_save_objects skips ORM events, clean here
+            from app.utils.heading_cleanup import strip_trailing_heading_all
+            for _c in clauses_to_add:
+                if getattr(_c, 'clause_text', None):
+                    _c.clause_text = strip_trailing_heading_all(_c.clause_text)[0]
             db.session.bulk_save_objects(clauses_to_add)
             db.session.commit()
 
@@ -1474,9 +1488,16 @@ def edit_clause(clause_id):
         return redirect(request.referrer)
 
     if request.method == "POST":
-        # Update clause attributes from form data
-        clause.clause_no = request.form.get("clause_no")
-        clause.clause_text = request.form.get("clause_text")
+        # Update clause attributes from form data.
+        # Never overwrite with empty values -- an empty submission (e.g. a
+        # front-end failure) must not wipe the stored clause (#429).
+        new_clause_no = (request.form.get("clause_no") or "").strip()
+        new_clause_text = (request.form.get("clause_text") or "").strip()
+        if not new_clause_no or not new_clause_text:
+            flash("Clause number and clause text cannot be empty. No changes were saved.", "danger")
+            return render_template("dashboards/re/edit_clause.html", clause=clause)
+        clause.clause_no = new_clause_no
+        clause.clause_text = new_clause_text
         db.session.commit()
 
         flash("Clause updated successfully!", "success")
