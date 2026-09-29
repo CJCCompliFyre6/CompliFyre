@@ -1447,6 +1447,11 @@ def upload_clauses(guideline_id):
                 clauses_to_add.append(new_clause)
 
             # Add all new clauses to the session and commit
+            # GRACE-HEADING-STRIP: bulk_save_objects skips ORM events, clean here
+            from app.utils.heading_cleanup import strip_trailing_heading_all
+            for _c in clauses_to_add:
+                if getattr(_c, 'clause_text', None):
+                    _c.clause_text = strip_trailing_heading_all(_c.clause_text)[0]
             db.session.bulk_save_objects(clauses_to_add)
             db.session.commit()
 

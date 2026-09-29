@@ -904,3 +904,19 @@ class ControlRiskMapping(db.Model):
             "control_activity_id", "risk_area_id", name="uq_control_risk_mapping"
         ),
     )
+
+
+# GRACE-HEADING-STRIP: strip section headings glued to the end of clause text on insert
+import logging as _hs_logging
+from sqlalchemy import event as _hs_event
+
+@_hs_event.listens_for(Clauses, "before_insert")
+def _strip_trailing_heading_on_insert(mapper, connection, target):
+    if not getattr(target, "clause_text", None):
+        return
+    from app.utils.heading_cleanup import strip_trailing_heading_all
+    text, removed = strip_trailing_heading_all(target.clause_text)
+    if removed:
+        target.clause_text = text
+        _hs_logging.getLogger(__name__).info(
+            "[HeadingStrip] %s: removed %s", getattr(target, "clause_no", "?"), " | ".join(removed))
