@@ -125,6 +125,30 @@ def login():
 
 
 # +++ ADDED LOGIN AND LOGOUT ROUTES +++
+def _post_login_redirect(user):
+    """Single place that decides where each role lands after login."""
+    role_name = user.role.name if user.role else None
+
+    if role_name in ("ADMIN", "AUDITOR"):
+        session["user_type"] = "auditor"
+        org_contact = OrganizationContacts.query.filter_by(email=user.email).first()
+        if org_contact:
+            session["organization_id"] = org_contact.organization_id
+            session["contact_id"] = org_contact.contact_id
+        return redirect(url_for("audit.dashboard"))
+
+    if role_name == "COMPLIFYRE":
+        session["user_type"] = "complifyre"
+        return redirect(url_for("re.guidelines"))
+
+    if role_name == "RE":
+        session["user_type"] = "re"
+        return redirect(url_for("re.guidelines"))
+
+    session["user_type"] = "regular_user"
+    return redirect(url_for("main.home"))
+
+
 @main_bp.route("/login_user_route", methods=["POST"])
 @limiter.limit("10 per minute")  # S-71: prevent ACS flood + brute force
 def login_user_route():
@@ -157,57 +181,11 @@ def login_user_route():
                 flash("Please verify your email address before logging in.", "warning")
                 return redirect(url_for("main.login"))
 
-            # === CHECK TFA ENABLED ===
-            if user.tfa_enabled:
-                print(f"TFA enabled for user: {user.email}")
-                session["user_id_for_tfa"] = user.id
-                verify_user_login(user)
-                return redirect(url_for("main.verify_tfa_login"))
+            # PIN is mandatory for every user (emailed OTP, no enrollment needed)
+            session["user_id_for_tfa"] = user.id
+            verify_user_login(user)
+            return redirect(url_for("main.verify_tfa_login"))
 
-            # Generate new session token
-            new_token = str(uuid.uuid4())
-            user.session_token = new_token
-            db.session.commit()
-
-            # Login user
-            login_user(user, remember=True)
-            session["session_token"] = new_token
-
-            # Check user role and redirect accordingly
-            if user.role_id == 1:  # Auditor role (including contact persons)
-                print(f"User is an auditor (role_id: {user.role_id})")
-                
-                # Check if this user is also an OrganizationContact
-                org_contact = OrganizationContacts.query.filter_by(email=user.email).first()
-                if org_contact:
-                    print(f"User is also an OrganizationContact: {org_contact.name}")
-                    session["user_type"] = "auditor"  # Treat as regular auditor
-                    session["organization_id"] = org_contact.organization_id
-                    session["contact_id"] = org_contact.contact_id
-                    print(f"Set session for OrganizationContact: org_id={org_contact.organization_id}, contact_id={org_contact.contact_id}")
-                else:
-                    session["user_type"] = "auditor"  # Regular auditor
-                    print("User is a regular auditor")
-                
-                # Redirect ALL auditors (including contact persons) to audit dashboard
-                return redirect(url_for("audit.dashboard"))
-                
-            elif user.role_id == 2:  # Admin role (adjust based on your role IDs)
-                session["user_type"] = "admin"
-                return redirect(url_for("admin.dashboard"))
-                
-            elif user.role_id == 9:  # COMPLIFYRE role
-                session["user_type"] = "complifyre"
-                return redirect(url_for("re.guidelines"))
-
-            elif user.role_id == 10:  # RE role
-                session["user_type"] = "re"
-                return redirect(url_for("re.guidelines"))
-
-            else:
-                session["user_type"] = "regular_user"
-                return redirect(url_for("main.home"))
-                
         else:
             print("User password mismatch")
 
@@ -590,22 +568,13 @@ def verify_tfa_login():
         # ✅ Check against OTP stored in DB
         if str(token) == user.tfa_secret:
             session.pop("user_id_for_tfa", None)
-            user.email_otp = None  # clear OTP after successful login
-            # Handle single session
+            user.tfa_secret = None  # one-time use: clear the OTP after success
             new_token = str(uuid.uuid4())
             user.session_token = new_token
             db.session.commit()
-            login_user(user)
+            login_user(user, remember=True)
             session["session_token"] = new_token
-            # Defensive guard added 2026-07-31: role_id was found missing
-            # on some self-signup users, causing a 500 here. Root cause
-            # fixed in loi/view.py activation_submit; this guard just
-            # prevents a repeat 500 if a role is ever missing again.
-            if current_user.role and current_user.role.name == "COMPLIFYRE":
-                return redirect(url_for("main.comp_dash"))
-            elif current_user.role and current_user.role.name == "AUDITOR":
-                return redirect(url_for("audit.dashboard"))
-            return redirect(url_for("main.home"))
+            return _post_login_redirect(user)
         else:
             flash("Invalid OTP code.", "error")
 

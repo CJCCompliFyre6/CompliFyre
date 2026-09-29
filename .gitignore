@@ -210,3 +210,4 @@ temp_*.py
 add_status_columns.sql
 create_tracking_tables.sql
 master\ circular\ ALM.pdf
+celerybeat-schedule.db
