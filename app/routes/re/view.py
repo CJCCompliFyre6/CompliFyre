@@ -3457,7 +3457,7 @@ def clause_review():
     if isinstance(guideline.guideline_data, dict):
         guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
 
-    valid_types = ["OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"]
+    valid_types = ["OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"]
 
     reviewed_count = sum(1 for c in clauses if c.clause_type_reviewed_at)
     total_count = len(clauses)
@@ -3491,7 +3491,7 @@ def clause_review_save():
     new_clause_type = (data.get("clause_type") or "").strip().upper()
     review_notes = data.get("review_notes", "").strip()
 
-    valid_types = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"}
+    valid_types = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
     if not clause_id or new_clause_type not in valid_types:
         return jsonify({"status": "error", "message": "Invalid clause_id or clause_type"}), 400
 
@@ -4442,6 +4442,9 @@ def activity(project_id):
                 joinedload(ProjectComplianceActivity.project_clause).joinedload(
                     ProjectClause.project_guideline
                 ),
+                joinedload(ProjectComplianceActivity.project_clause).joinedload(
+                    ProjectClause.original_clause
+                ),
                 joinedload(ProjectComplianceActivity.project_control_activities).joinedload(
                     ProjectControlActivity.submitted_evidences
                 ),
@@ -4755,14 +4758,20 @@ def activity(project_id):
             current_app.logger.info(f"  {i+1}. '{clause_no}' (type: {type(clause_no)})")
 
         # FIX: Apply natural sorting to clauses (same as complifyre route)
+        # #419: sort by document position -- page number first, then natural
+        # clause-number order within the page -- same rule as GRACE get_clause.
         def natural_sort_key(item):
-            clause_no = item["clause"].clause_no
-            if clause_no is None or clause_no == "":
-                return [float("inf")]
-            return [
+            pc = item["clause"]
+            master = getattr(pc, "original_clause", None)
+            page = getattr(master, "page_number", None)
+            page_key = page if page is not None else 9999
+            clause_no = pc.clause_no
+            if clause_no is None or str(clause_no).strip() == "":
+                return (page_key, 1, [])
+            return (page_key, 0, [
                 int(part) if part.isdigit() else part.lower()
                 for part in re.split(r"(\d+)", str(clause_no))
-            ]
+            ])
 
         enriched_clauses.sort(key=natural_sort_key)
 
@@ -5330,6 +5339,40 @@ def activity(project_id):
             'Minor': 'bg-blue-400 text-white',
             'No findings noted': 'bg-green-500 text-white'
         }.get(overall_project_severity, 'bg-gray-400 text-white')
+        # #430: also show clauses that have NO activities. Added after all
+        # statistics are computed, so counts/severity/completion are unchanged.
+        try:
+            _NOT_REQUIRED = {"DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"}
+            _shown_ids = {c["id"] for c in enriched_clauses}
+            _extra = []
+            for _pc in (ProjectClause.query
+                        .join(ProjectGuideline, ProjectClause.project_guideline_id == ProjectGuideline.id)
+                        .filter(ProjectGuideline.project_id == project_id)
+                        .options(joinedload(ProjectClause.original_clause))
+                        .all()):
+                if _pc.id in _shown_ids:
+                    continue
+                _extra.append({
+                    "id": _pc.id, "clause": _pc, "clause_status_info": None,
+                    "assessment_status": None, "assessment_status_info": None,
+                    "representative_activity": None, "activities_count": 0,
+                    "activities_with_evidence_count": 0, "old_clause_status": None,
+                    "not_tested": True,
+                })
+            _merged = enriched_clauses + _extra
+            for _c in _merged:
+                _m = getattr(_c["clause"], "original_clause", None)
+                _t = (getattr(_m, "clause_type", None) or "OBLIGATION").upper()
+                _c["clause_type"] = _t
+                _c.setdefault("not_tested", False)
+                _c["untested_reason"] = (None if not _c["not_tested"]
+                    else ("not_required" if _t in _NOT_REQUIRED else "no_activities"))
+            _merged.sort(key=natural_sort_key)
+            enriched_clauses = _merged
+            current_app.logger.info(f"#430: project {project_id} -- {len(enriched_clauses)} clauses shown ({len(_extra)} without activities)")
+        except Exception as _e430:
+            current_app.logger.error(f"#430 merge of untested clauses failed: {_e430}", exc_info=True)
+
         # Render my_projects_new.html instead of project_activity.html
         return render_template(
             "my_projects_new.html",
@@ -5371,6 +5414,10 @@ def activity(project_id):
 @re_bp.route("/activity_clauses/<int:project_id>", methods=["GET"])
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def activity_clauses(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     AJAX endpoint — returns paginated clauses with status for a project.
     Used by frontend pagination (no page reload).
@@ -5442,6 +5489,10 @@ def activity_clauses(project_id):
 
 @re_bp.route("/get_clause_statistics/<int:project_id>", methods=["GET"])
 def get_clause_statistics(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     Get updated clause statistics for charts
     """
@@ -7467,6 +7518,10 @@ def extract_and_format_data():
 
 @re_bp.route("/report_options/<int:project_id>", methods=["GET"])
 def report_options(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     Show report generation options page
     """
@@ -7495,6 +7550,10 @@ def report_options(project_id):
 
 @re_bp.route("/generate_report/<int:project_id>", methods=["POST"])
 def generate_audit_report(project_id):
+    # #414 (2026-09-28): project-level access check -- same helper as the activity() page.
+    from app.utils.evidence_access import user_can_access_project as _ucap
+    if not _ucap(Projects.query.get(project_id), current_user):
+        abort(404)
     """
     Generate audit report using ONLY consolidated clause data
     """

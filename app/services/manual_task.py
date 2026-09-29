@@ -4498,7 +4498,7 @@ def generate_missing_activities_for_guideline(self, guideline_id):
         # Only OBLIGATION/PRINCIPLE/MIXED clauses carry an independent duty
         # for the RE to act on — DEFINITION/APPLICABILITY/EXEMPTION/REFERENCE
         # clauses should never reach activity-generation on their own.
-        ACTIVITY_ELIGIBLE_TYPES = ['OBLIGATION', 'PRINCIPLE', 'MIXED']
+        ACTIVITY_ELIGIBLE_TYPES = ['OBLIGATION', 'PRINCIPLE', 'MIXED', 'DISCRETIONARY']
         clauses_without_activities = Clauses.query.filter(
             Clauses.guideline_id == guideline_id,
             Clauses.clause_type.in_(ACTIVITY_ELIGIBLE_TYPES),

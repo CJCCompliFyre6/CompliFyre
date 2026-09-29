@@ -670,7 +670,7 @@ Choose ONE:
 IMPORTANT — EMBEDDED OBLIGATION RULE:
 If a definition, applicability, exemption or reference clause ALSO contains a standalone duty or expectation of its own that needs compliance activities (e.g. "shall ensure", "shall maintain", "is required to", "should", "may consider") -- classify as MIXED, not DEFINITION/APPLICABILITY/EXEMPTION/REFERENCE.
 If an applicability or exemption clause says "shall comply with regulations X to Y" as an ADDITIONAL standalone duty (not just describing scope) — classify as MIXED, not APPLICABILITY/EXEMPTION.
-If content is a list of historical circulars, amendment references, or rows from an appendix with circular numbers and dates — classify as REFERENCE regardless of any other content.
+If content is a list of historical circulars, amendment references, or rows from an appendix with circular numbers and dates — classify as REFERENCE, unless it also contains a standalone duty or expectation of its own that needs compliance activities (then MIXED).
 
 CRITICAL — NEVER SKIP, ALWAYS EXTRACT AND FLAG:
 If you are unsure about a clause — do NOT skip it. Always extract it and set flag to "FLAGGED" with an appropriate flag_reason.

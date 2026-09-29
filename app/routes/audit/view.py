@@ -153,11 +153,9 @@ def _build_project_compliance_activity_fields(activity_template):
     project-instantiation code paths in this file, matching the same pattern as
     _build_project_control_activity_fields. Build Sequence #379.
 
-    Also defaults applicability to False when the parent clause's clause_type is
-    DISCRETIONARY (a genuinely optional obligation, e.g. "encouraged to leverage"),
-    per Ankita's design decision (#365/#366) -- auditor can still opt in via the
-    existing applicability toggle if the discretionary item is relevant to this
-    specific client engagement.
+    DISCRETIONARY clauses are treated like obligations (decision Sep 2026): activities start
+    applicable, and the bank marks them not applicable in the project phase if it chooses
+    not to implement them. (Replaces the earlier opt-in default from #365/#366.)
     """
     parent_clause_type = None
     if activity_template.clauses:
@@ -170,7 +168,7 @@ def _build_project_compliance_activity_fields(activity_template):
         "responsible_party": activity_template.responsible_party,
         "frequency": activity_template.frequency,
         "evidence_required": activity_template.evidence_required,
-        "applicability": parent_clause_type != "DISCRETIONARY",
+        "applicability": True,  # DISCRETIONARY is opt-out: generated like obligations, bank marks N/A in project phase
     }
 
 
