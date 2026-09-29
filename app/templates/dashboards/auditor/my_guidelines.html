@@ -147,7 +147,25 @@
 
 
 
-<div id="linkSharingModal" class="modal">
+<!-- HDB-EXTRACT-DISABLED: extraction features not yet available to auditors on this instance -->
+<div style="display:flex; gap:16px; flex-wrap:wrap; margin:16px 24px;">
+  <div style="flex:1; min-width:260px; padding:12px 16px; background:#f3f4f6; border:1px dashed #d1d5db; border-radius:10px; color:#9ca3af; cursor:not-allowed;" title="Not available yet">
+    <div style="font-size:14px; font-weight:600;">Extract notification from a link</div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <input type="text" disabled placeholder="Coming soon" style="flex:1; padding:6px 10px; font-size:13px; background:#e5e7eb; color:#9ca3af; border:1px solid #d1d5db; border-radius:6px; cursor:not-allowed;">
+      <button type="button" disabled style="padding:6px 14px; font-size:13px; background:#d1d5db; color:#6b7280; border:none; border-radius:6px; cursor:not-allowed;">Enter</button>
+    </div>
+  </div>
+  <div style="flex:1; min-width:260px; padding:12px 16px; background:#f3f4f6; border:1px dashed #d1d5db; border-radius:10px; color:#9ca3af; cursor:not-allowed;" title="Not available yet">
+    <div style="font-size:14px; font-weight:600;">Extract information from a PDF</div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <input type="text" disabled placeholder="Coming soon" style="flex:1; padding:6px 10px; font-size:13px; background:#e5e7eb; color:#9ca3af; border:1px solid #d1d5db; border-radius:6px; cursor:not-allowed;">
+      <button type="button" disabled style="padding:6px 14px; font-size:13px; background:#d1d5db; color:#6b7280; border:none; border-radius:6px; cursor:not-allowed;">Enter</button>
+    </div>
+  </div>
+</div>
+
+<div id="linkSharingModal" class="modal" style="display:none;">
     <div class="modal-content2">
         <span class="close" onclick="closeLinkSharingModal()">&times;</span>
         <h2>Extract Notification from a Link</h2>
@@ -159,7 +177,7 @@
     </div>
 </div>
 
-<div id="uploadModal" class="modal">
+<div id="uploadModal" class="modal" style="display:none;">
     <div class="modal-content2">
         <span class="close" onclick="closeUploadModal()">&times;</span>
         <h2>Extract information from the pdf</h2>

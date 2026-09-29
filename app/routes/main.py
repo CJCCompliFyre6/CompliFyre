@@ -688,6 +688,7 @@ def guideline_extraction_progress(task_id):
 
 @main_bp.route("/upload-guidelines", methods=["POST"])
 @login_required
+@role_required("COMPLIFYRE", "RE")  # HDB: extraction not available to auditors
 def upload_file_and_extract_guidelines():
     """
     Receives a file and schedules guideline extraction.

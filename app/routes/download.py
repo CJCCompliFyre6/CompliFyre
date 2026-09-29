@@ -9,11 +9,15 @@ import os
 download_bp = Blueprint("download", __name__)
 
 
+from app.utils.permission_handler import role_required
+
+
 class URLSchema(Schema):
     url = fields.URL(required=True)
 
 
 @download_bp.route("/scan", methods=["POST"])
+@role_required("COMPLIFYRE", "RE")  # HDB: extraction not available to auditors
 @login_required
 @limiter.limit("100 per minute")
 def scan_pdfs():
