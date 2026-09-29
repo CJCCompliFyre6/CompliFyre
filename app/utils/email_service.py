@@ -136,39 +136,18 @@ Best regards,
 The Complifyre Team
 """
 
-        # Add both HTML and plain text parts
-        message.attach(MIMEText(text, "plain"))
-        message.attach(MIMEText(html, "html"))
-
-        # Send email
-        logger.info(f"Connecting to SMTP server: {smtp_server}:{smtp_port}")
-
-        if use_ssl:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=5)
-            logger.info("Using SSL connection")
-        else:
-            server = smtplib.SMTP(smtp_server, smtp_port, timeout=5)
-            server.set_debuglevel(1)
-
-            if use_tls:
-                logger.info("Starting TLS...")
-                server.starttls()
-            else:
-                logger.info("Using plain connection (no TLS)")
-
-        logger.info(f"Logging in as: {sender_email}")
-        server.login(sender_email, sender_password)
-
-        logger.info(f"Sending email to: {contact_email}")
-        server.send_message(message)
-
-        logger.info("Email sent successfully, quitting server...")
-        server.quit()
-
-        logger.info(f"✅ Credentials email sent successfully to {contact_email}")
-        logger.info(f"📧 Message ID: (check server logs for actual ID)")
-
-        return True
+        # #432 (2026-09-28): send via Azure Communication Services instead of the
+        # crackerjacktech.com SMTP relay (permanently blocked -- SMTP 535).
+        # Same content (HTML + plain text); same True/False result for callers.
+        sent = send_via_azure_email(
+            recipient_email=contact_email,
+            subject=message["Subject"],
+            html_body=html,
+            plain_text=text,
+        )
+        if sent:
+            logger.info(f"Credentials email sent via Azure to {contact_email}")
+        return sent
 
     except smtplib.SMTPAuthenticationError as e:
         logger.error(f"❌ SMTP Authentication failed: {str(e)}")
