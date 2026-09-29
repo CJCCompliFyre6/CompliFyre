@@ -1951,6 +1951,24 @@ def _create_fallback_guideline(pdf_text: str):
 
 
 
+def _apply_modal_guard(result: dict, node: dict) -> dict:
+    """#426: an OBLIGATION needs mandatory language. If the LLM labels a clause
+    OBLIGATION but its text has none, relabel (PRINCIPLE if 'should', else
+    DISCRETIONARY) and FLAG it for human review. Never touches a clause that
+    contains mandatory language, so real obligations are never downgraded."""
+    import re as _re426
+    text = node.get("raw_text", "") or ""
+    if result.get("clause_type") == "OBLIGATION" and not _re426.search(
+            r"\b(shall|must|required to|mandatory|obligatory|prohibited|not permitted|may not)\b", text, _re426.I):
+        new_type = "PRINCIPLE" if _re426.search(r"\bshould\b", text, _re426.I) else "DISCRETIONARY"
+        result["clause_type"] = new_type
+        reason = (f"MODAL_GUARD: labelled OBLIGATION but the clause has no mandatory language -- "
+                  f"reclassified as {new_type}; verify (page {node.get('page_number')})")
+        result["flag"] = "FLAGGED"
+        result["flag_reason"] = (result.get("flag_reason") + "; " + reason) if result.get("flag_reason") else reason
+    return result
+
+
 def generate_structure_map(file_path: str, guideline_id: int, regulator_name: str = "Unknown") -> dict:
     """
     Stage 1A: Generate document structure map using LLM.
@@ -1995,7 +2013,8 @@ def generate_structure_map(file_path: str, guideline_id: int, regulator_name: st
                     r"^(CHAPTER|Chapter|SCHEDULE|Schedule|ANNEXURE|Annexure|ANNEX|Annex|APPENDIX|Appendix|MODULE|Module)"
                     r"(?:\s*NO\.?)?"
                     r"(\s*[-–]?\s*([IVXLCDM]+[-A-Z]*|\d+[A-Z]?))?"
-                    r"(\s*[-–:*]|\s*$|\s+[A-Z][A-Z\s]+$)",
+                    r"(\s*[-–—:*]|\s*$|\s+[A-Z][A-Z\s]+$"
+                    r"|\s+(?=[A-Z][A-Za-z()/,&'’-]*(?:\s+(?:[A-Z][A-Za-z()/,&'’-]*|and|of|the|for|to|in|on|or|with|by|&))*\s*$))",  # #423: em-dash, and Title Case title with no separator
                     clean
                 )
                 if m:
@@ -2363,6 +2382,7 @@ def extract_clauses(self, guideline_id: int):
 
                 result_text = response.choices[0].message.content.strip()
                 result = _json.loads(result_text)
+                result = _apply_modal_guard(result, node)  # #426
                 stage2_results[clause_no] = result
 
                 # Update running context if this node has new applicability info
@@ -3334,6 +3354,12 @@ def consolidate_evidence_for_pipeline(self, guideline_id: int):
             merge_evidence_cluster,
             _reconstruct_consolidated_groups,
             merge_duplicate_groups_second_pass,
+            consolidate_by_candidates,
+            standardise_evidence_names,
+            harmonise_subjects,
+            consolidate_structured,
+            attach_group_meta,
+            merge_groups_same_name_key,
         )
         import json as _json
 
@@ -3371,6 +3397,20 @@ def consolidate_evidence_for_pipeline(self, guideline_id: int):
         for item in all_evidence_items:
             item["evidence_item"] = normalize_evidence_text(item.get("evidence_item"))
 
+        # #454 F3: drop D1 placeholder items for clauses with no activities -- not evidence asks.
+        _before_f3 = len(all_evidence_items)
+        all_evidence_items = [it for it in all_evidence_items
+                              if not ((it.get("evidence_item") or "").startswith("Clause:")
+                                      and "No compliance activities" in (it.get("evidence_item") or ""))]
+        logger.info(f"[Phase5] F3: dropped {_before_f3 - len(all_evidence_items)} placeholder item(s)")
+        # #454 S1: standardise evidence names (original wording kept on every item)
+        if all_evidence_items:
+            update_evidence_progress(task_id, "PROCESSING", 20, "Standardising evidence names (S1)...", guideline_id)
+            _naming_stats = standardise_evidence_names(all_evidence_items)
+            logger.info(f"[Phase5] S1 naming: {_naming_stats}")
+            _subject_mapping = harmonise_subjects(all_evidence_items)  # #454 P2
+            logger.info(f"[Phase5] P2 subject synonyms mapped: {len(_subject_mapping)} -> {dict(list(_subject_mapping.items())[:15])}")
+
         if not all_evidence_items:
             final_output = {"grouped_evidences": []}
         else:
@@ -3386,121 +3426,29 @@ def consolidate_evidence_for_pipeline(self, guideline_id: int):
             containment_matches = find_fuzzy_containment_matches(all_evidence_items)
             logger.info(f"[Phase5] D5a-i: {len(containment_matches)} containment matches found (no LLM call needed)")
 
-            # Fold containment matches into ai_groups-shaped entries immediately
-            # -- one entry per canonical anchor that has at least one variant.
-            canonical_to_variants = {}
-            for variant_idx, canonical_idx in containment_matches.items():
-                canonical_to_variants.setdefault(canonical_idx, []).append(variant_idx)
-
-            ai_groups = []
-            d5a1_covered_indices = set()
-            for canonical_idx, variant_indices in canonical_to_variants.items():
-                all_indices = [canonical_idx] + variant_indices
-                ai_groups.append({
-                    "item_indices": all_indices,
-                    "canonical_name": all_evidence_items[canonical_idx].get("evidence_item") or "",
-                })
-                d5a1_covered_indices.update(all_indices)
-
-            # D2 (Build Sequence #TBD, REPLACES old chunk-based grouping entirely):
-            # genuine guideline-wide similarity clustering via embeddings -- no
-            # arbitrary chunk boundary that could split two real duplicates apart
-            # from each other before they're ever compared. See
-            # cluster_evidence_items_by_similarity's own docstring for the real,
-            # live diagnosis on guideline 210 that necessitated this replacement.
-            # D2 only runs on items NOT already resolved by D5a-i as a variant
-            # (a variant is fully accounted for once folded into its
-            # canonical's group above). Canonical anchors themselves DO still
-            # go through D2/D3 -- a canonical item can have further,
-            # embedding-level duplicates beyond what fuzzy matching caught.
-            variant_indices_only = set(containment_matches.keys())
-            items_for_d2 = [
-                item for idx, item in enumerate(all_evidence_items)
-                if idx not in variant_indices_only
-            ]
-            # D2 clusters operate on items_for_d2's own local indices -- map
-            # back to the real all_evidence_items indices immediately so
-            # downstream code (D3, D4) only ever deals with one consistent
-            # index space.
-            local_to_real_index = [
-                idx for idx in range(len(all_evidence_items)) if idx not in variant_indices_only
-            ]
-
-            update_evidence_progress(task_id, "PROCESSING", 30, f"Clustering {len(items_for_d2)} remaining evidence items by similarity (D2)...", guideline_id)
-            local_clusters = cluster_evidence_items_by_similarity(items_for_d2)
-            clusters = [[local_to_real_index[local_idx] for local_idx in cluster] for cluster in local_clusters]
-            singleton_clusters = [c for c in clusters if len(c) == 1]
-            multi_clusters = [c for c in clusters if len(c) > 1]
-            logger.info(
-                f"[Phase5] D2: {len(clusters)} clusters total -- "
-                f"{len(singleton_clusters)} singletons (no LLM call needed), "
-                f"{len(multi_clusters)} multi-item clusters (need D3 judgment)"
-            )
-
-            # D3 (Build Sequence #TBD, REPLACES old single guideline-wide merge
-            # pass): LLM judgment scoped to ONE small cluster at a time -- never
-            # the full item count against itself, which is what broke the old
-            # design. Singleton clusters skip this entirely (real cost saving).
-            # NOTE: ai_groups already exists from D5a-i above -- append to it,
-            # never reset it here, or D5a-i's containment matches are silently
-            # dropped (found and fixed during initial wiring, before any real
-            # test run used this bug).
-            possible_duplicates_for_review = []
-            for cluster_idx, cluster in enumerate(multi_clusters):
-                progress = 30 + round((cluster_idx / max(len(multi_clusters), 1)) * 50)
-                update_evidence_progress(
-                    task_id, "PROCESSING", min(progress, 80),
-                    f"Reviewing cluster {cluster_idx + 1}/{len(multi_clusters)} (D3)...", guideline_id
-                )
-                try:
-                    decision_result = merge_evidence_cluster(all_evidence_items, cluster)
-                    decision = decision_result.get("decision")
-                    if decision == "merge":
-                        ai_groups.append({
-                            "item_indices": cluster,
-                            "canonical_name": decision_result.get("canonical_name") or "",
-                        })
-                    elif decision == "possible_duplicate":
-                        possible_duplicates_for_review.append({
-                            "indices": cluster,
-                            "items": [all_evidence_items[i].get("evidence_item") for i in cluster],
-                            "reasoning": decision_result.get("reasoning", ""),
-                        })
-                        logger.info(f"[Phase5] D3: cluster {cluster} flagged as possible_duplicate, not merged")
-                    # "separate": do nothing -- items stay as their own individual
-                    # groups via _reconstruct_consolidated_groups's own fallback
-                    # for any index never covered by an ai_groups entry.
-                except Exception as cluster_error:
-                    logger.error(f"[Phase5] D3: cluster {cluster} judgment failed: {cluster_error} -- leaving items separate")
-
-            if possible_duplicates_for_review:
-                logger.info(f"[Phase5] {len(possible_duplicates_for_review)} clusters flagged possible_duplicate for human review: {possible_duplicates_for_review}")
-
-            # D4 (unchanged, existing, proven -- Build Sequence #357/#358/#359):
-            # mechanical traceability rebuild. Never trusts the AI for linkage,
-            # only for which indices belong together and a canonical name --
-            # same safeguard, now consuming D2/D3's cluster-based decisions
-            # instead of the old chunk-based LLM grouping output.
+            # #454 S2-S8 (2026-09-29): structured consolidation on standardised names (replaces the C3 call).
+            update_evidence_progress(task_id, "PROCESSING", 30, "Grouping evidence by standard names (S2-S7)...", guideline_id)
+            ai_groups, c3_stats, family_hints, possible_duplicates_for_review, large_groups = consolidate_structured(
+                all_evidence_items, containment_matches,
+                progress_cb=lambda done, total: update_evidence_progress(
+                    task_id, "PROCESSING", 30 + round(50 * done / max(total, 1)),
+                    f"Judging candidate duplicates {done}/{total}...", guideline_id))
+            logger.info(f"[Phase5] S stats: {c3_stats}")
+            if large_groups:
+                logger.warning(f"[Phase5] S: {len(large_groups)} large group(s) flagged for review: {[g['canonical_name'] for g in large_groups][:10]}")
             update_evidence_progress(task_id, "PROCESSING", 85, "Rebuilding traceable evidence groups (D4)...", guideline_id)
-            first_pass_groups = _reconstruct_consolidated_groups(all_evidence_items, ai_groups)
-            logger.info(f"[Phase5] D4 (first pass): {len(first_pass_groups)} groups before cross-mechanism dedup")
-
-            # Final cross-mechanism dedup pass (Build Sequence #TBD): D5a-i/D2/D3
-            # each work correctly within their own comparison, but nothing
-            # compares their RESULTING canonical group names against each other
-            # -- confirmed live on guideline 210, e.g. "Liquidity Risk Management
-            # Policy document" and "Final approved liquidity management policy
-            # document" surviving as separate groups despite being the same real
-            # document. Re-runs the same D5a-i/D2/D3 machinery on the smaller set
-            # of group names instead of the original raw items.
-            update_evidence_progress(task_id, "PROCESSING", 87, "Checking for cross-group duplicates (final pass)...", guideline_id)
-            final_consolidated_evidence = merge_duplicate_groups_second_pass(first_pass_groups)
-            logger.info(f"[Phase5] Final pass: {len(final_consolidated_evidence)} groups after cross-mechanism dedup")
+            final_consolidated_evidence = _reconstruct_consolidated_groups(all_evidence_items, ai_groups)
+            _meta_n = attach_group_meta(final_consolidated_evidence, all_evidence_items, ai_groups)
+            logger.info(f"[Phase5] D4: {len(final_consolidated_evidence)} groups | S8 metadata attached to {_meta_n}")
 
             update_evidence_progress(task_id, "PROCESSING", 90, "Saving consolidated evidence...", guideline_id)
             final_output = {
                 "grouped_evidences": final_consolidated_evidence,
                 "possible_duplicates_for_review": possible_duplicates_for_review,
+                "d3_decision_counts": c3_stats,
+                "document_family_hints": family_hints,
+                "large_groups_for_review": large_groups,
+                "subject_mapping": _subject_mapping,
             }
 
         evidence_record = ComplifyreConsolidatedEvidence.query.filter_by(guideline_id=guideline_id).first()
@@ -3810,21 +3758,67 @@ def _split_clause_in_db(clause_id: int, depth: int = 0, max_depth: int = 2) -> l
             logger.info(f"[Split] Deleted original {clause_no} (id={clause_id})")
 
     # Step 6: Insert sub-clauses
+    # #413: classify every piece on its OWN content (same Stage 2 prompt + modal guard)
+    # before inserting. On any failure the piece inherits the parent's type and is FLAGGED.
+    _VALID_413 = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
+    _piece_cls = {}
+    try:
+        import json as _json_413
+        from app.services.prompt_templates.clasue_prompt import stage2_semantic_prompt as _s2p_413
+        try:
+            from app.models.ai import Guidelines as _G413
+        except ImportError:
+            _G413 = globals()["Guidelines"]
+        with session_scope() as session:
+            _g413 = session.query(_G413).get(guideline_id)
+            _lic413 = list((_g413.applicable_licenses or []) if _g413 else [])
+        _client413 = get_llm_service()
+        for sc_data in numbered:
+            _node413 = {"clause_no": sc_data["clause_no"], "raw_text": sc_data["clause_text"],
+                        "page_number": sc_data["page_number"], "node_type": "regulation"}
+            try:
+                _ctx413 = {"guideline_applies_to": _lic413, "section_applicability": [],
+                           "current_chapter": " ".join(str(sc_data["clause_no"]).split()[:2])}
+                _resp413 = _client413.chat.completions.create(
+                    model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
+                    messages=[{"role": "user", "content": _s2p_413(_node413, _ctx413, _lic413)}],
+                    temperature=0.0, response_format={"type": "json_object"})
+                _piece_cls[sc_data["clause_no"]] = _apply_modal_guard(
+                    _json_413.loads(_resp413.choices[0].message.content), _node413)
+            except Exception as _e413:
+                logger.warning(f"[Split] #413 classification failed for {sc_data['clause_no']}: {_e413} -- inheriting {original_clause_type}")
+    except Exception as _e413b:
+        logger.warning(f"[Split] #413 classification setup failed: {_e413b} -- pieces inherit {original_clause_type}")
+
     new_ids = []
     with session_scope() as session:
         for sc_data in numbered:
+            _r413 = _piece_cls.get(sc_data["clause_no"]) or {}
+            _t413 = _r413.get("clause_type") if _r413.get("clause_type") in _VALID_413 else None
+            _type413 = _t413 or original_clause_type
+            _flag413 = _r413.get("flag_reason")
+            if not _t413:
+                _flag413 = ((_flag413 + "; ") if _flag413 else "") + (
+                    f"SPLIT_PIECE: own classification unavailable -- type inherited from {clause_no} ({original_clause_type}); verify")
             new_clause = Clauses(
                 clause_no=sc_data["clause_no"],
                 clause_text=sc_data["clause_text"],
                 guideline_id=guideline_id,
                 page_number=sc_data["page_number"],
-                clause_type=original_clause_type,
-                extraction_status="EXTRACTED",
+                clause_type=_type413,
+                extraction_status="FLAGGED" if _flag413 else "EXTRACTED",
             )
+            if _t413 and hasattr(Clauses, "ai_assigned_clause_type"):
+                new_clause.ai_assigned_clause_type = _t413
+            if _r413.get("intent_summary") and hasattr(Clauses, "intent_summary"):
+                new_clause.intent_summary = _r413["intent_summary"]
+            if _flag413 and hasattr(Clauses, "flag_reason"):
+                new_clause.flag_reason = _flag413
             session.add(new_clause)
             session.flush()
             new_ids.append(new_clause.id)
-            logger.info(f"[Split] Inserted {sc_data['clause_no']} id={new_clause.id} type={original_clause_type}")
+            logger.info(f"[Split] Inserted {sc_data['clause_no']} id={new_clause.id} type={_type413} "
+                        f"({'own classification' if _t413 else 'inherited, flagged'})")
         session.commit()
 
     logger.info(f"[Split] Complete — {len(new_ids)} sub-clauses from {clause_no}: {new_ids}")

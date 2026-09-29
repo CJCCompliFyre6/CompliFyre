@@ -3769,6 +3769,906 @@ def merge_evidence_cluster(evidence_items: list, cluster_indices: list) -> dict:
     return result
 
 
+C3_SIMILARITY_THRESHOLD = 0.80   # #454 C3e: candidate score floor (setting, tuned by benchmark)
+C3_TOP_K = 5                     # #454 C3e: closest matches kept per item
+C3_MAX_CANDIDATES_PER_CALL = 6
+C3_LARGE_GROUP_NAMES = 6         # #454 C3c: flag groups with more distinct names than this
+
+
+def _name_key(text: str) -> str:
+    """#454 C1: exact-match key -- ignores capitalisation, spacing, punctuation,
+    bracketed purpose descriptions and a leading 'final approved' / 'approved'."""
+    import re
+    t = (text or "").lower()
+    t = re.sub(r"\[[^\]]*\]", " ", t)
+    t = re.sub(r"^\s*(final\s+approved|approved)\s+", "", t)
+    t = re.sub(r"[^a-z0-9%&\s]", " ", t)
+    return " ".join(t.split())
+
+
+def _build_candidate_judgment_prompt(anchor_text: str, candidate_texts: list) -> str:
+    """#454 C2/C3b: 'same ask' judgment for one item against its closest candidates."""
+    cand_block = "\n".join('  c%d: "%s"' % (i + 1, t) for i, t in enumerate(candidate_texts))
+    return (
+        "You are building a de-duplicated evidence request list for a compliance audit. For EACH candidate below, "
+        "decide whether it asks for the SAME evidence as the anchor item.\n\n"
+        "Mark \"same\" ONLY if ALL of these match:\n"
+        "1. Same kind of document (policy / SOP or procedure / framework / methodology / meeting minutes / approval record / "
+        "report / register / training record / training material / sample records / system log or configuration).\n"
+        "2. Same subject (e.g. investment classification, liquidity risk management).\n"
+        "3. Same scope details that change WHAT would be collected: team or function (e.g. Treasury vs Credit Operations), "
+        "instrument or product (e.g. listed vs unlisted securities, bills of exchange vs promissory notes), annex or schedule "
+        "(Annex II vs Annex III), market or index (Nifty vs Sensex), period.\n"
+        "These differences do NOT matter: wording, word order, capitalisation, 'Final approved' vs 'Approved', and bracketed "
+        "descriptions of purpose such as '[Details the step-by-step process]'.\n"
+        "If one item is GENERIC and the other SPECIFIC on the same subject (e.g. 'SOP for classification' vs "
+        "'SOP for ICD classification'), answer \"not_sure\" -- do not merge.\n"
+        "If they are clearly different asks, answer \"different\". Do NOT lean toward merging. "
+        "When in doubt between \"same\" and \"different\", answer \"not_sure\".\n\n"
+        "For every candidate also give document_family: a short generic name for the kind of real document at a typical NBFC "
+        "that could cover it (e.g. 'ALM classification and slotting SOP', 'Liquidity risk management policy', "
+        "'Training records'). It is a reference hint only and is never used to merge.\n\n"
+        "ANCHOR:\n  \"" + (anchor_text or "") + "\"\n\nCANDIDATES:\n" + cand_block + "\n\n"
+        "Return ONLY valid JSON, no markdown, in exactly this shape:\n"
+        "{\"results\": [{\"id\": \"c1\", \"decision\": \"same\", \"document_family\": \"...\", \"reason\": \"one short sentence\"}]}"
+    )
+
+
+def _judge_candidates(anchor_text: str, candidate_texts: list):
+    """#454 C3b: returns {candidate_index: (decision, family, reason)} or None on failure."""
+    from app.services.eve_tasks import _call_llm_json
+    result = _call_llm_json(_build_candidate_judgment_prompt(anchor_text, candidate_texts))
+    rows = result.get("results") if isinstance(result, dict) else None
+    if not isinstance(rows, list):
+        return None
+    out = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        cid = str(r.get("id", "")).strip().lower()
+        if cid.startswith("c") and cid[1:].isdigit():
+            k = int(cid[1:]) - 1
+            if 0 <= k < len(candidate_texts):
+                d = r.get("decision")
+                if d not in ("same", "different", "not_sure"):
+                    d = "not_sure"
+                out[k] = (d, (r.get("document_family") or "").strip(), (r.get("reason") or "").strip())
+    return out
+
+
+EVIDENCE_DOC_TYPES = {
+    # #454 N1: known document types -> class (assigned in code). No 'other' anywhere: an unknown type keeps
+    # the AI's wording (or is inferred from the original wording) and simply has no class (never blocked).
+    "policy": "governing", "framework": "governing", "sop": "governing", "procedure": "governing",
+    "methodology": "governing", "guidelines": "governing", "plan": "governing", "manual": "governing",
+    "roles and responsibilities matrix": "governing", "limits document": "governing", "parameters document": "governing",
+    "report": "output", "results": "output", "audit report": "output",
+    "minutes": "minutes", "resolution": "resolution", "approval record": "resolution",
+    "charter": "charter", "terms of reference": "charter",
+    "training material": "training_material",
+    "training record": "training_record", "assessment results": "training_record", "certificate": "training_record",
+    "screenshot": "system_evidence", "system configuration": "system_evidence", "system log": "system_evidence",
+    "sample records": "sample_records", "data extract": "sample_records", "ledger": "sample_records", "register": "sample_records", "schedule": "sample_records",
+    "interview notes": "interview_notes",
+    "list": None, "agreement": None, "letter": None,
+}
+NAMING_BATCH_SIZE = 20
+
+
+_DOC_TYPE_KEYWORDS = [
+    ("roles and responsibilities matrix", r"responsibilit\w*\s+matri|\braci\b"), ("minutes", r"\bminutes\b"),
+    ("resolution", r"\bresolution"), ("approval record", r"\bapproval"), ("charter", r"\bcharter\b"),
+    ("terms of reference", r"terms of reference"), ("sop", r"\bsops?\b|standard operating"), ("procedure", r"\bprocedure"),
+    ("policy", r"\bpolic"), ("framework", r"\bframework"), ("methodology", r"\bmethodolog"), ("plan", r"\bplan\b"),
+    ("manual", r"\bmanual\b"), ("audit report", r"audit report"), ("report", r"\breport"),
+    ("training material", r"training (material|content|module|deck)"), ("training record", r"training (record|attendance|log)|attendance"),
+    ("certificate", r"certificat"), ("assessment results", r"assessment"), ("screenshot", r"screenshot"),
+    ("system configuration", r"configuration"), ("system log", r"\blogs?\b|audit trail"), ("register", r"\bregister"),
+    ("ledger", r"\bledger"), ("data extract", r"extract|data file"), ("interview notes", r"interview"),
+    ("results", r"\bresults?\b"), ("sample records", r"\bsample|\brecords?\b"),
+    ("list", r"\blist\b|schedule|template|checklist"), ("letter", r"\bletter|\bmemo|\bemail|communication"),
+]
+
+
+def _infer_doc_type(original_text: str) -> str:
+    """#454 N1: when the AI answers 'other' or nothing, infer the type from the original wording.
+    Returns 'document' (no class, never blocked) if no keyword matches -- never 'other'."""
+    import re
+    t = (original_text or "").lower()
+    for dt, pat in _DOC_TYPE_KEYWORDS:
+        if re.search(pat, t):
+            return dt
+    return "document"
+
+
+def _build_naming_prompt(texts: list, known_subjects: list) -> str:
+    """#454 N1: standardise evidence item names into parts."""
+    items_block = "\n".join('  %d: "%s"' % (i + 1, t) for i, t in enumerate(texts))
+    subjects_block = ", ".join(known_subjects) if known_subjects else "(none yet)"
+    return (
+        "You are standardising the names of compliance evidence requests so that identical requests can be recognised. "
+        "For EACH numbered item, return its parts.\n\n"
+        "doc_type: choose one of: " + ", ".join(EVIDENCE_DOC_TYPES) + ". If none of these fits, write your own short document type (2-4 words). Never write other.\n"
+        "subject: what the document is about, in short standard regulatory wording, lower case, WITHOUT the document type, "
+        "WITHOUT status words (final, approved, board-approved, signed, draft, version) and WITHOUT team/instrument/annex detail. "
+        "The subject must say WHAT the document is about: the business topic or process, e.g. 'liquidity risk management', 'time bucket classification of deposits', 'user access management'. Never use a document word or a generic word as the subject -- not 'procedure', 'compliance', 'system configuration', 'interview notes', 'roles and responsibilities'. For training items (training materials, training records, assessment results, certificates) use the common subject 'training'. "
+        "If one of these existing subjects means the same thing, REUSE it exactly: " + subjects_block + "\n"
+        "scope: ONLY a detail that changes what would be collected -- a team or function, an instrument or product, an annex "
+        "or schedule, a market or index, a period. Otherwise an empty string. For training items (training materials, training records, assessment results, certificates) ALWAYS leave scope empty.\n"
+        "body: ONLY for minutes, resolutions or approval records -- the approving body, e.g. Board, ALCO, Top management, "
+        "Risk Management Committee. Otherwise an empty string.\n"
+        "detail: any remaining purpose or agenda text (e.g. what the minutes approved, what the bracketed text says), short. "
+        "Can be empty.\n\n"
+        "ITEMS:\n" + items_block + "\n\n"
+        "Return ONLY valid JSON, no markdown: {\"items\": [{\"n\": 1, \"doc_type\": \"policy\", \"subject\": \"...\", "
+        "\"scope\": \"\", \"body\": \"\", \"detail\": \"\"}]}"
+    )
+
+
+def _display_name(std: dict) -> str:
+    dt = std.get("doc_type") or "document"
+    label = {"sop": "SOP", "terms of reference": "Terms of reference"}.get(dt, dt[:1].upper() + dt[1:])
+    if dt in ("minutes", "resolution", "approval record") and std.get("body"):
+        return f"{std['body']} " + {"minutes": "meeting minutes", "resolution": "resolution", "approval record": "approval record"}[dt]
+    name = f"{label} - {std.get('subject') or 'unspecified'}"
+    if std.get("scope"):
+        name += f" - {std['scope']}"
+    return name
+
+
+_BODY_PATTERNS = [
+    # #454 N1: standard spellings for approving bodies (most specific first)
+    ("Risk Management Committee", r"(liquidity\s+)?risk management committee"),
+    ("Investment Committee", r"investment committee"),
+    ("New Product Approval Committee", r"new product approval committee"),
+    ("Audit Committee", r"audit committee"),
+    ("IT Strategy Committee", r"it strategy committee|\bitsc\b"),
+    ("ALCO", r"\balco\b|\balm committee\b|asset[- ]liability (management )?committee"),
+    ("Top management", r"(top|senior)\s+management|management committee|^\s*management\s*$"),
+    ("Board", r"\bboard\b"),
+    ("CFO", r"\bcfo\b"),
+]
+_BODY_ORDER = ["Board", "ALCO", "Top management"] + [c for c, _ in _BODY_PATTERNS if c not in ("Board", "ALCO", "Top management")]
+
+
+def _normalise_body(raw: str):
+    """#454 N1: returns (standard_body, team_for_scope). Combinations become one standard value
+    ('Board or ALCO'); teams move to scope; anything else that is not a body is dropped."""
+    import re
+    t = " ".join((raw or "").lower().split())
+    if not t:
+        return "", ""
+    found = []
+    for canon, pat in _BODY_PATTERNS:
+        if re.search(pat, t):
+            found.append(canon)
+            t = re.sub(pat, " ", t)
+    if found:
+        return " or ".join(sorted(set(found), key=_BODY_ORDER.index)), ""
+    if re.search(r"team|department|treasury|markets|operations|function|desk|group", t):
+        return "", (raw or "").strip()
+    return "", ""
+
+
+_SUBJECT_DOC_WORDS = r"\b(frameworks?|polic(y|ies)|procedures?|sops?|standard operating procedures?|methodolog(y|ies)|guidelines?|manuals?|documentation|documents?)\b"
+_BUCKET_SCOPE = r"\b\d+\s*(-|to)\s*\d+\s*(days?|months?|years?)\b|\bbuckets?\b|\bover\s+\d+\s*(days?|months?|years?)\b|\bup to\s+\d+\s*(days?|months?|years?)\b|\bnext day\b"
+
+
+def _clean_subject(raw: str) -> str:
+    """#454 P1: lower-case subject without document words ('liquidity risk management framework' -> 'liquidity risk management')."""
+    import re
+    s = " ".join((raw or "").lower().split())
+    cleaned = " ".join(re.sub(_SUBJECT_DOC_WORDS, " ", s).split())
+    cleaned = re.sub(r"^(for|of|on|and|the|to)\s+", "", cleaned)
+    return cleaned or s
+
+
+def harmonise_subjects(items: list) -> dict:
+    """#454 P2: one AI pass over the distinct subjects; maps only TRUE synonyms onto one subject (the most used one).
+    Updates item['std'] subject + display name in place. Returns {old_subject: new_subject} for review."""
+    import collections
+    from app.services.eve_tasks import _call_llm_json
+    counts = collections.Counter((it.get("std") or {}).get("subject") for it in items if (it.get("std") or {}).get("subject"))
+    subjects = sorted(s for s in counts if s != "training")
+    mapping = {}
+    for start in range(0, len(subjects), 400):
+        chunk = subjects[start:start + 400]
+        listing = "\n".join('  %d: "%s"' % (i + 1, s) for i, s in enumerate(chunk))
+        prompt = ("Below are subject labels of compliance evidence requests. Find ONLY labels that are TRUE SYNONYMS -- the same "
+                  "topic written differently (e.g. 'time bucket classification' and 'time bucket categorisation'; 'liquidity "
+                  "management' and 'liquidity risk management'). Do NOT group a broader topic with a narrower one, and do NOT "
+                  "group different instruments, products, teams or processes. Leave every other label out.\n\nLABELS:\n" + listing +
+                  '\n\nReturn ONLY valid JSON: {"synonym_groups": [[3, 17], [8, 9, 40]]}')
+        try:
+            res = _call_llm_json(prompt)
+            groups = res.get("synonym_groups") if isinstance(res, dict) else None
+        except Exception:
+            groups = None
+        for grp in (groups or []):
+            if not isinstance(grp, list):
+                continue
+            names = [chunk[x - 1] for x in grp if isinstance(x, int) and 1 <= x <= len(chunk)]
+            names = list(dict.fromkeys(names))
+            if len(names) < 2:
+                continue
+            canon = max(names, key=lambda s: (counts[s], -len(s)))
+            for s in names:
+                if s != canon and s not in mapping:
+                    mapping[s] = canon
+    for it in items:
+        std = it.get("std")
+        if std and std.get("subject") in mapping:
+            std["subject_original"] = std["subject"]
+            std["subject"] = mapping[std["subject"]]
+            std["display_name"] = _display_name(std)
+    return mapping
+
+
+def standardise_evidence_names(items: list, progress_cb=None) -> dict:
+    """#454 N1 (2026-09-29): adds item['std'] = {doc_type, doc_class, subject, scope, body, detail, display_name}
+    to every evidence item, keeping item['evidence_item'] unchanged. AI in batches; class assigned in code.
+    Returns stats. Items whose batch fails get std = None (never blocks the pipeline)."""
+    import collections
+    from app.services.eve_tasks import _call_llm_json
+    stats = collections.Counter()
+    subjects = collections.Counter()
+    total = len(items)
+    for start in range(0, total, NAMING_BATCH_SIZE):
+        batch = items[start:start + NAMING_BATCH_SIZE]
+        texts = [(it.get("evidence_item") or "") for it in batch]
+        known = [s for s, _ in subjects.most_common(80)]
+        try:
+            res = _call_llm_json(_build_naming_prompt(texts, known))
+            rows = res.get("items") if isinstance(res, dict) else None
+        except Exception:
+            rows = None
+        stats["ai_calls"] += 1
+        if not isinstance(rows, list):
+            stats["batches_failed"] += 1
+            for it in batch:
+                it["std"] = None
+            continue
+        by_n = {r.get("n"): r for r in rows if isinstance(r, dict)}
+        for k, it in enumerate(batch, 1):
+            r = by_n.get(k)
+            if not r:
+                it["std"] = None
+                stats["items_missing"] += 1
+                continue
+            dt = " ".join((r.get("doc_type") or "").strip().lower().split())[:40]
+            if dt in ("", "other", "others", "unspecified", "n/a", "na", "none", "document"):
+                dt = _infer_doc_type(it.get("evidence_item") or "")
+                stats["doc_type_inferred_from_wording"] += 1
+            if dt not in EVIDENCE_DOC_TYPES:
+                stats["doc_type_new"] += 1  # kept as written, no class
+            std = {"doc_type": dt, "doc_class": EVIDENCE_DOC_TYPES.get(dt),
+                   "subject": _clean_subject(r.get("subject")),  # #454 P1
+                   "scope": (r.get("scope") or "").strip(), "body": (r.get("body") or "").strip(),
+                   "detail": (r.get("detail") or "").strip()}
+            _b, _team = _normalise_body(std["body"])  # #454 N1 body clean-up
+            std["body"] = _b
+            if _team and not std["scope"] and std["doc_class"] not in ("training_material", "training_record"):
+                std["scope"] = _team
+            if std["scope"] and __import__("re").search(_BUCKET_SCOPE, std["scope"].lower()):  # #454 P3
+                std["detail"] = (std["detail"] + "; " if std["detail"] else "") + std["scope"]
+                std["scope"] = ""
+            std["display_name"] = _display_name(std)
+            it["std"] = std
+            if std["subject"]:
+                subjects[std["subject"]] += 1
+            stats["items_named"] += 1
+        if progress_cb:
+            try:
+                progress_cb(min(start + NAMING_BATCH_SIZE, total), total)
+            except Exception:
+                pass
+    stats["distinct_subjects"] = len(subjects)
+    return dict(stats)
+
+
+def consolidate_by_candidates(items: list, containment_matches: dict = None, progress_cb=None):
+    """#454 C3 + F1/F2 (2026-09-28). Deterministic joins (C1 exact keys, containment) -> judge EVERY
+    candidate pair (top-K >= threshold) -> join 'same' pairs strongest-first, REFUSING any join that
+    would bring together items judged 'different' or 'not_sure' (F1) -> AI split check for groups with
+    more than C3_LARGE_GROUP_NAMES distinct names (F2). Every item lands in exactly one group.
+    Returns (ai_groups, stats, family_hints, not_sure_pairs, large_groups)."""
+    import numpy as np, collections
+    from app.services.eve_tasks import _call_llm_json
+    n = len(items)
+    parent = list(range(n))
+    members = {i: {i} for i in range(n)}
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return ra
+        parent[rb] = ra
+        members[ra] |= members.pop(rb)
+        return ra
+    texts = [(it.get("evidence_item") or "") for it in items]
+    stats = collections.Counter()
+    by_key = collections.defaultdict(list)
+    for i, t in enumerate(texts):
+        by_key[_name_key(t)].append(i)
+    for k, idxs in by_key.items():
+        if k and len(idxs) > 1:
+            stats["exact_duplicate_sets"] += 1
+            for j in idxs[1:]:
+                union(idxs[0], j)
+    for v, c in (containment_matches or {}).items():
+        union(c, v)
+        stats["containment_links"] += 1
+    pairs = {}
+    if n > 1:
+        emb = np.array(get_embeddings_batch(texts), dtype=float)
+        norms = np.linalg.norm(emb, axis=1, keepdims=True)
+        norms[norms == 0] = 1e-10
+        emb = emb / norms
+        sim = emb @ emb.T
+        np.fill_diagonal(sim, -1.0)
+        for i in range(n):
+            for j in np.argsort(-sim[i])[:C3_TOP_K]:
+                j = int(j)
+                s = float(sim[i][j])
+                if s < C3_SIMILARITY_THRESHOLD:
+                    break
+                key = (i, j) if i < j else (j, i)
+                pairs[key] = max(s, pairs.get(key, 0.0))
+    stats["candidate_pairs"] = len(pairs)
+    # Phase 1: judge every candidate pair not already joined deterministically (no AI-based skipping).
+    by_anchor = collections.defaultdict(list)
+    for (a, b) in pairs:
+        if find(a) != find(b):
+            by_anchor[a].append(b)
+        else:
+            stats["pairs_already_joined_deterministically"] += 1
+    decisions = {}
+    not_sure, families = [], collections.defaultdict(set)
+    anchors = list(by_anchor)
+    total = len(anchors)
+    for done, a in enumerate(anchors, 1):
+        cands = sorted(by_anchor[a], key=lambda b: -pairs[(a, b)])
+        for start in range(0, len(cands), C3_MAX_CANDIDATES_PER_CALL):
+            chunk = cands[start:start + C3_MAX_CANDIDATES_PER_CALL]
+            try:
+                res = _judge_candidates(texts[a], [texts[b] for b in chunk])
+                stats["ai_calls"] += 1
+            except Exception:
+                res = None
+            if res is None:
+                stats["ai_errors"] += 1
+                for b in chunk:
+                    decisions[(a, b)] = "not_sure"
+                continue
+            for k, b in enumerate(chunk):
+                d, fam, why = res.get(k, ("not_sure", "", "no answer returned for this candidate"))
+                decisions[(a, b)] = d
+                stats["decision_" + d] += 1
+                if fam:
+                    families[fam].update([texts[a], texts[b]])
+                if d == "not_sure":
+                    not_sure.append({"items": [texts[a], texts[b]], "score": round(pairs[(a, b)], 3), "reasoning": why})
+        if progress_cb and (done % 10 == 0 or done == total):
+            try:
+                progress_cb(done, total)
+            except Exception:
+                pass
+    # Phase 2 (F1): join 'same' pairs strongest-first; refuse joins contradicted by a 'different'/'not_sure' decision.
+    blocked = collections.defaultdict(set)
+    for (a, b), d in decisions.items():
+        if d != "same":
+            blocked[a].add(b)
+            blocked[b].add(a)
+    def comp_blocked(root):
+        out = set()
+        for m in members[root]:
+            out |= blocked.get(m, set())
+        return out
+    for (a, b) in sorted((p for p, d in decisions.items() if d == "same"), key=lambda p: -pairs[p]):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            continue
+        if comp_blocked(ra) & members[rb] or comp_blocked(rb) & members[ra]:
+            stats["joins_refused_contradicted"] += 1
+            continue
+        union(a, b)
+        stats["joins_made"] += 1
+    # F2: AI split check for groups with more distinct names than the limit.
+    final_sets = []
+    for root, mem in list(members.items()):
+        keyrep = collections.OrderedDict()
+        for i in sorted(mem):
+            keyrep.setdefault(_name_key(texts[i]), []).append(i)
+        if len(keyrep) <= C3_LARGE_GROUP_NAMES or len(keyrep) > 150:
+            final_sets.append(sorted(mem))
+            continue
+        keys = list(keyrep)
+        listing = "\n".join("  %d: \"%s\"" % (x + 1, texts[keyrep[k][0]]) for x, k in enumerate(keys))
+        prompt = ("These compliance evidence asks were grouped together, but the group may mix different asks. "
+                  "Split them into groups where EVERY name in a group asks for the SAME evidence: same kind of document, "
+                  "same subject, and same scope details that change what is collected (team or function, instrument or product, "
+                  "annex, market, period). Wording, word order, capitalisation, 'Final approved' vs 'Approved' and bracketed "
+                  "purpose descriptions do NOT make them different. A generic ask and a specific ask on the same subject go in "
+                  "DIFFERENT groups.\n\nNAMES:\n" + listing + "\n\nReturn ONLY valid JSON: {\"groups\": [[1, 4], [2], [3, 5]]} "
+                  "using every number exactly once.")
+        stats["split_checks"] += 1
+        try:
+            res = _call_llm_json(prompt)
+            parts = res.get("groups") if isinstance(res, dict) else None
+        except Exception:
+            parts = None
+        if not isinstance(parts, list):
+            stats["split_check_errors"] += 1
+            final_sets.append(sorted(mem))
+            continue
+        used = set()
+        for part in parts:
+            if not isinstance(part, list):
+                continue
+            chosen = []
+            for x in part:
+                if isinstance(x, int) and 1 <= x <= len(keys) and x not in used:
+                    used.add(x)
+                    chosen.extend(keyrep[keys[x - 1]])
+            if chosen:
+                final_sets.append(sorted(chosen))
+        for x in range(1, len(keys) + 1):
+            if x not in used:
+                final_sets.append(sorted(keyrep[keys[x - 1]]))
+        stats["split_groups_created"] += max(0, len([p for p in parts if isinstance(p, list)]) - 1)
+    ai_groups, large = [], []
+    for mem in final_sets:
+        if len(mem) < 2:
+            continue
+        cnt = collections.Counter(texts[i] for i in mem)
+        canonical = max(cnt.items(), key=lambda kv: (kv[1], -len(kv[0])))[0]
+        ai_groups.append({"item_indices": mem, "canonical_name": canonical})
+        if len({_name_key(texts[i]) for i in mem}) > C3_LARGE_GROUP_NAMES:
+            large.append({"canonical_name": canonical, "size": len(mem),
+                          "distinct_names": sorted({texts[i] for i in mem})[:30]})
+    stats["groups_with_2plus_items"] = len(ai_groups)
+    stats["large_groups_flagged"] = len(large)
+    stats["not_sure_pairs"] = len(not_sure)
+    family_hints = {f: sorted(v)[:50] for f, v in families.items()}
+    return ai_groups, dict(stats), family_hints, not_sure, large
+
+
+C3_SPLIT_KEYS = 3
+_SCOPED_CLASSES = ("governing", "output", "sample_records", "system_evidence", "interview_notes", "charter")
+_SAME_ASK_RULES = (
+    "Two asks are the SAME if one real document of the same kind would satisfy both. Rules agreed with the audit lead:\n"
+    "1. Governing documents (policy, framework, procedure, SOP, methodology, guidelines, plan, manual) on the same subject are "
+    "the same ask -- the regulator does not care what the document is called.\n"
+    "2. Output documents (reports, results) on the same subject are the same ask. A governing document and an output are never "
+    "the same ask.\n"
+    "3. Minutes of the same body are the same ask whatever the agenda; minutes of different bodies (e.g. Board vs ALCO) are "
+    "different; a resolution is not minutes.\n"
+    "4. Training materials are one ask; training records, attendance, assessment results and certificates are one ask; the two "
+    "are different.\n"
+    "5. Different subjects are different asks, and so are different scopes that change what is collected (e.g. listed vs "
+    "unlisted securities, ICD vs inflows, different teams, Annex II vs Annex III) -- UNLESS one ask is the broader, general "
+    "version of the other (see 6).\n"
+    "6. If one ask is the broader/general version and the other is a narrower part of it (e.g. 'repayment schedules' vs "
+    "'repayment schedules for rupee term loans', or 'information security policy' vs 'user access management policy'), say "
+    "which one is broader.\n"
+    "Subjects that mean the same thing (e.g. 'liquidity management' and 'liquidity risk management') count as the same subject. "
+    "Wording, capitalisation, 'Final approved' vs 'Approved' and bracketed purpose text never make asks different. "
+    "Do NOT lean toward merging; when genuinely unsure, answer not_sure.\n"
+)
+
+
+def _std_key(it: dict) -> tuple:
+    """#454 S2: exact-join key built from the standardised name parts, per the agreed class rules."""
+    s = it.get("std")
+    if not s:
+        return ("raw", _name_key(it.get("evidence_item") or ""))
+    cls = s.get("doc_class")
+    subj = s.get("subject") or ""
+    scope = " ".join((s.get("scope") or "").lower().split())
+    body = s.get("body") or ""
+    if cls in ("training_material", "training_record"):
+        return (cls,)
+    if cls in ("minutes", "resolution"):
+        return (cls, body) if body else (cls, "", subj, scope)
+    if cls:
+        return (cls, subj, scope)
+    return ("type", s.get("doc_type") or "", subj, scope, body)
+
+
+def _std_label(it: dict) -> str:
+    return ((it.get("std") or {}).get("display_name")) or (it.get("evidence_item") or "")
+
+
+def _build_structured_judgment_prompt(anchor: tuple, cands: list) -> str:
+    """#454 S5: anchor/cands are (standard_name, original_wording)."""
+    block = "\n".join('  c%d: "%s"  (original: "%s")' % (i + 1, c[0], c[1]) for i, c in enumerate(cands))
+    return (
+        "You are building a de-duplicated evidence request list for a compliance audit. For EACH candidate, decide how it "
+        "relates to the anchor.\n\n" + _SAME_ASK_RULES +
+        "\nDecisions: same | anchor_broader (anchor is the general version, candidate a narrower part of it) | "
+        "candidate_broader | different | not_sure.\n"
+        "Also give document_family: a short generic name for the kind of real document that could cover it (reference only).\n\n"
+        'ANCHOR: "' + anchor[0] + '"  (original: "' + anchor[1] + '")\n\nCANDIDATES:\n' + block + "\n\n"
+        'Return ONLY valid JSON: {"results": [{"id": "c1", "decision": "same", "document_family": "...", '
+        '"reason": "one short sentence"}]}'
+    )
+
+
+def _judge_structured(anchor: tuple, cands: list):
+    from app.services.eve_tasks import _call_llm_json
+    result = _call_llm_json(_build_structured_judgment_prompt(anchor, cands))
+    rows = result.get("results") if isinstance(result, dict) else None
+    if not isinstance(rows, list):
+        return None
+    out = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        cid = str(r.get("id", "")).strip().lower()
+        if cid.startswith("c") and cid[1:].isdigit():
+            k = int(cid[1:]) - 1
+            if 0 <= k < len(cands):
+                d = r.get("decision")
+                if d not in ("same", "anchor_broader", "candidate_broader", "different", "not_sure"):
+                    d = "not_sure"
+                out[k] = (d, (r.get("document_family") or "").strip(), (r.get("reason") or "").strip())
+    return out
+
+
+def consolidate_structured(items: list, containment_matches: dict = None, progress_cb=None):
+    """#454 S2-S7 (2026-09-29): consolidation on standardised names (item['std'] from standardise_evidence_names).
+    S2 exact joins on _std_key; S3 class/body guard on every join; S6 generic-vs-specific (one scope -> merge,
+    several -> parent entry with separate children); S4/S5 candidate pairs on standard names judged by AI with the
+    agreed rules; F1 no join if contradicted; F2 split check; every item in exactly one group.
+    Returns (ai_groups with 'meta', stats, family_hints, not_sure_pairs, large_groups)."""
+    import numpy as np, collections
+    from app.services.eve_tasks import _call_llm_json
+    n = len(items)
+    stats = collections.Counter()
+    parent = list(range(n))
+    members = {i: {i} for i in range(n)}
+    cls_of = [((it.get("std") or {}).get("doc_class")) for it in items]
+    body_of = [(((it.get("std") or {}).get("body") or "") if cls_of[i] in ("minutes", "resolution") else "") for i, it in enumerate(items)]
+    comp_cls = {i: ({cls_of[i]} if cls_of[i] else set()) for i in range(n)}
+    comp_body = {i: ({body_of[i]} if body_of[i] else set()) for i in range(n)}
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    def ok(ra, rb):
+        return len(comp_cls[ra] | comp_cls[rb]) <= 1 and len(comp_body[ra] | comp_body[rb]) <= 1
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return True
+        if not ok(ra, rb):
+            return False
+        parent[rb] = ra
+        members[ra] |= members.pop(rb)
+        comp_cls[ra] |= comp_cls.pop(rb)
+        comp_body[ra] |= comp_body.pop(rb)
+        return True
+    def _struct_conflict(ra, rb):
+        bl = set()
+        for m in members[ra]:
+            bl |= struct_blocked.get(m, set())
+        return bool(bl & members[rb])
+    labels = [_std_label(it) for it in items]
+    originals = [(it.get("evidence_item") or "") for it in items]
+    keys = [_std_key(it) for it in items]
+    # S2: exact joins on the standard key
+    by_key = collections.defaultdict(list)
+    for i, k in enumerate(keys):
+        by_key[k].append(i)
+    for k, idxs in by_key.items():
+        if len(idxs) > 1 and k != ("raw", ""):
+            stats["exact_key_sets"] += 1
+            for j in idxs[1:]:
+                union(idxs[0], j)
+    for v, c in (containment_matches or {}).items():
+        stats["containment_joined" if union(c, v) else "containment_refused_by_class"] += 1
+    # S6 (deterministic): generic (no scope) vs specific (scoped) on the same class + subject
+    parent_rel = []
+    buckets = collections.defaultdict(lambda: collections.defaultdict(list))
+    for i, it in enumerate(items):
+        s = it.get("std") or {}
+        if cls_of[i] in _SCOPED_CLASSES and s.get("subject"):
+            buckets[(cls_of[i], s["subject"])][" ".join((s.get("scope") or "").lower().split())].append(i)
+    struct_blocked = collections.defaultdict(set)  # siblings (and generic vs its several specifics) never join
+    for (_c, _s), by_scope in buckets.items():
+        scopes = [sc for sc in by_scope if sc]
+        if "" in by_scope and len(scopes) == 1:
+            if union(by_scope[""][0], by_scope[scopes[0]][0]):
+                stats["generic_specific_merged"] += 1
+            continue
+        if len(scopes) >= 2:
+            reps = [by_scope[sc][0] for sc in scopes] + ([by_scope[""][0]] if "" in by_scope else [])
+            for x in reps:
+                for y in reps:
+                    if x != y:
+                        struct_blocked[x].add(y)
+            if "" in by_scope:
+                for sc in scopes:
+                    parent_rel.append((by_scope[sc][0], by_scope[""][0]))
+                stats["parents_from_structure"] += 1
+            else:
+                stats["sibling_sets_kept_separate"] += 1
+    # S4: candidate pairs on standard names, same class only
+    uniq = sorted(set(labels))
+    rep = {}
+    for i, l in enumerate(labels):
+        rep.setdefault(l, i)
+    pairs = {}
+    if len(uniq) > 1:
+        emb = np.array(get_embeddings_batch(uniq), dtype=float)
+        norms = np.linalg.norm(emb, axis=1, keepdims=True)
+        norms[norms == 0] = 1e-10
+        emb = emb / norms
+        sim = emb @ emb.T
+        np.fill_diagonal(sim, -1.0)
+        for x in range(len(uniq)):
+            for y in np.argsort(-sim[x])[:C3_TOP_K]:
+                y = int(y)
+                sc = float(sim[x][y])
+                if sc < C3_SIMILARITY_THRESHOLD:
+                    break
+                a, b = rep[uniq[x]], rep[uniq[y]]
+                a, b = (a, b) if a < b else (b, a)
+                if find(a) == find(b):
+                    stats["pairs_already_joined"] += 1
+                    continue
+                if not ok(find(a), find(b)):
+                    stats["pairs_skipped_by_class_guard"] += 1
+                    continue
+                if any(m in struct_blocked for m in members[find(a)]) and _struct_conflict(find(a), find(b)):
+                    stats["pairs_skipped_siblings"] += 1
+                    continue
+                pairs[(a, b)] = max(sc, pairs.get((a, b), 0.0))
+    stats["candidate_pairs"] = len(pairs)
+    # S5: AI judgment
+    by_anchor = collections.defaultdict(list)
+    for (a, b) in pairs:
+        by_anchor[a].append(b)
+    decisions, not_sure, families = {}, [], collections.defaultdict(set)
+    anchors = list(by_anchor)
+    total = len(anchors)
+    for done, a in enumerate(anchors, 1):
+        cands = sorted(by_anchor[a], key=lambda b: -pairs[(a, b)])
+        for start in range(0, len(cands), C3_MAX_CANDIDATES_PER_CALL):
+            chunk = cands[start:start + C3_MAX_CANDIDATES_PER_CALL]
+            try:
+                res = _judge_structured((labels[a], originals[a]), [(labels[b], originals[b]) for b in chunk])
+                stats["ai_calls"] += 1
+            except Exception:
+                res = None
+            if res is None:
+                stats["ai_errors"] += 1
+                for b in chunk:
+                    decisions[(a, b)] = "not_sure"
+                continue
+            for k, b in enumerate(chunk):
+                d, fam, why = res.get(k, ("not_sure", "", "no answer returned"))
+                decisions[(a, b)] = d
+                stats["decision_" + d] += 1
+                if fam:
+                    families[fam].update([labels[a], labels[b]])
+                if d == "not_sure":
+                    not_sure.append({"items": [labels[a], labels[b]], "originals": [originals[a], originals[b]],
+                                     "score": round(pairs[(a, b)], 3), "reasoning": why})
+        if progress_cb and (done % 10 == 0 or done == total):
+            try:
+                progress_cb(done, total)
+            except Exception:
+                pass
+    # F1: join 'same' strongest-first, refusing joins contradicted by 'different'/'not_sure'
+    blocked = collections.defaultdict(set)
+    for x, ys in struct_blocked.items():
+        blocked[x] |= ys
+    for (a, b), d in decisions.items():
+        if d in ("different", "not_sure"):
+            blocked[a].add(b)
+            blocked[b].add(a)
+    def contradicted(ra, rb):
+        bl = set()
+        for m in members[ra]:
+            bl |= blocked.get(m, set())
+        return bool(bl & members[rb])
+    for (a, b) in sorted((p for p, d in decisions.items() if d == "same"), key=lambda p: -pairs[p]):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            continue
+        if contradicted(ra, rb) or contradicted(rb, ra):
+            stats["joins_refused_contradicted"] += 1
+            continue
+        stats["joins_made" if union(a, b) else "joins_refused_by_class"] += 1
+    # S6 (from AI): broader relations -> one narrower = merge; several = parent entry
+    narrower = collections.defaultdict(set)
+    for (a, b), d in decisions.items():
+        if d == "anchor_broader":
+            narrower[a].add(b)
+        elif d == "candidate_broader":
+            narrower[b].add(a)
+    for broad, nset in narrower.items():
+        rb = find(broad)
+        roots = {find(x) for x in nset} - {rb}
+        if len(roots) == 1:
+            nr = next(iter(roots))
+            if not (contradicted(rb, nr) or contradicted(nr, rb)) and union(broad, nr):
+                stats["broader_merged"] += 1
+        elif len(roots) >= 2:
+            for x in nset:
+                if find(x) != rb:
+                    parent_rel.append((x, broad))
+            stats["parents_from_ai"] += 1
+    # F2: split check for components mixing more than C3_SPLIT_KEYS distinct standard keys
+    final_sets = []
+    for root, mem in list(members.items()):
+        keyrep = collections.OrderedDict()
+        for i in sorted(mem):
+            keyrep.setdefault(keys[i], []).append(i)
+        if len(keyrep) <= C3_SPLIT_KEYS or len(keyrep) > 150:
+            final_sets.append(sorted(mem))
+            continue
+        ks = list(keyrep)
+        listing = "\n".join('  %d: "%s"' % (x + 1, labels[keyrep[k][0]]) for x, k in enumerate(ks))
+        prompt = ("These evidence asks were grouped together, but the group may mix different asks. Split them into groups "
+                  "where every name in a group is the SAME ask.\n\n" + _SAME_ASK_RULES +
+                  "\nNAMES:\n" + listing + '\n\nReturn ONLY valid JSON: {"groups": [[1, 4], [2], [3, 5]]} using every number exactly once.')
+        stats["split_checks"] += 1
+        try:
+            res = _call_llm_json(prompt)
+            parts = res.get("groups") if isinstance(res, dict) else None
+        except Exception:
+            parts = None
+        if not isinstance(parts, list):
+            stats["split_check_errors"] += 1
+            final_sets.append(sorted(mem))
+            continue
+        used = set()
+        made = 0
+        for part in parts:
+            if not isinstance(part, list):
+                continue
+            chosen = []
+            for x in part:
+                if isinstance(x, int) and 1 <= x <= len(ks) and x not in used:
+                    used.add(x)
+                    chosen.extend(keyrep[ks[x - 1]])
+            if chosen:
+                final_sets.append(sorted(chosen))
+                made += 1
+        for x in range(1, len(ks) + 1):
+            if x not in used:
+                final_sets.append(sorted(keyrep[ks[x - 1]]))
+                made += 1
+        stats["split_groups_created"] += max(0, made - 1)
+    # S8: names, covers, parent links
+    set_of = {}
+    for si, mem in enumerate(final_sets):
+        for i in mem:
+            set_of[i] = si
+    parent_of = {}
+    for child, par in parent_rel:
+        ci, pi = set_of[child], set_of[par]
+        if ci != pi and ci not in parent_of and parent_of.get(pi) != ci:
+            parent_of[ci] = pi
+    # #454 P4: one level of parents only -- a child's children move up to the top parent
+    for ci in list(parent_of):
+        p, seen = parent_of[ci], {ci}
+        while p in parent_of and p not in seen:
+            seen.add(p)
+            p = parent_of[p]
+        if p == ci:
+            del parent_of[ci]
+        else:
+            parent_of[ci] = p
+    def canon(mem):
+        cnt = collections.Counter(labels[i] for i in mem)
+        return max(cnt.items(), key=lambda kv: (kv[1], -len(kv[0])))[0]
+    def covers(mem):
+        out = []
+        for i in mem:
+            s = items[i].get("std") or {}
+            c = (s.get("subject") or "") + ((" - " + s["scope"]) if s.get("scope") else "")
+            if c and c not in out:
+                out.append(c)
+        return out[:12]
+    children = collections.defaultdict(list)
+    for ci, pi in parent_of.items():
+        children[pi].append(ci)
+    ai_groups, large = [], []
+    _CLASS_NAMES = {"training_record": "Training records and assessment results", "training_material": "Training materials"}
+    for si, mem in enumerate(final_sets):
+        name = _CLASS_NAMES.get((items[mem[0]].get("std") or {}).get("doc_class")) or canon(mem)  # #454 P5
+        cov = covers(mem)
+        if si in children:
+            kids = []
+            for ci in children[si]:
+                s0 = items[final_sets[ci][0]].get("std") or {}
+                kids.append(s0.get("scope") or s0.get("subject") or canon(final_sets[ci]))
+            name = f"{name} (covers: {', '.join(sorted(set(kids)))})"
+        ai_groups.append({"item_indices": mem, "canonical_name": name,
+                          "meta": {"group_key": f"G{si + 1}", "parent_key": (f"G{parent_of[si] + 1}" if si in parent_of else None),
+                                   "is_parent": si in children, "covers": cov,
+                                   "doc_class": (items[mem[0]].get("std") or {}).get("doc_class"),
+                                   "original_names": sorted({originals[i] for i in mem})[:20]}})
+        if len({keys[i] for i in mem}) > C3_LARGE_GROUP_NAMES:
+            large.append({"canonical_name": name, "size": len(mem), "distinct_names": sorted({labels[i] for i in mem})[:30]})
+    stats["final_groups"] = len(final_sets)
+    stats["parent_entries"] = len(children)
+    stats["child_groups"] = len(parent_of)
+    stats["large_groups_flagged"] = len(large)
+    stats["not_sure_pairs"] = len(not_sure)
+    family_hints = {f: sorted(v)[:50] for f, v in families.items()}
+    return ai_groups, dict(stats), family_hints, not_sure, large
+
+
+def attach_group_meta(groups: list, items: list, ai_groups: list) -> int:
+    """#454 S8: copy each ai_group's meta onto the rebuilt D4 group (matched by name, then by evidence ids)."""
+    import collections
+    by_name = collections.defaultdict(list)
+    for gi, g in enumerate(ai_groups):
+        by_name[g["canonical_name"]].append(gi)
+    ev_to = {}
+    for gi, g in enumerate(ai_groups):
+        for i in g["item_indices"]:
+            eid = items[i].get("evidence_id")
+            if eid is not None:
+                ev_to[eid] = gi
+    attached = 0
+    for g in groups:
+        gi = None
+        cands = by_name.get(g.get("evidence_item_name"), [])
+        if len(cands) == 1:
+            gi = cands[0]
+        else:
+            ids = [e.get("evidence_id") for e in ((g.get("required_by") or {}).get("evidence") or []) if isinstance(e, dict)]
+            c = collections.Counter(ev_to[x] for x in ids if x in ev_to)
+            if c:
+                gi = c.most_common(1)[0][0]
+        if gi is not None:
+            g.update(ai_groups[gi]["meta"])
+            g["standard_name"] = ai_groups[gi]["canonical_name"]
+            attached += 1
+    return attached
+
+
+def merge_groups_same_name_key(groups: list) -> list:
+    """#454 C3d: final deterministic check -- groups whose names share the same _name_key become one."""
+    import collections
+    buckets = collections.OrderedDict()
+    out = []
+    for g in groups:
+        k = _name_key(g.get("evidence_item_name"))
+        if not k:
+            out.append(g)
+            continue
+        buckets.setdefault(k, []).append(g)
+    for gs in buckets.values():
+        if len(gs) == 1:
+            out.append(gs[0])
+            continue
+        gids, cnos, aids, evs, seen = set(), set(), set(), [], set()
+        for mg in gs:
+            rb = mg.get("required_by", {}) or {}
+            gids.update(rb.get("guideline_ids", []) or [])
+            cnos.update(rb.get("clause_nos", []) or [])
+            aids.update(rb.get("activity_ids", []) or [])
+            for ev in (rb.get("evidence", []) or []):
+                if isinstance(ev, dict) and ev.get("evidence_id") not in seen:
+                    evs.append(ev)
+                    seen.add(ev.get("evidence_id"))
+        out.append({"evidence_item_name": gs[0].get("evidence_item_name") or "Unnamed evidence group",
+                    "required_by": {"guideline_ids": list(gids), "clause_nos": list(cnos),
+                                    "activity_ids": list(aids), "evidence": evs}})
+    return out
+
+
 def merge_duplicate_groups_second_pass(groups: list) -> list:
     """Build Sequence #TBD -- Phase 5 redesign, final cross-mechanism dedup
     pass. Real diagnosis on guideline 210's full run found that D5a-i/D2/D3
