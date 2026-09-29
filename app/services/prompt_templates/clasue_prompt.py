@@ -656,7 +656,11 @@ Based on the intent you just identified, what type of content is this clause?
 Choose ONE:
 - OBLIGATION: imposes a hard mandatory requirement using "shall", "must", "is required to"
 - PRINCIPLE: principles-based obligation using "shall endeavour", "shall seek to", "should" — testable but softer
-- MIXED: contains BOTH a definition/applicability condition AND an obligation in the same text
+- MIXED (MIXED-RULE-V2): use ONLY when the clause genuinely falls into MORE THAN ONE category AND at least one of those parts is actionable -- an obligation, a principle, or a discretionary provision that needs its own compliance activities -- alongside non-actionable content (a definition, an applicability/scope statement, an exemption, or a reference). Both conditions must hold.
+  Do NOT use MIXED when:
+  - every part is non-actionable (e.g. a definition that also cites another regulation, or a scope statement with a reference) -> choose DEFINITION, APPLICABILITY, EXEMPTION or REFERENCE, whichever best describes what the clause does;
+  - every part is actionable but of different strength (e.g. "shall" together with "should" or "may") -> choose the strongest: OBLIGATION, then PRINCIPLE, then DISCRETIONARY;
+  - the other content is only a cross-reference inside the requirement (e.g. "as defined in...", "in accordance with regulation X", "under the SEBI Regulations...") -> classify by the requirement itself.
 - DEFINITION: only defines a term ("X means...", "For the purpose of...X shall mean...") — no obligation
 - APPLICABILITY: describes the scope of who/what the regulation applies to — no new independent action is demanded by THIS clause, even if it uses "shall apply to"
 - EXEMPTION: carves out entities, transactions, or categories that are excluded from an otherwise-applicable requirement — including patterns like "Nothing contained in...shall apply to...", "shall not apply to...", "is exempted from...", or a list of excluded deposit/entity types
@@ -664,7 +668,7 @@ Choose ONE:
 - DISCRETIONARY: the core action is genuinely optional -- the entity may choose to do it or not, with no real expectation either way (e.g. "encouraged to leverage," "may consider adopting," "recommended practice," "where feasible"). Distinct from PRINCIPLE, which still carries a real, softer-but-genuine expectation ("shall endeavour"). Only classify as DISCRETIONARY if this is the clause's CORE action, not a sub-detail/method-choice within an otherwise-mandatory clause -- e.g. "REs may undertake V-CIP" is NOT discretionary, since the underlying CDD obligation remains mandatory and V-CIP is just one permitted method of fulfilling it.
 
 IMPORTANT — EMBEDDED OBLIGATION RULE:
-If a definition clause contains language like "shall ensure", "shall maintain", "is required to" — classify as MIXED, not DEFINITION.
+If a definition, applicability, exemption or reference clause ALSO contains a standalone duty or expectation of its own that needs compliance activities (e.g. "shall ensure", "shall maintain", "is required to", "should", "may consider") -- classify as MIXED, not DEFINITION/APPLICABILITY/EXEMPTION/REFERENCE.
 If an applicability or exemption clause says "shall comply with regulations X to Y" as an ADDITIONAL standalone duty (not just describing scope) — classify as MIXED, not APPLICABILITY/EXEMPTION.
 If content is a list of historical circulars, amendment references, or rows from an appendix with circular numbers and dates — classify as REFERENCE regardless of any other content.
 
