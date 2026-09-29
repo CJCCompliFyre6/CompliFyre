@@ -241,6 +241,19 @@
         <h1 class="text-2xl ">My Guidelines</h1>
         <!-- <p><a href="#">Dashboard</a> / Organization Profile</p> -->
     </div>
+    <!-- HDB-REQUEST-BTN: moved from table toolbar, styled to match orange buttons -->
+    <div class="px-6 py-2">
+        <a href="{{ url_for('audit.request_guideline') }}">
+            <button
+                class="inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-all">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Request New Guideline
+            </button>
+        </a>
+    </div>
 </main>
 
 <div class="w-auto mx-8 bg-orange-100 rounded-xl p-6" style="z-index: -20;">
@@ -375,18 +388,6 @@
 
 
         <div class="flex items-center gap-2">
-            <a href="{{ url_for('re.guidelines') }}">
-                <button class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded">
-                    Download New Guidelines
-                </button>
-            </a>
-
-            <a href="{{ url_for('audit.request_guideline') }}">
-                <button
-                    class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded">
-                    Request New Guideline
-                </button>
-            </a>
             <button id="exportCSV" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-all rounded" style="display:none !important">
                 Export to CSV
             </button>
