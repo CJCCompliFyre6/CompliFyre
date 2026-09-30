@@ -2071,3 +2071,9 @@ def fix_pending_checklists(self):
         db.session.rollback()
         logger.error(f"[Periodic] fix_pending_checklists error: {e}")
         return {"error": str(e)}
+
+# ABBREV-TRAINING-FIX: keep the regulation's own terms in checklist items
+_TERMS_RULE = "TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own terms. If the regulatory clause uses an abbreviation (e.g. ITSC, ISC, CISO, CCMP, ACB), write that same abbreviation everywhere in your output; if it uses the full name, write the full name. NEVER expand an abbreviation yourself and never substitute one committee, body or role for another (e.g. the ITSC is NOT the IT Steering Committee)."
+_orig_build_checklist_prompt = _build_checklist_prompt
+def _build_checklist_prompt(*args, **kwargs):
+    return _orig_build_checklist_prompt(*args, **kwargs) + "\n\n" + _TERMS_RULE

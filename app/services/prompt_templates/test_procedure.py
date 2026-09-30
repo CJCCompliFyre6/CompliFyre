@@ -178,6 +178,7 @@ INPUT DATA:
 - Compliance Activity: {control_activity}
 
 Note: From the Compliance Activity, use activity_description for the content and compliance_level for the testing scope — strictly follow section 3 guidance.
+TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own terms. If the regulatory clause uses an abbreviation (e.g. ITSC, ISC, CISO, CCMP, ACB), write that same abbreviation everywhere in your output; if it uses the full name, write the full name. NEVER expand an abbreviation yourself and never substitute one committee, body or role for another (e.g. the ITSC is NOT the IT Steering Committee).
 CRITICAL — DATES & PERIODS: NEVER use any specific year, quarter, or date in evidence names or descriptions (e.g., do NOT write "Q2 2023 Report", "Q1 2024 Report", "2023 Compliance Report").
 
 INSTRUCTIONS:
@@ -293,7 +294,7 @@ INSTRUCTIONS:
 
    DEPENDENCY — MANDATORY when more than one dimension applies; acknowledge this in your test procedure:
    - Design: are policies documented, is the control framework defined, are roles/responsibilities assigned, is it approved by the correct authority? Evidence: policy documents, framework documentation, approvals, role definitions.
-   - Implementation (only if dimension_implementation=true): first confirm Design exists as a prerequisite, then test whether it has actually been deployed/configured/trained/followed. Evidence: configuration screenshots, training records, deployment evidence, SOPs.
+   - Implementation (only if dimension_implementation=true): first confirm Design exists as a prerequisite, then test whether it has actually been deployed/configured/trained/followed. Evidence: configuration screenshots, deployment evidence, SOPs -- and training records ONLY where the activity itself concerns staff training or awareness.
    - Operating (only if dimension_operating=true): first confirm Design AND Implementation exist as prerequisites, then test whether the control operates consistently over the audit period. Sampling is MANDATORY here. Evidence: transaction logs, monitoring reports, samples from the audit period, exception reports.
 
 4. TEST PROCEDURE:
@@ -320,6 +321,8 @@ INSTRUCTIONS:
          post-training assessment score demonstrating comprehension -- never attendance records alone,
          since attendance does not prove understanding. Specify a minimum passing score of 70% as the
          acceptance criterion for the assessment.
+          Do NOT add training materials, training records, attendance or assessment results for any other
+          activity -- only when the activity itself is about training, awareness or competence.
          Where the activity describes creating, building, configuring, or deploying a specific, named
          technical deliverable (a flowchart, a system integration, a technical configuration, a
          dashboard, a tool), evidence must include the deliverable itself or direct proof of its

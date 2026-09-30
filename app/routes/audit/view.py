@@ -57,6 +57,11 @@ from app.models.project_instance_models import *
 from app.utils.bread_crumb import add_to_breadcrumb
 from app.utils.input_security import validate_upload_file, sanitize_text_input
 from app.utils.evidence_access import check_evidence_artifact_access, user_can_access_project
+from app.utils.project_access import (
+    require_project_edit, project_by_id, project_by_name, project_for_guideline,
+    project_for_clause, project_for_control_activity, project_for_test_step,
+    project_for_interview_question, project_for_evidence_artifact, project_for_evidence_file,
+)
 from app.utils.permission_handler import role_required
 from app.services.model_response import *
 from app.utils.email_service import (
@@ -1756,6 +1761,7 @@ def update_project(project_id):
             .options(subqueryload(Projects.departments))
             .first_or_404()
         )
+        require_project_edit(project)
 
         data = request.form
         org_id = data.get("org_id")
@@ -1945,6 +1951,7 @@ def create_new_project():
         new_project = Projects(
             auditing_firm=firm_id,
             client=org_id,
+            created_by=current_user.id,
             project_name=project_name,
             project_description=project_description,
             primary_department_id=(
@@ -2176,6 +2183,7 @@ def refetch_project_activities():
         if not project_id or not master_clause_id_str:
             flash("Project ID and Clause ID are required.", "error")
             return redirect(request.referrer)
+        require_project_edit(project_by_id(project_id))
 
         master_clause_id = int(master_clause_id_str)
 
@@ -2325,6 +2333,7 @@ def refetch_project_test_procedure():
         parent_compliance_activity_id = request.form.get(
             "parent_compliance_activity_id"
         )
+        require_project_edit(project_for_control_activity(project_control_id))
 
         if (
             not project_control_id
@@ -2732,6 +2741,7 @@ def submit_interview_answer():
     try:
         project_question_id = request.form.get("question_id")
         answer = request.form.get("answer")
+        require_project_edit(project_for_interview_question(project_question_id))
 
         if not project_question_id or not answer:
             return (
@@ -2774,6 +2784,7 @@ def update_control_activity():
         compliant_status = request.form.get("compliant_status", "").strip().lower()
         control_findings = request.form.get("findings_content", "").strip()
         control_recommendation = request.form.get("recommendation_content", "").strip()
+        require_project_edit(project_for_control_activity(project_control_activity_id))
 
         if not project_control_activity_id or not compliant_status:
             flash("Activity ID and Compliance Status are required.", "warning")
@@ -2814,6 +2825,9 @@ def answer_question_from_mom():
     and updates the project-specific interview question records in the database.
     """
     try:
+        for _key, _val in request.form.items():
+            if "question_id" in _key and _val.isdigit():
+                require_project_edit(project_for_interview_question(_val))
         if "minute_of_meeting" not in request.files:
             flash("No file part in the request.", "danger")
             return redirect(request.referrer)
@@ -2982,6 +2996,7 @@ def add_interview_question():
     try:
         project_control_activity_id = request.form.get("activity_id")
         question_text = request.form.get("question")
+        require_project_edit(project_for_control_activity(project_control_activity_id))
 
         if not project_control_activity_id or not question_text:
             flash("Activity ID and question text are required.", "danger")
@@ -3041,6 +3056,7 @@ def new_evidances():
         category = request.form.get("category")
         item = request.form.get("item")
         project_control_activity_id = request.form.get("control_id")
+        require_project_edit(project_for_control_activity(project_control_activity_id))
 
         if not project_control_activity_id:
             flash("Control ID is missing!", "error")
@@ -3085,6 +3101,7 @@ def consolidate_evidence():
             return redirect(request.referrer)
 
         project = Projects.query.filter_by(project_name=project_name).first()
+        require_project_edit(project)
         # S-65: IDOR check — project_name is user-supplied; verify tenant ownership
         # COMPLIFYRE role bypasses tenant check (internal admin)
         if project and getattr(current_user, "role", None) != "COMPLIFYRE":
@@ -3899,7 +3916,8 @@ def _build_naming_prompt(texts: list, known_subjects: list) -> str:
         "Risk Management Committee. Otherwise an empty string.\n"
         "detail: any remaining purpose or agenda text (e.g. what the minutes approved, what the bracketed text says), short. "
         "Can be empty.\n\n"
-        "ITEMS:\n" + items_block + "\n\n"
+        "Keep abbreviations exactly as written in the item (ITSC stays ITSC, ISC stays ISC, CISO stays CISO) -- never expand them and never replace one committee or body with another (ABBREV-TRAINING-FIX).\n\n"
+          "ITEMS:\n" + items_block + "\n\n"
         "Return ONLY valid JSON, no markdown: {\"items\": [{\"n\": 1, \"doc_type\": \"policy\", \"subject\": \"...\", "
         "\"scope\": \"\", \"body\": \"\", \"detail\": \"\"}]}"
     )
@@ -4047,6 +4065,10 @@ def standardise_evidence_names(items: list, progress_cb=None) -> dict:
                    "detail": (r.get("detail") or "").strip()}
             _b, _team = _normalise_body(std["body"])  # #454 N1 body clean-up
             std["body"] = _b
+            if not std["body"] and std["doc_class"] in ("minutes", "resolution"):  # ABBREV-TRAINING-FIX: body named in the subject
+                _b2, _t2 = _normalise_body(std["subject"])
+                if _b2:
+                    std["body"] = _b2
             if _team and not std["scope"] and std["doc_class"] not in ("training_material", "training_record"):
                 std["scope"] = _team
             if std["scope"] and __import__("re").search(_BUCKET_SCOPE, std["scope"].lower()):  # #454 P3
@@ -5118,6 +5140,7 @@ def project_documentation(project_id):
         ).first_or_404()
 
         if request.method == "POST":
+            require_project_edit(project)
             return handle_project_documentation_submission(project_id)
 
         # GET request - check if there's existing documentation for this project

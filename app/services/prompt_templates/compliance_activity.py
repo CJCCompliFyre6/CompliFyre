@@ -313,3 +313,12 @@ Return ONLY valid JSON with this exact structure:
     "feedback": "If passes is false, specific, actionable feedback on exactly what is wrong and what should change. If passes is true, empty string."
 }}
 """
+
+# ABBREV-TRAINING-FIX: keep the regulation's own terms in activities
+_TERMS_RULE = "TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own terms. If the regulatory clause uses an abbreviation (e.g. ITSC, ISC, CISO, CCMP, ACB), write that same abbreviation everywhere in your output; if it uses the full name, write the full name. NEVER expand an abbreviation yourself and never substitute one committee, body or role for another (e.g. the ITSC is NOT the IT Steering Committee)."
+_orig_call1 = call1_obligation_intelligence_prompt
+_orig_call2 = call2_activity_generation_prompt
+def call1_obligation_intelligence_prompt(*args, **kwargs):
+    return _orig_call1(*args, **kwargs) + "\n\n" + _TERMS_RULE
+def call2_activity_generation_prompt(*args, **kwargs):
+    return _orig_call2(*args, **kwargs) + "\n\n" + _TERMS_RULE
