@@ -347,35 +347,37 @@
     </div>
 
     <div class="table-container  rounded-xl">
-        <table id="guidelinesTable">
-            <thead class="text-sm font-medium text-gray-600 rounded-xl sticky top-0 bg-white shadow-sm z-10">
+        <!-- HDB-TABLE-STD -->
+        <div class="overflow-x-auto bg-white rounded-lg shadow-md">
+        <table id="guidelinesTable" class="w-full">
+            <thead class="bg-gray-50 border-b-2 border-gray-200">
                 <tr>
-                    <th class="p-3 text-left">Project Name</th>
-                    <th class="p-3 text-left" style="display:none">Project Description</th>
-                    <th class="p-3 text-left">Client</th>
-                    <th class="p-3 text-left">Department</th>
-                    <th class="p-3 text-left">Guidelines</th>
-                    <th class="p-3 text-left" style="display:none">Project Start Date</th>
-                    <th class="p-3 text-left" style="display:none">Project End Date</th>
-                    <th class="p-3 text-left">Assessment Period</th>
-                    <th class="p-3 text-left" style="display:none">Assessment End Date</th>
-                    <th class="p-3 text-left">Status</th>
-                    <th class="p-3 text-left">Action</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Project Name</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left" style="display:none">Project Description</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Client</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Department</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Guidelines</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left" style="display:none">Project Start Date</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left" style="display:none">Project End Date</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Assessment Period</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left" style="display:none">Assessment End Date</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Status</th>
+                    <th class="p-3 text-lg font-semibold tracking-wide text-left">Action</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-gray-100">
                 <!-- <tr>
-                    <td>Basel III Guidelines (RBI Circular DBOD.No. 3/ 04.02.001/2015-16)</td>
-                    <td>RBI Circular</td>
-                    <td>Reserve Bank of India</td>
-                    <td>India</td>
-                    <td>Banking</td>
-                    <td>All banks</td>
-                    <td>Yes</td>
-                    <td>No</td>
-                    <td>Apr-15</td>
-                    <td>Apr-15</td>
-                    <td>
+                    <td class="p-3 text-lg text-gray-700">Basel III Guidelines (RBI Circular DBOD.No. 3/ 04.02.001/2015-16)</td>
+                    <td class="p-3 text-lg text-gray-700">RBI Circular</td>
+                    <td class="p-3 text-lg text-gray-700">Reserve Bank of India</td>
+                    <td class="p-3 text-lg text-gray-700">India</td>
+                    <td class="p-3 text-lg text-gray-700">Banking</td>
+                    <td class="p-3 text-lg text-gray-700">All banks</td>
+                    <td class="p-3 text-lg text-gray-700">Yes</td>
+                    <td class="p-3 text-lg text-gray-700">No</td>
+                    <td class="p-3 text-lg text-gray-700">Apr-15</td>
+                    <td class="p-3 text-lg text-gray-700">Apr-15</td>
+                    <td class="p-3 text-lg text-gray-700">
                         <div class="action-menu">
                             <span>&#128065;</span> <span onclick="toggleDropdown2(this)">&#x22EE;</span>
                             <div class="dropdown-content2">
@@ -387,12 +389,12 @@
 
                 {% for item in my_projects%}
                 <tr>
-                    <td>{{ item.project_name }}</td>
+                    <td class="p-3 text-lg text-gray-700">{{ item.project_name }}</td>
                     <td style="display:none">{{ item.project_description }}</td>
-                    <td>{{item.client_rel.name}}</td>
+                    <td class="p-3 text-lg text-gray-700">{{item.client_rel.name}}</td>
                     <!-- Updated Department Column -->
                     <!-- Updated Department Column -->
-                    <td>
+                    <td class="p-3 text-lg text-gray-700">
                         {% if item.departments %}
                         {% set unique_departments = [] %}
                         {% for dept in item.departments %}
@@ -419,7 +421,7 @@
                         <span class="text-gray-500 text-sm">No departments</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="p-3 text-lg text-gray-700">
                         <ul>
                             {% for pg_item in item.project_guidelines %}
                             {# Now 'pg_item' is a single guideline object from the list #}
@@ -432,16 +434,16 @@
                     </td>
                     <td style="display:none">{{item.project_start_date}}</td>
                     <td style="display:none">{{item.project_end_date}}</td>
-                    <td>{{ item.assesment_start_date.strftime('%d %b %Y') if item.assesment_start_date else 'N/A' }} — {{ item.assesment_end_date.strftime('%d %b %Y') if item.assesment_end_date else 'N/A' }}</td>
+                    <td class="p-3 text-lg text-gray-700">{{ item.assesment_start_date.strftime('%d %b %Y') if item.assesment_start_date else 'N/A' }} — {{ item.assesment_end_date.strftime('%d %b %Y') if item.assesment_end_date else 'N/A' }}</td>
                     <td style="display:none">{{item.assesment_end_date}}</td>
-                    <td>
+                    <td class="p-3 text-lg text-gray-700">
                         {% if item.project_complete_status %}
                         <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium" style="white-space:nowrap">Completed</span>
                         {% else %}
                         <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium" style="white-space:nowrap">In Progress</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="p-3 text-lg text-gray-700">
     <div class="relative inline-block text-left action-dropdown-wrapper">
         <!-- 3 dots button -->
         <button type="button"
@@ -501,6 +503,7 @@
 
             </tbody>
         </table>
+        </div>
 
         <div class="bottom-controls">
             <div class="entries-box">
