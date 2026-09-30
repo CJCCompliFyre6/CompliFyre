@@ -756,7 +756,7 @@
         </div>
 
         <button id="exportCSV" onclick="exportAllClausesCSV()">Export All Clauses to CSV</button>
-        <a href="/re/clause-review?guideline_id={{ guideline_id }}" style="background:#2E5C8A; color:white; padding:8px 16px; border-radius:6px; text-decoration:none; margin-left:10px; display:inline-block;">📋 Review Classifications{% if guideline.clause_review_completed_at %} ✓{% endif %}</a>
+        {% if not (current_user.role and current_user.role.name in ('ADMIN', 'AUDITOR')) %}<a href="/re/clause-review?guideline_id={{ guideline_id }}" style="background:#2E5C8A; color:white; padding:8px 16px; border-radius:6px; text-decoration:none; margin-left:10px; display:inline-block;">📋 Review Classifications{% if guideline.clause_review_completed_at %} ✓{% endif %}</a>{% endif %}
     </div>
 
     <!-- Progress Modal for Compliance Activities Extraction -->
@@ -971,7 +971,7 @@ Activities will be generated in background.`);
              which is where the "Consolidate Evidence List" action (this
              pipeline's own Phase 5, replacing the older, separate
              startEvidenceConsolidation flow below) will live. -->
-        {% if guideline and guideline.activities_generation_completed_at %}
+        {% if guideline and guideline.activities_generation_completed_at and not (current_user.role and current_user.role.name in ('ADMIN', 'AUDITOR')) %}
         <div class="mb-6 p-4 bg-green-50 border border-green-300 rounded-none flex items-center justify-between">
             <div>
                 <span class="font-semibold text-green-800">Activities generation complete.</span>
@@ -1249,10 +1249,10 @@ Activities will be generated in background.`);
                 class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
                 Reference
             </button>
-            <button onclick="setClauseFilter('FLAGGED')" id="filter-FLAGGED"
+            {% if not (current_user.role and current_user.role.name in ('ADMIN', 'AUDITOR')) %}<button onclick="setClauseFilter('FLAGGED')" id="filter-FLAGGED"
                 class="filter-btn px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
                 Flagged
-            </button>
+            </button>{% endif %}
             <span class="ml-2 text-xs text-gray-400" id="clause-count-label"></span>
         </div>
         <table id="guidelinesTable" class="w-full">
@@ -1319,11 +1319,11 @@ Activities will be generated in background.`);
                         {% else %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">{{ ct }}</span>
                         {% endif %}
-                        {% if clause.extraction_status == 'FLAGGED' %}
+                        {% if not (current_user.role and current_user.role.name in ('ADMIN', 'AUDITOR')) and clause.extraction_status == 'FLAGGED' %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 ml-1">⚑ Flagged</span>
                         {% endif %}
                         {% set c6_review = clause_review_map.get(clause.id) if clause_review_map else None %}
-                        {% if c6_review %}
+                        {% if c6_review and not (current_user.role and current_user.role.name in ('ADMIN', 'AUDITOR')) %}
                             {% if c6_review.sufficiency_verdict == 'SUFFICIENT' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 ml-1"
                                 title="Clause-level checklist assurance review: sufficient">
@@ -1355,10 +1355,10 @@ Activities will be generated in background.`);
                                 onblur="updateClauseNumber('{{ clause.id }}', this.value)"
                                 onkeydown="handleClauseNumberKeypress(event, '{{ clause.id }}', '{{ clause.clause_no }}')">
                             <!-- Changed to clause_no -->
-                            <button onclick="enableEdit('{{ clause.id }}')"
+                            {% if not (current_user.role and current_user.role.name in ('ADMIN', 'AUDITOR')) %}<button onclick="enableEdit('{{ clause.id }}')"
                                 class="ml-2 text-blue-600 hover:text-blue-800 text-sm bg-transparent border-none cursor-pointer">
                                 ✏️
-                            </button>
+                            </button>{% endif %}
                         </div>
                     </td>
                     <td class="p-3 text-lg text-gray-700">{{ clause.clause_text }}</td>
