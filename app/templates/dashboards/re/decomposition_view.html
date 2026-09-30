@@ -109,9 +109,6 @@ function pollPipelineEvidenceProgress(taskId, btn, statusDiv) {
             <div style="font-weight:600; margin-bottom:8px;">
                 Activity: {{ activity.activity_description }}
             </div>
-            <div style="font-size:0.85em; color:#666; margin-bottom:10px;">
-                Compliance Level: {{ activity.compliance_level or 'N/A' }}
-            </div>
 
             {% if not activity.control_activities %}
             <div style="color:#a55; font-size:0.9em;">&#9888; No test procedure/control generated yet for this activity.</div>
