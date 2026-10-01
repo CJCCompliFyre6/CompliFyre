@@ -4826,3 +4826,10 @@ def _batch0_missing_to_extract_all(guideline_id):
     if ids:
         extract_selected_activities_and_tests.delay(guideline_id, ids)
     return {"status": "success", "message": f"Routed {len(ids)} clauses to Extract All", "guideline_id": guideline_id}
+
+
+# BATCH1-PROMPT-CONTEXT: chunked extraction of large clauses also receives the context block
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_split_large_clause = _split_large_clause
+def _split_large_clause(clause_text, max_chars=3000):
+    return _b1_split_large_clause(clause_text + _b1_ctx(clause_text, include_split_rule=True), max_chars)

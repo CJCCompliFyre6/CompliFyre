@@ -2077,3 +2077,17 @@ _TERMS_RULE = "TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own term
 _orig_build_checklist_prompt = _build_checklist_prompt
 def _build_checklist_prompt(*args, **kwargs):
     return _orig_build_checklist_prompt(*args, **kwargs) + "\n\n" + _TERMS_RULE
+
+
+# BATCH1-PROMPT-CONTEXT: glossary + reviewer notes for checklist, C6 review and C7 patch prompts
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_checklist_prompt = _build_checklist_prompt
+def _build_checklist_prompt(*args, **kwargs):
+    ct = kwargs["clause_text"] if "clause_text" in kwargs else (args[3] if len(args) > 3 else "")
+    return _b1_checklist_prompt(*args, **kwargs) + _b1_ctx(ct)
+_b1_review_prompt = _build_clause_checklist_review_prompt
+def _build_clause_checklist_review_prompt(clause_text, *args, **kwargs):
+    return _b1_review_prompt(clause_text, *args, **kwargs) + "\n\n" + _TERMS_RULE + _b1_ctx(clause_text)
+_b1_patch_prompt = _build_missing_coverage_patch_prompt
+def _build_missing_coverage_patch_prompt(clause_text, *args, **kwargs):
+    return _b1_patch_prompt(clause_text, *args, **kwargs) + "\n\n" + _TERMS_RULE + _b1_ctx(clause_text)

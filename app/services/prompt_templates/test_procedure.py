@@ -382,3 +382,10 @@ REQUIRED JSON SCHEMA:
 Return only the JSON object. No markdown, no extra text, no explanation.
 """.strip()
 
+
+
+# BATCH1-PROMPT-CONTEXT: guideline glossary and reviewer notes for the test-procedure prompt
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_test_procedure = test_procedure
+def test_procedure(control_clauses, control_activity, *args, **kwargs):
+    return _b1_test_procedure(control_clauses, control_activity, *args, **kwargs) + _b1_ctx(control_clauses)

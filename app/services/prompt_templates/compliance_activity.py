@@ -322,3 +322,16 @@ def call1_obligation_intelligence_prompt(*args, **kwargs):
     return _orig_call1(*args, **kwargs) + "\n\n" + _TERMS_RULE
 def call2_activity_generation_prompt(*args, **kwargs):
     return _orig_call2(*args, **kwargs) + "\n\n" + _TERMS_RULE
+
+
+# BATCH1-PROMPT-CONTEXT: guideline glossary, reviewer notes and split-lead-in rule for Calls 1-3
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_call1 = call1_obligation_intelligence_prompt
+_b1_call2 = call2_activity_generation_prompt
+_b1_call3 = reasonable_assurance_prompt
+def call1_obligation_intelligence_prompt(clause_text, *args, **kwargs):
+    return _b1_call1(clause_text, *args, **kwargs) + _b1_ctx(clause_text, include_split_rule=True)
+def call2_activity_generation_prompt(clause_text, *args, **kwargs):
+    return _b1_call2(clause_text, *args, **kwargs) + _b1_ctx(clause_text, include_split_rule=True)
+def reasonable_assurance_prompt(clause_text, *args, **kwargs):
+    return _b1_call3(clause_text, *args, **kwargs) + "\n\n" + _TERMS_RULE + _b1_ctx(clause_text, include_split_rule=True)
