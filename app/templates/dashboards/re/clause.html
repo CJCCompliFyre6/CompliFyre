@@ -1714,7 +1714,7 @@ Activities will be generated in background.`);
                 });
 
                 if (response.ok) {
-                    alert('Activities regenerated successfully.');
+                    alert('Regeneration started through Extract All - refresh in a few minutes.'); /* BATCH0-SINGLE-PIPELINE */
                     window.location.reload();
                 } else {
                     const errorData = await response.json();

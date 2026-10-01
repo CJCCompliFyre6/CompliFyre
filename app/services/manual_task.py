@@ -2537,6 +2537,7 @@ def extract_activities(self, clause_id: int):
 @shared_task(bind=True)
 def extract_test_procedures(self, activity_id: int):
     """Step 4: Extract test procedures for an activity and save in DB"""
+    return _batch0_rebuild_activity_downstream(activity_id)  # BATCH0-SINGLE-PIPELINE
     logger.info(f"Step 4: Extracting test procedures for activity_id={activity_id}")
     try:
         with session_scope() as session:
@@ -4478,6 +4479,7 @@ def generate_missing_activities_for_guideline(self, guideline_id):
     """
     Cron job to generate activities for clauses without activities in a specific guideline
     """
+    return _batch0_missing_to_extract_all(guideline_id)  # BATCH0-SINGLE-PIPELINE: retired
     logger.info(
         f"Starting missing activities generation for guideline_id={guideline_id}"
     )
@@ -4776,3 +4778,51 @@ def generate_single_clause_activities(self, guideline_id: int, clause_id: int):
             meta={"exc_type": type(e).__name__, "exc_message": str(e)},
         )
         raise
+
+
+# ===== BATCH0-SINGLE-PIPELINE: retired paths delegate to the Extract All pipeline =====
+def _batch0_rebuild_activity_downstream(activity_id):
+    """Rebuild one activity's control, test procedure, evidence and checklist with the pipeline's own functions."""
+    from sqlalchemy import text as _t, inspect as _insp
+    act = ComplianceActivities.query.get(activity_id)
+    if not act:
+        return {"status": "error", "message": "Activity not found"}
+    clause = Clauses.query.get(act.clause_id)
+    ctrl = ControlActivity.query.filter_by(compliance_activity_id=activity_id).first()
+    if ctrl:
+        fks = _insp(db.engine).get_foreign_keys("control_evidences")
+        cc = next(f["constrained_columns"][0] for f in fks if f["referred_table"] == "control_activities")
+        ts = [r[0] for r in db.session.execute(_t("SELECT id FROM test_steps WHERE control_id = :c"), {"c": ctrl.id})]
+        if ts:
+            db.session.execute(_t("DELETE FROM interview_questions WHERE interview_id IN (SELECT id FROM interviews WHERE test_procedure_id = ANY(:t))"), {"t": ts})
+            db.session.execute(_t("DELETE FROM interview_roles WHERE interview_id IN (SELECT id FROM interviews WHERE test_procedure_id = ANY(:t))"), {"t": ts})
+            db.session.execute(_t("DELETE FROM interviews WHERE test_procedure_id = ANY(:t)"), {"t": ts})
+            db.session.execute(_t("DELETE FROM document_reviews WHERE test_procedure_id = ANY(:t)"), {"t": ts})
+        db.session.execute(_t(f'DELETE FROM control_evidences WHERE "{cc}" = :c'), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM test_steps WHERE control_id = :c"), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM control_checklist WHERE control_activity_id = :c"), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM control_activities WHERE id = :c"), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM test_procedures WHERE activity_id = :a"), {"a": activity_id})
+        db.session.commit()
+    payload = {"activity_id": act.activity_id, "activity_description": act.activity_description,
+               "relevant_departments": act.relevant_departments, "process_name": act.process,
+               "sub_process_name": act.sub_process, "responsible_party": act.responsible_party,
+               "frequency": act.frequency, "evidence_required": act.evidence_required}
+    _generate_test_procedure_for_activity(activity_id, clause.clause_text, payload)
+    db.session.expire_all()
+    from app.services.eve_tasks import generate_control_checklist
+    nc = ControlActivity.query.filter_by(compliance_activity_id=activity_id).first()
+    if nc:
+        generate_control_checklist(nc.id)
+    logger.info(f"[BATCH0] activity {activity_id} downstream rebuilt through the pipeline (control {nc.id if nc else None})")
+    return {"status": "success", "activity_id": activity_id, "control_id": nc.id if nc else None}
+
+
+def _batch0_missing_to_extract_all(guideline_id):
+    eligible = ["OBLIGATION", "PRINCIPLE", "MIXED", "DISCRETIONARY"]
+    ids = [c.id for c in Clauses.query.filter(Clauses.guideline_id == guideline_id, Clauses.clause_type.in_(eligible)).all()
+           if not ComplianceActivities.query.filter_by(clause_id=c.id).first()]
+    logger.warning(f"[BATCH0] generate_missing_activities_for_guideline is retired - routing {len(ids)} clauses to Extract All")
+    if ids:
+        extract_selected_activities_and_tests.delay(guideline_id, ids)
+    return {"status": "success", "message": f"Routed {len(ids)} clauses to Extract All", "guideline_id": guideline_id}
