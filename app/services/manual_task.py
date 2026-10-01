@@ -2973,6 +2973,15 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
             compliance_data = _extract_activities_v2(
                 clause_text, list(department_list)
             )
+            if compliance_data and compliance_data.get("needs_human_review"):  # BATCH2-ACTIVITY-RULES: keep the flag, not just a log line
+                try:
+                    _flag_clause = Clauses.query.get(clause_id_val)
+                    _flag_clause.extraction_status = "FLAGGED"
+                    _flag_clause.flag_reason = "ACTIVITY_ASSURANCE_FAILED"
+                    db.session.commit()
+                except Exception as _flag_err:
+                    db.session.rollback()
+                    logger.warning(f"[BATCH2] could not flag clause {clause_id_val}: {_flag_err}")
             with session_scope() as session:
 
                 if (
@@ -3882,7 +3891,7 @@ Return ONLY valid JSON. No explanation. No markdown."""
 
     CHUNK_PROMPT = f"""Extract ALL distinct regulatory obligations from this regulatory clause.
 Each obligation must be something the listed entity (bank/NBFC/listed company) must DO.
-Exclude: definitions, explanations, regulator actions, third-party obligations.
+Exclude: definitions, explanations, and obligations of parties OUTSIDE the entity. (BATCH2-ACTIVITY-RULES) The entity's own Board, committees, IS/internal audit, CISO, CIO and management are part of the entity - include their obligations. Where the regulator will verify or rely on the entity's records, include readiness obligations.
 
 CLAUSE:
 {clause_text}
@@ -4046,7 +4055,7 @@ def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
         })
 
     logger.info(f"[V2] Final: {len(mapped)} activities after validation")
-    return {"compliance_activities": mapped}
+    return {"compliance_activities": mapped, "needs_human_review": needs_human_review}  # BATCH2-ACTIVITY-RULES
 
 def _extract_compliance_activities_direct(
     clause_text: str, department_list: list
@@ -4833,3 +4842,20 @@ from app.services.prompt_context import block_for_text as _b1_ctx
 _b1_split_large_clause = _split_large_clause
 def _split_large_clause(clause_text, max_chars=3000):
     return _b1_split_large_clause(clause_text + _b1_ctx(clause_text, include_split_rule=True), max_chars)
+
+
+
+# BATCH2B: a carried-over lead-in ("Paragraph N (continued) - <lead-in> (1) ...") is context only
+import re as _b2b_re
+_B2B_LEAD = _b2b_re.compile(r"^\s*(?:Paragraph|Para\.?|Clause)\s+([\w.\-]+)\s*\(continued\)\s*[-:\u2013]?\s*(.*?)(?=\(\d{1,2}\)\s)", _b2b_re.S)
+_b2b_extract_v2 = _extract_activities_v2
+def _extract_activities_v2(clause_text, department_list):
+    mt = _B2B_LEAD.match(clause_text or "")
+    if mt and mt.group(2).strip():
+        from app.services.prompt_context import register_alias
+        marked = (f"[CONTEXT ONLY - lead-in carried over from the earlier part of paragraph {mt.group(1)}; it is already "
+                  f"covered there, so do NOT create activities for it: {mt.group(2).strip()}]\n" + clause_text[mt.end():])
+        register_alias(marked, clause_text)
+        logger.info(f"[BATCH2B] split lead-in marked context-only for paragraph {mt.group(1)}")
+        return _b2b_extract_v2(marked, department_list)
+    return _b2b_extract_v2(clause_text, department_list)

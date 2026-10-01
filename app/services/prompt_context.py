@@ -49,7 +49,15 @@ def build_glossary(texts):
     return found
 
 
+_ALIASES = {}  # BATCH2B: modified prompt text -> original clause text
+
+
+def register_alias(modified_text, original_text):
+    _ALIASES[modified_text] = original_text
+
+
 def _clause_for_text(clause_text):
+    clause_text = _ALIASES.get(clause_text, clause_text)
     try:
         from app.models.ai import Clauses
         if not clause_text:
