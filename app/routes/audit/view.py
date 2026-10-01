@@ -61,6 +61,7 @@ from app.utils.project_access import (
     require_project_edit, project_by_id, project_by_name, project_for_guideline,
     project_for_clause, project_for_control_activity, project_for_test_step,
     project_for_interview_question, project_for_evidence_artifact, project_for_evidence_file,
+    project_for_inquiry,
 )
 from app.utils.permission_handler import role_required
 from app.services.model_response import *
@@ -2510,6 +2511,7 @@ def refetch_project_test_procedure():
 
 
 @audit_bp.route("/test_procedures", methods=["POST"])
+@role_required("COMPLIFYRE")
 def test_procedures():
     try:
         pdf_service = PDFService()
@@ -3374,6 +3376,7 @@ def api_task_progress(task_id):
 
 
 @audit_bp.route("/complifyre_consolidate_evidence", methods=["POST"])
+@role_required("COMPLIFYRE")
 def complifyre_consolidate_evidence():
     """Start evidence consolidation as a Celery task."""
     try:
@@ -5745,6 +5748,8 @@ def upload_to_multiple_evidences():
         evidence_list = [
             int(id.strip()) for id in evidence_ids.split(",") if id.strip().isdigit()
         ]
+        for _eid in evidence_list:
+            require_project_edit(project_for_evidence_artifact(_eid))
         if not evidence_list:
             flash("No valid evidence IDs found", "danger")
             return redirect(request.referrer)
@@ -5978,6 +5983,7 @@ def delete_uploaded_evidence(file_id):
                 f"[IDOR] user={current_user.id} attempted to delete EvidenceFile id={file_id} belonging to a different tenant"
             )
             abort(404)
+    require_project_edit(project_for_evidence_file(file_id))
 
     file_path = os.path.join(
         UPLOAD_FOLDER_1, file_row.stored_filename
@@ -6035,6 +6041,7 @@ def evaluate_all_projects():
             return redirect(request.referrer)
 
         auditing_firm_id = current_user.auditor_profile_id
+        require_project_edit(project_by_name(project_name, auditing_firm_id))
 
         # This helper function must be the corrected version that works with project instances
         result = generate_all_project_prompts(
@@ -6122,6 +6129,7 @@ def reevaluate_activity():
         project_control_activity_id = request.form.get("activity_code")
         user_prompt = request.form.get("user_input", "")
         user_prompt = sanitize_text_input(user_prompt, context="user_input")["value"]
+        require_project_edit(project_for_control_activity(project_control_activity_id))
 
         if not project_control_activity_id:
             flash("Activity ID is required for evaluation.", "error")
@@ -6349,6 +6357,7 @@ def finding_review():
         finding_id = data.get("finding_id")
         action     = data.get("action")       # "CONFIRMED" or "CLOSED"
         rationale  = data.get("rationale", "").strip()
+        require_project_edit(project_for_control_activity(pca_id))
 
         if not all([pca_id, finding_id, action]):
             return jsonify({"success": False, "error": "pca_id, finding_id, action required"}), 400
@@ -6480,6 +6489,7 @@ def activity_reset(pca_id):
         from app.models.eve_models import (
             EveControlResult, EveEvidenceResult, ProjectChecklist
         )
+        require_project_edit(project_for_control_activity(pca_id))
 
         # Delete EveEvidenceResult rows
         checklist = ProjectChecklist.query.filter_by(
@@ -6516,6 +6526,7 @@ def delete_evidence():
     Deletes a project-specific evidence artifact and provides user feedback.
     """
     evidence_id_str = request.form.get("evidence_id")
+    require_project_edit(project_for_evidence_artifact(evidence_id_str))
 
     if not evidence_id_str:
         flash("Error: No evidence ID provided.", "error")
@@ -6558,6 +6569,7 @@ def delete_question():
     Deletes a project-specific interview question and provides user feedback.
     """
     question_id_str = request.form.get("question_id")
+    require_project_edit(project_for_interview_question(question_id_str))
     if not question_id_str:
         flash("Error: No question ID provided.", "error")
         return redirect(request.referrer)
@@ -6659,6 +6671,8 @@ def bulk_update_applicability():
         data = request.get_json()
         clause_ids = data.get("clause_ids", [])
         applicability = data.get("applicability", True)
+        for _cid in clause_ids:
+            require_project_edit(project_for_clause(_cid))
 
         if not clause_ids:
             return jsonify({"status": "error", "message": "No clauses selected"}), 400
@@ -7371,6 +7385,7 @@ def close_clause_assessment(clause_id):
     try:
         # Get the clause
         clause = ProjectClause.query.get_or_404(clause_id)
+        require_project_edit(project_for_clause(clause_id))
 
         # Check if report was generated
         if current_user.free_report_used:
@@ -7460,6 +7475,7 @@ def update_clause_compliance_status(clause_id):
     Update the overall compliance status for a clause.
     """
     try:
+        require_project_edit(project_for_clause(clause_id))
         data = request.get_json()
         new_status = data.get("status")
 
@@ -7545,6 +7561,7 @@ def reset_clause_compliance_status(clause_id):
     try:
         # Get the clause
         clause = ProjectClause.query.get_or_404(clause_id)
+        require_project_edit(project_for_clause(clause_id))
 
         # Check if field exists
         if not hasattr(clause, "overall_compliance_status"):
@@ -7770,6 +7787,7 @@ def update_consolidated_bullet():
         index = data.get("index")
         activity_code = data.get("activity_code")
         new_text = data.get("new_text")
+        require_project_edit(project_for_clause(clause_id))
 
         print(f"=== UPDATE DEBUG ===")
         print(f"clause_id: {clause_id}")
@@ -8239,6 +8257,7 @@ def update_observation_summary():
     try:
         data = request.get_json()
         clause_id = data.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
         new_summary = data.get("new_summary")
 
         print(f"=== OBSERVATION SUMMARY UPDATE DEBUG ===")
@@ -8290,6 +8309,7 @@ def generate_consolidated_test_procedure_route():
     """Trigger consolidated test procedure generation"""
     try:
         clause_id = request.form.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id:
             return jsonify({"success": False, "error": "Invalid clause ID"})
@@ -8357,6 +8377,7 @@ def update_consolidated_test_summary():
     try:
         data = request.get_json()
         clause_id = data.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
         consolidated_summary = data.get("consolidated_summary")
         key_testing_areas = data.get("key_testing_areas", [])
         walkthrough_approach = data.get("walkthrough_approach")
@@ -8472,6 +8493,7 @@ def generate_consolidated_observation_route():
     """Trigger consolidated observation summary generation"""
     try:
         clause_id = request.form.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
         logger.info(
             f"DEBUG: Starting consolidated observation generation for clause_id: {clause_id}"
         )
@@ -8513,6 +8535,7 @@ def update_consolidated_observation_summary():
     try:
         data = request.get_json()
         clause_id = data.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id:
             return jsonify({"success": False, "error": "Clause ID is required"}), 400
@@ -8646,6 +8669,7 @@ def generate_consolidated_findings_route():
     """Trigger consolidated findings summary generation"""
     try:
         clause_id = request.form.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
         logger.info(
             f"DEBUG: Starting consolidated findings generation for clause_id: {clause_id}"
         )
@@ -8687,6 +8711,7 @@ def update_consolidated_findings_summary():
     try:
         data = request.get_json()
         clause_id = data.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id:
             return jsonify({"success": False, "error": "Clause ID is required"}), 400
@@ -8831,6 +8856,7 @@ def generate_consolidated_recommendations_route():
     """Trigger consolidated recommendations summary generation"""
     try:
         clause_id = request.form.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
         logger.info(
             f"🚀 ROUTE: Starting consolidated recommendations generation for clause_id: {clause_id}"
         )
@@ -8937,6 +8963,7 @@ def update_consolidated_recommendations_summary():
     try:
         data = request.get_json()
         clause_id = data.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id:
             return jsonify({"success": False, "error": "Clause ID is required"}), 400
@@ -9001,6 +9028,7 @@ def generate_all_consolidated_summaries_route():
     """Generate all consolidated summaries (test procedure, observations, findings, recommendations) for a clause"""
     try:
         clause_id = request.form.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
         if not clause_id:
             return jsonify({"success": False, "error": "Clause ID is required"}), 400
 
@@ -9752,6 +9780,7 @@ def get_eve_inquiries(project_checklist_id):
 def respond_eve_inquiry(inquiry_id):
     """Auditor responds to an inquiry."""
     try:
+        require_project_edit(project_for_inquiry(inquiry_id))
         from app.models.eve_models import EveInquiry
         from datetime import datetime
 
@@ -9790,6 +9819,7 @@ def respond_eve_inquiry(inquiry_id):
 def re_evaluate_eve_inquiry(inquiry_id):
     """Trigger re-evaluation after auditor response."""
     try:
+        require_project_edit(project_for_inquiry(inquiry_id))
         from app.models.eve_models import EveInquiry
         from app.models.eve_models import ProjectChecklist
         from datetime import datetime
@@ -9915,6 +9945,7 @@ Return ONLY valid JSON:
 def resolve_eve_inquiry(inquiry_id):
     """Manually mark inquiry as resolved."""
     try:
+        require_project_edit(project_for_inquiry(inquiry_id))
         from app.models.eve_models import EveInquiry, EveAssuranceState
         from datetime import datetime
 
@@ -9960,6 +9991,7 @@ def resolve_eve_inquiry(inquiry_id):
 def escalate_eve_inquiry(inquiry_id):
     """Escalate inquiry to finding."""
     try:
+        require_project_edit(project_for_inquiry(inquiry_id))
         from app.models.eve_models import EveInquiry, EveAssuranceState
         from datetime import datetime
 
@@ -10079,6 +10111,7 @@ def upload_test_data():
         import tempfile, uuid as _uuid
 
         activity_id = request.form.get("activity_id")
+        require_project_edit(project_for_control_activity(activity_id))
         if not activity_id:
             return jsonify({"status": "error", "message": "activity_id required"}), 400
 

@@ -582,6 +582,7 @@ def verify_tfa_login():
 
 
 @main_bp.route("/upload-and-process", methods=["POST"])
+@role_required("COMPLIFYRE")
 @login_required
 def upload_file_and_start_processing():
     """
@@ -857,6 +858,7 @@ def structure_map_review(guideline_id):
 
 
 @main_bp.route("/clear-structure-map/<int:guideline_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 def clear_structure_map(guideline_id):
     """Clear structure map so it regenerates fresh via LLM on next review page load."""
     try:
@@ -871,6 +873,7 @@ def clear_structure_map(guideline_id):
         logger.error(f"Error clearing structure map: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 @main_bp.route("/confirm-structure-map/<int:guideline_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 def confirm_structure_map(guideline_id):
     """Save confirmed structure map and trigger extraction."""
     try:
@@ -929,6 +932,7 @@ def test_raw_model():
 
 
 @main_bp.route("/regenerate-clauses/<int:guideline_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 def regenerate_clauses_route(guideline_id):
     """
     Delete existing clauses and regenerate new ones
@@ -988,6 +992,7 @@ def regenerate_clauses_route(guideline_id):
 
 
 @main_bp.route("/extract-activities/<int:clause_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 def extract_activities_route(clause_id):
     """
     Trigger activity extraction for a given clause.
@@ -1006,6 +1011,7 @@ def extract_activities_route(clause_id):
 
 
 @main_bp.route("/extract-test-procedures/<int:activity_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 def extract_test_procedures_route(activity_id):
     """
     Trigger test procedure extraction for a given activity.
@@ -1062,6 +1068,7 @@ def compliance_extraction_progress(task_id):
 
 
 @main_bp.route("/extract-all/<int:guideline_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 def extract_all_route(guideline_id):
     """
     Trigger activities and test procedure extraction for all clauses of a guideline.
@@ -1183,6 +1190,7 @@ def extract_all_route(guideline_id):
 
 
 @main_bp.route("/extract-selected", methods=["POST"])
+@role_required("COMPLIFYRE")
 def extract_selected_route():
     """
     Trigger activities and test procedure extraction for selected clauses only
@@ -1267,6 +1275,7 @@ def show_infographic(guideline_id):
 
 
 @main_bp.route("/api/guidelines/<int:guideline_id>", methods=["PUT"])
+@role_required("COMPLIFYRE")
 def update_guideline(guideline_id):
     """
     Update a guideline's JSON data via API.
@@ -1338,6 +1347,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @main_bp.route("/guideline/<int:guideline_id>/clauses/add", methods=["GET", "POST"])
+@role_required("COMPLIFYRE")
 def add_clause(guideline_id):
     """
     Handles displaying the form to add a new clause for a specific guideline
@@ -1374,6 +1384,7 @@ def add_clause(guideline_id):
 
 
 @main_bp.route("/guideline/<int:guideline_id>/clauses/upload", methods=["POST"])
+@role_required("COMPLIFYRE")
 def upload_clauses(guideline_id):
     """
     Handles the bulk upload of clauses from an Excel or CSV file.
@@ -1447,6 +1458,7 @@ def upload_clauses(guideline_id):
 
 
 @main_bp.route("/clauses/<int:clause_id>/edit", methods=["GET", "POST"])
+@role_required("COMPLIFYRE")
 def edit_clause(clause_id):
     """
     Handles displaying the form to edit an existing clause and
@@ -1798,6 +1810,7 @@ def delete_clause(clause_id):
 
 # bullk delete of the clauses route
 @main_bp.route("/clauses/bulk-delete", methods=["POST"])
+@role_required("COMPLIFYRE")
 def bulk_delete_clauses():
     """
     Bulk delete multiple clauses and all their related records.
@@ -2177,6 +2190,7 @@ def create_new_prompt():
 
 
 @main_bp.route("/create_prompts", methods=["POST"])
+@role_required("COMPLIFYRE")
 def create_prompt():
     data = request.form
 
@@ -2265,6 +2279,7 @@ def delete_prompt(prompt_id):
 
 
 @main_bp.route("/edit_prompt/<int:prompt_id>", methods=["GET", "POST"])
+@role_required("COMPLIFYRE")
 def edit_prompt(prompt_id):
     prompt = AIPrompts.query.get_or_404(prompt_id)
 
@@ -2286,6 +2301,7 @@ def edit_prompt(prompt_id):
 
 
 @main_bp.route("/toggle_prompt/<int:prompt_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 @login_required
 def toggle_prompt(prompt_id):
     try:

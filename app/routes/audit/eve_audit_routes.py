@@ -58,6 +58,8 @@ def _get_upload_base():
 # MODULE D routes — EVE Step 5
 # ─────────────────────────────────────────────────────────────
 
+from app.utils.project_access import require_project_edit, project_for_control_activity, project_for_clause
+
 @eve_audit_bp.route("/audit/eve/control/<int:pca_id>/run-step5", methods=["POST"])
 @login_required
 @role_required("AUDITOR")
@@ -67,6 +69,7 @@ def trigger_step5(pca_id):
     Dispatches one Celery task per evidence artifact.
     """
     # Validate control activity exists
+    require_project_edit(project_for_control_activity(pca_id))
     pca = db.session.query(ProjectControlActivity).get(pca_id)
     if not pca:
         return jsonify({"status": "error", "message": f"Control activity {pca_id} not found"}), 404
@@ -187,6 +190,7 @@ def trigger_step67(pca_id):
     Trigger EVE Steps 6+7 for a control activity.
     Step 5 must be complete first.
     """
+    require_project_edit(project_for_control_activity(pca_id))
     pca = db.session.query(ProjectControlActivity).get(pca_id)
     if not pca:
         return jsonify({"status": "error", "message": f"Control activity {pca_id} not found"}), 404
@@ -278,6 +282,7 @@ def trigger_step8(project_clause_id):
     Trigger EVE Step 8 clause rollup.
     ALL control activities under this clause must have Steps 6+7 complete.
     """
+    require_project_edit(project_for_clause(project_clause_id))
     project_clause = db.session.query(ProjectClause).get(project_clause_id)
     if not project_clause:
         return jsonify({"status": "error", "message": f"ProjectClause {project_clause_id} not found"}), 404
@@ -492,6 +497,7 @@ def trigger_full_pipeline(pca_id):
     call /run-step67 to proceed. Or use this endpoint which
     triggers both — Step 6+7 will wait and retry if Step 5 not done.
     """
+    require_project_edit(project_for_control_activity(pca_id))
     pca = db.session.query(ProjectControlActivity).get(pca_id)
     if not pca:
         return jsonify({"status": "error", "message": f"Control activity {pca_id} not found"}), 404

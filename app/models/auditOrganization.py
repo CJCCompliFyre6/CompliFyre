@@ -166,6 +166,7 @@ class Projects(db.Model):
     project_description = db.Column(db.Text, nullable=False)
     auditing_firm = db.Column(db.BigInteger, db.ForeignKey("AuditOrganization.id"))
     client = db.Column(db.BigInteger, db.ForeignKey("Organizations.organization_id"))
+    created_by = db.Column(db.Integer, db.ForeignKey("Users.id"), nullable=True)
     # department = db.Column(
     #     db.BigInteger, db.ForeignKey("OrganizationDepartments.department_id")
     # )

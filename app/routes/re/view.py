@@ -38,6 +38,10 @@ import json
 from flask_login import login_user, logout_user, login_required, current_user
 from app import login_manager
 from app.utils.permission_handler import role_required
+from app.utils.project_access import (
+    require_project_edit, project_by_id, project_for_clause, project_for_control_activity,
+    project_for_test_step, project_for_evidence_artifact, project_for_evidence_file,
+)
 from app.routes.retrival import *
 from app.routes.audit.view import calculate_clause_compliance_status
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -2436,6 +2440,7 @@ def list_roles():
 
 
 @re_bp.route("/roles/edit/<int:role_id>", methods=["GET", "POST"])
+@role_required("COMPLIFYRE")
 # # @role_required()
 def edit_role(role_id):
     """
@@ -2468,6 +2473,7 @@ def edit_role(role_id):
 
 
 @re_bp.route("/roles/delete/<int:role_id>", methods=["POST"])
+@role_required("COMPLIFYRE")
 # # @role_required()
 def delete_role(role_id):
     """
@@ -2490,6 +2496,7 @@ def delete_role(role_id):
 
 
 @re_bp.route("/clause", methods=["POST"])
+@role_required("COMPLIFYRE")
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def clause():
     """
@@ -2926,6 +2933,7 @@ def evidence_list_view():
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def project_evidence_upload(project_id):
     try:
+        require_project_edit(project_by_id(project_id))
         project = Projects.query.get(project_id)
         if not project:
             return jsonify({"status": "error", "message": "Project not found"}), 404
@@ -3100,6 +3108,7 @@ def project_begin_evaluation(project_id):
     (master) ControlActivity -> ProjectControlActivity (via
     original_control_id, filtered to this project).
     """
+    require_project_edit(project_by_id(project_id))
     from app.models.project_instance_models import ProjectGuideline, ProjectControlActivity, ProjectComplianceActivity, ProjectClause
     from app.models.eve_models import (
         FileRequirementMapping, GuidelineEvidenceRequirement,
@@ -3481,6 +3490,7 @@ def clause_review():
 
 
 @re_bp.route("/clause-review/save", methods=["POST"])
+@role_required("COMPLIFYRE")
 @login_required
 def clause_review_save():
     """Save a human correction/confirmation for one clause's classification.
@@ -3515,6 +3525,7 @@ def clause_review_save():
 
 
 @re_bp.route("/clause-review/mark-complete", methods=["POST"])
+@role_required("COMPLIFYRE")
 @login_required
 def clause_review_mark_complete():
     """Explicit human sign-off that clause classification review is sufficient
@@ -3710,6 +3721,7 @@ def get_clause():
 
 
 @re_bp.route("/clauses/<clause_id>/number", methods=["PUT"])
+@role_required("COMPLIFYRE")
 def update_clause_number(clause_id):
     print(f"DEBUG: Route hit with clause_id: {clause_id}")
     try:
@@ -3768,6 +3780,7 @@ def update_clause_number(clause_id):
 
 
 @re_bp.route("/compliance_activities", methods=["POST"])
+@role_required("COMPLIFYRE")
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def compliance_activities():
     """
@@ -3903,6 +3916,7 @@ def compliance_activities():
 
 
 @re_bp.route("/regenerate_compliance_activities", methods=["POST"])
+@role_required("COMPLIFYRE")
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def regenerate_compliance_activities():
     """
@@ -4098,6 +4112,7 @@ def regenerate_compliance_activities():
 
 
 @re_bp.route("/generate_all_compliance", methods=["POST"])
+@role_required("COMPLIFYRE")
 # @role_required()
 def generate_all_compliance():
     try:
@@ -4173,6 +4188,7 @@ def generate_all_compliance():
 
 
 @re_bp.route("/activity_mapping", methods=["POST"])
+@role_required("COMPLIFYRE")
 # @role_required()
 def activity_mapping_redundancy_check():
     """
@@ -5627,6 +5643,7 @@ def get_clause_statistics(project_id):
 
 
 @re_bp.route("/activity_perform", methods=["POST"])
+@role_required("COMPLIFYRE")
 ## @role_required()
 def activity_perform():
     """
@@ -5671,6 +5688,7 @@ def activity_perform():
 
 
 @re_bp.route("/generate_all_activities", methods=["POST"])
+@role_required("COMPLIFYRE")
 def generate_all_activities():
     try:
         pdf_service = PDFService()
@@ -6245,6 +6263,7 @@ def delete_test_procedure_main_content():
     try:
         data = request.get_json()
         activity_id = data.get('activity_id')
+        require_project_edit(project_for_control_activity(activity_id))
         field = data.get('field')  # 'walkthrough' or 'sampling'
         
         if not activity_id or not field:
@@ -6297,6 +6316,7 @@ def delete_test_procedure_content():
     try:
         data = request.get_json()
         activity_id = data.get('activity_id')
+        require_project_edit(project_for_control_activity(activity_id))
         field = data.get('field')  # 'additional_walkthrough' or 'additional_sampling'
         
         if not activity_id or not field:
@@ -6341,6 +6361,7 @@ def eve_evaluate_clause():
     try:
         clause_id = request.form.get("clause_id", type=int)
         project_id = request.form.get("project_id", type=int)
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id or not project_id:
             return jsonify({"success": False, "error": "Clause ID and Project ID required"}), 400
@@ -6460,6 +6481,7 @@ def evaluate_clause_activities():
     try:
         clause_id = request.form.get("clause_id", type=int)
         project_id = request.form.get("project_id", type=int)
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id:
             return jsonify({"success": False, "error": "Clause ID required"}), 400
@@ -6756,6 +6778,7 @@ def update_test_procedure():
     try:
         data = request.get_json()
         activity_id = data.get("activity_id")
+        require_project_edit(project_for_control_activity(activity_id))
         field = data.get("field")
         value = data.get("value")
 
@@ -6813,6 +6836,7 @@ def update_test_procedure():
 def upload_test_procedure_files():
     try:
         activity_id = request.form.get("activity_id")
+        require_project_edit(project_for_control_activity(activity_id))
         field = request.form.get("field")  # 'walkthrough_files' or 'sampling_files'
         files = request.files.getlist("files")
 
@@ -6911,6 +6935,7 @@ def delete_test_procedure_file():
     try:
         data = request.get_json()
         file_id = data.get("file_id")
+        require_project_edit(project_for_test_step(getattr(TestProcedureFile.query.get(file_id), "test_procedure_id", None)))
         field = data.get("field")
 
         print(f"DEBUG: Deleting file - file_id: {file_id}, field: {field}")
@@ -7141,6 +7166,7 @@ def uploaded_file(filename):
 def evidences():
     try:
         project_evidence_id = request.form.get("evidence_id", "").strip()
+        require_project_edit(project_for_evidence_artifact(project_evidence_id))
         evidence_item = request.form.get("evidence_item", "").strip()
         evidence_text = request.form.get("evidence_content", "").strip()
         uploaded_path = request.form.get("evidence_uploaded_path", "").strip()
@@ -7279,6 +7305,7 @@ def evidences():
 def re_evaluate_evidence(artifact_id):
     """Re-run EVE Step 5 for a single evidence artifact + Step 6/7/8."""
     try:
+        require_project_edit(project_for_evidence_artifact(artifact_id))
         from app.models.eve_models import EveEvidenceResult as _EER
         from app.models.eve_models import EveControlResult, EveAssuranceState
         from app.services.eve_step5 import run_eve_step5_for_evidence
@@ -7554,6 +7581,7 @@ def generate_audit_report(project_id):
     from app.utils.evidence_access import user_can_access_project as _ucap
     if not _ucap(Projects.query.get(project_id), current_user):
         abort(404)
+    require_project_edit(project_by_id(project_id))
     """
     Generate audit report using ONLY consolidated clause data
     """
@@ -8421,6 +8449,7 @@ def clause_applicability_status():
             data = request.form.to_dict()
 
         clause_id = data.get("clause_id")
+        require_project_edit(project_for_clause(clause_id))
 
         if not clause_id:
             return jsonify(status="error", message="Missing clause_id"), 400
@@ -9022,6 +9051,7 @@ def trigger_generate_missing_activities(guideline_id):
 
 
 @re_bp.route("/retry-pending-activities", methods=["POST"])
+@role_required("COMPLIFYRE")
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def retry_pending_activities():
     """Retry activity generation for clauses without activities."""

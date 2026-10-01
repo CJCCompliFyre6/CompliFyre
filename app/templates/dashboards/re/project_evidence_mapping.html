@@ -137,4 +137,5 @@ function beginEvaluation(projectId) {
     setTimeout(pollForUpdates, 5000);
 })();
 </script>
+{% include "partials/read_only_guard.html" %}
 {% endblock %}

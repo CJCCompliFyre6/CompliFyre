@@ -1,0 +1,50 @@
+{% if project is defined and project and not can_edit_project(project) %}
+<div id="ro-banner" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:2000;background:#fff3cd;color:#664d03;border:1px solid #ffe69c;padding:10px 18px;border-radius:8px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.15);">
+  You are viewing this project in read-only mode. Only the person who created it can make changes.
+</div>
+<script>
+(function () {
+  var MSG = "This project is read-only for you. Only its creator can make changes.";
+
+  function lockForms() {
+    document.querySelectorAll("form").forEach(function (f) {
+      var m = (f.getAttribute("method") || "get").toLowerCase();
+      if (m === "get") return;
+      f.querySelectorAll("button, textarea, select, input:not([type=hidden])").forEach(function (el) {
+        el.disabled = true;
+      });
+      f.addEventListener("submit", function (e) { e.preventDefault(); alert(MSG); }, true);
+    });
+  }
+
+  var _fetch = window.fetch;
+  if (_fetch) {
+    window.fetch = function (input, init) {
+      var method = ((init && init.method) || (input && input.method) || "GET").toUpperCase();
+      if (method !== "GET" && method !== "HEAD") {
+        alert(MSG);
+        return Promise.reject(new Error(MSG));
+      }
+      return _fetch.apply(this, arguments);
+    };
+  }
+
+  var _open = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method) {
+    this._roBlocked = method && !/^(GET|HEAD)$/i.test(method);
+    return _open.apply(this, arguments);
+  };
+  var _send = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function () {
+    if (this._roBlocked) { alert(MSG); return; }
+    return _send.apply(this, arguments);
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", lockForms);
+  } else {
+    lockForms();
+  }
+})();
+</script>
+{% endif %}

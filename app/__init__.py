@@ -271,5 +271,8 @@ def create_app(config_name=None):
 
    
     
+    from app.utils.project_access import can_edit_project
+    app.jinja_env.globals["can_edit_project"] = can_edit_project
+
     return app
 
