@@ -2687,6 +2687,7 @@ def extract_test_procedures(self, activity_id: int):
 
             for category, items in iter_evidence:
                 category = (category or "Unknown").strip()
+                category = _b3b_norm_category(category)  # BATCH3B
                 for item in items or []:
                     artifact = (
                         session.query(EvidenceArtifact)
@@ -4171,6 +4172,14 @@ def _generate_test_procedure_for_activity(
             control.dimension_design = bool(updated_data_dict.get("dimension_design", False))
             control.dimension_implementation = bool(updated_data_dict.get("dimension_implementation", False))
             control.dimension_operating = bool(updated_data_dict.get("dimension_operating", False))
+            # BATCH3 safety net: a recurring duty must test operating effectiveness (and therefore design + implementation)
+            _b3_freq = (str(updated_data_dict.get("frequency") or "") + " " + str(activity_data.get("frequency") or "")).lower()
+            _b3_forced = False
+            if not control.dimension_operating and any(k in _b3_freq for k in ("daily", "weekly", "monthly", "quarter", "half",
+                    "annual", "year", "periodic", "ongoing", "continuous", "per event", "event", "as needed", "recurring")):
+                control.dimension_design = control.dimension_implementation = control.dimension_operating = True
+                _b3_forced = True
+                logger.info(f"[BATCH3] comp_id={comp_id}: recurring frequency ({_b3_freq.strip()}) - operating dimension switched on")
             control.sampling_guidance = updated_data_dict.get("sampling_guidance")
             control.auditor_observation = updated_data_dict.get("auditor_observation")
             control.findings = updated_data_dict.get("findings")
@@ -4194,6 +4203,8 @@ def _generate_test_procedure_for_activity(
             # Update TestSteps attributes in place
             test_steps.walkthrough = _ci_get(test_steps_payload, "walkthrough")
             test_steps.sampling = _ci_get(test_steps_payload, "sampling")
+            if _b3_forced and str(test_steps.sampling or "").lower().startswith("not applicable"):  # BATCH3
+                test_steps.sampling = "Sample occurrences from the audit period, proportionate to the frequency of the activity."
 
             # Sync Document Reviews
             new_docs_list = (
@@ -4273,6 +4284,7 @@ def _generate_test_procedure_for_activity(
 
             for category, items in iter_evidence:
                 category = (category or "Unknown").strip()
+                category = _b3b_norm_category(category)  # BATCH3B
                 for item in items or []:
                     artifact = (
                         session.query(EvidenceArtifact)
@@ -4463,6 +4475,7 @@ def process_test_procedures(
 
         for category, items in iter_evidence:
             category = (category or "Unknown").strip()
+            category = _b3b_norm_category(category)  # BATCH3B
             for item in items or []:
                 artifact = (
                     session.query(EvidenceArtifact)
@@ -4859,3 +4872,28 @@ def _extract_activities_v2(clause_text, department_list):
         logger.info(f"[BATCH2B] split lead-in marked context-only for paragraph {mt.group(1)}")
         return _b2b_extract_v2(marked, department_list)
     return _b2b_extract_v2(clause_text, department_list)
+
+
+
+# BATCH3B: evidence categories are enforced in code, whatever the model returns
+_B3B_ALLOWED = ["Policies and Procedures", "Committee and Board Records", "Approvals", "Reports", "System Evidence",
+                "Records and Registers", "Agreements and Contracts", "Training Records", "Working Papers"]
+def _b3b_norm_category(category):
+    c = str(category or "").strip()
+    for a in _B3B_ALLOWED:
+        if c.lower() == a.lower():
+            return a
+    l = c.lower()
+    rules = [(("training", "e-learning", "awareness"), "Training Records"),
+             (("interview", "walkthrough", "working paper", "observation", "testing sheet", "re-performance", "inquiry"), "Working Papers"),
+             (("committee", "board", "minutes", "meeting", "charter", "terms of reference", "tor", "resolution"), "Committee and Board Records"),
+             (("approval", "sign-off", "signoff", "authoris", "authoriz"), "Approvals"),
+             (("agreement", "contract", "sla", "engagement letter"), "Agreements and Contracts"),
+             (("polic", "procedure", "sop", "framework", "standard", "guideline", "manual", "methodology", "plan"), "Policies and Procedures"),
+             (("report", "assessment", "analysis", "review"), "Reports"),
+             (("log", "system", "screenshot", "configuration", "config", "technical", "export"), "System Evidence"),
+             (("record", "register", "sample", "inventory", "list", "evidence", "document"), "Records and Registers")]
+    for keys, target in rules:
+        if any(k in l for k in keys):
+            return target
+    return "Records and Registers"

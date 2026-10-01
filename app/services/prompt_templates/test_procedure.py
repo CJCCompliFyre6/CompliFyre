@@ -290,6 +290,9 @@ INSTRUCTIONS:
 
    Q3 — Everything else (any genuine, recurring, operational component -- monitoring, periodic review, transaction-level controls, etc.):
      → dimension_design=true, dimension_implementation=true, dimension_operating=true.
+     (BATCH3) Any duty that recurs or continues - meet at least quarterly, review periodically, decide or act on findings,
+     remediate, report, monitor, maintain, or anything with a frequency other than a single one-off act - is Q3:
+     dimension_operating=true. Q1 applies ONLY to a genuinely one-off act that never repeats.
      Design and Implementation are the mandatory foundation Operating is tested against -- never optional once Operating applies. There is no real standard to test operating consistency against without first knowing what "correctly designed and implemented" means for this specific organization.
 
    DEPENDENCY — MANDATORY when more than one dimension applies; acknowledge this in your test procedure:
@@ -308,10 +311,19 @@ INSTRUCTIONS:
    - sampling: IMPORTANT — Sampling applies ONLY when dimension_operating=true (Section 3 above).
      If dimension_operating=false, set sampling to "Not applicable — sampling is only required for Operating Effectiveness testing."
      If dimension_operating=true, provide sampling method and rationale (e.g. "Random sample of 25 records from the past 12 months").
+     (BATCH3B) Small populations - committee or board meetings, members, resolutions, annual reviews: test ALL of them
+     in the audit period. Never sample more items than can exist (e.g. a quarterly meeting gives about 4 per year).
 
 5. EVIDENCE AND GUIDANCE:
    - evidences_artifacts_needed: List of objects, each with:
-       - category: e.g. "System Logs", "Reports"
+       - category (BATCH3): use exactly one of: "Policies and Procedures", "Committee and Board Records", "Approvals",
+         "Reports", "System Evidence", "Records and Registers", "Agreements and Contracts", "Training Records",
+         "Working Papers".
+         * "Working Papers" = items the AUDITOR produces, not the bank: interview notes, walkthrough observation notes,
+           sample selection and testing sheets, re-performance results. Name each by type, e.g. "Interview notes - CISO",
+           "Walkthrough observation - incident reporting".
+         * Samples of the bank's OWN records (e.g. a sample of access requests) are bank evidence under
+           "Records and Registers" or "System Evidence" - not Working Papers.
        - items: list of specific evidence items. Where an item is a formal document that would
          typically go through drafting and approval (a policy, procedure, SOP, or similar governance
          document), it must always refer to the FINAL, approved/signed-off version -- never "draft,"
@@ -330,6 +342,15 @@ INSTRUCTIONS:
          system, or validation results confirming it works -- never governance-style documentation
          alone (roles, approvals, policy documents) about the deliverable, since that proves who
          authorized it, not that it actually exists or functions.
+         (BATCH3) For obligations of a committee or board (its constitution, composition, meetings, oversight,
+         approvals), evidence is the body's constitution / terms of reference (TOR) / charter, meeting calendar,
+         agendas, minutes, attendance records, member profiles and the resolutions or approval records it issues -
+         NEVER a 'policy' governing a committee or board; committees do not have such policies.
+         (BATCH3) Ask only for documents an NBFC actually maintains in the normal course of business. Do not invent
+         document types; when unsure, ask for the underlying record (minutes, register, report, log) instead.
+         (BATCH3B) This includes the skills, qualifications or composition of committee or board members: evidence is
+         member profiles / CVs, qualification records, the Board's assessment at appointment and the annual Board /
+         committee performance evaluation - NEVER a policy or framework 'defining required skills' for members.
          This still applies even when the activity is WORDED as creating a "control framework,"
          "policy," or "process" -- look past the surface wording to what the framework/policy/
          process actually governs. If it governs a specific named technical system or tool (e.g. "a
