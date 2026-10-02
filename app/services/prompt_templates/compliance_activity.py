@@ -148,7 +148,11 @@ CLASSIFICATION RULES:
     name; do not classify a clause as "regulator" just because the word "Board" appears
     (e.g. SEBI's own full name contains "Board", but that is a naming coincidence, not a
     signal -- the surrounding context of who is being asked to act is what matters)
-  * "third_party" = LSP, vendor, auditor, rating agency
+  * "third_party" = ONLY parties outside the regulated entity: LSP, outsourced vendor or service provider,
+    an external/statutory auditor engaged from outside, credit rating agency
+  * (BATCH2-ACTIVITY-RULES) The entity's OWN internal functions are ALWAYS listed_entity, never third_party or regulator:
+    its Board and every Board or management committee (e.g. ITSC, ACB, RMCB, ISC, IT Steering Committee),
+    IS Audit / Internal Audit, CISO, CIO, CTO, Senior Management, MD/CEO, and any internal team or officer
   * "mixed" = multiple subjects including listed_entity
 
 - clause_type:
@@ -160,9 +164,15 @@ CLASSIFICATION RULES:
 
 - is_actionable: true ONLY if listed_entity must DO something specific
   * false for pure definitions, pure exceptions, pure regulator actions
+  * (BATCH2-ACTIVITY-RULES) EXCEPTION - regulator actions that depend on the entity: if the clause says the regulator will
+    verify, inspect, examine, call for or rely on the entity's records, compliance status or treatment
+    (e.g. "RBI would verify compliance with ..."), the entity must be ready for it: set subject = listed_entity,
+    is_actionable = true, and extract READINESS obligations only - keep the records/evidence the regulator
+    will rely on, keep them accurate and reconciled, and act on adverse findings
 
 - atomic_obligations: List ONLY obligations where listed_entity is the actor
-  * Each obligation must be directly stated in the clause — no inference
+  * Each obligation must be directly stated in the clause — no inference (the only exception is the
+    readiness obligations under the regulator-action rule above)
   * action_verb: the primary verb (e.g. "maintain", "disclose", "appoint", "submit")
   * trigger: "one_time" | "event_based" | "periodic" | "ongoing"
   * period: specific period if mentioned (e.g. "quarterly", "within 30 days", "annually")
@@ -218,6 +228,19 @@ STRICT RULES:
 6. DO NOT apply a fixed Design→Implementation→Operating template — only generate what the obligation requires
 7. Merge activities if two obligations would result in the same activity
 8. Total activities: minimum 1, no maximum — generate as many as the obligations require, but never more
+9. (BATCH2-ACTIVITY-RULES) responsible_party: if the clause makes a body or role accountable (e.g. Board, ITSC, ACB, RMCB, ISC,
+   Senior Management, CISO, CIO, IS Audit), write that body FIRST, exactly as the clause names it, and add the
+   executing team in brackets when a different team does the work: "<accountable body> (executed by <team>)",
+   e.g. "ITSC (executed by IT Risk Management)". If the accountable body does the work itself, name only the body.
+   Never replace the accountable body with an operational team, and never reverse who assists or reports to whom.
+   (BATCH2B) Name a board, committee or role as accountable ONLY if the clause itself names it. If the clause names
+   no body, do not invent one - use the function that does the work, e.g. "NBFC (executed by Legal)".
+10. (BATCH2B) NEVER generate an activity whose actor is a regulator or an outside party (RBI, NHB, SEBI, IRDAI, CERT-In,
+   rating agencies, vendors): those are their actions, not the entity's. Where the clause describes what the regulator
+   will do, generate only the entity's own readiness activity.
+   (BATCH2C) Readiness activities are: keep the records/evidence the regulator will rely on, keep them accurate and
+   reconciled, and act on adverse findings. In responsible_party, name the regulated entity simply as the clause's
+   entity type in singular (e.g. "NBFC"), never "NBFCs/originator" or similar combined forms.
 
 COMPLIANCE LEVEL DECISION RULES (apply strictly):
 - Design: Creating a NEW policy/framework/charter/template that does not yet exist → frequency MUST be One-time
@@ -244,7 +267,7 @@ Return this exact JSON structure:
       "department_id": 0,
       "process_name": "Process name",
       "sub_process_name": "Sub-process name",
-      "responsible_party": "Role or team",
+      "responsible_party": "Accountable body as named in the clause, e.g. ITSC (executed by IT Risk Management)",
       "frequency": "One-time | Quarterly | Annually | Monthly | As needed | Ongoing | Per event",
       "evidence_required": "Specific document or artifact",
       "maps_to_obligation": "OB-1",
@@ -305,6 +328,16 @@ Evaluate against ALL of these dimensions:
 3. OBJECTIVE ACHIEVEMENT: If all activities were fully implemented, would the clause's real regulatory objective actually be met?
 4. NO DUPLICATION: Are any two activities substantially the same requirement worded differently (e.g. "Develop an Access Management Policy" and "Develop an Access Control Policy" for the same underlying requirement)?
 
+5. NO INVENTION (BATCH2-ACTIVITY-RULES): Does any activity add an obligation the clause does NOT state (e.g. an internal audit of the process,
+   training, a review cycle, approvals or reporting the clause does not require)? Such activities must be REMOVED.
+   Never ask for activities the clause does not require - a gap means an obligation IN the clause is not covered.
+6. OWNERSHIP: Is the accountable body named in the clause kept as the responsible party (not replaced by an operational team)?
+7. REGULATOR ACTIONS (BATCH2C): Where the clause describes what the regulator will do (verify, inspect, call for records,
+   take supervisory action), the regulator's own actions are OUT OF SCOPE. Do NOT require any activity owned by the
+   regulator or covering the regulator's decisions, and do NOT fail the activities for not naming the regulator as
+   responsible party. For such clauses the entity's READINESS activities are sufficient: keep the records/evidence the
+   regulator will rely on, keep them accurate, and act on adverse findings (e.g. withdraw a treatment, recompute capital).
+
 Be a genuinely critical reviewer, not a rubber stamp -- your job is to catch real gaps and over-generation, not to approve by default.
 
 Return ONLY valid JSON with this exact structure:
@@ -313,3 +346,35 @@ Return ONLY valid JSON with this exact structure:
     "feedback": "If passes is false, specific, actionable feedback on exactly what is wrong and what should change. If passes is true, empty string."
 }}
 """
+
+# ABBREV-TRAINING-FIX: keep the regulation's own terms in activities
+_TERMS_RULE = "TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own terms. If the regulatory clause uses an abbreviation (e.g. ITSC, ISC, CISO, CCMP, ACB), write that same abbreviation everywhere in your output; if it uses the full name, write the full name. NEVER expand an abbreviation yourself and never substitute one committee, body or role for another (e.g. the ITSC is NOT the IT Steering Committee)."
+_orig_call1 = call1_obligation_intelligence_prompt
+_orig_call2 = call2_activity_generation_prompt
+def call1_obligation_intelligence_prompt(*args, **kwargs):
+    return _orig_call1(*args, **kwargs) + "\n\n" + _TERMS_RULE
+def call2_activity_generation_prompt(*args, **kwargs):
+    return _orig_call2(*args, **kwargs) + "\n\n" + _TERMS_RULE
+
+
+# BATCH1-PROMPT-CONTEXT: guideline glossary, reviewer notes and split-lead-in rule for Calls 1-3
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_call1 = call1_obligation_intelligence_prompt
+_b1_call2 = call2_activity_generation_prompt
+_b1_call3 = reasonable_assurance_prompt
+def call1_obligation_intelligence_prompt(clause_text, *args, **kwargs):
+    return _b1_call1(clause_text, *args, **kwargs) + _b1_ctx(clause_text, include_split_rule=True)
+def call2_activity_generation_prompt(clause_text, *args, **kwargs):
+    return _b1_call2(clause_text, *args, **kwargs) + _b1_ctx(clause_text, include_split_rule=True)
+def reasonable_assurance_prompt(clause_text, *args, **kwargs):
+    return _b1_call3(clause_text, *args, **kwargs) + "\n\n" + _TERMS_RULE + _b1_ctx(clause_text, include_split_rule=True)
+
+
+
+# BATCH2B: drop activities owned by a regulator, whatever the model returns
+import re as _b2b_re
+_B2B_REGULATOR = _b2b_re.compile(r"^\s*(RBI|Reserve Bank|NHB|National Housing Bank|SEBI|IRDAI|PFRDA|CERT-In|regulator)\b", _b2b_re.I)
+_b2b_validate = validate_and_fix_activities
+def validate_and_fix_activities(activities):
+    kept = [a for a in (activities or []) if not _B2B_REGULATOR.search(str(a.get("responsible_party") or ""))]
+    return _b2b_validate(kept)

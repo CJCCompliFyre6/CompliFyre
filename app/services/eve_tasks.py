@@ -2071,3 +2071,104 @@ def fix_pending_checklists(self):
         db.session.rollback()
         logger.error(f"[Periodic] fix_pending_checklists error: {e}")
         return {"error": str(e)}
+
+# ABBREV-TRAINING-FIX: keep the regulation's own terms in checklist items
+_TERMS_RULE = "TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own terms. If the regulatory clause uses an abbreviation (e.g. ITSC, ISC, CISO, CCMP, ACB), write that same abbreviation everywhere in your output; if it uses the full name, write the full name. NEVER expand an abbreviation yourself and never substitute one committee, body or role for another (e.g. the ITSC is NOT the IT Steering Committee)."
+_orig_build_checklist_prompt = _build_checklist_prompt
+def _build_checklist_prompt(*args, **kwargs):
+    return _orig_build_checklist_prompt(*args, **kwargs) + "\n\n" + _TERMS_RULE
+
+
+# BATCH1-PROMPT-CONTEXT: glossary + reviewer notes for checklist, C6 review and C7 patch prompts
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_checklist_prompt = _build_checklist_prompt
+def _build_checklist_prompt(*args, **kwargs):
+    ct = kwargs["clause_text"] if "clause_text" in kwargs else (args[3] if len(args) > 3 else "")
+    return _b1_checklist_prompt(*args, **kwargs) + _b1_ctx(ct)
+_b1_review_prompt = _build_clause_checklist_review_prompt
+def _build_clause_checklist_review_prompt(clause_text, *args, **kwargs):
+    return _b1_review_prompt(clause_text, *args, **kwargs) + "\n\n" + _TERMS_RULE + _b1_ctx(clause_text)
+_b1_patch_prompt = _build_missing_coverage_patch_prompt
+def _build_missing_coverage_patch_prompt(clause_text, *args, **kwargs):
+    return _b1_patch_prompt(clause_text, *args, **kwargs) + "\n\n" + _TERMS_RULE + _b1_ctx(clause_text)
+
+
+# ===== BATCH4: checklist rules + C6/C7 dimension auto-correction =====
+_B4_CHECKLIST_RULES = """
+
+ADDITIONAL RULES (BATCH4):
+- expected_evidence_types for every checklist item must come from the control's Evidence List given above (or from
+  Working Papers for interview / walkthrough items). Do not name evidence that is not in that list; if an item genuinely
+  needs something the list lacks, name the closest listed evidence instead.
+- For obligations of a committee or board, items test its constitution / terms of reference (TOR) / charter, meeting
+  calendar, agendas, minutes, attendance, member profiles and resolutions - never a 'policy' governing the committee.
+- Small populations (committee or board meetings, members, resolutions, annual reviews): test ALL occurrences in the
+  audit period; never sample more items than can exist."""
+_b4_checklist_prompt = _build_checklist_prompt
+def _build_checklist_prompt(*args, **kwargs):
+    return _b4_checklist_prompt(*args, **kwargs) + _B4_CHECKLIST_RULES
+
+
+def _b4_latest_review(clause_id):
+    import json as _json
+    r = (db.session.query(ClauseChecklistReview).filter_by(clause_id=clause_id)
+         .order_by(ClauseChecklistReview.id.desc()).first())
+    if not r:
+        return "", []
+    raw = r.raw_output_json
+    raw = _json.loads(raw) if isinstance(raw, str) else (raw or {})
+    return str(raw.get("sufficiency_reasoning") or r.sufficiency_reasoning or ""), \
+        [m.get("control_activity_id") for m in (raw.get("missing_coverage") or []) if isinstance(m, dict)]
+
+
+def _b4_narrow_controls(clause_id):
+    """Controls of this clause that C6 points at (missing_coverage or cited in its reasoning) and that do not test all
+    three dimensions - only when C6's reasoning is about dimensions."""
+    import re as _re
+    from app.models.ai import ComplianceActivities
+    reasoning, named = _b4_latest_review(clause_id)
+    if not _re.search(r"operating|implementation|dimension", reasoning, _re.I):
+        return []
+    act_ids = [a.id for a in db.session.query(ComplianceActivities.id).filter_by(clause_id=clause_id).all()]
+    ctrls = {c.id: c for c in db.session.query(ControlActivity).filter(ControlActivity.compliance_activity_id.in_(act_ids)).all()} if act_ids else {}
+    cited = named + [int(x) for x in _re.findall(r"\b(\d{2,7})\b", reasoning)]
+    out = []
+    for cid in dict.fromkeys(cited):
+        c = ctrls.get(cid)
+        if c is not None and not (c.dimension_design and c.dimension_implementation and c.dimension_operating):
+            out.append(c)
+    return out
+
+
+def _b4_set_flag(clause_id, flagged):
+    from app.models.ai import Clauses
+    cl = db.session.query(Clauses).filter_by(id=clause_id).first()
+    if not cl:
+        return
+    if flagged:
+        cl.extraction_status, cl.flag_reason = "FLAGGED", "CHECKLIST_ASSURANCE_FAILED"
+    elif cl.flag_reason == "CHECKLIST_ASSURANCE_FAILED":
+        cl.extraction_status, cl.flag_reason = "EXTRACTED", None
+    db.session.commit()
+
+
+_b4_assurance = run_clause_checklist_assurance_with_regeneration
+def run_clause_checklist_assurance_with_regeneration(clause_id):
+    result = _b4_assurance(clause_id)
+    if result.get("sufficiency_verdict") != "INSUFFICIENT":
+        return result
+    narrow = _b4_narrow_controls(clause_id)
+    if narrow:
+        for c in narrow:
+            c.dimension_design = c.dimension_implementation = c.dimension_operating = True
+            db.session.query(ControlChecklist).filter_by(control_activity_id=c.id).delete()
+        db.session.commit()
+        for c in narrow:
+            generate_control_checklist(c.id)
+            logger.info(f"[BATCH4] clause_id={clause_id}: control {c.id} dimensions widened to D/I/O and checklist rebuilt")
+        resolve_cross_sibling_dependencies(clause_id)
+        result = run_clause_checklist_assurance_review(clause_id, iteration=3)
+        result["c7_status"] = "DIMENSIONS_CORRECTED_AND_REVIEWED"
+        logger.info(f"[BATCH4] clause_id={clause_id}: verdict after dimension correction = {result.get('sufficiency_verdict')}")
+    _b4_set_flag(clause_id, result.get("sufficiency_verdict") == "INSUFFICIENT")
+    return result

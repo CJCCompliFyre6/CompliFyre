@@ -2537,6 +2537,7 @@ def extract_activities(self, clause_id: int):
 @shared_task(bind=True)
 def extract_test_procedures(self, activity_id: int):
     """Step 4: Extract test procedures for an activity and save in DB"""
+    return _batch0_rebuild_activity_downstream(activity_id)  # BATCH0-SINGLE-PIPELINE
     logger.info(f"Step 4: Extracting test procedures for activity_id={activity_id}")
     try:
         with session_scope() as session:
@@ -2686,6 +2687,7 @@ def extract_test_procedures(self, activity_id: int):
 
             for category, items in iter_evidence:
                 category = (category or "Unknown").strip()
+                category = _b3b_norm_category(category)  # BATCH3B
                 for item in items or []:
                     artifact = (
                         session.query(EvidenceArtifact)
@@ -2972,6 +2974,15 @@ def extract_selected_activities_and_tests(self, guideline_id: int, clause_ids: l
             compliance_data = _extract_activities_v2(
                 clause_text, list(department_list)
             )
+            if compliance_data and compliance_data.get("needs_human_review"):  # BATCH2-ACTIVITY-RULES: keep the flag, not just a log line
+                try:
+                    _flag_clause = Clauses.query.get(clause_id_val)
+                    _flag_clause.extraction_status = "FLAGGED"
+                    _flag_clause.flag_reason = "ACTIVITY_ASSURANCE_FAILED"
+                    db.session.commit()
+                except Exception as _flag_err:
+                    db.session.rollback()
+                    logger.warning(f"[BATCH2] could not flag clause {clause_id_val}: {_flag_err}")
             with session_scope() as session:
 
                 if (
@@ -3881,7 +3892,7 @@ Return ONLY valid JSON. No explanation. No markdown."""
 
     CHUNK_PROMPT = f"""Extract ALL distinct regulatory obligations from this regulatory clause.
 Each obligation must be something the listed entity (bank/NBFC/listed company) must DO.
-Exclude: definitions, explanations, regulator actions, third-party obligations.
+Exclude: definitions, explanations, and obligations of parties OUTSIDE the entity. (BATCH2-ACTIVITY-RULES) The entity's own Board, committees, IS/internal audit, CISO, CIO and management are part of the entity - include their obligations. Where the regulator will verify or rely on the entity's records, include readiness obligations.
 
 CLAUSE:
 {clause_text}
@@ -4045,7 +4056,7 @@ def _extract_activities_v2(clause_text: str, department_list: list) -> dict:
         })
 
     logger.info(f"[V2] Final: {len(mapped)} activities after validation")
-    return {"compliance_activities": mapped}
+    return {"compliance_activities": mapped, "needs_human_review": needs_human_review}  # BATCH2-ACTIVITY-RULES
 
 def _extract_compliance_activities_direct(
     clause_text: str, department_list: list
@@ -4161,6 +4172,14 @@ def _generate_test_procedure_for_activity(
             control.dimension_design = bool(updated_data_dict.get("dimension_design", False))
             control.dimension_implementation = bool(updated_data_dict.get("dimension_implementation", False))
             control.dimension_operating = bool(updated_data_dict.get("dimension_operating", False))
+            # BATCH3 safety net: a recurring duty must test operating effectiveness (and therefore design + implementation)
+            _b3_freq = (str(updated_data_dict.get("frequency") or "") + " " + str(activity_data.get("frequency") or "")).lower()
+            _b3_forced = False
+            if not control.dimension_operating and any(k in _b3_freq for k in ("daily", "weekly", "monthly", "quarter", "half",
+                    "annual", "year", "periodic", "ongoing", "continuous", "per event", "event", "as needed", "recurring")):
+                control.dimension_design = control.dimension_implementation = control.dimension_operating = True
+                _b3_forced = True
+                logger.info(f"[BATCH3] comp_id={comp_id}: recurring frequency ({_b3_freq.strip()}) - operating dimension switched on")
             control.sampling_guidance = updated_data_dict.get("sampling_guidance")
             control.auditor_observation = updated_data_dict.get("auditor_observation")
             control.findings = updated_data_dict.get("findings")
@@ -4184,6 +4203,8 @@ def _generate_test_procedure_for_activity(
             # Update TestSteps attributes in place
             test_steps.walkthrough = _ci_get(test_steps_payload, "walkthrough")
             test_steps.sampling = _ci_get(test_steps_payload, "sampling")
+            if _b3_forced and str(test_steps.sampling or "").lower().startswith("not applicable"):  # BATCH3
+                test_steps.sampling = "Sample occurrences from the audit period, proportionate to the frequency of the activity."
 
             # Sync Document Reviews
             new_docs_list = (
@@ -4263,6 +4284,7 @@ def _generate_test_procedure_for_activity(
 
             for category, items in iter_evidence:
                 category = (category or "Unknown").strip()
+                category = _b3b_norm_category(category)  # BATCH3B
                 for item in items or []:
                     artifact = (
                         session.query(EvidenceArtifact)
@@ -4453,6 +4475,7 @@ def process_test_procedures(
 
         for category, items in iter_evidence:
             category = (category or "Unknown").strip()
+            category = _b3b_norm_category(category)  # BATCH3B
             for item in items or []:
                 artifact = (
                     session.query(EvidenceArtifact)
@@ -4478,6 +4501,7 @@ def generate_missing_activities_for_guideline(self, guideline_id):
     """
     Cron job to generate activities for clauses without activities in a specific guideline
     """
+    return _batch0_missing_to_extract_all(guideline_id)  # BATCH0-SINGLE-PIPELINE: retired
     logger.info(
         f"Starting missing activities generation for guideline_id={guideline_id}"
     )
@@ -4492,7 +4516,7 @@ def generate_missing_activities_for_guideline(self, guideline_id):
         # Only OBLIGATION/PRINCIPLE/MIXED clauses carry an independent duty
         # for the RE to act on — DEFINITION/APPLICABILITY/EXEMPTION/REFERENCE
         # clauses should never reach activity-generation on their own.
-        ACTIVITY_ELIGIBLE_TYPES = ['OBLIGATION', 'PRINCIPLE', 'MIXED']
+        ACTIVITY_ELIGIBLE_TYPES = ['OBLIGATION', 'PRINCIPLE', 'MIXED', 'DISCRETIONARY']
         clauses_without_activities = Clauses.query.filter(
             Clauses.guideline_id == guideline_id,
             Clauses.clause_type.in_(ACTIVITY_ELIGIBLE_TYPES),
@@ -4776,3 +4800,100 @@ def generate_single_clause_activities(self, guideline_id: int, clause_id: int):
             meta={"exc_type": type(e).__name__, "exc_message": str(e)},
         )
         raise
+
+
+# ===== BATCH0-SINGLE-PIPELINE: retired paths delegate to the Extract All pipeline =====
+def _batch0_rebuild_activity_downstream(activity_id):
+    """Rebuild one activity's control, test procedure, evidence and checklist with the pipeline's own functions."""
+    from sqlalchemy import text as _t, inspect as _insp
+    act = ComplianceActivities.query.get(activity_id)
+    if not act:
+        return {"status": "error", "message": "Activity not found"}
+    clause = Clauses.query.get(act.clause_id)
+    ctrl = ControlActivity.query.filter_by(compliance_activity_id=activity_id).first()
+    if ctrl:
+        fks = _insp(db.engine).get_foreign_keys("control_evidences")
+        cc = next(f["constrained_columns"][0] for f in fks if f["referred_table"] == "control_activities")
+        ts = [r[0] for r in db.session.execute(_t("SELECT id FROM test_steps WHERE control_id = :c"), {"c": ctrl.id})]
+        if ts:
+            db.session.execute(_t("DELETE FROM interview_questions WHERE interview_id IN (SELECT id FROM interviews WHERE test_procedure_id = ANY(:t))"), {"t": ts})
+            db.session.execute(_t("DELETE FROM interview_roles WHERE interview_id IN (SELECT id FROM interviews WHERE test_procedure_id = ANY(:t))"), {"t": ts})
+            db.session.execute(_t("DELETE FROM interviews WHERE test_procedure_id = ANY(:t)"), {"t": ts})
+            db.session.execute(_t("DELETE FROM document_reviews WHERE test_procedure_id = ANY(:t)"), {"t": ts})
+        db.session.execute(_t(f'DELETE FROM control_evidences WHERE "{cc}" = :c'), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM test_steps WHERE control_id = :c"), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM control_checklist WHERE control_activity_id = :c"), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM control_activities WHERE id = :c"), {"c": ctrl.id})
+        db.session.execute(_t("DELETE FROM test_procedures WHERE activity_id = :a"), {"a": activity_id})
+        db.session.commit()
+    payload = {"activity_id": act.activity_id, "activity_description": act.activity_description,
+               "relevant_departments": act.relevant_departments, "process_name": act.process,
+               "sub_process_name": act.sub_process, "responsible_party": act.responsible_party,
+               "frequency": act.frequency, "evidence_required": act.evidence_required}
+    _generate_test_procedure_for_activity(activity_id, clause.clause_text, payload)
+    db.session.expire_all()
+    from app.services.eve_tasks import generate_control_checklist
+    nc = ControlActivity.query.filter_by(compliance_activity_id=activity_id).first()
+    if nc:
+        generate_control_checklist(nc.id)
+    logger.info(f"[BATCH0] activity {activity_id} downstream rebuilt through the pipeline (control {nc.id if nc else None})")
+    return {"status": "success", "activity_id": activity_id, "control_id": nc.id if nc else None}
+
+
+def _batch0_missing_to_extract_all(guideline_id):
+    eligible = ["OBLIGATION", "PRINCIPLE", "MIXED", "DISCRETIONARY"]
+    ids = [c.id for c in Clauses.query.filter(Clauses.guideline_id == guideline_id, Clauses.clause_type.in_(eligible)).all()
+           if not ComplianceActivities.query.filter_by(clause_id=c.id).first()]
+    logger.warning(f"[BATCH0] generate_missing_activities_for_guideline is retired - routing {len(ids)} clauses to Extract All")
+    if ids:
+        extract_selected_activities_and_tests.delay(guideline_id, ids)
+    return {"status": "success", "message": f"Routed {len(ids)} clauses to Extract All", "guideline_id": guideline_id}
+
+
+# BATCH1-PROMPT-CONTEXT: chunked extraction of large clauses also receives the context block
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_split_large_clause = _split_large_clause
+def _split_large_clause(clause_text, max_chars=3000):
+    return _b1_split_large_clause(clause_text + _b1_ctx(clause_text, include_split_rule=True), max_chars)
+
+
+
+# BATCH2B: a carried-over lead-in ("Paragraph N (continued) - <lead-in> (1) ...") is context only
+import re as _b2b_re
+_B2B_LEAD = _b2b_re.compile(r"^\s*(?:Paragraph|Para\.?|Clause)\s+([\w.\-]+)\s*\(continued\)\s*[-:\u2013]?\s*(.*?)(?=\(\d{1,2}\)\s)", _b2b_re.S)
+_b2b_extract_v2 = _extract_activities_v2
+def _extract_activities_v2(clause_text, department_list):
+    mt = _B2B_LEAD.match(clause_text or "")
+    if mt and mt.group(2).strip():
+        from app.services.prompt_context import register_alias
+        marked = (f"[CONTEXT ONLY - lead-in carried over from the earlier part of paragraph {mt.group(1)}; it is already "
+                  f"covered there, so do NOT create activities for it: {mt.group(2).strip()}]\n" + clause_text[mt.end():])
+        register_alias(marked, clause_text)
+        logger.info(f"[BATCH2B] split lead-in marked context-only for paragraph {mt.group(1)}")
+        return _b2b_extract_v2(marked, department_list)
+    return _b2b_extract_v2(clause_text, department_list)
+
+
+
+# BATCH3B: evidence categories are enforced in code, whatever the model returns
+_B3B_ALLOWED = ["Policies and Procedures", "Committee and Board Records", "Approvals", "Reports", "System Evidence",
+                "Records and Registers", "Agreements and Contracts", "Training Records", "Working Papers"]
+def _b3b_norm_category(category):
+    c = str(category or "").strip()
+    for a in _B3B_ALLOWED:
+        if c.lower() == a.lower():
+            return a
+    l = c.lower()
+    rules = [(("training", "e-learning", "awareness"), "Training Records"),
+             (("interview", "walkthrough", "working paper", "observation", "testing sheet", "re-performance", "inquiry"), "Working Papers"),
+             (("committee", "board", "minutes", "meeting", "charter", "terms of reference", "tor", "resolution"), "Committee and Board Records"),
+             (("approval", "sign-off", "signoff", "authoris", "authoriz"), "Approvals"),
+             (("agreement", "contract", "sla", "engagement letter"), "Agreements and Contracts"),
+             (("polic", "procedure", "sop", "framework", "standard", "guideline", "manual", "methodology", "plan"), "Policies and Procedures"),
+             (("report", "assessment", "analysis", "review"), "Reports"),
+             (("log", "system", "screenshot", "configuration", "config", "technical", "export"), "System Evidence"),
+             (("record", "register", "sample", "inventory", "list", "evidence", "document"), "Records and Registers")]
+    for keys, target in rules:
+        if any(k in l for k in keys):
+            return target
+    return "Records and Registers"

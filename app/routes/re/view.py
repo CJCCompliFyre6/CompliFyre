@@ -3457,7 +3457,7 @@ def clause_review():
     if isinstance(guideline.guideline_data, dict):
         guideline_name = guideline.guideline_data.get("DocumentDetails", {}).get("DocumentName", "Unknown Guideline")
 
-    valid_types = ["OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"]
+    valid_types = ["OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"]
 
     reviewed_count = sum(1 for c in clauses if c.clause_type_reviewed_at)
     total_count = len(clauses)
@@ -3491,7 +3491,7 @@ def clause_review_save():
     new_clause_type = (data.get("clause_type") or "").strip().upper()
     review_notes = data.get("review_notes", "").strip()
 
-    valid_types = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"}
+    valid_types = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
     if not clause_id or new_clause_type not in valid_types:
         return jsonify({"status": "error", "message": "Invalid clause_id or clause_type"}), 400
 
@@ -3773,6 +3773,7 @@ def compliance_activities():
     """
     Compliance Activities Page
     """
+    return _batch0_clause_to_extract_all(regenerate=False)  # BATCH0-SINGLE-PIPELINE
     try:
         pdf_service = PDFService()
         data = request.get_json()
@@ -3908,6 +3909,7 @@ def regenerate_compliance_activities():
     """
     Regenerate compliance activities by deleting existing ones and creating new ones
     """
+    return _batch0_clause_to_extract_all(regenerate=True)  # BATCH0-SINGLE-PIPELINE
     try:
         pdf_service = PDFService()
         data = request.get_json()
@@ -5347,7 +5349,7 @@ def activity(project_id):
         # severity and completion logic are unchanged. Built in a temp list and
         # merged only on success, so a failure here cannot break the page.
         try:
-            _NOT_REQUIRED = {"DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
+            _NOT_REQUIRED = {"DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE"}
             _shown_ids = {c["id"] for c in enriched_clauses}
             _extra = []
             for _pc in (ProjectClause.query
@@ -9040,6 +9042,7 @@ def trigger_generate_missing_activities(guideline_id):
 @role_required("COMPLIFYRE", "AUDITOR", "RE")
 def retry_pending_activities():
     """Retry activity generation for clauses without activities."""
+    return _batch0_retry_pending()  # BATCH0-SINGLE-PIPELINE
     try:
         data = request.get_json()
         guideline_id = data.get("guideline_id")
@@ -9468,3 +9471,43 @@ def check_regulators_bulk_status():
         "completed": completed,
         "results": results,
     })
+
+
+# ===== BATCH0-SINGLE-PIPELINE: every activity trigger goes through the Extract All pipeline =====
+def _batch0_clause_to_extract_all(regenerate=False):
+    from app.services.manual_task import extract_selected_activities_and_tests, _delete_clause_data
+    from app import db as _db
+    from sqlalchemy import text as _t
+    data = request.get_json(silent=True) or {}
+    cid = data.get("id") or data.get("clause_id")
+    clause = Clauses.query.filter_by(id=cid).first() if cid else None
+    if not clause:
+        return jsonify({"error": "Clause not found"}), 404
+    if regenerate:
+        try:
+            _delete_clause_data(clause.id)
+        except Exception as e:
+            return jsonify({"error": f"Could not clear this clause's activities (it may be used in a project): {e}"}), 409
+        _db.session.execute(_t("UPDATE clauses SET activity_generation_claimed_at = NULL WHERE id = :i"), {"i": clause.id})
+        _db.session.commit()
+    task = extract_selected_activities_and_tests.delay(clause.guideline_id, [clause.id])
+    current_app.logger.info(f"[BATCH0] clause {clause.id} routed to Extract All (regenerate={regenerate}), task {task.id}")
+    if not regenerate:
+        return redirect(request.referrer or "/")
+    return jsonify({"status": "success", "message": "Activity generation started through Extract All. Refresh in a few minutes.", "task_id": task.id}), 200
+
+
+def _batch0_retry_pending():
+    from app.services.manual_task import extract_selected_activities_and_tests
+    data = request.get_json(silent=True) or {}
+    gid = data.get("guideline_id")
+    if not gid:
+        return jsonify({"status": "error", "message": "guideline_id required"}), 400
+    eligible = ("OBLIGATION", "PRINCIPLE", "MIXED", "DISCRETIONARY")
+    ids = [c.id for c in Clauses.query.filter_by(guideline_id=gid).all()
+           if (c.clause_type or "").upper() in eligible and not c.compliance_activities]
+    if not ids:
+        return jsonify({"status": "success", "message": "No pending clauses found", "triggered_count": 0})
+    task = extract_selected_activities_and_tests.delay(gid, ids)
+    return jsonify({"status": "success", "message": f"Extract All started for {len(ids)} pending clauses",
+                    "triggered_count": len(ids), "guideline_id": gid, "task_id": task.id})

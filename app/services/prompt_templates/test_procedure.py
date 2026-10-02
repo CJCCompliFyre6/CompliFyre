@@ -178,6 +178,7 @@ INPUT DATA:
 - Compliance Activity: {control_activity}
 
 Note: From the Compliance Activity, use activity_description for the content and compliance_level for the testing scope — strictly follow section 3 guidance.
+TERMINOLOGY (ABBREV-TRAINING-FIX): keep the regulation's own terms. If the regulatory clause uses an abbreviation (e.g. ITSC, ISC, CISO, CCMP, ACB), write that same abbreviation everywhere in your output; if it uses the full name, write the full name. NEVER expand an abbreviation yourself and never substitute one committee, body or role for another (e.g. the ITSC is NOT the IT Steering Committee).
 CRITICAL — DATES & PERIODS: NEVER use any specific year, quarter, or date in evidence names or descriptions (e.g., do NOT write "Q2 2023 Report", "Q1 2024 Report", "2023 Compliance Report").
 
 INSTRUCTIONS:
@@ -289,11 +290,14 @@ INSTRUCTIONS:
 
    Q3 — Everything else (any genuine, recurring, operational component -- monitoring, periodic review, transaction-level controls, etc.):
      → dimension_design=true, dimension_implementation=true, dimension_operating=true.
+     (BATCH3) Any duty that recurs or continues - meet at least quarterly, review periodically, decide or act on findings,
+     remediate, report, monitor, maintain, or anything with a frequency other than a single one-off act - is Q3:
+     dimension_operating=true. Q1 applies ONLY to a genuinely one-off act that never repeats.
      Design and Implementation are the mandatory foundation Operating is tested against -- never optional once Operating applies. There is no real standard to test operating consistency against without first knowing what "correctly designed and implemented" means for this specific organization.
 
    DEPENDENCY — MANDATORY when more than one dimension applies; acknowledge this in your test procedure:
    - Design: are policies documented, is the control framework defined, are roles/responsibilities assigned, is it approved by the correct authority? Evidence: policy documents, framework documentation, approvals, role definitions.
-   - Implementation (only if dimension_implementation=true): first confirm Design exists as a prerequisite, then test whether it has actually been deployed/configured/trained/followed. Evidence: configuration screenshots, training records, deployment evidence, SOPs.
+   - Implementation (only if dimension_implementation=true): first confirm Design exists as a prerequisite, then test whether it has actually been deployed/configured/trained/followed. Evidence: configuration screenshots, deployment evidence, SOPs -- and training records ONLY where the activity itself concerns staff training or awareness.
    - Operating (only if dimension_operating=true): first confirm Design AND Implementation exist as prerequisites, then test whether the control operates consistently over the audit period. Sampling is MANDATORY here. Evidence: transaction logs, monitoring reports, samples from the audit period, exception reports.
 
 4. TEST PROCEDURE:
@@ -307,10 +311,19 @@ INSTRUCTIONS:
    - sampling: IMPORTANT — Sampling applies ONLY when dimension_operating=true (Section 3 above).
      If dimension_operating=false, set sampling to "Not applicable — sampling is only required for Operating Effectiveness testing."
      If dimension_operating=true, provide sampling method and rationale (e.g. "Random sample of 25 records from the past 12 months").
+     (BATCH3B) Small populations - committee or board meetings, members, resolutions, annual reviews: test ALL of them
+     in the audit period. Never sample more items than can exist (e.g. a quarterly meeting gives about 4 per year).
 
 5. EVIDENCE AND GUIDANCE:
    - evidences_artifacts_needed: List of objects, each with:
-       - category: e.g. "System Logs", "Reports"
+       - category (BATCH3): use exactly one of: "Policies and Procedures", "Committee and Board Records", "Approvals",
+         "Reports", "System Evidence", "Records and Registers", "Agreements and Contracts", "Training Records",
+         "Working Papers".
+         * "Working Papers" = items the AUDITOR produces, not the bank: interview notes, walkthrough observation notes,
+           sample selection and testing sheets, re-performance results. Name each by type, e.g. "Interview notes - CISO",
+           "Walkthrough observation - incident reporting".
+         * Samples of the bank's OWN records (e.g. a sample of access requests) are bank evidence under
+           "Records and Registers" or "System Evidence" - not Working Papers.
        - items: list of specific evidence items. Where an item is a formal document that would
          typically go through drafting and approval (a policy, procedure, SOP, or similar governance
          document), it must always refer to the FINAL, approved/signed-off version -- never "draft,"
@@ -320,6 +333,8 @@ INSTRUCTIONS:
          post-training assessment score demonstrating comprehension -- never attendance records alone,
          since attendance does not prove understanding. Specify a minimum passing score of 70% as the
          acceptance criterion for the assessment.
+          Do NOT add training materials, training records, attendance or assessment results for any other
+          activity -- only when the activity itself is about training, awareness or competence.
          Where the activity describes creating, building, configuring, or deploying a specific, named
          technical deliverable (a flowchart, a system integration, a technical configuration, a
          dashboard, a tool), evidence must include the deliverable itself or direct proof of its
@@ -327,6 +342,15 @@ INSTRUCTIONS:
          system, or validation results confirming it works -- never governance-style documentation
          alone (roles, approvals, policy documents) about the deliverable, since that proves who
          authorized it, not that it actually exists or functions.
+         (BATCH3) For obligations of a committee or board (its constitution, composition, meetings, oversight,
+         approvals), evidence is the body's constitution / terms of reference (TOR) / charter, meeting calendar,
+         agendas, minutes, attendance records, member profiles and the resolutions or approval records it issues -
+         NEVER a 'policy' governing a committee or board; committees do not have such policies.
+         (BATCH3) Ask only for documents an NBFC actually maintains in the normal course of business. Do not invent
+         document types; when unsure, ask for the underlying record (minutes, register, report, log) instead.
+         (BATCH3B) This includes the skills, qualifications or composition of committee or board members: evidence is
+         member profiles / CVs, qualification records, the Board's assessment at appointment and the annual Board /
+         committee performance evaluation - NEVER a policy or framework 'defining required skills' for members.
          This still applies even when the activity is WORDED as creating a "control framework,"
          "policy," or "process" -- look past the surface wording to what the framework/policy/
          process actually governs. If it governs a specific named technical system or tool (e.g. "a
@@ -379,3 +403,10 @@ REQUIRED JSON SCHEMA:
 Return only the JSON object. No markdown, no extra text, no explanation.
 """.strip()
 
+
+
+# BATCH1-PROMPT-CONTEXT: guideline glossary and reviewer notes for the test-procedure prompt
+from app.services.prompt_context import block_for_text as _b1_ctx
+_b1_test_procedure = test_procedure
+def test_procedure(control_clauses, control_activity, *args, **kwargs):
+    return _b1_test_procedure(control_clauses, control_activity, *args, **kwargs) + _b1_ctx(control_clauses)

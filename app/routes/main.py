@@ -810,11 +810,16 @@ def get_redis_connection():
 
 
 @main_bp.route("/extract-clauses/<int:guideline_id>", methods=["GET"])
+@role_required("COMPLIFYRE")
 def extract_clauses_route(guideline_id):
     """
     Trigger clause extraction. If structure map confirmed — start directly.
     If not — redirect to structure map verification screen first.
     """
+    # BATCH0-SINGLE-PIPELINE: never re-extract on top of existing clauses (that is how duplicates were created)
+    if guideline_id and Clauses.query.filter_by(guideline_id=guideline_id).first():
+        flash("Clauses already exist for this guideline. Use 'Regenerate Clauses' to start over.", "error")
+        return redirect(request.referrer or '/')
     try:
         if not guideline_id:
             flash("Invalid guideline ID", "error")
@@ -1017,7 +1022,11 @@ def extract_activities_route(clause_id):
         if not clause_id:
             return _json_response("error", "Invalid clause ID", 400)
 
-        task = extract_activities.delay(clause_id)
+        # BATCH0-SINGLE-PIPELINE: single-clause button now uses the Extract All pipeline
+        _cl = Clauses.query.get(clause_id)
+        if not _cl:
+            return _json_response("error", "Clause not found", 404)
+        task = extract_selected_activities_and_tests.delay(_cl.guideline_id, [clause_id])
         return _json_response(
             "success", "Activity extraction started.", 202, task_id=task.id
         )
@@ -1144,38 +1153,8 @@ def extract_all_route(guideline_id):
                 HAVING COUNT(*) > 10
             """)).fetchall()
 
-            if dupes:
-                logger.warning(f"Found {len(dupes)} clauses with duplicate activities for guideline {guideline_id}. Auto-cleaning...")
-                for clause_id, cnt in dupes:
-                    # Keep first 8, delete rest (with all child records)
-                    keep_ids = [r[0] for r in db.session.execute(text(f"""
-                        SELECT id FROM compliance_activities
-                        WHERE clause_id = {clause_id} ORDER BY id LIMIT 8
-                    """)).fetchall()]
-                    if keep_ids:
-                        keep_str = ",".join(map(str, keep_ids))
-                        del_acts = [r[0] for r in db.session.execute(text(f"""
-                            SELECT id FROM compliance_activities
-                            WHERE clause_id = {clause_id} AND id NOT IN ({keep_str})
-                        """)).fetchall()]
-                        if del_acts:
-                            del_str = ",".join(map(str, del_acts))
-                            ctrl_ids = [r[0] for r in db.session.execute(text(f"SELECT id FROM control_activities WHERE compliance_activity_id IN ({del_str})")).fetchall()]
-                            if ctrl_ids:
-                                ctrl_str = ",".join(map(str, ctrl_ids))
-                                ts_ids = [r[0] for r in db.session.execute(text(f"SELECT id FROM test_steps WHERE control_id IN ({ctrl_str})")).fetchall()]
-                                if ts_ids:
-                                    ts_str = ",".join(map(str, ts_ids))
-                                    db.session.execute(text(f"DELETE FROM document_reviews WHERE test_procedure_id IN ({ts_str})"))
-                                    db.session.execute(text(f"DELETE FROM interview_roles WHERE interview_id IN (SELECT id FROM interviews WHERE test_procedure_id IN ({ts_str}))"))
-                                    db.session.execute(text(f"DELETE FROM interview_questions WHERE interview_id IN (SELECT id FROM interviews WHERE test_procedure_id IN ({ts_str}))"))
-                                    db.session.execute(text(f"DELETE FROM interviews WHERE test_procedure_id IN ({ts_str})"))
-                                    db.session.execute(text(f"DELETE FROM test_steps WHERE id IN ({ts_str})"))
-                                db.session.execute(text(f"DELETE FROM control_evidences WHERE control_id IN ({ctrl_str})"))
-                                db.session.execute(text(f"DELETE FROM control_activities WHERE id IN ({ctrl_str})"))
-                            db.session.execute(text(f"DELETE FROM compliance_activities WHERE id IN ({del_str})"))
-                db.session.commit()
-                logger.info(f"Auto-cleanup complete for guideline {guideline_id}")
+            if dupes:  # BATCH0-SINGLE-PIPELINE: auto-cleanup removed - it kept only the first 8 activities of any clause
+                logger.warning(f"{len(dupes)} clauses have more than 10 activities in guideline {guideline_id} - not auto-deleted; review manually")
 
         task = extract_selected_activities_and_tests.delay(guideline_id, clause_ids)
 
