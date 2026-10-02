@@ -10429,3 +10429,124 @@ def _build_oe_findings(combined_results: dict, oe_items: list, saved_files: list
         })
 
     return findings
+
+
+# ===== CONSOL1: working papers off the bank list; minutes/approvals by body; fewer unclassified items =====
+EVIDENCE_DOC_TYPES.update({
+    "agreement": "agreement", "contract": "agreement", "engagement letter": "agreement",
+    "letter": "communication", "email": "communication", "memo": "communication", "announcement": "communication",
+    "newsletter": "communication", "communication": "communication", "official communication": "communication",
+    "acknowledgment receipt": "communication", "notice": "communication",
+    "list": "sample_records", "inventory": "sample_records", "checklist": "sample_records", "records": "sample_records",
+    "record": "sample_records", "evidence": "sample_records", "evidence record": "sample_records",
+    "logs": "system_evidence", "log": "system_evidence", "audit trail": "system_evidence",
+    "presentation": "output", "budget": "output", "documented mechanism": "governing", "template": "governing",
+    "organisational chart": "governing", "organizational chart": "governing", "matrix": "governing",
+    "working papers": "interview_notes", "walkthrough notes": "interview_notes",
+})
+for _c, _p in [("IT Steering Committee", r"it steering committee"), ("Information Security Committee", r"information security committee|\bisc\b")]:
+    if _c not in [c for c, _ in _BODY_PATTERNS]:
+        _BODY_PATTERNS.insert(0, (_c, _p))
+        _BODY_ORDER.append(_c)
+_BODY_PATTERNS[:] = [(c, p + r"|\bacb\b") if c == "Audit Committee" else (c, p + r"|\brmcb\b") if c == "Risk Management Committee" else (c, p)
+                     for c, p in _BODY_PATTERNS]
+
+_CONSOL1_WP = __import__("re").compile(r"^\s*(\[?working papers?\]?|interviews?\b|interview notes|walkthrough|observation notes|"
+                                       r"sample selection and testing|testing sheets?|re-performance)", __import__("re").I)
+
+
+def _consol1_clause_text(it):
+    """Clause text for an evidence item, from whatever reference the item carries (best effort)."""
+    try:
+        from app.models.ai import Clauses, ComplianceActivities
+        aid = it.get("activity_id") or it.get("compliance_activity_id")
+        if aid:
+            a = ComplianceActivities.query.get(int(aid))
+            if a:
+                c = Clauses.query.get(a.clause_id)
+                return c.clause_text if c else ""
+        cid = it.get("clause_id")
+        if cid:
+            c = Clauses.query.get(int(cid))
+            return c.clause_text if c else ""
+    except Exception:
+        pass
+    return ""
+
+
+_consol1_standardise = standardise_evidence_names
+def standardise_evidence_names(items, progress_cb=None):
+    import logging
+    log = logging.getLogger(__name__)
+    before = len(items)
+    items[:] = [it for it in items if not _CONSOL1_WP.search(it.get("evidence_item") or "")]
+    dropped_text = before - len(items)
+    stats = _consol1_standardise(items, progress_cb) if progress_cb is not None else _consol1_standardise(items)
+    before2 = len(items)
+    items[:] = [it for it in items if ((it.get("std") or {}).get("doc_class") != "interview_notes")]
+    stats["working_papers_excluded"] = dropped_text + (before2 - len(items))
+    reclassified = body_from_clause = 0
+    for it in items:
+        std = it.get("std")
+        if not std:
+            continue
+        if not std.get("doc_class"):
+            dt = EVIDENCE_DOC_TYPES.get(std.get("doc_type") or "")
+            if not dt:
+                dt = EVIDENCE_DOC_TYPES.get(_infer_doc_type(it.get("evidence_item") or ""))
+            if dt:
+                std["doc_class"] = dt
+                reclassified += 1
+        if std.get("doc_class") in ("minutes", "resolution") and not std.get("body"):
+            b, _t = _normalise_body(std.get("subject") or "")
+            if not b:
+                b, _t = _normalise_body(_consol1_clause_text(it))
+                b = b if b and " or " not in b else ""
+                if b:
+                    body_from_clause += 1
+            if b:
+                std["body"] = b
+                std["display_name"] = _display_name(std)
+    stats["reclassified"] = reclassified
+    stats["body_from_clause"] = body_from_clause
+    log.info(f"[CONSOL1] working papers excluded: {stats['working_papers_excluded']}, reclassified: {reclassified}, body from clause: {body_from_clause}")
+    return stats
+
+
+# ===== CONSOL1-FIX: cached clause lookups; transaction closed right after naming =====
+_consol1_cache = {}
+def _consol1_clause_text(it):
+    key = (it.get("activity_id") or it.get("compliance_activity_id"), it.get("clause_id"))
+    if key in _consol1_cache:
+        return _consol1_cache[key]
+    txt = ""
+    try:
+        from app.models.ai import Clauses, ComplianceActivities
+        if key[0]:
+            a = ComplianceActivities.query.get(int(key[0]))
+            c = Clauses.query.get(a.clause_id) if a else None
+            txt = c.clause_text if c else ""
+        elif key[1]:
+            c = Clauses.query.get(int(key[1]))
+            txt = c.clause_text if c else ""
+    except Exception:
+        txt = ""
+    _consol1_cache[key] = txt
+    return txt
+
+
+_consol1_fix_wrapped = standardise_evidence_names
+def standardise_evidence_names(items, progress_cb=None):
+    try:
+        return _consol1_fix_wrapped(items, progress_cb) if progress_cb is not None else _consol1_fix_wrapped(items)
+    finally:
+        _consol1_cache.clear()
+        try:
+            from app import db as _db
+            _db.session.commit()  # ends the transaction; the connection goes back to the pool before the long grouping phase
+        except Exception:
+            try:
+                from app import db as _db
+                _db.session.rollback()
+            except Exception:
+                pass
