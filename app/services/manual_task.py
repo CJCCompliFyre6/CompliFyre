@@ -4897,3 +4897,219 @@ def _b3b_norm_category(category):
         if any(k in l for k in keys):
             return target
     return "Records and Registers"
+
+
+# ===== SPLIT-VERBATIM: Stage 4 cuts the regulation's own text; it never rewords it =====
+import re as _sv_re
+import math as _sv_math
+
+_SV_STYLES = {
+    "num": (_sv_re.compile(r"\((\d{1,2})\)\s"), lambda k: str(k)),
+    "roman": (_sv_re.compile(r"\(((?:x{0,3})(?:ix|iv|v?i{0,3}))\)\s", _sv_re.I), None),
+    "alpha": (_sv_re.compile(r"\(([a-z])\)\s"), lambda k: chr(96 + k)),
+}
+_SV_ROMAN = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"]
+
+
+def _sv_markers(text):
+    """Positions of the top-level enumerators: the style whose sequence (1),(2).. / (i),(ii).. / (a),(b).. starts first."""
+    best = None
+    for name, (rx, nxt) in _SV_STYLES.items():
+        found, k = [], 1
+        for m in rx.finditer(text):
+            want = _SV_ROMAN[k - 1] if name == "roman" and k <= len(_SV_ROMAN) else (nxt(k) if nxt else None)
+            if want is not None and m.group(1).lower() == want:
+                found.append(m.start()); k += 1
+        if len(found) >= 2 and (best is None or found[0] < best[0]):
+            best = found
+    return best or []
+
+
+def _sv_sentences(text):
+    return [s for s in _sv_re.split(r"(?<=[.;:])\s+(?=[A-Z(\u2018\u201c\"'])", text) if s.strip()]
+
+
+def _sv_pack(lead, units, prefix, limit=1500, target=1400):
+    """Balanced greedy packing of units after an optional lead; continuation chunks start with prefix."""
+    total = len(lead) + sum(len(u) + 1 for u in units)
+    for parts in range(max(2, _sv_math.ceil(total / target)), 12):
+        tgt = total / parts
+        chunks, cur = [], lead
+        for u in units:
+            if cur and cur != lead and len(cur) >= tgt * 0.85 and len(chunks) < parts - 1:
+                chunks.append(cur); cur = prefix + " " + u
+            elif cur == lead and lead and len(lead) + len(u) > limit and not chunks:
+                chunks.append(lead); cur = prefix + " " + u
+            else:
+                cur = (cur + " " + u).strip()
+        chunks.append(cur)
+        if all(len(c) <= limit for c in chunks) and len(chunks) >= 2:
+            return chunks
+    return []
+
+
+def _verbatim_split(text, clause_no, limit=1500):
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return []
+    m = _sv_re.search(r"(\d+)", clause_no or "")
+    para = m.group(1) if m else (clause_no or "").strip()
+    marks = _sv_markers(text)
+    if marks:
+        lead = text[:marks[0]].strip()
+        items = [text[marks[i]:(marks[i + 1] if i + 1 < len(marks) else len(text))].strip() for i in range(len(marks))]
+        prefix = f"Paragraph {para} (continued) - {lead}" if lead and len(lead) <= 300 else f"Paragraph {para} (continued):"
+        units = []
+        for it in items:  # an item that is itself too long is cut at its own sentence ends
+            if len(it) + len(prefix) + 1 > limit:
+                units.extend(_sv_sentences(it))
+            else:
+                units.append(it)
+        chunks = _sv_pack(lead, units, prefix, limit)
+        if chunks:
+            return chunks
+    sents = _sv_sentences(text)
+    if len(sents) >= 2:
+        return _sv_pack("", sents, f"Paragraph {para} (continued):", limit)
+    return []
+
+
+def _split_clause_in_db(clause_id: int, depth: int = 0, max_depth: int = 2) -> list:
+    """SPLIT-VERBATIM: split a large clause by cutting the regulation's own text at its sub-items (or sentence ends).
+    Continuation parts start with 'Paragraph N (continued) - <lead-in>' for context. Nothing is reworded; if no safe
+    cut fits the size limit the clause is left unsplit and flagged for review. Numbering, deletion of the original and
+    #413 per-piece classification are unchanged from the previous version."""
+    from app.models.ai import Clauses
+
+    with session_scope() as session:
+        clause = session.query(Clauses).get(clause_id)
+        if not clause:
+            logger.error(f"[Split] Clause {clause_id} not found")
+            return []
+        clause_text = clause.clause_text
+        clause_no = clause.clause_no
+        page_number = clause.page_number
+        guideline_id = clause.guideline_id
+        original_clause_type = clause.clause_type or "OBLIGATION"
+
+    if len(clause_text) <= SPLIT_THRESHOLD:
+        logger.info(f"[Split] {clause_no} is {len(clause_text)} chars - no split needed")
+        return []
+
+    pieces = _verbatim_split(clause_text, clause_no, SPLIT_THRESHOLD)
+    if not pieces:
+        _mark_needs_review(clause_id, "SPLIT-VERBATIM: no safe word-for-word cut under the size limit - left unsplit for review")
+        logger.warning(f"[Split] {clause_no}: no safe verbatim cut - left unsplit and flagged")
+        return []
+    sub_clauses = [{"suffix": chr(65 + i), "topic": "", "text": p} for i, p in enumerate(pieces)]
+    logger.info(f"[Split] {clause_no}: cut word-for-word into {len(pieces)} parts {[len(p) for p in pieces]}")
+
+    # Step 4: Safe numbering
+    with session_scope() as session:
+        existing_nos = set(r[0] for r in session.query(Clauses.clause_no).filter_by(guideline_id=guideline_id).all())
+
+    def get_safe_clause_no(base, suffix):
+        candidate = f"{base}{suffix}"
+        if candidate not in existing_nos:
+            return candidate
+        n = ord(suffix) - ord('A') + 1
+        c2 = f"{base}-{n}"
+        if c2 not in existing_nos:
+            return c2
+        return f"{base}_P{n}"
+
+    numbered = []
+    for sc in sub_clauses:
+        safe_no = get_safe_clause_no(clause_no, sc["suffix"])
+        numbered.append({"clause_no": safe_no, "clause_text": sc["text"], "topic": sc.get("topic", ""), "page_number": page_number})
+        logger.info(f"[Split] Numbered: {safe_no} — {sc.get('topic', '')}")
+
+    # Step 5: Delete original (cascade)
+    with session_scope() as session:
+        orig = session.query(Clauses).get(clause_id)
+        if orig:
+            from app.models.ai import ComplianceActivities, ControlActivity, TestProcedures
+            from app.models.project_instance_models import ProjectComplianceActivity
+            from app.models.eve_models import ControlChecklist
+            activities = session.query(ComplianceActivities).filter_by(clause_id=clause_id).all()
+            for act in activities:
+                cas = session.query(ControlActivity).filter_by(compliance_activity_id=act.id).all()
+                for ca in cas:
+                    session.query(ControlChecklist).filter_by(control_activity_id=ca.id).delete()
+                    session.flush()
+                    session.delete(ca)
+                session.query(TestProcedures).filter_by(activity_id=act.id).delete()
+                session.query(ProjectComplianceActivity).filter_by(original_activity_id=act.id).delete()
+                session.flush()
+                session.delete(act)
+            session.flush()
+            session.delete(orig)
+            session.commit()
+            logger.info(f"[Split] Deleted original {clause_no} (id={clause_id})")
+
+    # Step 6: Insert sub-clauses
+    # #413: classify every piece on its OWN content (same Stage 2 prompt + modal guard)
+    # before inserting. On any failure the piece inherits the parent's type and is FLAGGED.
+    _VALID_413 = {"OBLIGATION", "PRINCIPLE", "MIXED", "DEFINITION", "APPLICABILITY", "EXEMPTION", "REFERENCE", "DISCRETIONARY"}
+    _piece_cls = {}
+    try:
+        import json as _json_413
+        from app.services.prompt_templates.clasue_prompt import stage2_semantic_prompt as _s2p_413
+        try:
+            from app.models.ai import Guidelines as _G413
+        except ImportError:
+            _G413 = globals()["Guidelines"]
+        with session_scope() as session:
+            _g413 = session.query(_G413).get(guideline_id)
+            _lic413 = list((_g413.applicable_licenses or []) if _g413 else [])
+        _client413 = get_llm_service()
+        for sc_data in numbered:
+            _node413 = {"clause_no": sc_data["clause_no"], "raw_text": sc_data["clause_text"],
+                        "page_number": sc_data["page_number"], "node_type": "regulation"}
+            try:
+                _ctx413 = {"guideline_applies_to": _lic413, "section_applicability": [],
+                           "current_chapter": " ".join(str(sc_data["clause_no"]).split()[:2])}
+                _resp413 = _client413.chat.completions.create(
+                    model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"),
+                    messages=[{"role": "user", "content": _s2p_413(_node413, _ctx413, _lic413)}],
+                    temperature=0.0, response_format={"type": "json_object"})
+                _piece_cls[sc_data["clause_no"]] = _apply_modal_guard(
+                    _json_413.loads(_resp413.choices[0].message.content), _node413)
+            except Exception as _e413:
+                logger.warning(f"[Split] #413 classification failed for {sc_data['clause_no']}: {_e413} -- inheriting {original_clause_type}")
+    except Exception as _e413b:
+        logger.warning(f"[Split] #413 classification setup failed: {_e413b} -- pieces inherit {original_clause_type}")
+
+    new_ids = []
+    with session_scope() as session:
+        for sc_data in numbered:
+            _r413 = _piece_cls.get(sc_data["clause_no"]) or {}
+            _t413 = _r413.get("clause_type") if _r413.get("clause_type") in _VALID_413 else None
+            _type413 = _t413 or original_clause_type
+            _flag413 = _r413.get("flag_reason")
+            if not _t413:
+                _flag413 = ((_flag413 + "; ") if _flag413 else "") + (
+                    f"SPLIT_PIECE: own classification unavailable -- type inherited from {clause_no} ({original_clause_type}); verify")
+            new_clause = Clauses(
+                clause_no=sc_data["clause_no"],
+                clause_text=sc_data["clause_text"],
+                guideline_id=guideline_id,
+                page_number=sc_data["page_number"],
+                clause_type=_type413,
+                extraction_status="FLAGGED" if _flag413 else "EXTRACTED",
+            )
+            if _t413 and hasattr(Clauses, "ai_assigned_clause_type"):
+                new_clause.ai_assigned_clause_type = _t413
+            if _r413.get("intent_summary") and hasattr(Clauses, "intent_summary"):
+                new_clause.intent_summary = _r413["intent_summary"]
+            if _flag413 and hasattr(Clauses, "flag_reason"):
+                new_clause.flag_reason = _flag413
+            session.add(new_clause)
+            session.flush()
+            new_ids.append(new_clause.id)
+            logger.info(f"[Split] Inserted {sc_data['clause_no']} id={new_clause.id} type={_type413} "
+                        f"({'own classification' if _t413 else 'inherited, flagged'})")
+        session.commit()
+
+    logger.info(f"[Split] Complete - {len(new_ids)} sub-clauses from {clause_no}: {new_ids}")
+    return new_ids

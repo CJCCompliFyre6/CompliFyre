@@ -441,8 +441,13 @@ def _is_section_heading(line):
     text -- chapter/schedule/annexure/part headings, and lettered/numbered
     section headings such as 'B. Applicability' or 'A.1 IT Strategy Committee'.
     Called only after every clause-number pattern has already failed."""
-    if (PATTERNS['chapter'].match(line) or PATTERNS['schedule'].match(line)
-            or PATTERNS['annexure'].match(line) or PATTERNS['part'].match(line)):
+    _sec_m = (PATTERNS['chapter'].match(line) or PATTERNS['schedule'].match(line)
+              or PATTERNS['annexure'].match(line) or PATTERNS['part'].match(line))
+    if _sec_m:
+        # PARSER-FIX-1: a heading, not a sentence that happens to start with 'Chapter II ...' / 'Part A ...'
+        _rest = line[_sec_m.end():].strip()
+        if _rest and (_rest[0].islower() or re.search(r"\b(shall|should|must|will)\b", _rest)):
+            return False
         return True
     m = re.match(r'^([A-Z](?:\.\d{1,2}){0,3})\.?\s+(\S.*)$', line)
     if not m:
@@ -616,18 +621,18 @@ def parse_pdf_structure(file_path, structure_map=None):
                 # Section detection — only in regex fallback mode
                 if not structure_map:
                     m = PATTERNS['chapter'].match(stripped)
-                    if m:
+                    if m and _is_section_heading(stripped):  # PARSER-FIX-1
                         flush(); position = empty_position()
                         position['chapter'] = m.group(2); position['current_section'] = 'chapter'
                         expect_title = True  # #422
                         continue
                     m = PATTERNS['schedule'].match(stripped)
-                    if m:
+                    if m and _is_section_heading(stripped):  # PARSER-FIX-1
                         flush(); position = empty_position()
                         position['schedule'] = m.group(2); position['current_section'] = 'schedule'
                         continue
                     m = PATTERNS['annexure'].match(stripped)
-                    if m:
+                    if m and _is_section_heading(stripped):  # PARSER-FIX-1
                         flush(); position = empty_position()
                         position['annexure'] = m.group(2); position['current_section'] = 'annexure'
                         continue
@@ -726,7 +731,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     position = reset_below(position, 'sub_reg')
                     clause_no = build_clause_no(position)
                     parent = _parent_clause_no(position, 'sub_reg')
-                    idx = line.index(f'({sub})'); text_after = line[idx + len(sub) + 2:].strip()
+                    idx = line.index(f'({sub})'); text_after = line[idx:].strip()  # PARSER-FIX-1: keep the marker
                     start_node(clause_no, 'sub_reg', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 m = PATTERNS['clause'].match(line)
@@ -735,7 +740,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     position = reset_below(position, 'clause')
                     clause_no = build_clause_no(position)
                     parent = _parent_clause_no(position, 'clause')
-                    idx = line.index(f'({cl})'); text_after = line[idx + len(cl) + 2:].strip()
+                    idx = line.index(f'({cl})'); text_after = line[idx:].strip()  # PARSER-FIX-1: keep the marker
                     start_node(clause_no, 'clause', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 m = PATTERNS['sub_clause'].match(line)
@@ -744,7 +749,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     position = reset_below(position, 'sub_clause')
                     clause_no = build_clause_no(position)
                     parent = _parent_clause_no(position, 'sub_clause')
-                    idx = line.index(f'({sc})'); text_after = line[idx + len(sc) + 2:].strip()
+                    idx = line.index(f'({sc})'); text_after = line[idx:].strip()  # PARSER-FIX-1: keep the marker
                     start_node(clause_no, 'sub_clause', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 m = PATTERNS['capital'].match(line)
@@ -753,7 +758,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     position = reset_below(position, 'capital')
                     clause_no = build_clause_no(position)
                     parent = _parent_clause_no(position, 'capital')
-                    idx = line.index(f'({cap})'); text_after = line[idx + len(cap) + 2:].strip()
+                    idx = line.index(f'({cap})'); text_after = line[idx:].strip()  # PARSER-FIX-1: keep the marker
                     start_node(clause_no, 'capital', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 m = PATTERNS['numbered_deep'].match(line)
@@ -761,7 +766,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     nd = m.group(1); position['numbered_deep'] = nd
                     clause_no = build_clause_no(position)
                     parent = _parent_clause_no(position, 'numbered_deep')
-                    idx = line.index(f'({nd})'); text_after = line[idx + len(nd) + 2:].strip()
+                    idx = line.index(f'({nd})'); text_after = line[idx:].strip()  # PARSER-FIX-1: keep the marker
                     start_node(clause_no, 'numbered_deep', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 # #422: never glue section headings onto clause text

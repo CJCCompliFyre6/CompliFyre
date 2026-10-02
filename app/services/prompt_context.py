@@ -90,6 +90,30 @@ def block_for_text(clause_text, include_split_rule=False):
         parts.append("SPLIT CLAUSES: if this clause text begins with a lead-in sentence carried over from an earlier "
                      "part of the same paragraph (for example marked 'continued'), treat that lead-in as context only - "
                      "extract obligations only from the sub-items in THIS part, unless it adds something new.")
+    # SIBLING-CONTEXT: a split part (e.g. "CH II 30B") gets the text of the other parts of its paragraph as context
+    try:
+        import re as _sc_re
+        from app.models.ai import Clauses as _SC
+        _m = _sc_re.match(r"^(.*?\d+)([A-Z]{1,3}|-\d+|_P\d+)$", (clause.clause_no or "").strip())
+        if _m:
+            _base = _m.group(1)
+            _sibs = [c for c in _SC.query.filter(_SC.guideline_id == clause.guideline_id, _SC.id != clause.id).all()
+                     if _sc_re.match(r"^" + _sc_re.escape(_base) + r"([A-Z]{1,3}|-\d+|_P\d+)?$", (c.clause_no or "").strip())]
+            if _sibs:
+                _sibs.sort(key=lambda c: c.clause_no or "")
+                _txt, _used = [], 0
+                for c in _sibs:
+                    piece = "[" + str(c.clause_no) + "] " + (c.clause_text or "")
+                    if _used + len(piece) > 4500:
+                        _txt.append("[" + str(c.clause_no) + "] ... (truncated)")
+                        break
+                    _txt.append(piece)
+                    _used += len(piece)
+                parts.append("OTHER PARTS OF THE SAME PARAGRAPH (context only - their obligations are covered in those parts; "
+                             "use them only to understand references such as 'the above' or '(3)(ii)'; do NOT create activities, "
+                             "tests or checklist items for them): " + " || ".join(_txt))
+    except Exception:
+        pass
     if not parts:
         return ""
     return ("\n\n[CONTEXT FOR THIS TASK - NOT PART OF THE REGULATORY TEXT; do not extract obligations from it]\n- "

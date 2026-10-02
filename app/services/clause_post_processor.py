@@ -178,6 +178,7 @@ def apply_merges(nodes: list, stage2_results: dict) -> list:
     
     # Track which nodes to remove after merging
     to_remove = set()
+    _merged_into = {}  # PARSER-FIX-1: clause_no -> node it was merged into
     
     for node in nodes:
         clause_no = node.get('clause_no')
@@ -195,10 +196,14 @@ def apply_merges(nodes: list, stage2_results: dict) -> list:
         if merge_decision == 'MERGE_PARENT':
             parent_no = node.get('parent_clause_no')
             if parent_no and parent_no in node_map:
-                parent = node_map[parent_no]
-                # Append this node's text to parent
+                _target = parent_no  # PARSER-FIX-1: if the parent was itself merged upward, follow it
+                while _target in _merged_into:
+                    _target = _merged_into[_target]
+                parent = node_map[_target]
+                # Append this node's text to the surviving ancestor
                 parent['raw_text'] = parent['raw_text'] + ' ' + node['raw_text']
                 to_remove.add(clause_no)
+                _merged_into[clause_no] = _target
                 logger.debug(f"Stage 3: Merged {clause_no} into {parent_no}")
             else:
                 logger.warning(f"Stage 3: MERGE_PARENT for {clause_no} but parent {parent_no} not found — keeping standalone")
