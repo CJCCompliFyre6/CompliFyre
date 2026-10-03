@@ -88,6 +88,30 @@ def build_clause_no(pos):
     return ' '.join(parts) if parts else None
 
 
+
+def _reg_ok(position, reg_no, max_jump):
+    """PARA-SEQ: accept a new paragraph number only if it moves forward in sequence within the current
+    chapter/section (27 -> 28, 27 -> 27A, up to max_jump ahead). A different chapter/section allows any number."""
+    import re as _r
+    tmp = dict(position)
+    for _l in ('regulation', 'sub_reg', 'clause', 'sub_clause', 'capital', 'numbered_deep', 'pending_reg'):
+        tmp[_l] = None
+    try:
+        pref = build_clause_no(tmp) or ''
+    except Exception:
+        pref = ''
+    cur = position.get('regulation')
+    ok = True
+    if cur and position.get('_reg_pref', None) == pref:
+        m1, m2 = _r.match(r'(\d+)([A-Z]*)', str(cur)), _r.match(r'(\d+)([A-Z]*)', str(reg_no))
+        if m1 and m2:
+            c, n = int(m1.group(1)), int(m2.group(1))
+            ok = (m2.group(2) > m1.group(2)) if n == c else (c < n <= c + max_jump)
+    if ok:
+        position['_reg_pref'] = pref
+    return ok
+
+
 def reset_below(pos, level):
     levels = ['regulation', 'sub_reg', 'clause', 'sub_clause', 'capital', 'numbered_deep']
     if level not in levels:
@@ -191,7 +215,7 @@ def detect_running_lines(pdf_fitz, top_n=3, bottom_n=3, min_share=0.4):
     return {n for n, c in counts.items() if c >= threshold}
 
 
-def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, body_font_size=None, running_lines=None):
+def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, body_font_size=None, running_lines=None, page_index=None):
     footnote_numbers = footnote_numbers or set()
     digit_word_queue = list(digit_word_queue or [])
     _queue_idx = [0]
@@ -212,7 +236,7 @@ def strip_page_noise(page_text, footnote_numbers=None, digit_word_queue=None, bo
         if PATTERNS['page_number'].match(stripped):
             # Header/footer position = page number, strip it.
             # Mid-page solo number = dotless clause number (RBI 2025 format), keep it.
-            if idx == first_ne or idx == last_ne:
+            if (idx == first_ne or idx == last_ne) and (page_index is None or abs(int(stripped) - page_index) <= 3):  # PARSER-FIX-2
                 continue
             cleaned.append(line)
             continue
@@ -597,19 +621,20 @@ def parse_pdf_structure(file_path, structure_map=None):
             plumber_page = pdf_plumber.pages[page_num]
             body_font_size = get_body_font_size(plumber_page)
             digit_word_queue = get_ordered_digit_words(plumber_page)
-            clean_text, page_ambiguous = strip_page_noise(raw_text, footnote_numbers, digit_word_queue, body_font_size, running_lines)
+            clean_text, page_ambiguous = strip_page_noise(raw_text, footnote_numbers, digit_word_queue, body_font_size, running_lines, page_index=page_num + 1)
             for digit, ctx in page_ambiguous:
                 all_ambiguous_matches.append((page_num + 1, digit, ctx))
             has_tables = bool(plumber_page.extract_tables())
             table_nodes = []
             table_cell_texts = set()
-            if has_tables:
+            if False:  # TABLE-VERBATIM: tables stay verbatim in their own paragraph (no AI rewrite, no ROW clauses)
                 table_nodes, table_cell_texts = extract_table_clauses(plumber_page, page_num + 1, position)
             lines = clean_text.split('\n')
             for line in lines:
                 stripped = line.strip()
                 if not stripped:
                     continue
+                stripped = re.sub(r'^\d{0,2}\[(?=\d{1,3}[A-Z]{0,2}\.)', '', stripped)  # TABLE-VERBATIM: '2[27A.' -> '27A.'
                 # Skip lines already correctly captured as a complete table row above --
                 # prevents the same table content being duplicated as a broken,
                 # context-free fragment clause (Build Sequence #344).
@@ -659,6 +684,12 @@ def parse_pdf_structure(file_path, structure_map=None):
                         letter = m_lp.group(1)
                         position['letter_para'] = letter
                         clause_no = build_clause_no(position)
+                        _ld_used = {n.get('clause_no') for n in nodes} | ({buf_clause_no} if buf_clause_no else set())  # LETTER-DUP
+                        if clause_no in _ld_used:
+                            _ld_k = 2
+                            while f"{clause_no} ({_ld_k})" in _ld_used:
+                                _ld_k += 1
+                            clause_no = f"{clause_no} ({_ld_k})"
                         parent_base = []
                         if position['chapter']:
                             parent_base.append(f"CH {position['chapter']}")
@@ -677,13 +708,13 @@ def parse_pdf_structure(file_path, structure_map=None):
                         continue
 
                 m = PATTERNS['regulation_solo'].match(line)
-                if m:
+                if m and _reg_ok(position, m.group(1), 30):  # PARA-SEQ
                     position['pending_reg'] = m.group(1); continue
-                m = PATTERNS['regulation_solo_dotless'].match(line)
-                if m:
+                m = PATTERNS['regulation_solo_dotless'].match(line)  # PARA-SEQ-2: next paragraph only
+                if m and _reg_ok(position, m.group(1), 1):  # PARA-SEQ
                     position['pending_reg'] = m.group(1); continue
                 m = PATTERNS['regulation_inline'].match(line)
-                if m:
+                if m and _reg_ok(position, m.group(1), 30):  # PARA-SEQ
                     reg_no = m.group(1); position['regulation'] = reg_no
                     position = reset_below(position, 'regulation')
                     clause_no = build_clause_no(position)
@@ -692,7 +723,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     start_node(clause_no, 'regulation', page_num + 1, parent, _depth_of(position), text_after)
                     continue
                 m = PATTERNS['regulation_dotless'].match(line)
-                if m:
+                if m and _reg_ok(position, m.group(1), 2):  # PARA-SEQ PARA-SEQ-2
                     reg_no = m.group(1); position['regulation'] = reg_no
                     position = reset_below(position, 'regulation')
                     clause_no = build_clause_no(position)
@@ -798,7 +829,7 @@ def parse_pdf_structure(file_path, structure_map=None):
                     start_node(_id, 'regulation', page_num + 1, _sec, 1, stripped)  # #128: keep annex forms/declarations
                 else:
                     dropped_lines.append((page_num + 1, 'no open clause', stripped))
-            if has_tables:
+            if has_tables and table_nodes:  # TABLE-VERBATIM: no table nodes, so the page flows normally
                 _had_open = bool(buf_clause_no)
                 flush()
                 if _had_open and nodes and not nodes[-1].get('is_table_row'):

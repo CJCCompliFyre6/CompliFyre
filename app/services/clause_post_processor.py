@@ -412,6 +412,13 @@ def save_to_db(nodes: list, stage2_results: dict, guideline_id: int) -> dict:
     for node in nodes:
         clause_no = node.get('clause_no')
         raw_text = node.get('raw_text', '').strip()
+        import re as _tv_re  # TABLE-VERBATIM: line-break hyphens ('Non- Banking'), but not 'pre- and post-'
+        raw_text = _tv_re.sub(r'(?<=[a-z])- (?!(?:and|or|to|cum)\b)(?=[A-Za-z])', '-', raw_text)  # PARA-SEQ-2: lowercase before the hyphen only
+        # PARSER-FIX-2: trailing sub-heading ('C1. ...', '4[C2. ...'), stray amendment ']' and signature block
+        raw_text = _tv_re.sub(r'\s+\d{0,2}\[?[A-Z]\d{1,2}\.\s+[A-Z][^.;:]*$', '', raw_text).strip()
+        if raw_text.endswith(']') and raw_text.count(']') > raw_text.count('['):
+            raw_text = raw_text[:-1].rstrip()
+        raw_text = _tv_re.sub(r'\s*\(?\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\)?\s*\(?(?:Principal Chief General Manager|Chief General Manager|General Manager|Executive Director|Deputy Governor)\)?\s*$', '', raw_text).strip()
         
         if not clause_no or not raw_text:
             continue
