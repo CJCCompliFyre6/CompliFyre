@@ -67,7 +67,7 @@ def celery_init_app(app: Flask) -> Celery:
         # tasks requeue immediately instead. Root cause of today's stuck-chord incident.
         "worker_prefetch_multiplier": 1,
         "result_extended": True,  # Enable extended result features
-        "broker_transport_options": {"visibility_timeout": 21600},  # 6 hours — task_acks_late + long-running bulk tasks (e.g. activity-generation) need this longer than Redis's 1hr default, or the broker redelivers an in-progress task to another worker
+        "broker_transport_options": {"visibility_timeout": 172800},  # 48 hours (was 6h: a full-guideline Extract All exceeded it and was re-delivered) — task_acks_late + long-running bulk tasks (e.g. activity-generation) need this longer than Redis's 1hr default, or the broker redelivers an in-progress task to another worker
         "beat_schedule": {
             "fix-pending-checklists-every-5-min": {
                 "task": "app.services.eve_tasks.fix_pending_checklists",
