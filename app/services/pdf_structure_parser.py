@@ -827,6 +827,11 @@ def parse_pdf_structure(file_path, structure_map=None):
                     annex_text_counts[_sec] = annex_text_counts.get(_sec, 0) + 1
                     _id = f'{_sec} TEXT' if annex_text_counts[_sec] == 1 else f'{_sec} TEXT {annex_text_counts[_sec]}'
                     start_node(_id, 'regulation', page_num + 1, _sec, 1, stripped)  # #128: keep annex forms/declarations
+                elif position.get('chapter') and re.search(r'\b(shall|should|may|must|will|apply|applies|applicable|exempt)\b', stripped, re.I):  # CHAPTER-INTRO
+                    _ci_no = f"CH {position['chapter']} INTRO"
+                    if _ci_no in {n.get('clause_no') for n in nodes}:
+                        _ci_no = f"{_ci_no} (2)"
+                    start_node(_ci_no, 'regulation', page_num + 1, f"CH {position['chapter']}", 1, stripped)
                 else:
                     dropped_lines.append((page_num + 1, 'no open clause', stripped))
             if has_tables and table_nodes:  # TABLE-VERBATIM: no table nodes, so the page flows normally
