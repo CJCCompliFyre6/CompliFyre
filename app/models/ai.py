@@ -717,6 +717,9 @@ class ControlActivity(db.Model):
     assessment_objective = db.Column(db.String(100), nullable=True)
     assessment_objective_rationale = db.Column(db.Text, nullable=True)
     test_attributes = db.Column(db.JSON, nullable=True)
+    # TEST-SPEC: full-population testing - how operating effectiveness is tested, and the specification EVE executes
+    test_mode = db.Column(db.String(30), nullable=True)
+    test_spec = db.Column(db.JSON, nullable=True)
 
     compliance_activity_id = db.Column(
         db.BigInteger,

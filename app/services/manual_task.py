@@ -3254,6 +3254,11 @@ def map_evidence_file_to_requirements(self, project_evidence_file_id):
     from app.services.evidence_text_extraction import extract_representative_text
     from app.services.evidence_file_mapping import map_file_to_requirements
 
+    # Oct 2026: hand off to mapper v2 (profile -> embedding shortlist -> judge).
+    # The first-pass logic below is kept only for rollback reference.
+    from app.services.evidence_mapper_v2 import map_file_v2
+    return map_file_v2(project_evidence_file_id)
+
     try:
         file_record = ProjectEvidenceFile.query.get(project_evidence_file_id)
         if not file_record:
@@ -5113,3 +5118,15 @@ def _split_clause_in_db(clause_id: int, depth: int = 0, max_depth: int = 2) -> l
 
     logger.info(f"[Split] Complete - {len(new_ids)} sub-clauses from {clause_no}: {new_ids}")
     return new_ids
+
+
+# ===== TEST-SPEC (Phase 1, full-population testing): specification generated right after each test procedure =====
+_ts_generate_test_procedure = _generate_test_procedure_for_activity
+def _generate_test_procedure_for_activity(comp_id, clause_text, activity_data):
+    result = _ts_generate_test_procedure(comp_id, clause_text, activity_data)
+    try:
+        from app.services.test_spec_service import generate_test_spec_for_activity
+        generate_test_spec_for_activity(comp_id)
+    except Exception as e:  # never break the pipeline; the runner can fill gaps later
+        logger.warning(f"[TEST-SPEC] comp_id={comp_id}: specification not generated: {e}")
+    return result
