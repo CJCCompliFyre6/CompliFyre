@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 AttrType = Literal["text", "number", "amount", "date", "datetime", "boolean"]
 FilterType = Literal["equals", "not_equals", "in_list", "not_in_list", "contains", "greater_than", "greater_or_equal", "less_than", "less_or_equal", "not_empty"]
-Comparator = Literal["<=", "<", ">=", ">", "="]
+Comparator = Literal["<=", "<", ">=", ">", "=", "!="]
 TestType = Literal["presence_check", "value_match", "in_list", "numeric_threshold", "date_difference",
                    "on_or_before", "different_from", "compare_fields", "conditional",
                    "count_per_period", "max_gap"]
@@ -23,6 +23,7 @@ class AttributeDef(BaseModel):
     column_description: str = Field(..., description="Plain description used to find the bank's column, e.g. 'Date and time the incident was detected'")
     type: AttrType
     key: bool = Field(False, description="True if this attribute decides compliance (a key attribute)")
+    optional: bool = Field(False, description="Descriptive field only (e.g. incident description), requested 'if available'; at most two per specification")
 
 
 class RejectedDate(BaseModel):
@@ -64,6 +65,7 @@ class TestAttribute(BaseModel):
         "compare_fields -> test_attribute <comparator> second_attribute. on_or_before always means test_attribute <= second_attribute."))
     threshold: Optional[float] = None
     threshold_unit: Optional[str] = Field(None, description="hours / days / months / percent / INR")
+    threshold_source_quote: Optional[str] = Field(None, description="REQUIRED whenever threshold is set: the exact words of the clause that state this number for THIS obligation, copied verbatim")
     expected_value: Optional[str] = None
     expected_values: Optional[list[str]] = Field(None, description="For in_list")
     condition: Optional[str] = Field(None, description="For 'conditional': 'when <condition> then <requirement>', e.g. 'when days_past_due > 90 then asset_classification = NPA'")
@@ -94,6 +96,13 @@ class Impact(BaseModel):
     fallback: Optional[str] = None
 
 
+class Reconciliation(BaseModel):
+    source: str = Field(..., description="Other source or another activity's data, e.g. 'CERT-In notification log', 'SOC tickets classified as cyber incidents'")
+    match_on: str = Field(..., description="How instances are matched, e.g. 'incident_id', or 'detection date and incident type' if IDs differ")
+    expectation: str = Field(..., description="e.g. 'every incident notified to CERT-In appears in the DAKSH submissions'")
+    reason_code: str = Field(..., description="THIS specification's own non-compliance reason code used when the expectation fails (e.g. NC1_NOT_REPORTED)")
+
+
 class PopulationDataSpec(BaseModel):
     dataset_name: str
     one_row_is: str
@@ -109,7 +118,8 @@ class PopulationDataSpec(BaseModel):
     impact: Impact
     analyse_exceptions_by: list[str] = Field(default_factory=list)
     validation_checks: list[str] = Field(default_factory=list, description="Checks before testing, e.g. 'incident_id unique', 'period fully covered'")
-    completeness_check: Optional[str] = Field(None, description="How to confirm the extract is the COMPLETE population, e.g. reconcile incident count with SOC tickets classified as incidents")
+    completeness_check: Optional[str] = Field(None, description="One-line summary of how completeness of the extract is confirmed")
+    reconciliations: list[Reconciliation] = Field(default_factory=list, description="Cross-checks against other sources or other activities' data that prove the population is complete")
     judgement_items: list[str] = Field(default_factory=list, description="Things that cannot be tested mechanically and need auditor judgement")
 
 
@@ -153,7 +163,8 @@ class TestSpec(BaseModel):
     design_only: Optional[DesignOnlySpec] = None
 
 
-def test_spec_prompt(clause_text: str, control: dict, test_procedure: dict, evidence: list[str]) -> str:
+def test_spec_prompt(clause_text: str, control: dict, test_procedure: dict, evidence: list[str], other_activities: list[str] = None) -> str:
+    others = "\n".join(f"- {a}" for a in (other_activities or [])) or "- (none)"
     return f"""You are a senior IT and regulatory auditor designing how a control's OPERATING EFFECTIVENESS will be tested
 for an Indian NBFC. The bank requires FULL-POPULATION testing: every instance in the audit period is tested - no sampling.
 
@@ -171,6 +182,15 @@ TEST PROCEDURE ALREADY WRITTEN:
 - Earlier sampling note (to be replaced by full-population testing): {test_procedure.get('sampling')}
 
 EVIDENCE LIST: {evidence}
+
+OTHER ACTIVITIES OF THIS CLAUSE - each has its own control and its own specification:
+{others}
+Test ONLY this control's own obligation. Do NOT test the obligations above here (no tests, no compliance wording for them).
+You MAY use their data, or other sources, in RECONCILIATIONS that prove THIS population is complete. A reconciliation always
+checks that instances found in the OTHER source also appear in THIS control's own action records (e.g. for "report to RBI":
+every incident notified to CERT-In also appears in the RBI/DAKSH submissions; for "notify CERT-In": every incident reported to
+RBI also appears in the CERT-In notifications). A mismatch means THIS control's action was not done and uses THIS
+specification's own "not done" reason code.
 
 STEP 1 - CHOOSE THE TEST MODE:
 - design_only: the control is not tested for operating effectiveness (operating=False), or it is a one-off / existence
@@ -205,18 +225,25 @@ For population_data, make every judgement explicit - EVE will refuse to test unt
    on_or_before, different_from, compare_fields (test_attribute vs second_attribute), conditional (condition 'when ... then ...'),
    count_per_period / max_gap (period-level rules). Each with pass/fail criteria, a reason_code and the clause wording.
    Always set the comparator - the direction of a test must never be implied by its wording.
+   Every threshold must give threshold_source_quote: the exact clause words stating that number FOR THIS OBLIGATION. If the
+   clause states no number for this obligation (e.g. "pro-actively notify"), there is no timeliness threshold - test only that
+   the action was done, and put "timeliness of <action>" under judgement_items.
    For every deadline: FIRST a presence test (the action was done at all - reason e.g. NC1_NOT_DONE), THEN the timeliness test.
    Test FACTS (dates, amounts, values, who approved) - not flags the bank fills in about itself ("evaluated = Yes"). If only a
    self-declared flag exists, test it but also list it under judgement_items for the auditor to verify.
 6. key_attributes: the attributes that decide compliance.
-7. compliance_definition: what is compliant; each non-compliance reason_code and meaning; what is NOT ASSESSABLE
-   (a key value missing or unreadable - never treated as compliant).
+7. compliance_definition: what is compliant; each non-compliance reason_code and meaning; what is NOT ASSESSABLE.
+   A missing value for the ACTION ITSELF (no submission time, no approval, no notification) is NON-COMPLIANCE (not done) -
+   never "not assessable". Not assessable applies ONLY when the trigger, the period date or the identifier is missing or
+   unreadable, or when an action value is present but unreadable. Never treat not assessable as compliant.
 8. impact: the attribute or derived value that best measures impact. Whenever an instance carries a money value (loan amount,
    exposure, transaction value, shortfall), include that attribute and use it - financial = true, totalled in INR. Otherwise
    count, delay, missed periods. Give a fallback.
 9. analyse_exceptions_by: dimensions useful to find a root cause (month, branch, product, approver, severity ...).
-10. validation_checks, judgement_items, and data_request (the text asking the bank for the full extract with these fields
-    for the audit period, as CSV or Excel, not zipped).
+   Request only attributes that a filter, test, derived value, impact, analysis dimension or reconciliation uses; at most
+   two descriptive fields marked optional. Do not request self-declared flags that no test uses.
+10. reconciliations (see above), validation_checks, judgement_items, and data_request (the text asking the bank for the full
+    extract with these fields for the audit period, as CSV or Excel, not zipped).
 
 For document_review - this applies to ANY committee or Board (ITSC, IT Steering Committee, ISC, Audit Committee, Risk
 Management Committee, the Board ...) and to any recurring, document-evidenced obligation (annual policy review, periodic

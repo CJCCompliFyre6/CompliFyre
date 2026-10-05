@@ -10,10 +10,12 @@ import re
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
-SPEC_VERSION = 5
+SPEC_VERSION = 7
+NO_FINANCIAL_BASIS = "Financial impact could not be computed as no base data was available within the audited dataset."
 # messages that record an automatic clean-up (shown, but do not by themselves need a decision)
 _FIX_RX = re.compile(r"^(Removed filter on|Removed entity-applicability|Dropped unused attribute|Impact switched to amount|"
-                     r"Converted test|Moved test)|re-coded .* -> ")
+                     r"Converted test|Moved test|No amount attribute|Added missing attribute|Corrected type of period date|"
+                     r"Dropped presence test on identifier)|re-coded .* -> |accepted as a year-level period|given its own code")
 
 _WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
           "eleven": 11, "twelve": 12, "fifteen": 15, "eighteen": 18, "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45,
@@ -37,7 +39,8 @@ def _clause_numbers(text):
             nums.add(float(v))
     out = set()
     for n in nums:   # unit conversions: years<->months, days<->hours, weeks->days, percent<->fraction
-        out |= {n, n * 12, n / 12, n * 24, n / 24, n * 7, n * 30, n * 365, n / 100, n * 100}
+        out |= {n, n * 12, n / 12, n * 24, n / 24, n * 7, n * 30, n * 365, n / 100, n * 100,
+                n * 1e5, n * 1e7, n * 1e6, n * 1e9}   # lakh, crore, million, billion
     return out
 
 
@@ -208,7 +211,13 @@ def _clean_population(p, warnings):
             if old not in test_codes:
                 cd["non_compliant"] = [n for n in cd.get("non_compliant") or [] if n.get("reason_code") != old]
         elif not not_done:
-            warnings.append(f"Reconciliation against '{r.get('source')}' but no 'not done' (presence) test to fail it with")
+            code = "NC0_MISSING_FROM_RECORDS"
+            r["reason_code"] = code
+            cd = p.setdefault("compliance_definition", {})
+            if code not in {n.get("reason_code") for n in cd.get("non_compliant") or []}:
+                cd.setdefault("non_compliant", []).append({"reason_code": code,
+                    "meaning": "Instance found in a reconciliation source but missing from this control's own records"})
+            warnings.append(f"Reconciliation against '{r.get('source')}' given its own code {code}")
     p["data_request"] = _rebuild_data_request(p)
 
 
@@ -262,20 +271,44 @@ def validate_spec(spec: dict, clause_text: str):
                     warnings.append(f"Test '{t.get('attribute_name')}': {k} '{t[k]}' is not a defined attribute or derived value")
         for f in kept:
             v = f.get("filter_value")
-            if f.get("filter_type") in ("greater_than", "greater_or_equal", "less_than", "less_or_equal") and not _traceable(v, nums):
+            technical = str(v).strip() in ("0", "1", "0.0", "1.0")
+            if f.get("filter_type") in ("greater_than", "greater_or_equal", "less_than", "less_or_equal") and not technical and not _traceable(v, nums):
                 warnings.append(f"Filter on '{f.get('attribute')}': value {v} not found in the clause")
-            if f.get("attribute") not in names:
-                warnings.append(f"Filter attribute '{f.get('attribute')}' is not defined")
+            fa = f.get("attribute")
+            if fa and fa not in names:
+                p.setdefault("attributes", []).append({"name": fa, "column_description": fa.replace("_", " "),
+                                                       "type": "date" if re.search(r"date|time", fa, re.I) else
+                                                               "amount" if re.search(r"amount|balance|outstanding|principal|exposure|value_inr|_inr$", fa, re.I) else "text",
+                                                       "key": False})
+                attrs[fa] = p["attributes"][-1]; names.add(fa)
+                warnings.append(f"Added missing attribute '{fa}' used by a filter")
         if p.get("lookup_tables"):
             for n in re.findall(r"\d+(?:\.\d+)?", p["lookup_tables"]):
                 if not _traceable(n, nums):
                     warnings.append(f"Lookup table value {n} not found in the clause")
         # 3. period date
         pd_attr = (p.get("period_date") or {}).get("attribute")
-        if pd_attr not in attrs:
-            warnings.append(f"Period date '{pd_attr}' is not a defined attribute")
+        datey = bool(re.search(r"date|time|_on$|_at$", str(pd_attr or ""), re.I))
+        yearly = bool(re.search(r"^(year|fy|financial_year|fiscal_year|reporting_year)$", str(pd_attr or ""), re.I))
+        if yearly:
+            if pd_attr not in attrs:
+                p.setdefault("attributes", []).append({"name": pd_attr, "column_description": pd_attr.replace("_", " "), "type": "number", "key": True})
+                attrs[pd_attr] = p["attributes"][-1]; names.add(pd_attr)
+            p["period_date"]["granularity"] = "year"
+            warnings.append(f"Period date '{pd_attr}' accepted as a year-level period")
+        elif pd_attr not in attrs:
+            if datey:
+                p.setdefault("attributes", []).append({"name": pd_attr, "column_description": pd_attr.replace("_", " "), "type": "date", "key": True})
+                attrs[pd_attr] = p["attributes"][-1]; names.add(pd_attr)
+                warnings.append(f"Added missing attribute '{pd_attr}' used as the period date")
+            else:
+                warnings.append(f"Period date '{pd_attr}' is not a defined attribute")
         elif attrs[pd_attr].get("type") not in ("date", "datetime"):
-            warnings.append(f"Period date '{pd_attr}' is not a date attribute")
+            if datey:
+                attrs[pd_attr]["type"] = "datetime" if re.search(r"time", pd_attr, re.I) else "date"
+                warnings.append(f"Corrected type of period date '{pd_attr}' to {attrs[pd_attr]['type']}")
+            else:
+                warnings.append(f"Period date '{pd_attr}' is not a date attribute")
         # 4. financial impact where an amount exists
         imp = p.get("impact") or {}
         amounts = [a for a, d in attrs.items() if d.get("type") == "amount"]
@@ -284,7 +317,11 @@ def validate_spec(spec: dict, clause_text: str):
                            "financial": True, "fallback": imp.get("measure")}
             warnings.append(f"Impact switched to amount attribute '{amounts[0]}'")
         elif not amounts and _MONEY_RX.search(f"{p.get('dataset_name', '')} {p.get('one_row_is', '')}"):
-            warnings.append("Instances appear to carry a money value but no amount attribute was requested - add one for INR impact")
+            p["impact"] = dict(p.get("impact") or {}, financial=False, no_financial_basis=NO_FINANCIAL_BASIS)
+            warnings.append("No amount attribute for these financial records - impact will state: " + NO_FINANCIAL_BASIS)
+        if amounts and (p.get("impact") or {}).get("financial"):
+            # used by EVE (Phase 2) when the bank's file turns out to have no such column
+            p["impact"]["if_amount_column_missing"] = NO_FINANCIAL_BASIS
         # 2b. clearly invented deadlines leave the tests and become judgement items
         kept_tests = []
         for t in p.get("test_attributes") or []:
@@ -302,6 +339,18 @@ def validate_spec(spec: dict, clause_text: str):
             gone = {t.get("reason_code") for t in p["test_attributes"]} - used_codes
             cd["non_compliant"] = [n for n in cd.get("non_compliant") or [] if n.get("reason_code") not in gone]
             p["test_attributes"] = kept_tests
+        ids = {t.get("exception_identifier_attribute") for t in p.get("test_attributes") or []}
+        keep = []
+        for t in p.get("test_attributes") or []:
+            if t.get("test_type") == "presence_check" and t.get("test_attribute") in ids:
+                warnings.append(f"Dropped presence test on identifier '{t.get('test_attribute')}' (a missing identifier is not assessable)")
+            else:
+                keep.append(t)
+        if len(keep) != len(p.get("test_attributes") or []):
+            gone = {t.get("reason_code") for t in p["test_attributes"]} - {t.get("reason_code") for t in keep}
+            cd = p.get("compliance_definition") or {}
+            cd["non_compliant"] = [n for n in cd.get("non_compliant") or [] if n.get("reason_code") not in gone]
+            p["test_attributes"] = keep
         if not p.get("test_attributes"):
             warnings.append("No test attributes")
         _clean_population(p, warnings)
