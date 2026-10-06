@@ -10,12 +10,12 @@ import re
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
-SPEC_VERSION = 7
+SPEC_VERSION = 8
 NO_FINANCIAL_BASIS = "Financial impact could not be computed as no base data was available within the audited dataset."
 # messages that record an automatic clean-up (shown, but do not by themselves need a decision)
 _FIX_RX = re.compile(r"^(Removed filter on|Removed entity-applicability|Dropped unused attribute|Impact switched to amount|"
                      r"Converted test|Moved test|No amount attribute|Added missing attribute|Corrected type of period date|"
-                     r"Dropped presence test on identifier)|re-coded .* -> |accepted as a year-level period|given its own code")
+                     r"Dropped presence test on identifier|Turned formula)|re-coded .* -> |accepted as a year-level period|given its own code")
 
 _WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
           "eleven": 11, "twelve": 12, "fifteen": 15, "eighteen": 18, "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45,
@@ -67,20 +67,34 @@ def _words(x):
     return re.findall(r"[a-z0-9]+", _norm(x))
 
 
+_STOP = {"the", "a", "an", "of", "to", "in", "on", "for", "and", "or", "by", "at", "be", "is", "are", "as", "its", "it", "with", "any",
+         "which", "that", "this", "these", "such", "shall", "should", "from", "their"}
+_LABEL_RX = re.compile(r"^\s*(clause|para(graph)?|section|sub-?para(graph)?|article|annex)\s*[\w().\-]*\s*[:\-\u2013\u2014]\s*", re.I)
+
+
+def _prep_quote(q):
+    return _LABEL_RX.sub("", str(q or "")).replace("%", " per cent ")
+
+
 def _quote_in_clause(q, clause_text):
-    """All quote words appear in the clause in order, allowing skipped text (e.g. a bracketed aside) of up to 30 words."""
-    qw, cw = _words(q), _words(clause_text)
+    """Quote counts as found when at least 85% of its meaningful words appear in the clause in order (labels like
+    'Clause 6(3):' removed, '%' = 'per cent', dashes ignored), within a window of the quote length + 40 words."""
+    qw = [w for w in _words(_prep_quote(q)) if w not in _STOP]
+    cw = _words(str(clause_text or "").replace("%", " per cent "))
     if not qw:
         return False
-    j, first = 0, None
-    for w in qw:
-        while j < len(cw) and cw[j] != w:
-            j += 1
-        if j >= len(cw):
-            return False
-        first = j if first is None else first
-        j += 1
-    return (j - first) <= len(qw) + 30
+    best = 0
+    for start in [i for i, w in enumerate(cw) if w == qw[0]] or [0]:
+        j, hit = start, 0
+        limit = start + len(qw) + 40
+        for w in qw:
+            k = j
+            while k < min(len(cw), limit) and cw[k] != w:
+                k += 1
+            if k < min(len(cw), limit):
+                hit += 1; j = k + 1
+        best = max(best, hit)
+    return best / len(qw) >= 0.85
 
 
 def _quote_sentence(q, clause_text):
@@ -99,9 +113,9 @@ def _check_threshold_quote(t, clause_text, warnings):
     nq, nc = _norm(q), _norm(clause_text)
     if not _quote_in_clause(q, clause_text):
         t["unverified"] = True; warnings.append(f"Test '{name}': quoted words not found in the clause - unverified"); return
-    if not _traceable(t.get("threshold"), _clause_numbers(q)):
-        t["unverified"] = True; warnings.append(f"Test '{name}': quote does not contain the threshold {t.get('threshold')} - unverified"); return
-    sent = _quote_sentence(q, clause_text)
+    if not _traceable(t.get("threshold"), _clause_numbers(_quote_sentence(_prep_quote(q), clause_text))):
+        t["unverified"] = True; warnings.append(f"Test '{name}': the clause sentence quoted does not contain the threshold {t.get('threshold')} - unverified"); return
+    sent = _quote_sentence(_prep_quote(q), clause_text)
     test_txt = " ".join(str(t.get(k) or "") for k in ("attribute_name", "test_attribute", "second_attribute", "reason_code", "pass_criteria", "fail_criteria")).lower()
     named = [b for b, rx in _BODIES.items() if re.search(rx, test_txt, re.I)]
     in_sent = [b for b, rx in _BODIES.items() if re.search(rx, sent, re.I)]
@@ -239,6 +253,15 @@ def validate_spec(spec: dict, clause_text: str):
             else:
                 kept.append(f)
         p["population_filters"] = kept
+        # 2-. a formula written where a field name belongs becomes a derived value
+        for i, t in enumerate(p.get("test_attributes") or []):
+            for k in ("test_attribute", "second_attribute"):
+                v = str(t.get(k) or "")
+                if v and re.search(r"[+\-*/()]", v) and " " in v.strip():
+                    dn = f"derived_{k.split('_')[0]}_{i + 1}"
+                    p.setdefault("derived_values", []).append({"name": dn, "formula": v, "unit": None})
+                    t[k] = dn; names.add(dn)
+                    warnings.append(f"Turned formula '{v[:60]}' into derived value '{dn}'")
         # 2a. a zero threshold on a time difference is a sequence test: convert to on_or_before (no number)
         derived = {d.get("name"): d for d in p.get("derived_values") or []}
         for t in p.get("test_attributes") or []:
