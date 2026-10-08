@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 from app.models.ai import AIPrompts
@@ -23,6 +24,7 @@ class Frequency(str, Enum):
     ad_hoc = "Ad-hoc"
     per_transaction = "Per Transaction"
     event_driven = "Event-Driven"
+    multi_year = "Multi-Year"
 
 class Severity(str, Enum):
     low = "Low"
@@ -85,7 +87,43 @@ class EvidenceItem(BaseModel):
     category: str = Field(..., description="Category of evidence, e.g., 'Audit Report'.")
     items: list[str] = Field(..., description="List of evidence items under this category. ## Explain what is each item and palce it inside bracked next to item")
 
+# ===== ENUM-TOLERANT: translate any frequency text to a valid Frequency before validation (never lose a control) =====
+import logging as _ft_logging
+from pydantic import model_validator as _ft_model_validator
+_FT_RULES = [
+    (r"(two|three|four|five|ten|\b[2-9]\b|\b10\b)[\s-]*years?|biennial|triennial|multi[\s-]*year", "Multi-Year"),
+    (r"per transaction|each transaction|every transaction|transaction[\s-]*level", "Per Transaction"),
+    (r"financial statement|reporting (period|cycle|date)|each (report|filing|return|statement)|as and when|upon |on occurrence|whenever|event|each time|every time", "Event-Driven"),
+    (r"daily|every day", "Daily"), (r"week|fortnight", "Weekly"), (r"month", "Monthly"), (r"quarter", "Quarterly"),
+    (r"half|semi|six[\s-]*month|bi-?annual", "Semi-Annual"), (r"annual|year", "Annually"),
+    (r"continu|ongoing|real[\s-]*time|always", "Continuous"), (r"ad[\s-]?hoc", "Ad-hoc"),
+    (r"one[\s-]*time|once|initial|onboarding|at inception|single", "One Time"), (r"as needed|as required|need basis|periodic|regular", "As Needed"),
+]
+def _ft_translate(v):
+    if not isinstance(v, str):
+        return v
+    allowed = [e.value for e in Frequency]
+    if v in allowed:
+        return v
+    for a in allowed:
+        if v.strip().lower() == a.lower():
+            return a
+    low = v.lower()
+    for rx, val in _FT_RULES:
+        if re.search(rx, low):
+            return val
+    _ft_logging.getLogger(__name__).warning(f"[ENUM-TOLERANT] unknown frequency {v!r} -> 'As Needed'")
+    return "As Needed"
+
+
 class ControlWorkpaper(BaseModel):
+    @_ft_model_validator(mode="before")
+    @classmethod
+    def _ft_frequency(cls, data):
+        if isinstance(data, dict) and "frequency" in data:
+            data = dict(data, frequency=_ft_translate(data["frequency"]))
+        return data
+
     activity_code: str = Field(..., description="Unique code for the control activity.")
     activity_name: str = Field(..., description="Exact wording of the clause activity.")
     activity_description: str = Field(..., description="Purpose and scope of the control in detail.")

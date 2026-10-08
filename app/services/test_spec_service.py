@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
-SPEC_VERSION = 8
+SPEC_VERSION = 9
 NO_FINANCIAL_BASIS = "Financial impact could not be computed as no base data was available within the audited dataset."
 # messages that record an automatic clean-up (shown, but do not by themselves need a decision)
 _FIX_RX = re.compile(r"^(Removed filter on|Removed entity-applicability|Dropped unused attribute|Impact switched to amount|"
@@ -376,6 +376,17 @@ def validate_spec(spec: dict, clause_text: str):
             p["test_attributes"] = keep
         if not p.get("test_attributes"):
             warnings.append("No test attributes")
+        from app.services.prompt_templates.test_spec import FILTER_TYPES, TEST_TYPES, COMPARATORS
+        for f in p.get("population_filters") or []:
+            if f.get("filter_type") not in FILTER_TYPES:
+                warnings.append(f"Filter on '{f.get('attribute')}': unknown filter type '{f.get('filter_type')}' - reviewer to set")
+        for t in p.get("test_attributes") or []:
+            if t.get("test_type") not in TEST_TYPES:
+                t["unverified"] = True
+                warnings.append(f"Test '{t.get('attribute_name')}': unknown test type '{t.get('test_type')}' - unverified")
+            if t.get("comparator") and t["comparator"] not in COMPARATORS:
+                t["unverified"] = True
+                warnings.append(f"Test '{t.get('attribute_name')}': unknown comparator '{t.get('comparator')}' - unverified")
         _clean_population(p, warnings)
     elif mode == "document_review":
         d = spec.get("document_review") or {}

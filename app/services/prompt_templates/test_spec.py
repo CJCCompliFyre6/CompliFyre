@@ -8,14 +8,39 @@ For every control, decide HOW operating effectiveness is tested and write the sp
   * design_only      - no operating-effectiveness population (one-off / existence requirements)
 """
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 AttrType = Literal["text", "number", "amount", "date", "datetime", "boolean"]
-FilterType = Literal["equals", "not_equals", "in_list", "not_in_list", "contains", "greater_than", "greater_or_equal", "less_than", "less_or_equal", "not_empty"]
-Comparator = Literal["<=", "<", ">=", ">", "=", "!="]
-TestType = Literal["presence_check", "value_match", "in_list", "numeric_threshold", "date_difference",
-                   "on_or_before", "different_from", "compare_fields", "conditional",
-                   "count_per_period", "max_gap"]
+# ENUM-TOLERANT: free strings; synonyms translated below, anything else kept and flagged by the check
+FILTER_TYPES = ("equals", "not_equals", "in_list", "not_in_list", "contains", "greater_than", "greater_or_equal", "less_than", "less_or_equal", "not_empty")
+COMPARATORS = ("<=", "<", ">=", ">", "=", "!=")
+FilterType = str
+Comparator = str
+TEST_TYPES = ("presence_check", "value_match", "in_list", "numeric_threshold", "date_difference", "on_or_before", "different_from",
+              "compare_fields", "conditional", "count_per_period", "max_gap")
+TestType = str
+_FILTER_SYN = {"different_from": "not_equals", "not_equal": "not_equals", "!=": "not_equals", "<>": "not_equals", "equal": "equals", "==": "equals",
+               "=": "equals", "is": "equals", "in": "in_list", "not_in": "not_in_list", "gt": "greater_than", ">": "greater_than",
+               "gte": "greater_or_equal", ">=": "greater_or_equal", "at_least": "greater_or_equal", "lt": "less_than", "<": "less_than",
+               "lte": "less_or_equal", "<=": "less_or_equal", "at_most": "less_or_equal", "present": "not_empty", "not_null": "not_empty",
+               "is_not_null": "not_empty", "exists": "not_empty", "includes": "contains", "like": "contains"}
+_TEST_SYN = {"equals": "value_match", "value_equals": "value_match", "match": "value_match", "not_equals": "different_from",
+             "not_equal": "different_from", "threshold": "numeric_threshold", "numeric_comparison": "numeric_threshold",
+             "date_diff": "date_difference", "days_between": "date_difference", "timeliness": "date_difference", "before": "on_or_before",
+             "sequence": "on_or_before", "date_order": "on_or_before", "presence": "presence_check", "not_empty": "presence_check",
+             "exists": "presence_check", "completeness": "presence_check", "in": "in_list", "membership": "in_list",
+             "frequency": "count_per_period", "count": "count_per_period", "gap": "max_gap", "comparison": "compare_fields",
+             "field_comparison": "compare_fields", "condition": "conditional", "if_then": "conditional"}
+_COMP_SYN = {"\u2260": "!=", "<>": "!=", "==": "=", "\u2265": ">=", "=>": ">=", "\u2264": "<=", "=<": "<="}
+
+
+def _norm_enum(v, allowed, syn):
+    if not isinstance(v, str):
+        return v
+    k = v.strip(); kl = k.lower().replace(" ", "_").replace("-", "_")
+    if k in allowed: return k
+    if kl in allowed: return kl
+    return syn.get(kl, syn.get(k, k))
 
 
 class AttributeDef(BaseModel):
@@ -43,6 +68,11 @@ class PopulationFilter(BaseModel):
     filter_type: FilterType
     filter_value: Optional[str] = Field(None, description="Single value (number written as text) for equals / not_equals / contains / greater_than / less_than")
     filter_values: Optional[list[str]] = Field(None, description="Values for in_list / not_in_list")
+
+    @field_validator("filter_type", mode="before")
+    @classmethod
+    def _ft(cls, v):
+        return _norm_enum(v, FILTER_TYPES, _FILTER_SYN)
     why: str
 
 
@@ -71,6 +101,16 @@ class TestAttribute(BaseModel):
     condition: Optional[str] = Field(None, description="For 'conditional': 'when <condition> then <requirement>', e.g. 'when days_past_due > 90 then asset_classification = NPA'")
     period: Optional[Literal["monthly", "quarterly", "half_yearly", "annually"]] = Field(None, description="For count_per_period / max_gap")
     exception_identifier_attribute: str = Field(..., description="Attribute that identifies an instance in the exception list, e.g. incident_id")
+
+    @field_validator("test_type", mode="before")
+    @classmethod
+    def _tt(cls, v):
+        return _norm_enum(v, TEST_TYPES, _TEST_SYN)
+
+    @field_validator("comparator", mode="before")
+    @classmethod
+    def _cmp(cls, v):
+        return _norm_enum(v, COMPARATORS, _COMP_SYN)
     pass_criteria: str
     fail_criteria: str
     reason_code: str = Field(..., description="Short code shown for a failure, e.g. NC2_LATE")
