@@ -10,12 +10,14 @@ import re
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
-SPEC_VERSION = 9
+SPEC_VERSION = 10
 NO_FINANCIAL_BASIS = "Financial impact could not be computed as no base data was available within the audited dataset."
 # messages that record an automatic clean-up (shown, but do not by themselves need a decision)
 _FIX_RX = re.compile(r"^(Removed filter on|Removed entity-applicability|Dropped unused attribute|Impact switched to amount|"
                      r"Converted test|Moved test|No amount attribute|Added missing attribute|Corrected type of period date|"
-                     r"Dropped presence test on identifier|Turned formula)|re-coded .* -> |accepted as a year-level period|given its own code")
+                     r"Dropped presence test on identifier|Turned formula|Removed lookup table|Clarified 'not assessable'|"
+                     r"Converted to design-only|Inferred comparator|Frequency rule .* treated as|Added missing attribute)|re-coded .* -> |"
+                     r"accepted as a .*-level period|given its own code")
 
 _WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
           "eleven": 11, "twelve": 12, "fifteen": 15, "eighteen": 18, "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45,
@@ -42,6 +44,15 @@ def _clause_numbers(text):
         out |= {n, n * 12, n / 12, n * 24, n / 24, n * 7, n * 30, n * 365, n / 100, n * 100,
                 n * 1e5, n * 1e7, n * 1e6, n * 1e9}   # lakh, crore, million, billion
     return out
+
+
+_REF_RX = re.compile(r"\(\s*[0-9ivxlc]+\s*\)|(?<![\w.])\d+\.(?=\s)|\b(paragraphs?|paras?|sections?|sub-sections?|rules?|sub-rules?|clauses?|"
+                     r"chapters?|annex(?:ure)?s?|regulations?|circulars?|no\.?)\s*[\dIVXLC]+[A-Z]?(\s*\(\d+\))*|\b(19|20)\d{2}\b", re.I)
+
+
+def _clause_numbers_clean(text):
+    """Like _clause_numbers, but list markers '(7)' / '7.', references 'paragraph 7', 'Rule 9' and years are not numbers."""
+    return _clause_numbers(_REF_RX.sub(" ", text or ""))
 
 
 def _traceable(x, nums):
@@ -72,8 +83,17 @@ _STOP = {"the", "a", "an", "of", "to", "in", "on", "for", "and", "or", "by", "at
 _LABEL_RX = re.compile(r"^\s*(clause|para(graph)?|section|sub-?para(graph)?|article|annex)\s*[\w().\-]*\s*[:\-\u2013\u2014]\s*", re.I)
 
 
+_LEAD_RX = re.compile(r"^\s*(?:(?:paragraph|para|clause|section|annex)\s+[^:\u2013\u2014]{0,30}?(?:\(continued\))?\s*[:\-\u2013\u2014]\s*|(?:\(\w{1,4}\)\s*)+)", re.I)
+_INTERPRET_RX = re.compile(r"interpreted as|reasonable (internal )?(standard|period|timeline)|considered appropriate|is appropriate for|"
+                           r"control description|this control|the control requires|for testing|best practice", re.I)
+_VAGUE_TIME_RX = re.compile(r"\b(immediately|without delay|promptly|forthwith|timely|expeditiously|at the earliest)\b", re.I)
+
+
 def _prep_quote(q):
-    return _LABEL_RX.sub("", str(q or "")).replace("%", " per cent ")
+    q = _LABEL_RX.sub("", str(q or ""))
+    for _ in range(2):
+        q = _LEAD_RX.sub("", q)
+    return q.strip(" '\"\u2018\u2019\u201c\u201d").replace("%", " per cent ")
 
 
 def _quote_in_clause(q, clause_text):
@@ -97,6 +117,22 @@ def _quote_in_clause(q, clause_text):
     return best / len(qw) >= 0.85
 
 
+_TAIL_RX = re.compile(r"\s+(as per|under|in accordance with|in terms of|pursuant to)\b.*$|\s*\(.*$", re.I)
+
+
+def _quote_found(q, clause_text):
+    if _quote_in_clause(q, clause_text):
+        return True
+    parts = [x for x in re.split(r"\s*(?:\.\.\.|\u2026)\s*", _prep_quote(q)) if len(_words(x)) >= 4]
+    if len(parts) > 1 and all(_quote_in_clause(x, clause_text) for x in parts):
+        return True
+    for inner in re.findall(r"[\'\"\u2018\u201c]([^\'\"\u2019\u201d]{25,})[\'\"\u2019\u201d]", str(q or "")):
+        if _quote_in_clause(inner, clause_text):
+            return True
+    cut = _TAIL_RX.sub("", str(q or ""))
+    return len(_words(cut)) >= 6 and cut != q and _quote_in_clause(cut, clause_text)
+
+
 def _quote_sentence(q, clause_text):
     qw = set(_words(q))
     sents = re.split(r"(?<=[.;:])\s+", _norm(clause_text))
@@ -111,9 +147,16 @@ def _check_threshold_quote(t, clause_text, warnings):
     if not q:
         t["unverified"] = True; warnings.append(f"Test '{name}': threshold {t.get('threshold')} has no source quote from the clause - unverified"); return
     nq, nc = _norm(q), _norm(clause_text)
-    if not _quote_in_clause(q, clause_text):
+    if _INTERPRET_RX.search(str(q)):
+        t["unverified"] = True; t["_move"] = "the number is the generator's own interpretation, not the clause's"
+        warnings.append(f"Test '{name}': threshold {t.get('threshold')} is an interpretation, not the clause - unverified"); return
+    if _VAGUE_TIME_RX.search(str(q)) and not _traceable(t.get("threshold"), _clause_numbers_clean(q)):
+        t["unverified"] = True; t["_move"] = "the clause says it must be done '" + _VAGUE_TIME_RX.search(str(q)).group(1).lower() + "' - no fixed number"
+        warnings.append(f"Test '{name}': threshold {t.get('threshold')} turns a non-numeric time limit into a number - unverified"); return
+    if not _quote_found(q, clause_text):
         t["unverified"] = True; warnings.append(f"Test '{name}': quoted words not found in the clause - unverified"); return
-    if not _traceable(t.get("threshold"), _clause_numbers(_quote_sentence(_prep_quote(q), clause_text))):
+    if not (_traceable(t.get("threshold"), _clause_numbers(_quote_sentence(_prep_quote(q), clause_text)))
+            or _traceable(t.get("threshold"), _clause_numbers(q))):
         t["unverified"] = True; warnings.append(f"Test '{name}': the clause sentence quoted does not contain the threshold {t.get('threshold')} - unverified"); return
     sent = _quote_sentence(_prep_quote(q), clause_text)
     test_txt = " ".join(str(t.get(k) or "") for k in ("attribute_name", "test_attribute", "second_attribute", "reason_code", "pass_criteria", "fail_criteria")).lower()
@@ -191,7 +234,10 @@ def _clean_population(p, warnings):
                     continue
                 for seg in segments:   # "present but unreadable" is the allowed case; "missing / blank / absent" contradicts
                     if n in seg and re.search(r"\b(missing|blank|absent|empty|not provided|null)\b", seg, re.I) and not re.search(r"present but", seg, re.I):
-                        warnings.append(f"'Not assessable' treats a missing '{n}' as not assessable, but the presence test treats it as non-compliance (not done) - contradiction")
+                        cd = p.setdefault("compliance_definition", {})
+                        cd["not_assessable"] = (str(cd.get("not_assessable") or "").rstrip() +
+                            f" Exception: a missing {n} is NOT 'not assessable' - it is non-compliance ({t.get('reason_code')}, not done).")
+                        warnings.append(f"Clarified 'not assessable': a missing '{n}' is non-compliance ({t.get('reason_code')})")
                         break
     # 5. attributes no filter / test / derived value / impact / analysis / reconciliation uses are dropped
     used = set(key)
@@ -279,9 +325,53 @@ def validate_spec(spec: dict, clause_text: str):
                 t.update({"test_type": "on_or_before", "test_attribute": first, "second_attribute": second,
                           "threshold": None, "threshold_unit": None, "comparator": None, "threshold_source_quote": None})
                 warnings.append(f"Converted test '{t.get('attribute_name')}' to a sequence check: {first} on or before {second} (no number needed)")
+        # 2b-. ">= 0" is only "a value exists": a presence check; "> 0" / ">= 1" are technical and need no clause number
+        for t in p.get("test_attributes") or []:
+            if t.get("test_type") == "numeric_threshold" and t.get("threshold") is not None:
+                thr = float(t.get("threshold") or 0)
+                if thr == 0.0 and t.get("comparator") in (">=", None):
+                    t.update({"test_type": "presence_check", "threshold": None, "threshold_unit": None, "comparator": None,
+                              "threshold_source_quote": None})
+                    warnings.append(f"Converted test '{t.get('attribute_name')}' (>= 0) to a presence check")
+                elif (thr == 0.0 and t.get("comparator") in (">", "!=")) or (thr == 1.0 and t.get("comparator") == ">="):
+                    t["_technical"] = True
+            if t.get("test_type") == "compare_fields" and not t.get("comparator"):
+                crit = str(t.get("pass_criteria") or "").lower()
+                cmp_ = ("<=" if re.search(r"not exceed|no more than|at most|within|less than or equal|does not exceed", crit) else
+                        ">=" if re.search(r"at least|not less than|greater than or equal|no less than", crit) else
+                        "<" if re.search(r"less than|lower than|below", crit) else
+                        ">" if re.search(r"greater than|more than|exceed|above", crit) else
+                        "=" if re.search(r"equal|same|consistent|match|identical|no change|unchanged|agree", crit) else None)
+                if cmp_:
+                    t["comparator"] = cmp_
+                    warnings.append(f"Inferred comparator '{cmp_}' for test '{t.get('attribute_name')}' from its pass criteria")
+            for k in ("test_attribute", "second_attribute"):
+                fa = t.get(k)
+                if fa and fa not in names and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(fa)):
+                    p.setdefault("attributes", []).append({"name": fa, "column_description": fa.replace("_", " "),
+                        "type": "date" if re.search(r"date|time", fa, re.I) else
+                                "amount" if re.search(r"amount|balance|outstanding|principal|exposure|value_inr|_inr$", fa, re.I) else
+                                "number" if re.search(r"_days$|_count$|_percent|_ratio|_rate$|_score$|_number$", fa, re.I) else "text",
+                        "key": True})
+                    attrs[fa] = p["attributes"][-1]; names.add(fa)
+                    warnings.append(f"Added missing attribute '{fa}' used by test '{t.get('attribute_name')}'")
+        if p.get("lookup_tables"):
+            vals = re.findall(r"\d+(?:\.\d+)?", p["lookup_tables"])
+            bad = [v for v in vals if not any(_traceable(float(v) + d, nums) for d in (0, -1, 1))]
+            if bad and len(bad) >= max(1, len(vals) // 3):
+                drop_d = {d.get("name") for d in p.get("derived_values") or [] if "lookup" in str(d.get("formula", "")).lower()}
+                p["derived_values"] = [d for d in p.get("derived_values") or [] if d.get("name") not in drop_d]
+                p["lookup_tables"] = None
+                for t in p.get("test_attributes") or []:
+                    if t.get("test_attribute") in drop_d or t.get("second_attribute") in drop_d:
+                        t["_move"] = "the rate / threshold table it relies on is not stated in the clause"
+                warnings.append(f"Removed lookup table not in the clause ({len(bad)} of {len(vals)} values not found)")
+        clean_nums = _clause_numbers_clean(clause_text)
         # 2. thresholds and filter values traceable to the clause
         for t in p.get("test_attributes") or []:
-            if t.get("threshold") is not None and not _traceable(t["threshold"], nums):
+            if t.pop("_technical", False):
+                continue
+            if t.get("threshold") is not None and not _traceable(t["threshold"], clean_nums):
                 t["unverified"] = True; t["_move"] = "the clause states no such number"
                 warnings.append(f"Test '{t.get('attribute_name')}': threshold {t['threshold']} {t.get('threshold_unit') or ''} not found in the clause - unverified")
             elif t.get("threshold") is not None and t.get("test_type") in ("numeric_threshold", "date_difference"):
@@ -305,15 +395,19 @@ def validate_spec(spec: dict, clause_text: str):
                                                        "key": False})
                 attrs[fa] = p["attributes"][-1]; names.add(fa)
                 warnings.append(f"Added missing attribute '{fa}' used by a filter")
-        if p.get("lookup_tables"):
-            for n in re.findall(r"\d+(?:\.\d+)?", p["lookup_tables"]):
-                if not _traceable(n, nums):
-                    warnings.append(f"Lookup table value {n} not found in the clause")
         # 3. period date
         pd_attr = (p.get("period_date") or {}).get("attribute")
         datey = bool(re.search(r"date|time|_on$|_at$", str(pd_attr or ""), re.I))
         yearly = bool(re.search(r"^(year|fy|financial_year|fiscal_year|reporting_year)$", str(pd_attr or ""), re.I))
-        if yearly:
+        gran = "year" if yearly else ("quarter" if re.search(r"quarter", str(pd_attr or ""), re.I) else
+                                      "month" if re.search(r"month", str(pd_attr or ""), re.I) else None)
+        if gran and not datey and (pd_attr not in attrs or attrs[pd_attr].get("type") not in ("date", "datetime")):
+            if pd_attr not in attrs:
+                p.setdefault("attributes", []).append({"name": pd_attr, "column_description": pd_attr.replace("_", " "), "type": "text", "key": True})
+                attrs[pd_attr] = p["attributes"][-1]; names.add(pd_attr)
+            p["period_date"]["granularity"] = gran
+            warnings.append(f"Period date '{pd_attr}' accepted as a {gran}-level period")
+        elif yearly:
             if pd_attr not in attrs:
                 p.setdefault("attributes", []).append({"name": pd_attr, "column_description": pd_attr.replace("_", " "), "type": "number", "key": True})
                 attrs[pd_attr] = p["attributes"][-1]; names.add(pd_attr)
@@ -375,7 +469,14 @@ def validate_spec(spec: dict, clause_text: str):
             cd["non_compliant"] = [n for n in cd.get("non_compliant") or [] if n.get("reason_code") not in gone]
             p["test_attributes"] = keep
         if not p.get("test_attributes"):
-            warnings.append("No test attributes")
+            checks = list(p.get("judgement_items") or []) + [
+                "Operating effectiveness: the clause states no per-instance rule that can be tested on data - assess by auditor judgement"]
+            spec["design_only"] = {"documents_required": [p.get("data_request") or p.get("dataset_name") or "Records of the control's operation"],
+                                   "checks": checks}
+            spec["test_mode"] = "design_only"
+            spec["population_data"] = None
+            warnings.append("Converted to design-only: no per-instance test left after removing invented thresholds")
+            return spec, warnings
         from app.services.prompt_templates.test_spec import FILTER_TYPES, TEST_TYPES, COMPARATORS
         for f in p.get("population_filters") or []:
             if f.get("filter_type") not in FILTER_TYPES:
@@ -392,7 +493,16 @@ def validate_spec(spec: dict, clause_text: str):
         d = spec.get("document_review") or {}
         for r in d.get("rules") or []:
             if r.get("rule_type") == "frequency" and (not r.get("period") or not r.get("min_count_per_period")):
-                warnings.append(f"Frequency rule '{r.get('requirement', '')[:60]}' has no period / count per period")
+                req = str(r.get("requirement") or "").lower()
+                per = ("monthly" if re.search(r"month", req) else "quarterly" if re.search(r"quarter", req) else
+                       "half_yearly" if re.search(r"half|six month", req) else "annually" if re.search(r"annual|year", req) else None)
+                if per:
+                    r["period"] = r.get("period") or per; r["min_count_per_period"] = r.get("min_count_per_period") or 1
+                    warnings.append(f"Frequency rule '{req[:50]}' treated as at least 1 per {per} (from its wording)")
+                else:
+                    r["rule_type"] = "other"; r["source"] = "tor_or_charter"
+                    r["requirement"] = str(r.get("requirement") or "") + " (no fixed period in the clause - verify against the NBFC's own policy / each event)"
+                    warnings.append(f"Frequency rule '{req[:50]}' treated as policy- or event-based (no fixed period in the clause)")
         if not d.get("rules"):
             warnings.append("No rules")
     elif mode != "design_only":
@@ -509,5 +619,7 @@ def recheck_test_spec(control_id: int) -> dict:
                        "generated_at": old.get("generated_at"), "rechecked_at": datetime.utcnow().isoformat(timespec="seconds"),
                        "version": SPEC_VERSION}
     c.test_spec = spec
+    if spec.get("test_mode") and getattr(c, "test_mode", None) != spec["test_mode"]:
+        c.test_mode = spec["test_mode"]
     db.session.commit()
     return {"control_id": control_id, "mode": spec.get("test_mode"), "status": spec["_review"]["status"], "warnings": warnings}
