@@ -3456,6 +3456,14 @@ def consolidate_evidence_for_pipeline(self, guideline_id: int):
             final_consolidated_evidence = _reconstruct_consolidated_groups(all_evidence_items, ai_groups)
             _meta_n = attach_group_meta(final_consolidated_evidence, all_evidence_items, ai_groups)
             logger.info(f"[Phase5] D4: {len(final_consolidated_evidence)} groups | S8 metadata attached to {_meta_n}")
+            # PUBLISH-REQ: no bank evidence item may be lost by consolidation
+            try:
+                from app.services.publish_requirements import recover_missing_items
+                _recovered = recover_missing_items(guideline_id, final_consolidated_evidence)
+                if _recovered:
+                    logger.warning(f"[Phase5] {_recovered} bank evidence item(s) were missing from the groups and were added back")
+            except Exception as _rec_err:
+                logger.warning(f"[Phase5] missing-item check failed (consolidation continues): {_rec_err}")
 
             update_evidence_progress(task_id, "PROCESSING", 90, "Saving consolidated evidence...", guideline_id)
             final_output = {
@@ -3477,6 +3485,15 @@ def consolidate_evidence_for_pipeline(self, guideline_id: int):
             )
             db.session.add(evidence_record)
         db.session.commit()
+
+        # PUBLISH-REQ: publish the list as EVE's evidence requirements (skipped if a project already uses them)
+        try:
+            from app.services.publish_requirements import publish_requirements
+            _pub = publish_requirements(guideline_id, final_output)
+            logger.info(f"[Phase5] requirements for EVE: {_pub}")
+        except Exception as _pub_err:
+            db.session.rollback()
+            logger.warning(f"[Phase5] publishing requirements for EVE failed (consolidation is saved): {_pub_err}")
 
         update_evidence_progress(task_id, "COMPLETED", 100, f"Evidence consolidation complete: {len(final_consolidated_evidence)} groups", guideline_id)
         logger.info(f"[Phase5] Completed for guideline_id={guideline_id}: {len(final_consolidated_evidence)} groups")
@@ -5130,3 +5147,11 @@ def _generate_test_procedure_for_activity(comp_id, clause_text, activity_data):
     except Exception as e:  # never break the pipeline; the runner can fill gaps later
         logger.warning(f"[TEST-SPEC] comp_id={comp_id}: specification not generated: {e}")
     return result
+
+
+@shared_task(bind=True, max_retries=0)
+def gap_sweep_project(self, project_id):
+    """Oct 2026: second-pass mapping for requirements with no linked file.
+    Adds 'suggested' links only (auditor confirms). One run per project at a time."""
+    from app.services.evidence_gap_sweep import run_gap_sweep
+    return run_gap_sweep(project_id)
