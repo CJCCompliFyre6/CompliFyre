@@ -371,6 +371,8 @@ def validate_spec(spec: dict, clause_text: str):
         for t in p.get("test_attributes") or []:
             if t.pop("_technical", False):
                 continue
+            if t.get("reviewer_verified"):   # v10.1: confirmed by a reviewer against the clause
+                continue
             if t.get("threshold") is not None and not _traceable(t["threshold"], clean_nums):
                 t["unverified"] = True; t["_move"] = "the clause states no such number"
                 warnings.append(f"Test '{t.get('attribute_name')}': threshold {t['threshold']} {t.get('threshold_unit') or ''} not found in the clause - unverified")
